@@ -295,6 +295,16 @@ pub fn generate_ui_data_fixtures(output_dir: &Path) {
         crate::server::credentials::r#impl::types::ssh_script::ssh_script_fields();
     write_fixture(&ssh_script_fields, output_dir, "ssh-script-fields.json");
 
+    // Server flags, environment variables, defaults and descriptions, read from the server's own
+    // CLI and config. Rendered by the website's server configuration reference.
+    let server_config_fields = crate::server::config::ServerConfig::docs_fields();
+    write_fixture(&server_config_fields, output_dir, "server-config.json");
+
+    // SNMP versions, v3 protocols, ports, limits and every MIB object the daemon requests, from
+    // the daemon's own constants. Rendered by the website's SNMP reference.
+    let snmp_reference = crate::daemon::discovery::integration::snmp::catalog::snmp_reference();
+    write_fixture(&snmp_reference, output_dir, "snmp.json");
+
     // The OS a credential's files and scripts are for: picker labels and file-path placeholders.
     let os_families: Vec<_> = crate::server::credentials::r#impl::types::OsFamily::iter()
         .map(|os| os.metadata())
@@ -367,7 +377,7 @@ pub fn generate_ui_data_fixtures(output_dir: &Path) {
     println!("Done! Generated all metadata fixtures.");
 }
 
-fn write_fixture<T: serde::Serialize>(items: &[T], output_dir: &Path, filename: &str) {
+fn write_fixture<T: serde::Serialize + ?Sized>(items: &T, output_dir: &Path, filename: &str) {
     let json = serde_json::to_string_pretty(items).expect("Failed to serialize");
     let path = output_dir.join(filename);
     fs::write(&path, json).unwrap_or_else(|_| panic!("Failed to write {filename}"));

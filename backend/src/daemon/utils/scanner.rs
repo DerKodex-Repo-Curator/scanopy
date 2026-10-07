@@ -712,7 +712,12 @@ pub async fn try_snmp_with_credential_on_port(
     credential: &SnmpQueryCredential,
     port: u16,
 ) -> SnmpProbeOutcome {
-    let sys_descr_oid = match Oid::from(&[1, 3, 6, 1, 2, 1, 1, 1, 0]) {
+    let sys_descr_oid = match Oid::from(
+        crate::daemon::discovery::integration::snmp::oids::oid_parts(
+            crate::daemon::discovery::integration::snmp::oids::system::SYS_DESCR,
+        )
+        .as_slice(),
+    ) {
         Ok(oid) => oid,
         Err(e) => {
             return SnmpProbeOutcome::Failed(

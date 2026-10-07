@@ -15,7 +15,7 @@ use axum::extract::State;
 use axum::http::header::CACHE_CONTROL;
 use axum::response::IntoResponse;
 use chrono::{DateTime, Utc};
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use email_address::EmailAddress;
 use figment::{
     Figment,
@@ -31,94 +31,139 @@ use crate::server::shared::env_file::apply_file_env_vars;
 use crate::server::shared::storage::factory::StorageFactory;
 use sqlx::PgPool;
 
+/// Prefix figment reads `ServerConfig` fields from: `SCANOPY_SERVER_PORT` sets `server_port`.
+const ENV_PREFIX: &str = "SCANOPY_";
+
+/// One row of the server configuration docs table. See [`ServerConfig::docs_fields`].
+#[derive(Debug, Clone, Serialize)]
+pub struct ServerConfigField {
+    pub id: String,
+    pub cli_flag: Option<String>,
+    pub env_var: String,
+    pub default: Option<String>,
+    pub description: String,
+}
+
+// Every user-settable `ServerConfig` field has a flag here, and the doc comment on each flag is the
+// description the docs render (`ServerConfig::docs_fields`). Cloud-only flags are hidden, which also
+// keeps them out of the docs. (A `///` comment here would become clap's long_about.)
 #[derive(Parser)]
 #[command(name = "scanopy-server")]
 #[command(about = "Scanopy server")]
 pub struct ServerCli {
-    /// Override server port
+    /// Port the server listens on.
     #[arg(long)]
     server_port: Option<u16>,
 
-    /// Override log level
+    /// Logging verbosity: trace, debug, info, warn or error.
     #[arg(long)]
     log_level: Option<String>,
 
-    /// Override rust system log level
+    /// Log filter for dependencies, in RUST_LOG syntax. Empty uses the log level for everything.
     #[arg(long)]
     rust_log: Option<String>,
 
-    /// Override database path
+    /// PostgreSQL connection string.
     #[arg(long)]
     database_url: Option<String>,
 
-    /// Override integrated daemon url
+    /// URL the server uses to reach the integrated daemon. The published Docker Compose file sets
+    /// it to http://host.docker.internal:60073.
     #[arg(long)]
     integrated_daemon_url: Option<String>,
 
-    /// Use secure session cookies (if serving UI behind HTTPS)
+    /// Mark session cookies Secure, so browsers send them over HTTPS only. Set it when the UI is
+    /// served over HTTPS.
     #[arg(long)]
     use_secure_session_cookies: Option<bool>,
 
-    /// Enable or disable registration flow
+    /// Turn off sign-up for new users.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     disable_registration: Option<bool>,
 
-    /// Disable email/password login (use when OIDC is configured)
+    /// Turn off email and password login, leaving OIDC as the only way to sign in.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     disable_password_login: Option<bool>,
 
     /// Stripe publishable key (exposed to the frontend for Stripe Elements)
-    #[arg(long)]
+    #[arg(long, hide = true)]
     stripe_key: Option<String>,
 
     /// Stripe secret key
-    #[arg(long)]
+    #[arg(long, hide = true)]
     stripe_secret: Option<String>,
 
     /// Stripe webhook signing secret
-    #[arg(long)]
+    #[arg(long, hide = true)]
     stripe_webhook_secret: Option<String>,
 
+    /// Username for the SMTP relay.
     #[arg(long)]
     smtp_username: Option<String>,
 
+    /// Password for the SMTP relay.
     #[arg(long)]
     smtp_password: Option<String>,
 
-    /// Email used as to/from in emails send by Scanopy using SMTP
+    /// Sender address for email Scanopy sends over SMTP.
     #[arg(long)]
     smtp_email: Option<String>,
 
+    /// SMTP relay host, for example smtp.gmail.com.
     #[arg(long)]
     smtp_relay: Option<String>,
 
+    /// SMTP relay port. 465 uses implicit TLS; any other port uses STARTTLS.
     #[arg(long)]
     smtp_port: Option<u16>,
 
-    /// Server URL used in features like password reset and invite links
+    /// URL users reach the server at. Used in password reset links, invite links and webhooks.
     #[arg(long)]
     public_url: Option<String>,
 
-    /// Configure what proxy (if any) is providing IP address for requests, ie in a reverse proxy setup, for accurate IP in auth event logging
+    /// Where the server reads the client IP from when it sits behind a reverse proxy, for
+    /// accurate IPs in auth event logs. Unset uses the connecting address.
     #[arg(long)]
     pub client_ip_source: Option<String>,
 
-    /// List of OIDC providers
+    /// OIDC providers users can sign in with.
     #[arg(long)]
     pub oidc_providers: Option<String>,
 
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub posthog_key: Option<String>,
 
+    /// Bearer token the Prometheus metrics endpoint requires.
     #[arg(long)]
     pub metrics_token: Option<String>,
 
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub brevo_api_key: Option<String>,
 
-    /// PEM file of CA certificates to trust for outbound TLS, in addition to the bundled roots
+    /// PEM file of extra CA certificates to trust for outbound TLS, in addition to the bundled
+    /// roots.
     #[arg(long)]
     pub trusted_ca_bundle: Option<PathBuf>,
+
+    /// Serve the web UI from this directory instead of the copy compiled into the binary. The
+    /// Docker image sets it to /app/static. If the directory has no readable index.html, the
+    /// server logs a warning and serves the compiled-in UI.
+    #[arg(long)]
+    pub web_external_path: Option<PathBuf>,
+
+    /// License key for the commercial edition. Omit it for the community edition.
+    #[arg(long)]
+    pub license_key: Option<String>,
+
+    /// Email address shown to users who can't create an organization because the server has
+    /// reached its organization limit.
+    #[arg(long)]
+    pub server_admin_contact_email: Option<String>,
+
+    /// Days to keep topology snapshots before pruning them. Unset uses the plan's retention
+    /// window.
+    #[arg(long)]
+    pub snapshot_retention_days_override: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,8 +183,8 @@ pub struct ServerConfig {
     pub smtp_password: Option<String>,
     pub smtp_relay: Option<String>,
     pub smtp_email: Option<String>,
-    /// SMTP port. Defaults to 465 (implicit TLS) when unset. Ports other than
-    /// 465 use STARTTLS (e.g. 587, 25).
+    /// SMTP port, 465 (implicit TLS) by default. Ports other than 465 use
+    /// STARTTLS (e.g. 587, 25).
     pub smtp_port: Option<u16>,
     /// Directory the logging email transport writes rendered emails to
     /// (`SCANOPY_EMAIL_LOG_DIR`). Setting it selects that transport ahead of
@@ -336,7 +381,7 @@ impl Default for ServerConfig {
             smtp_password: None,
             smtp_email: None,
             smtp_relay: None,
-            smtp_port: None,
+            smtp_port: Some(465),
             email_log_dir: None,
             client_ip_source: None,
             oidc_providers: None,
@@ -362,7 +407,7 @@ impl ServerConfig {
         // Standard configuration layering: Defaults → Env → CLI (highest priority)
         let mut figment = Figment::from(Serialized::defaults(ServerConfig::default()))
             .merge(Toml::file("../oidc.toml"))
-            .merge(Env::prefixed("SCANOPY_"));
+            .merge(Env::prefixed(ENV_PREFIX));
 
         // Add CLI overrides (highest priority) - only if explicitly provided
         if let Some(server_port) = cli_args.server_port {
@@ -434,6 +479,21 @@ impl ServerConfig {
         if let Some(trusted_ca_bundle) = cli_args.trusted_ca_bundle {
             figment = figment.merge(("trusted_ca_bundle", trusted_ca_bundle));
         }
+        if let Some(web_external_path) = cli_args.web_external_path {
+            figment = figment.merge(("web_external_path", web_external_path));
+        }
+        if let Some(license_key) = cli_args.license_key {
+            figment = figment.merge(("license_key", license_key));
+        }
+        if let Some(server_admin_contact_email) = cli_args.server_admin_contact_email {
+            figment = figment.merge(("server_admin_contact_email", server_admin_contact_email));
+        }
+        if let Some(snapshot_retention_days_override) = cli_args.snapshot_retention_days_override {
+            figment = figment.merge((
+                "snapshot_retention_days_override",
+                snapshot_retention_days_override,
+            ));
+        }
 
         let mut config: ServerConfig = figment
             .extract()
@@ -444,6 +504,42 @@ impl ServerConfig {
         config.external_service_allowed_ips = Self::load_external_service_allowed_ips();
 
         Ok(config)
+    }
+
+    /// Every user-settable parameter, for the server configuration docs (`server-config.json`).
+    ///
+    /// Read from the code the server itself runs: the flag and description from clap, the
+    /// environment variable from the `SCANOPY_` prefix `load` hands figment, and the default from
+    /// `ServerConfig::default()`. Hidden (cloud-only) flags are left out.
+    pub fn docs_fields() -> Vec<ServerConfigField> {
+        let defaults =
+            serde_json::to_value(ServerConfig::default()).expect("ServerConfig serializes to JSON");
+
+        ServerCli::command()
+            .get_arguments()
+            .filter(|arg| !arg.is_hide_set())
+            .filter(|arg| !matches!(arg.get_id().as_str(), "help" | "version"))
+            .map(|arg| {
+                let id = arg.get_id().to_string();
+                let default = match defaults.get(&id) {
+                    None | Some(serde_json::Value::Null) => None,
+                    Some(serde_json::Value::String(s)) if s.is_empty() => None,
+                    Some(serde_json::Value::String(s)) => Some(s.clone()),
+                    Some(other) => Some(other.to_string()),
+                };
+                ServerConfigField {
+                    cli_flag: arg.get_long().map(|long| format!("--{long}")),
+                    env_var: format!("{ENV_PREFIX}{}", id.to_uppercase()),
+                    description: arg
+                        .get_long_help()
+                        .or(arg.get_help())
+                        .map(|help| help.to_string())
+                        .unwrap_or_default(),
+                    default,
+                    id,
+                }
+            })
+            .collect()
     }
 
     /// Load external service IP restrictions from environment variables.
@@ -667,4 +763,83 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
             license_key_grace_days: crate::server::license::mint::GRACE_PERIOD_DAYS as u32,
         })),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    /// `ServerConfig` fields with no CLI flag, and so no row in the docs. Anything a self-hosted
+    /// user sets belongs in `ServerCli` instead.
+    const ENV_ONLY_INTERNAL: &[&str] = &[
+        // Testing only: writes rendered emails, tokens included, to disk.
+        "email_log_dir",
+        // Testing only.
+        "enforce_billing_for_testing",
+        // Cloud only.
+        "license_signing_key",
+        // Points license check-ins at a local server for testing.
+        "license_server_url",
+        // A family of `SCANOPY_EXTERNAL_SERVICE_<NAME>_ALLOWED_IPS` variables, not one field.
+        "external_service_allowed_ips",
+    ];
+
+    fn config_fields() -> HashSet<String> {
+        let serde_json::Value::Object(fields) =
+            serde_json::to_value(ServerConfig::default()).unwrap()
+        else {
+            panic!("ServerConfig serializes to an object");
+        };
+        fields.keys().cloned().collect()
+    }
+
+    fn cli_args() -> HashSet<String> {
+        ServerCli::command()
+            .get_arguments()
+            .map(|arg| arg.get_id().to_string())
+            .filter(|id| id != "help" && id != "version")
+            .collect()
+    }
+
+    #[test]
+    fn every_config_field_has_a_flag_or_is_internal() {
+        let args = cli_args();
+        let missing: Vec<_> = config_fields()
+            .into_iter()
+            .filter(|f| !args.contains(f) && !ENV_ONLY_INTERNAL.contains(&f.as_str()))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "ServerConfig fields with no ServerCli flag (add one, or list the field in \
+             ENV_ONLY_INTERNAL if no self-hosted user sets it): {missing:?}"
+        );
+    }
+
+    #[test]
+    fn every_flag_sets_a_config_field() {
+        let fields = config_fields();
+        let orphans: Vec<_> = cli_args()
+            .into_iter()
+            .filter(|a| !fields.contains(a))
+            .collect();
+        assert!(
+            orphans.is_empty(),
+            "ServerCli flags that name no ServerConfig field: {orphans:?}"
+        );
+    }
+
+    #[test]
+    fn every_documented_field_has_a_description() {
+        let undocumented: Vec<_> = ServerConfig::docs_fields()
+            .into_iter()
+            .filter(|f| f.description.trim().is_empty())
+            .map(|f| f.id)
+            .collect();
+        assert!(
+            undocumented.is_empty(),
+            "ServerCli flags with no doc comment, which the docs render as the description: \
+             {undocumented:?}"
+        );
+    }
 }

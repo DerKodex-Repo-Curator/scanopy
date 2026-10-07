@@ -1,11 +1,12 @@
 //! SNMP discovery integration.
 //!
-//! Probe: credentialed SNMP check on UDP ports 161/1161.
+//! Probe: credentialed SNMP check on the UDP ports in [`SNMP_PORTS`].
 //! Execute: walks ifTable, queries LLDP/CDP/ARP/Entity-MIB/Bridge-FDB,
 //!          enriches HostData with system info, ip_addresses, and interfaces.
 //!
 //! Also contains low-level SNMP utilities (queries, session management, OIDs, types).
 
+pub mod catalog;
 pub mod oids;
 pub mod queries;
 pub mod session;
@@ -134,6 +135,9 @@ fn probe_specificity(outcome: AttemptOutcome) -> u8 {
     }
 }
 
+/// UDP ports the probe tries, in order. The first that answers is the one the scan uses.
+pub const SNMP_PORTS: [u16; 2] = [161, 1161];
+
 pub struct SnmpIntegration;
 
 #[async_trait]
@@ -167,7 +171,7 @@ impl DiscoveryIntegration for SnmpIntegration {
             _ => return Err(ProbeFailure::malformed("Expected SNMP credential")),
         };
 
-        let snmp_ports: &[u16] = &[161, 1161];
+        let snmp_ports: &[u16] = &SNMP_PORTS;
 
         // The most specific answer any port gave. A device listening on 161 and silent on 1161
         // should be reported as whatever 161 said, not as the silence from 1161 — so a refusal
