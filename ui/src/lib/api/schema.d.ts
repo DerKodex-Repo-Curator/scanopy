@@ -395,28 +395,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/billing/inquiry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Submit enterprise plan inquiry
-         * @description Updates Brevo contact/company with inquiry data, creates a deal, and
-         *     tracks an event for automation triggers. Requires authentication to
-         *     link the inquiry to an organization.
-         */
-        post: operations["submit_enterprise_inquiry"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/billing/invoice-billing": {
         parameters: {
             query?: never;
@@ -803,6 +781,58 @@ export interface paths {
          *     rolling deploy keep reporting (and don't 404).
          */
         post: operations["update_capabilities"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/email/feedback/sns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive SES feedback from Amazon SNS
+         * @description The HTTPS subscription endpoint for the SNS topic named by
+         *     `SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN`. Confirms the subscription, and
+         *     applies SES bounce and complaint notifications. Answers 404 when no topic
+         *     is configured.
+         */
+        post: operations["receive_sns_feedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/email/unsubscribe/{token}/{category}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open an unsubscribe link in a browser
+         * @description A mail client that does not support one-click opens the `List-Unsubscribe`
+         *     URL with a GET. That changes nothing: it redirects to Settings → Email,
+         *     where the user chooses what to turn off.
+         */
+        get: operations["open_unsubscribe_link"];
+        put?: never;
+        /**
+         * One-click unsubscribe
+         * @description Turns off one pausable email category for the user the token belongs to.
+         *     Mail clients POST here from the `List-Unsubscribe` header. Answers 200
+         *     whether or not the token matched, so the endpoint does not reveal which
+         *     tokens exist. The request body is ignored.
+         */
+        post: operations["unsubscribe"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3554,19 +3584,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-07T12:26:33.856870Z",
+             *       "created_at": "2026-10-09T22:16:33.374654Z",
              *       "first_discovery_id": null,
-             *       "id": "346613b5-a052-4f31-a282-b3c42861d975",
+             *       "id": "8e907835-518d-4b48-8657-17a5f63535f2",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-07T12:26:33.856870Z",
+             *       "last_seen_at": "2026-10-09T22:16:33.374654Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-07T12:26:33.856870Z",
-             *       "valid_from": "2026-10-07T12:26:33.856870Z",
+             *       "updated_at": "2026-10-09T22:16:33.374654Z",
+             *       "valid_from": "2026-10-09T22:16:33.374654Z",
              *       "valid_to": null
              *     }
              */
@@ -4419,19 +4449,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-07T12:26:33.828095Z",
+             *               "created_at": "2026-10-09T22:16:33.344650Z",
              *               "first_discovery_id": null,
-             *               "id": "42bf65c5-c467-41dd-bb63-1e688ec991af",
+             *               "id": "02b93bb3-18d3-4e52-91be-248fdaa16790",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-07T12:26:33.828095Z",
+             *               "last_seen_at": "2026-10-09T22:16:33.344650Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-07T12:26:33.828095Z",
-             *               "valid_from": "2026-10-07T12:26:33.828095Z",
+             *               "updated_at": "2026-10-09T22:16:33.344650Z",
+             *               "valid_from": "2026-10-09T22:16:33.344650Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4444,7 +4474,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Wazuh",
+             *           "service_definition": "Plex Media Server",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5168,8 +5198,6 @@ export interface components {
                  *     doesn't see an option the deployment can't fulfil.
                  */
                 discount_save_offer_available: boolean;
-                /** @description Whether the deployment asks users to opt in to product email. */
-                has_email_opt_in: boolean;
                 /** @description Whether outbound email is configured. Invites and password resets need it. */
                 has_email_service: boolean;
                 /** @description Whether a daemon runs alongside the server, so no separate install is needed to start scanning. */
@@ -5350,19 +5378,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-07T12:26:33.852222Z",
+             *           "created_at": "2026-10-09T22:16:33.369992Z",
              *           "first_discovery_id": null,
-             *           "id": "f913c044-08ca-4aee-9f8b-81bc460c7386",
+             *           "id": "1b29f30b-4b9a-4895-be37-962cf56cbc6d",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-07T12:26:33.852222Z",
+             *           "last_seen_at": "2026-10-09T22:16:33.369992Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-07T12:26:33.852222Z",
-             *           "valid_from": "2026-10-07T12:26:33.852222Z",
+             *           "updated_at": "2026-10-09T22:16:33.369992Z",
+             *           "valid_from": "2026-10-09T22:16:33.369992Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5375,7 +5403,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Wazuh",
+             *       "service_definition": "Plex Media Server",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6569,19 +6597,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-07T12:26:33.828768Z",
+         *       "created_at": "2026-10-09T22:16:33.345420Z",
          *       "first_discovery_id": null,
-         *       "id": "283611da-7949-4397-8d64-37ba845ad394",
+         *       "id": "d62c08ad-0e04-4d16-8aaf-f7846422c863",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-07T12:26:33.828768Z",
+         *       "last_seen_at": "2026-10-09T22:16:33.345420Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-07T12:26:33.828768Z",
-         *       "valid_from": "2026-10-07T12:26:33.828768Z",
+         *       "updated_at": "2026-10-09T22:16:33.345420Z",
+         *       "valid_from": "2026-10-09T22:16:33.345420Z",
          *       "valid_to": null
          *     }
          */
@@ -6928,7 +6956,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Wazuh",
+         *           "service_definition": "Plex Media Server",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -8943,8 +8971,9 @@ export interface components {
             os: components["schemas"]["DaemonOs"];
         };
         /**
-         * @description Per-user toggles for the user-pausable email categories. Each field maps
-         *     1:1 to a [`PausableCategory`]; required emails are never gated here.
+         * @description Per-user toggles for the pausable email categories. Each field is named
+         *     after one [`EmailCategory`] whose `pausable()` is true; required
+         *     categories are never gated here.
          *
          *     Stored as a JSONB blob, so new categories are added as new fields rather
          *     than via migration. New fields carry `#[serde(default = "default_true")]`
@@ -8960,33 +8989,6 @@ export interface components {
             product_onboarding?: boolean;
             /** @description Send trial reminders and plan-usage warnings. */
             trial_and_usage?: boolean;
-        };
-        /** @description Enterprise plan inquiry request */
-        EnterpriseInquiryRequest: {
-            /** @description Company name */
-            company: string;
-            /**
-             * Format: email
-             * @description Contact email
-             */
-            email: string;
-            /** @description Message/use case description */
-            message: string;
-            /** @description Contact name */
-            name: string;
-            /**
-             * @description Plan the enquiry is about — the `type` tag of a `BillingPlan`
-             *     (e.g. `Team`, `Business`, `Enterprise`).
-             */
-            plan_type?: string | null;
-            /**
-             * Format: int64
-             * @description Number of sites
-             */
-            site_count?: number | null;
-            /** @description Team/company size */
-            team_size: components["schemas"]["TeamSize"];
-            urgency?: null | components["schemas"]["InquiryTimeline"];
         };
         /** @description Body the instance POSTs to [`ENTITLEMENT_PATH`]. */
         EntitlementRequest: {
@@ -9647,19 +9649,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-07T12:26:33.827351Z",
+         *               "created_at": "2026-10-09T22:16:33.343804Z",
          *               "first_discovery_id": null,
-         *               "id": "95d31a08-ece3-4d8e-bdfa-6d438c13cf17",
+         *               "id": "b9df4239-6490-4ebd-aa2e-73d22e460568",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-07T12:26:33.827351Z",
+         *               "last_seen_at": "2026-10-09T22:16:33.343804Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-07T12:26:33.827351Z",
-         *               "valid_from": "2026-10-07T12:26:33.827351Z",
+         *               "updated_at": "2026-10-09T22:16:33.343804Z",
+         *               "valid_from": "2026-10-09T22:16:33.343804Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -9672,7 +9674,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Wazuh",
+         *           "service_definition": "Plex Media Server",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10183,11 +10185,6 @@ export interface components {
          * @enum {string}
          */
         InlineGroupRole: "Header" | "Member";
-        /**
-         * @description How soon the enquirer wants to move.
-         * @enum {string}
-         */
-        InquiryTimeline: "immediately" | "1-3 months" | "3-6 months" | "exploring";
         /**
          * @description A section that can appear in the inspector panel
          * @enum {string}
@@ -12314,8 +12311,6 @@ export interface components {
              *     doesn't see an option the deployment can't fulfil.
              */
             discount_save_offer_available: boolean;
-            /** @description Whether the deployment asks users to opt in to product email. */
-            has_email_opt_in: boolean;
             /** @description Whether outbound email is configured. Invites and password resets need it. */
             has_email_service: boolean;
             /** @description Whether a daemon runs alongside the server, so no separate install is needed to start scanning. */
@@ -12458,8 +12453,6 @@ export interface components {
              * @description Email address for the new account. Must be deliverable.
              */
             email: string;
-            /** @description Whether the user agreed to receive product and marketing email. */
-            marketing_opt_in?: boolean;
             /**
              * Format: password
              * @description Password for the new account. Minimum 10 characters.
@@ -12822,19 +12815,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-07T12:26:33.828572Z",
+         *           "created_at": "2026-10-09T22:16:33.345191Z",
          *           "first_discovery_id": null,
-         *           "id": "2d178927-1c22-4b8e-b800-a62bc845a4c8",
+         *           "id": "410b52d4-3cd5-45de-9b5f-ccb797ce9f11",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-07T12:26:33.828572Z",
+         *           "last_seen_at": "2026-10-09T22:16:33.345191Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-07T12:26:33.828572Z",
-         *           "valid_from": "2026-10-07T12:26:33.828572Z",
+         *           "updated_at": "2026-10-09T22:16:33.345191Z",
+         *           "valid_from": "2026-10-09T22:16:33.345191Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -12847,7 +12840,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Wazuh",
+         *       "service_definition": "Plex Media Server",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13523,13 +13516,18 @@ export interface components {
          * @description A group of tags of which an entity may hold at most one.
          *
          *     Assigning a tag from a group replaces whichever tag of the same group the entity already holds.
-         *     `Application` is the built-in group: its tags drive the application view, which can place an
-         *     entity in one application only. `Named` groups are named by the organization (a status, an
+         *     `Application` and `Status` are system groups: every organization has them, and no
+         *     organization can name a group of its own after them. Application tags drive the application
+         *     view, which can place an entity in one application only. Status tags track where an asset is
+         *     on its way from planned to decommissioned. `Named` groups are named by the organization (an
          *     environment, a tier) and exist for as long as a tag carries the name.
          */
         TagGroup: {
             /** @enum {string} */
             type: "Application";
+        } | {
+            /** @enum {string} */
+            type: "Status";
         } | {
             /** @description The group's name, shared by every tag in it. */
             name: string;
@@ -13548,11 +13546,6 @@ export interface components {
          * @enum {string}
          */
         TagOrderField: "created_at" | "name" | "color" | "updated_at" | "tag_group";
-        /**
-         * @description Company size bracket offered by the plan-inquiry form.
-         * @enum {string}
-         */
-        TeamSize: "1-10" | "11-25" | "26-50" | "51-100" | "101-250" | "251-500" | "501-1000" | "1001+";
         /** @description Request to test reachability of a daemon URL. */
         TestReachabilityRequest: {
             /** @description If true, also perform an HTTP GET to {url}/health after the TCP check */
@@ -13772,7 +13765,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "d0563436-7517-4b58-a396-24357975efa4",
+             *           "id": "90316d61-742f-4cb2-bb2a-588f1babd8b9",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -13782,23 +13775,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "4cd3f742-61c1-4f18-839f-d11f4f545997",
+             *           "id": "000c285d-5046-413f-8669-7c6d3adf1e54",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "a85309fa-8b61-401b-985e-4bf4c0f88d59",
+             *           "id": "77e69037-e3c8-493e-b6ee-e3d233c05d0e",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "93e316a7-9257-4ad9-97cb-c58b852ac101",
+             *           "id": "7bfde32a-ad8d-4c3f-99c8-cb989115f661",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "4cd3f742-61c1-4f18-839f-d11f4f545997",
+             *           "id": "000c285d-5046-413f-8669-7c6d3adf1e54",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -13812,19 +13805,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "5f4b85d8-48c6-4d8a-be5a-71389381eb3b",
+             *         "id": "f63db104-a4b5-4be2-9192-9a10ef81cfeb",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "ee2e61f7-d1aa-494e-b02f-cfaaaa5c4026",
+             *         "id": "b6d28e5b-b517-41b3-ba14-6d6fc5f5bd38",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "320cdf6d-49a7-4c15-bae5-2aeb0e67ef46",
+             *         "id": "d6104260-1843-480c-8646-e0ac68287e88",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "fabd23bc-9374-4eb8-8826-3090eca5a0e4",
+             *         "id": "b22e8e50-9107-45c7-af8e-5fad80faccff",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -13845,7 +13838,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "ce982fe0-c6f5-4ffc-8b76-e2ec5649898e",
+             *         "id": "215f280f-c63c-4241-b635-e82eee3a0d91",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -13854,15 +13847,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "19f49c13-481f-4bcd-a381-9947248e3e62",
+             *         "id": "c76ccae9-01eb-4ac4-adbc-6bd2a1ecc13b",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "aa16d4aa-a137-430f-b978-56b44ddc3be4",
+             *         "id": "b432bc3b-d971-4b39-96c7-cd62c0852907",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "ff2fb363-d28f-4694-8f2e-5fe581f42531",
+             *         "id": "bc2759a3-af79-41c4-a4ff-4231b4373ada",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -15315,48 +15308,6 @@ export interface operations {
             };
         };
     };
-    submit_enterprise_inquiry: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EnterpriseInquiryRequest"];
-            };
-        };
-        responses: {
-            /** @description Inquiry submitted successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiResponse"];
-                };
-            };
-            /** @description Invalid request or Brevo not configured */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
-                };
-            };
-        };
-    };
     get_invoice_billing_status: {
         parameters: {
             query?: never;
@@ -15965,6 +15916,106 @@ export interface operations {
             };
             /** @description Daemon not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    receive_sns_feedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description SNS message JSON */
+        requestBody: {
+            content: {
+                "text/plain": string;
+            };
+        };
+        responses: {
+            /** @description Message processed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse"];
+                };
+            };
+            /** @description Not an authentic message for the configured topic */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description SES feedback is not configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    open_unsubscribe_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The recipient's unsubscribe token */
+                token: string;
+                /** @description Pausable email category, e.g. discovery_digest */
+                category: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the email preferences page */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The recipient's unsubscribe token */
+                token: string;
+                /** @description Pausable email category, e.g. discovery_digest */
+                category: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse"];
+                };
+            };
+            /** @description Unknown email category */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

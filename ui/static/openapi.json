@@ -1036,67 +1036,6 @@
         ]
       }
     },
-    "/api/billing/inquiry": {
-      "post": {
-        "tags": [
-          "billing",
-          "internal"
-        ],
-        "summary": "Submit enterprise plan inquiry",
-        "description": "Updates Brevo contact/company with inquiry data, creates a deal, and\ntracks an event for automation triggers. Requires authentication to\nlink the inquiry to an organization.",
-        "operationId": "submit_enterprise_inquiry",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EnterpriseInquiryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Inquiry submitted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request or Brevo not configured",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "user_api_key": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
     "/api/billing/invoice-billing": {
       "get": {
         "tags": [
@@ -2004,6 +1943,144 @@
             "daemon_api_key": []
           }
         ]
+      }
+    },
+    "/api/email/feedback/sns": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Receive SES feedback from Amazon SNS",
+        "description": "The HTTPS subscription endpoint for the SNS topic named by\n`SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN`. Confirms the subscription, and\napplies SES bounce and complaint notifications. Answers 404 when no topic\nis configured.",
+        "operationId": "receive_sns_feedback",
+        "requestBody": {
+          "description": "SNS message JSON",
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Message processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an authentic message for the configured topic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SES feedback is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/unsubscribe/{token}/{category}": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Open an unsubscribe link in a browser",
+        "description": "A mail client that does not support one-click opens the `List-Unsubscribe`\nURL with a GET. That changes nothing: it redirects to Settings → Email,\nwhere the user chooses what to turn off.",
+        "operationId": "open_unsubscribe_link",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "The recipient's unsubscribe token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "path",
+            "description": "Pausable email category, e.g. discovery_digest",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the email preferences page"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "One-click unsubscribe",
+        "description": "Turns off one pausable email category for the user the token belongs to.\nMail clients POST here from the `List-Unsubscribe` header. Answers 200\nwhether or not the token matched, so the endpoint does not reveal which\ntokens exist. The request body is ignored.",
+        "operationId": "unsubscribe",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "The recipient's unsubscribe token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "path",
+            "description": "Pausable email category, e.g. discovery_digest",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown email category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/github-stars": {
@@ -17122,19 +17199,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-07T12:26:33.856870Z",
+              "created_at": "2026-10-09T22:16:33.374654Z",
               "first_discovery_id": null,
-              "id": "346613b5-a052-4f31-a282-b3c42861d975",
+              "id": "8e907835-518d-4b48-8657-17a5f63535f2",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-07T12:26:33.856870Z",
+              "last_seen_at": "2026-10-09T22:16:33.374654Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-07T12:26:33.856870Z",
-              "valid_from": "2026-10-07T12:26:33.856870Z",
+              "updated_at": "2026-10-09T22:16:33.374654Z",
+              "valid_from": "2026-10-09T22:16:33.374654Z",
               "valid_to": null
             }
           },
@@ -18840,19 +18917,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-07T12:26:33.828095Z",
+                      "created_at": "2026-10-09T22:16:33.344650Z",
                       "first_discovery_id": null,
-                      "id": "42bf65c5-c467-41dd-bb63-1e688ec991af",
+                      "id": "02b93bb3-18d3-4e52-91be-248fdaa16790",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-07T12:26:33.828095Z",
+                      "last_seen_at": "2026-10-09T22:16:33.344650Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-07T12:26:33.828095Z",
-                      "valid_from": "2026-10-07T12:26:33.828095Z",
+                      "updated_at": "2026-10-09T22:16:33.344650Z",
+                      "valid_from": "2026-10-09T22:16:33.344650Z",
                       "valid_to": null
                     }
                   ],
@@ -18865,7 +18942,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Wazuh",
+                  "service_definition": "Plex Media Server",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -19794,7 +19871,6 @@
               "discount_save_offer_available",
               "has_integrated_daemon",
               "has_email_service",
-              "has_email_opt_in",
               "public_url",
               "needs_cookie_consent",
               "deployment_type",
@@ -19825,10 +19901,6 @@
               "discount_save_offer_available": {
                 "type": "boolean",
                 "description": "`STRIPE_SAVE_OFFER_COUPON_ID` env var is set. When false, the\ncancel modal hides the discount save-offer panel so the user\ndoesn't see an option the deployment can't fulfil."
-              },
-              "has_email_opt_in": {
-                "type": "boolean",
-                "description": "Whether the deployment asks users to opt in to product email."
               },
               "has_email_service": {
                 "type": "boolean",
@@ -20191,19 +20263,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-07T12:26:33.852222Z",
+                  "created_at": "2026-10-09T22:16:33.369992Z",
                   "first_discovery_id": null,
-                  "id": "f913c044-08ca-4aee-9f8b-81bc460c7386",
+                  "id": "1b29f30b-4b9a-4895-be37-962cf56cbc6d",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-07T12:26:33.852222Z",
+                  "last_seen_at": "2026-10-09T22:16:33.369992Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-07T12:26:33.852222Z",
-                  "valid_from": "2026-10-07T12:26:33.852222Z",
+                  "updated_at": "2026-10-09T22:16:33.369992Z",
+                  "valid_from": "2026-10-09T22:16:33.369992Z",
                   "valid_to": null
                 }
               ],
@@ -20216,7 +20288,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Wazuh",
+              "service_definition": "Plex Media Server",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -22852,19 +22924,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-07T12:26:33.828768Z",
+          "created_at": "2026-10-09T22:16:33.345420Z",
           "first_discovery_id": null,
-          "id": "283611da-7949-4397-8d64-37ba845ad394",
+          "id": "d62c08ad-0e04-4d16-8aaf-f7846422c863",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-07T12:26:33.828768Z",
+          "last_seen_at": "2026-10-09T22:16:33.345420Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-07T12:26:33.828768Z",
-          "valid_from": "2026-10-07T12:26:33.828768Z",
+          "updated_at": "2026-10-09T22:16:33.345420Z",
+          "valid_from": "2026-10-09T22:16:33.345420Z",
           "valid_to": null
         }
       },
@@ -23630,7 +23702,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Wazuh",
+              "service_definition": "Plex Media Server",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -28500,7 +28572,7 @@
       },
       "EmailSettings": {
         "type": "object",
-        "description": "Per-user toggles for the user-pausable email categories. Each field maps\n1:1 to a [`PausableCategory`]; required emails are never gated here.\n\nStored as a JSONB blob, so new categories are added as new fields rather\nthan via migration. New fields carry `#[serde(default = \"default_true\")]`\nso a category is opted in by default if its key is absent from the stored\nJSON.",
+        "description": "Per-user toggles for the pausable email categories. Each field is named\nafter one [`EmailCategory`] whose `pausable()` is true; required\ncategories are never gated here.\n\nStored as a JSONB blob, so new categories are added as new fields rather\nthan via migration. New fields carry `#[serde(default = \"default_true\")]`\nso a category is opted in by default if its key is absent from the stored\nJSON.",
         "required": [
           "discovery_digest"
         ],
@@ -28520,66 +28592,6 @@
           "trial_and_usage": {
             "type": "boolean",
             "description": "Send trial reminders and plan-usage warnings."
-          }
-        }
-      },
-      "EnterpriseInquiryRequest": {
-        "type": "object",
-        "description": "Enterprise plan inquiry request",
-        "required": [
-          "email",
-          "name",
-          "company",
-          "team_size",
-          "message"
-        ],
-        "properties": {
-          "company": {
-            "type": "string",
-            "description": "Company name"
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Contact email"
-          },
-          "message": {
-            "type": "string",
-            "description": "Message/use case description"
-          },
-          "name": {
-            "type": "string",
-            "description": "Contact name"
-          },
-          "plan_type": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Plan the enquiry is about — the `type` tag of a `BillingPlan`\n(e.g. `Team`, `Business`, `Enterprise`)."
-          },
-          "site_count": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Number of sites"
-          },
-          "team_size": {
-            "$ref": "#/components/schemas/TeamSize",
-            "description": "Team/company size"
-          },
-          "urgency": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/InquiryTimeline",
-                "description": "How soon they want to move"
-              }
-            ]
           }
         }
       },
@@ -30504,19 +30516,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-07T12:26:33.827351Z",
+                  "created_at": "2026-10-09T22:16:33.343804Z",
                   "first_discovery_id": null,
-                  "id": "95d31a08-ece3-4d8e-bdfa-6d438c13cf17",
+                  "id": "b9df4239-6490-4ebd-aa2e-73d22e460568",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-07T12:26:33.827351Z",
+                  "last_seen_at": "2026-10-09T22:16:33.343804Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-07T12:26:33.827351Z",
-                  "valid_from": "2026-10-07T12:26:33.827351Z",
+                  "updated_at": "2026-10-09T22:16:33.343804Z",
+                  "valid_from": "2026-10-09T22:16:33.343804Z",
                   "valid_to": null
                 }
               ],
@@ -30529,7 +30541,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Wazuh",
+              "service_definition": "Plex Media Server",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -31249,16 +31261,6 @@
         "enum": [
           "Header",
           "Member"
-        ]
-      },
-      "InquiryTimeline": {
-        "type": "string",
-        "description": "How soon the enquirer wants to move.",
-        "enum": [
-          "immediately",
-          "1-3 months",
-          "3-6 months",
-          "exploring"
         ]
       },
       "InspectorSection": {
@@ -34337,19 +34339,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-07T12:26:33.812343Z",
+                        "created_at": "2026-10-09T22:16:33.326956Z",
                         "first_discovery_id": null,
-                        "id": "536d53a1-9c6c-4efc-83ff-dd1e9948e6d4",
+                        "id": "739a2939-82d6-47fd-be00-7247a7756e22",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-07T12:26:33.812343Z",
+                        "last_seen_at": "2026-10-09T22:16:33.326956Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-07T12:26:33.812343Z",
-                        "valid_from": "2026-10-07T12:26:33.812343Z",
+                        "updated_at": "2026-10-09T22:16:33.326956Z",
+                        "valid_from": "2026-10-09T22:16:33.326956Z",
                         "valid_to": null
                       }
                     ],
@@ -34362,7 +34364,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Wazuh",
+                    "service_definition": "Plex Media Server",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -34511,19 +34513,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-07T12:26:33.851435Z",
+                    "created_at": "2026-10-09T22:16:33.369191Z",
                     "first_discovery_id": null,
-                    "id": "3938e2c9-cbc6-4e56-b7e6-519d94747e4e",
+                    "id": "ef642a4f-e8d8-48e2-bbe6-153e934c8a75",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-07T12:26:33.851435Z",
+                    "last_seen_at": "2026-10-09T22:16:33.369191Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-07T12:26:33.851435Z",
-                    "valid_from": "2026-10-07T12:26:33.851435Z",
+                    "updated_at": "2026-10-09T22:16:33.369191Z",
+                    "valid_from": "2026-10-09T22:16:33.369191Z",
                     "valid_to": null
                   }
                 ],
@@ -34536,7 +34538,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Wazuh",
+                "service_definition": "Plex Media Server",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -35794,7 +35796,6 @@
           "discount_save_offer_available",
           "has_integrated_daemon",
           "has_email_service",
-          "has_email_opt_in",
           "public_url",
           "needs_cookie_consent",
           "deployment_type",
@@ -35825,10 +35826,6 @@
           "discount_save_offer_available": {
             "type": "boolean",
             "description": "`STRIPE_SAVE_OFFER_COUPON_ID` env var is set. When false, the\ncancel modal hides the discount save-offer panel so the user\ndoesn't see an option the deployment can't fulfil."
-          },
-          "has_email_opt_in": {
-            "type": "boolean",
-            "description": "Whether the deployment asks users to opt in to product email."
           },
           "has_email_service": {
             "type": "boolean",
@@ -36064,10 +36061,6 @@
             "type": "string",
             "format": "email",
             "description": "Email address for the new account. Must be deliverable."
-          },
-          "marketing_opt_in": {
-            "type": "boolean",
-            "description": "Whether the user agreed to receive product and marketing email."
           },
           "password": {
             "type": "string",
@@ -36969,19 +36962,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-07T12:26:33.828572Z",
+              "created_at": "2026-10-09T22:16:33.345191Z",
               "first_discovery_id": null,
-              "id": "2d178927-1c22-4b8e-b800-a62bc845a4c8",
+              "id": "410b52d4-3cd5-45de-9b5f-ccb797ce9f11",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-07T12:26:33.828572Z",
+              "last_seen_at": "2026-10-09T22:16:33.345191Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-07T12:26:33.828572Z",
-              "valid_from": "2026-10-07T12:26:33.828572Z",
+              "updated_at": "2026-10-09T22:16:33.345191Z",
+              "valid_from": "2026-10-09T22:16:33.345191Z",
               "valid_to": null
             }
           ],
@@ -36994,7 +36987,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Wazuh",
+          "service_definition": "Plex Media Server",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -38260,7 +38253,7 @@
           {
             "type": "object",
             "title": "Application",
-            "description": "The built-in group of application tags.",
+            "description": "The system group of application tags.",
             "required": [
               "type"
             ],
@@ -38269,6 +38262,22 @@
                 "type": "string",
                 "enum": [
                   "Application"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "Status",
+            "description": "The system group of an asset's lifecycle status.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Status"
                 ]
               }
             }
@@ -38295,7 +38304,7 @@
             }
           }
         ],
-        "description": "A group of tags of which an entity may hold at most one.\n\nAssigning a tag from a group replaces whichever tag of the same group the entity already holds.\n`Application` is the built-in group: its tags drive the application view, which can place an\nentity in one application only. `Named` groups are named by the organization (a status, an\nenvironment, a tier) and exist for as long as a tag carries the name."
+        "description": "A group of tags of which an entity may hold at most one.\n\nAssigning a tag from a group replaces whichever tag of the same group the entity already holds.\n`Application` and `Status` are system groups: every organization has them, and no\norganization can name a group of its own after them. Application tags drive the application\nview, which can place an entity in one application only. Status tags track where an asset is\non its way from planned to decommissioned. `Named` groups are named by the organization (an\nenvironment, a tier) and exist for as long as a tag carries the name."
       },
       "TagIcon": {
         "type": "string",
@@ -38310,20 +38319,6 @@
           "color",
           "updated_at",
           "tag_group"
-        ]
-      },
-      "TeamSize": {
-        "type": "string",
-        "description": "Company size bracket offered by the plan-inquiry form.",
-        "enum": [
-          "1-10",
-          "11-25",
-          "26-50",
-          "51-100",
-          "101-250",
-          "251-500",
-          "501-1000",
-          "1001+"
         ]
       },
       "TestReachabilityRequest": {
@@ -38767,7 +38762,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "d0563436-7517-4b58-a396-24357975efa4",
+                  "id": "90316d61-742f-4cb2-bb2a-588f1babd8b9",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -38777,23 +38772,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "4cd3f742-61c1-4f18-839f-d11f4f545997",
+                  "id": "000c285d-5046-413f-8669-7c6d3adf1e54",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "a85309fa-8b61-401b-985e-4bf4c0f88d59",
+                  "id": "77e69037-e3c8-493e-b6ee-e3d233c05d0e",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "93e316a7-9257-4ad9-97cb-c58b852ac101",
+                  "id": "7bfde32a-ad8d-4c3f-99c8-cb989115f661",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "4cd3f742-61c1-4f18-839f-d11f4f545997",
+                  "id": "000c285d-5046-413f-8669-7c6d3adf1e54",
                   "rule": "ByHost"
                 }
               ]
@@ -38823,19 +38818,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "5f4b85d8-48c6-4d8a-be5a-71389381eb3b",
+                "id": "f63db104-a4b5-4be2-9192-9a10ef81cfeb",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "ee2e61f7-d1aa-494e-b02f-cfaaaa5c4026",
+                "id": "b6d28e5b-b517-41b3-ba14-6d6fc5f5bd38",
                 "rule": "ByVLAN"
               },
               {
-                "id": "320cdf6d-49a7-4c15-bae5-2aeb0e67ef46",
+                "id": "d6104260-1843-480c-8646-e0ac68287e88",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "fabd23bc-9374-4eb8-8826-3090eca5a0e4",
+                "id": "b22e8e50-9107-45c7-af8e-5fad80faccff",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -38856,7 +38851,7 @@
                 }
               },
               {
-                "id": "ce982fe0-c6f5-4ffc-8b76-e2ec5649898e",
+                "id": "215f280f-c63c-4241-b635-e82eee3a0d91",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -38865,15 +38860,15 @@
                 }
               },
               {
-                "id": "19f49c13-481f-4bcd-a381-9947248e3e62",
+                "id": "c76ccae9-01eb-4ac4-adbc-6bd2a1ecc13b",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "aa16d4aa-a137-430f-b978-56b44ddc3be4",
+                "id": "b432bc3b-d971-4b39-96c7-cd62c0852907",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "ff2fb363-d28f-4694-8f2e-5fe581f42531",
+                "id": "bc2759a3-af79-41c4-a4ff-4231b4373ada",
                 "rule": "ByStack"
               }
             ]
