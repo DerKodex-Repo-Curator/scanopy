@@ -539,10 +539,16 @@ export const ports = createTypeMetadataHelpers<'ports', PortTypeMetadata>('ports
 export const matchConfidences = createTypeMetadataHelpers<'match_confidences', object>(
 	'match_confidences'
 );
+export interface InspectorSectionMetadata {
+	/** The entity type whose cards the section draws; null for the selection itself or counts. */
+	shown_entity: components['schemas']['EntityDiscriminants'] | null;
+}
+
 /** Inspector section headings (name, description, icon, colour), keyed by `InspectorSection`. */
-export const inspectorSections = createTypeMetadataHelpers<'inspector_sections', object>(
-	'inspector_sections'
-);
+export const inspectorSections = createTypeMetadataHelpers<
+	'inspector_sections',
+	InspectorSectionMetadata
+>('inspector_sections');
 /** The hypervisor platform a guest runs on, keyed by `virtualization_metadata.type`. */
 export const hostVirtualizations = createTypeMetadataHelpers<
 	'host_virtualizations',

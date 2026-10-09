@@ -28261,15 +28261,12 @@
         "description": "A section that can appear in the inspector panel",
         "enum": [
           "Identity",
-          "Details",
-          "InterfaceData",
           "Services",
           "Dependencies",
           "HostDetail",
           "Virtualization",
           "OtherInterfaces",
           "PortBindings",
-          "SubnetDetail",
           "ElementSummary",
           "DependencySummary",
           "Application"

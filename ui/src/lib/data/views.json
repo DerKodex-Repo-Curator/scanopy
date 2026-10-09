@@ -242,14 +242,11 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
-          "Details",
           "ElementSummary"
         ],
         "dependency_creation": null,
         "element_sections": [
-          "Identity",
-          "Details",
-          "InterfaceData"
+          "Identity"
         ],
         "show_application_picker": false,
         "show_service_network_detail": true
@@ -693,16 +690,13 @@
       },
       "inspector_config": {
         "container_sections": [
-          "SubnetDetail",
-          "Details",
+          "Identity",
           "ElementSummary"
         ],
         "dependency_creation": "Bindings",
         "element_sections": [
           "Identity",
-          "Details",
           "HostDetail",
-          "InterfaceData",
           "Services",
           "OtherInterfaces"
         ],
@@ -1172,13 +1166,11 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
-          "Details",
           "ElementSummary"
         ],
         "dependency_creation": "Services",
         "element_sections": [
           "Identity",
-          "Details",
           "HostDetail",
           "Virtualization",
           "Services",
@@ -1556,14 +1548,12 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
-          "Details",
           "ElementSummary",
           "DependencySummary"
         ],
         "dependency_creation": "Services",
         "element_sections": [
           "Identity",
-          "Details",
           "Dependencies",
           "Application"
         ],

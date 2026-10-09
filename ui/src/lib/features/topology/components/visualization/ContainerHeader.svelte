@@ -1,3 +1,8 @@
+<script lang="ts" module>
+	/** Flow units the External title pill sits above its container's top edge. */
+	export const EXTERNAL_TITLE_OFFSET = 40;
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Search } from 'lucide-svelte';
@@ -174,7 +179,8 @@
 {#if variant === 'external'}
 	<!-- External title pill: card above container -->
 	<div
-		class="nopan nodrag card text-secondary z-100 absolute -top-10 left-0 flex cursor-pointer items-center gap-1 px-2 py-1 shadow-lg backdrop-blur-sm"
+		class="nopan nodrag card text-secondary z-100 absolute left-0 flex cursor-pointer items-center gap-1 px-2 py-1 shadow-lg backdrop-blur-sm"
+		style:top="-{EXTERNAL_TITLE_OFFSET}px"
 		role="button"
 		tabindex={-1}
 		onclick={onToggleCollapse}

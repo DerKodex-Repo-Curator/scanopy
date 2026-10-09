@@ -6,25 +6,9 @@
     "category": null,
     "icon": "crosshair",
     "color": "Gray",
-    "metadata": null
-  },
-  {
-    "id": "Details",
-    "name": "Details",
-    "description": "What Scanopy has recorded about it",
-    "category": null,
-    "icon": "list",
-    "color": "Gray",
-    "metadata": null
-  },
-  {
-    "id": "InterfaceData",
-    "name": "Interface data",
-    "description": "Status and counters the device reports for this port",
-    "category": null,
-    "icon": "ethernet-port",
-    "color": "Teal",
-    "metadata": null
+    "metadata": {
+      "shown_entity": null
+    }
   },
   {
     "id": "Services",
@@ -33,7 +17,9 @@
     "category": null,
     "icon": "layers",
     "color": "Fuchsia",
-    "metadata": null
+    "metadata": {
+      "shown_entity": "Service"
+    }
   },
   {
     "id": "Dependencies",
@@ -42,7 +28,9 @@
     "category": null,
     "icon": "waypoints",
     "color": "Rose",
-    "metadata": null
+    "metadata": {
+      "shown_entity": "Dependency"
+    }
   },
   {
     "id": "HostDetail",
@@ -51,7 +39,9 @@
     "category": null,
     "icon": "server",
     "color": "Amber",
-    "metadata": null
+    "metadata": {
+      "shown_entity": "Host"
+    }
   },
   {
     "id": "Virtualization",
@@ -60,7 +50,9 @@
     "category": null,
     "icon": "monitor-cog",
     "color": "Amber",
-    "metadata": null
+    "metadata": {
+      "shown_entity": "Service"
+    }
   },
   {
     "id": "OtherInterfaces",
@@ -69,7 +61,9 @@
     "category": null,
     "icon": "map-pin",
     "color": "Emerald",
-    "metadata": null
+    "metadata": {
+      "shown_entity": "IPAddress"
+    }
   },
   {
     "id": "PortBindings",
@@ -78,16 +72,9 @@
     "category": null,
     "icon": "binary",
     "color": "Sky",
-    "metadata": null
-  },
-  {
-    "id": "SubnetDetail",
-    "name": "Subnet",
-    "description": "The subnet this box draws",
-    "category": null,
-    "icon": "cloud",
-    "color": "Indigo",
-    "metadata": null
+    "metadata": {
+      "shown_entity": null
+    }
   },
   {
     "id": "ElementSummary",
@@ -96,7 +83,9 @@
     "category": null,
     "icon": "package-open",
     "color": "Gray",
-    "metadata": null
+    "metadata": {
+      "shown_entity": null
+    }
   },
   {
     "id": "DependencySummary",
@@ -105,7 +94,9 @@
     "category": null,
     "icon": "waypoints",
     "color": "Rose",
-    "metadata": null
+    "metadata": {
+      "shown_entity": "Dependency"
+    }
   },
   {
     "id": "Application",
@@ -114,6 +105,8 @@
     "category": null,
     "icon": "component",
     "color": "Purple",
-    "metadata": null
+    "metadata": {
+      "shown_entity": "Tag"
+    }
   }
 ]
