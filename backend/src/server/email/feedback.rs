@@ -18,6 +18,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::server::metrics::dependency::{Dependency, observe_http};
 use anyhow::{Context, anyhow};
 use base64ct::{Base64, Encoding};
 use email_address::EmailAddress;
@@ -374,9 +375,7 @@ impl EmailFeedbackService {
             SnsMessageType::SubscriptionConfirmation => {
                 // check_envelope guarantees an SNS-hosted URL.
                 let url = msg.subscribe_url.as_deref().unwrap_or_default();
-                self.http
-                    .get(url)
-                    .send()
+                observe_http(Dependency::Sns, self.http.get(url).send())
                     .await
                     .and_then(|response| response.error_for_status())
                     .context("could not confirm the SNS subscription")
@@ -384,6 +383,7 @@ impl EmailFeedbackService {
                 tracing::info!(topic_arn = %msg.topic_arn, "Confirmed the SES feedback SNS subscription");
             }
             SnsMessageType::UnsubscribeConfirmation => {
+                record("unsubscribe_confirmation", "none");
                 tracing::warn!(
                     topic_arn = %msg.topic_arn,
                     "The SES feedback SNS subscription was removed; bounces and complaints will stop arriving"
@@ -454,10 +454,7 @@ impl EmailFeedbackService {
         if let Some(key) = self.cached_key(url) {
             return Ok(key);
         }
-        let pem = self
-            .http
-            .get(url)
-            .send()
+        let pem = observe_http(Dependency::Sns, self.http.get(url).send())
             .await
             .and_then(|response| response.error_for_status())
             .context("could not fetch the SNS signing certificate")?
@@ -482,8 +479,9 @@ impl EmailFeedbackService {
     }
 }
 
-/// Bounded labels: `type` is bounce or complaint, `bounce_type` one of the
-/// three SES bounce types or `none` for a complaint.
+/// Bounded labels: `type` is bounce, complaint, or `unsubscribe_confirmation` (the
+/// subscription was removed and feedback will stop arriving); `bounce_type` is one of the
+/// three SES bounce types, or `none` for the other two.
 fn record(feedback_type: &'static str, bounce_type: &'static str) {
     metrics::counter!(
         "scanopy_email_feedback_total",

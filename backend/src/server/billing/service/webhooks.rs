@@ -1,7 +1,7 @@
 //! Stripe webhook ingestion and subscription/payment-method event handlers.
 use super::*;
 use crate::server::billing::service::invoicing::write_off_unpaid_license_invoices;
-use crate::server::billing::service::webhook_envelope::{StripeEnvelope, verify_signature};
+use crate::server::billing::service::webhook_envelope::{StripeEnvelope, authenticate};
 use stripe::StripeError;
 use stripe_billing::Invoice;
 use stripe_billing::invoice::RetrieveInvoice;
@@ -16,7 +16,7 @@ impl BillingService {
     /// sees the object as it is now, so a delivery arriving late or out of
     /// order cannot apply an older state over a newer one.
     pub async fn handle_webhook(&self, payload: &str, signature: &str) -> Result<(), Error> {
-        verify_signature(
+        authenticate(
             payload,
             signature,
             &self.webhook_secret,

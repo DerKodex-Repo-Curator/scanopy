@@ -11,7 +11,10 @@
 //! async-stripe checks the signature only as part of parsing the whole event,
 //! so the check is done here, following Stripe's documented manual
 //! verification.
+use crate::server::shared::types::ErrorCode;
+use crate::server::shared::types::api::ApiError;
 use anyhow::{Error, anyhow};
+use axum::http::StatusCode;
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use serde_json::Value;
@@ -22,6 +25,19 @@ use stripe_core::EventType;
 /// Oldest signature timestamp accepted, in seconds. Stripe's libraries default
 /// to the same, and it bounds how long a captured delivery can be replayed.
 const SIGNATURE_TOLERANCE_SECS: i64 = 300;
+
+/// [`verify_signature`], answered as a coded 400. Stripe redelivers on any non-2xx, so the
+/// status is for us: the code tells a wrong webhook secret, which fails every delivery, apart
+/// from a server fault in `http_requests_total`.
+pub fn authenticate(payload: &str, header: &str, secret: &str, now: i64) -> Result<(), ApiError> {
+    verify_signature(payload, header, secret, now).map_err(|e| {
+        tracing::warn!(error = %e, "Rejected a Stripe webhook delivery");
+        ApiError::coded(
+            StatusCode::BAD_REQUEST,
+            ErrorCode::BillingWebhookSignatureInvalid,
+        )
+    })
+}
 
 /// Check `header` (the `Stripe-Signature` value) against the raw `payload`.
 ///
@@ -319,5 +335,24 @@ pub(crate) mod tests {
         let v0 = signed.replace("v1=", "v0=");
         assert!(verify_signature(payload, &v0, SECRET, NOW).is_err());
         assert!(verify_signature(payload, "garbage", SECRET, NOW).is_err());
+    }
+
+    /// A delivery signed with another secret (ours is wrong) reaches the client as a coded 400
+    /// after passing back up through `handle_webhook`'s `anyhow`, not as an uncoded 500.
+    #[test]
+    fn a_delivery_signed_with_another_secret_answers_a_coded_400() {
+        let payload = SUBSCRIPTION_CREATED_CLOVER;
+        let signed = header(payload, SECRET, NOW);
+
+        let err: Error = authenticate(payload, &signed, "whsec_other", NOW)
+            .unwrap_err()
+            .into();
+        let api_error = ApiError::from(err);
+
+        assert_eq!(api_error.status, StatusCode::BAD_REQUEST);
+        assert!(matches!(
+            api_error.error_code,
+            Some(ErrorCode::BillingWebhookSignatureInvalid)
+        ));
     }
 }

@@ -1,3 +1,4 @@
+use crate::server::metrics::dependency::{Dependency, observe_http};
 use crate::server::openapi::tags as api_tags;
 use axum::{Extension, Json};
 use reqwest;
@@ -41,7 +42,7 @@ pub async fn get_stars(
         .get("https://api.github.com/repos/scanopy/scanopy")
         .header("User-Agent", "Scanopy");
 
-    match request.send().await {
+    match observe_http(Dependency::Github, request.send()).await {
         Ok(response) => {
             if !response.status().is_success() {
                 tracing::error!("GitHub API error: {}", response.status());

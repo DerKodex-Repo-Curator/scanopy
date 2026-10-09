@@ -153,6 +153,10 @@ pub enum ErrorCode {
     /// why: the mail server's reply names the relay host and carries provider
     /// diagnostics, which belong in the server log and not in front of an end user.
     EmailDeliveryFailed,
+    /// An SNS delivery to the SES feedback endpoint that isn't an authentic message for the
+    /// configured topic: a bad signature, or a topic ARN that doesn't match
+    /// `SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN`.
+    EmailFeedbackRejected,
 
     // === Discovery ===
     /// Historical discovery cannot be modified via API
@@ -200,6 +204,8 @@ pub enum ErrorCode {
     BillingSubscriptionRequired,
     /// Billing setup is incomplete
     BillingSetupIncomplete,
+    /// A Stripe webhook delivery whose signature doesn't verify against the webhook secret
+    BillingWebhookSignatureInvalid,
     /// Host limit reached on current plan
     BillingHostLimitReached { limit: u64 },
     /// Feature not available on current plan
@@ -323,6 +329,7 @@ impl ErrorCode {
                 "Scanopy could not send this email. Ask an administrator to check the server \
                  logs for the mail server's response."
             }
+            Self::EmailFeedbackRejected => "Not an authentic message for the configured topic",
 
             // Discovery
             Self::DiscoveryHistoricalReadOnly => "Historical discovery cannot be modified via API",
@@ -365,6 +372,7 @@ impl ErrorCode {
             }
             Self::BillingSubscriptionRequired => "Active subscription required",
             Self::BillingSetupIncomplete => "Billing setup is incomplete",
+            Self::BillingWebhookSignatureInvalid => "The Stripe webhook signature is invalid",
             Self::BillingHostLimitReached { .. } => {
                 "You've reached the limit of {limit} hosts on your current plan. Upgrade for unlimited hosts."
             }
@@ -430,6 +438,7 @@ impl ErrorCode {
             | Self::InviteAlreadyAccepted
             | Self::InviteEmailMismatch
             | Self::EmailDeliveryFailed
+            | Self::EmailFeedbackRejected
             | Self::DiscoveryHistoricalReadOnly
             | Self::DaemonSiteMismatch
             | Self::DaemonIdentityMismatch
@@ -439,6 +448,7 @@ impl ErrorCode {
             | Self::BillingPaymentRequired
             | Self::BillingSubscriptionRequired
             | Self::BillingSetupIncomplete
+            | Self::BillingWebhookSignatureInvalid
             | Self::BillingSelfHostedPlanLocked
             | Self::BillingPlanLapsed
             | Self::BillingAirGappedKeyStillCurrent

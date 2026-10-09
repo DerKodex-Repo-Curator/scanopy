@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::server::config::DeploymentType;
+use crate::server::metrics::dependency::{
+    ClassifyFailure, Dependency, DependencyError, DependencyOutcome, observe, record,
+};
 use crate::server::shared::trusted_ca::is_untrusted_certificate;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,12 +151,14 @@ impl OidcProvider {
     /// failed", so the full cause is logged here, and an untrusted certificate is named as such
     /// rather than left to read like an unreachable host.
     async fn discover(&self) -> Result<CoreProviderMetadata> {
-        CoreProviderMetadata::discover_async(
-            IssuerUrl::new(self.issuer_url.clone())?,
-            &self.http_client,
+        let issuer_url = IssuerUrl::new(self.issuer_url.clone())?;
+        observe(
+            Dependency::Oidc,
+            CoreProviderMetadata::discover_async(issuer_url, &self.http_client),
         )
         .await
         .map_err(|e| {
+            let outcome = e.outcome();
             let cause =
                 std::iter::successors(Some(&e as &(dyn std::error::Error + 'static)), |e| {
                     e.source()
@@ -167,14 +172,14 @@ impl OidcProvider {
                 error = %cause,
                 "OIDC discovery failed"
             );
-            if is_untrusted_certificate(&e) {
-                anyhow!(
-                    "the issuer's TLS certificate is signed by a CA this server doesn't trust. \
-                     If it's a private CA, set SCANOPY_TRUSTED_CA_BUNDLE to its PEM file"
-                )
+            let message = if is_untrusted_certificate(&e) {
+                "the issuer's TLS certificate is signed by a CA this server doesn't trust. \
+                 If it's a private CA, set SCANOPY_TRUSTED_CA_BUNDLE to its PEM file"
+                    .to_string()
             } else {
-                anyhow!("{e}. Check that the issuer URL is reachable from the server")
-            }
+                format!("{e}. Check that the issuer URL is reachable from the server")
+            };
+            DependencyError::new(Dependency::Oidc, outcome, message).into()
         })
     }
 
@@ -231,17 +236,30 @@ impl OidcProvider {
         let pkce_verifier = PkceCodeVerifier::new(pending_auth.pkce_verifier.clone());
         let nonce = Nonce::new(pending_auth.nonce.clone());
 
-        let token_response = client
+        let request = client
             .exchange_code(AuthorizationCode::new(code.to_string()))?
-            .set_pkce_verifier(pkce_verifier)
-            .request_async(&self.http_client)
-            .await?;
+            .set_pkce_verifier(pkce_verifier);
+        let token_response = observe(Dependency::Oidc, request.request_async(&self.http_client))
+            .await
+            .map_err(|e| DependencyError::new(Dependency::Oidc, e.outcome(), e.to_string()))?;
 
+        // A token response without a valid ID token is the provider's failure, counted
+        // separately from the exchange itself, which succeeded.
+        let invalid_response = |message: String| {
+            record(Dependency::Oidc, DependencyOutcome::InvalidResponse);
+            DependencyError::new(
+                Dependency::Oidc,
+                DependencyOutcome::InvalidResponse,
+                message,
+            )
+        };
         let id_token = token_response
             .id_token()
-            .ok_or_else(|| anyhow::anyhow!("No ID token in response"))?;
+            .ok_or_else(|| invalid_response("No ID token in response".to_string()))?;
 
-        let claims = self.verified_claims(id_token, client.id_token_verifier(), &nonce)?;
+        let claims = self
+            .verified_claims(id_token, client.id_token_verifier(), &nonce)
+            .map_err(|e| invalid_response(e.to_string()))?;
 
         Ok(claims.into())
     }
