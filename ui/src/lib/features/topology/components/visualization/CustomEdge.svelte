@@ -17,7 +17,10 @@
 	import {
 		getLinkEvidenceTag,
 		isDottedEdge,
-		isOverlayEdge
+		isEdgeHidden,
+		isOverlayEdge,
+		overlayDashArray,
+		restingEdgeStrokeWidth
 	} from '../../layout/edge-classification';
 	import Tag from '$lib/shared/components/data/Tag.svelte';
 	import { ELEMENT_TEXT_WIDTH_PX } from '../../pipeline/build-flow-nodes';
@@ -136,9 +139,11 @@
 	 * all on exactly the networks where dependencies get drawn.
 	 */
 	let hideEdge = $derived(
-		!isPreview &&
-			(simplified ||
-				(edgeData ? $topologyOptions.local.hide_edge_types.includes(edgeData.edge_type) : false))
+		isEdgeHidden(edgeData, {
+			isPreview,
+			simplified,
+			hiddenEdgeTypes: $topologyOptions.local.hide_edge_types
+		})
 	);
 
 	// Any non-solid stroke gets the overlay treatment (thinner, dimmed until highlighted); the
@@ -189,12 +194,17 @@
 
 	// Calculate base edge properties
 	let baseStrokeWidth = $derived.by(() => {
-		if (isAggregated) return Math.min(2 + aggregatedCount, 8);
-		if (isBundle) return bundleStrokeWidth;
+		const resting = restingEdgeStrokeWidth({
+			isAggregated,
+			aggregatedCount,
+			isBundle,
+			bundleStrokeWidth,
+			isOverlay
+		});
+		if (isAggregated || isBundle) return resting;
 		if (isEdgeTypeHovered) return 3;
 		if (!$topologyOptions.local.no_fade_edges && (shouldShowFull || isPreview)) return 3;
-		if (isOverlay) return 1.5;
-		return 2;
+		return resting;
 	});
 	let baseOpacity = $derived.by(() => {
 		if ($isExporting) return 1;
@@ -240,7 +250,7 @@
 			// Other group edges, subtler highlight
 			strokeColor = isDark ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.4)';
 		} else if (!isGroupEdge && isOverlay) {
-			dashArray = isDotted ? 'stroke-dasharray: 1 4;' : 'stroke-dasharray: 6 3;';
+			dashArray = `stroke-dasharray: ${overlayDashArray(isDotted)};`;
 		}
 
 		return `stroke: ${strokeColor}; stroke-width: ${baseStrokeWidth}px; opacity: ${baseOpacity}; ${dashArray} transition: opacity 0.2s ease-in-out, stroke-width 0.2s ease-in-out;`;

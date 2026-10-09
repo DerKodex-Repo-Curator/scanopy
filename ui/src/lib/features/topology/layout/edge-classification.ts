@@ -56,6 +56,41 @@ export function isOverlayEdge(edge: TopologyEdge): boolean {
 	return vc.type === 'active' && vc.stroke !== 'solid';
 }
 
+/**
+ * Whether the canvas leaves this edge undrawn. It stays in the edge store either way (see
+ * `CustomEdge`), so anything that reproduces the drawing, such as the diagram exports, filters on
+ * this. A preview edge always draws.
+ */
+export function isEdgeHidden(
+	edge: TopologyEdge | undefined,
+	state: { isPreview: boolean; simplified: boolean; hiddenEdgeTypes: readonly string[] }
+): boolean {
+	if (state.isPreview) return false;
+	if (state.simplified) return true;
+	return edge ? state.hiddenEdgeTypes.includes(edge.edge_type) : false;
+}
+
+/** How a drawn edge's stroke is shaped, read from its flow-edge data. */
+export interface EdgeStrokeShape {
+	isAggregated: boolean;
+	aggregatedCount: number;
+	isBundle: boolean;
+	bundleStrokeWidth: number;
+	isOverlay: boolean;
+}
+
+/** Stroke width of an edge with no hover or selection emphasis. */
+export function restingEdgeStrokeWidth(shape: EdgeStrokeShape): number {
+	if (shape.isAggregated) return Math.min(2 + shape.aggregatedCount, 8);
+	if (shape.isBundle) return shape.bundleStrokeWidth;
+	return shape.isOverlay ? 1.5 : 2;
+}
+
+/** SVG dash array for an overlay edge's stroke. */
+export function overlayDashArray(isDotted: boolean): string {
+	return isDotted ? '1 4' : '6 3';
+}
+
 /** Get the highlight behavior for an edge. Defaults to 'when_visible'. */
 export function getHighlightBehavior(edge: TopologyEdge): 'when_visible' | 'always' | 'never' {
 	const vc = getViewConfig(edge);
