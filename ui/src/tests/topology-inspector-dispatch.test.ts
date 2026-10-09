@@ -7,8 +7,11 @@ import type { RenderableTopology, TopologyEdge } from '$lib/features/topology/ty
 describe('inspector dispatch', () => {
 	it('has a component for every section a view lists', () => {
 		for (const view of viewsJson) {
-			const config = (view.metadata as { inspector_config: Record<string, string[]> })
-				.inspector_config;
+			const config = (
+				view.metadata as {
+					inspector_config: { element_sections: string[]; container_sections: string[] };
+				}
+			).inspector_config;
 			for (const section of [...config.element_sections, ...config.container_sections]) {
 				expect(getSectionComponent(section as never), `${view.id}: ${section}`).toBeDefined();
 			}
