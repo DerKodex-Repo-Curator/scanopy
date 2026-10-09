@@ -297,6 +297,16 @@ describe('VSDX package', () => {
 		}
 	});
 
+	// Regression: groups drawn in front of their members hid every card inside a subnet in Visio.
+	it('draws every group behind its members, so cards inside containers stay visible', () => {
+		const page = strFromU8(unzip()['visio/pages/page1.xml']);
+		const groups = [...page.matchAll(/<Shape ID="\d+"[^>]*Type="Group"[^>]*>(.*?)<Section/g)];
+		expect(groups.length).toBeGreaterThan(0);
+		for (const [, cells] of groups) {
+			expect(cells).toContain('<Cell N="DisplayMode" V="1"/>');
+		}
+	});
+
 	it('glues both ends of every connector to a shape on the page', () => {
 		const files = unzip();
 		const page = strFromU8(files['visio/pages/page1.xml']);
