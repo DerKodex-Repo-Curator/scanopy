@@ -2,6 +2,7 @@
 	import { Monitor, Sun, Moon } from 'lucide-svelte';
 	import { createForm } from '@tanstack/svelte-form';
 	import { themeStore } from '$lib/shared/stores/theme.svelte';
+	import { VERSION } from '$lib/version';
 	import {
 		browserTimeZone,
 		DEFAULT_DISPLAY_SETTINGS,
@@ -55,6 +56,7 @@
 		settings_system_timestampsAbsolute,
 		settings_system_timestampsRelative,
 		settings_system_tuxAttribution,
+		settings_system_version,
 		settings_system_weekStart
 	} from '$lib/paraglide/messages';
 
@@ -305,6 +307,7 @@
 	</CollapsibleCard>
 
 	<div class="mt-auto flex flex-col gap-1">
+		<p class="text-tertiary text-xs">{settings_system_version({ version: VERSION })}</p>
 		<p class="text-tertiary text-xs">{settings_system_copyright({ year: copyrightYear })}</p>
 		<DocsHint
 			text={settings_system_license()}

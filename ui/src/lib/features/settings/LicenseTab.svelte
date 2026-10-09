@@ -71,6 +71,7 @@
 		settings_billing_license_switchOnlineConfirm,
 		settings_billing_license_switchTitle,
 		settings_billing_license_switchToCloud,
+		settings_billing_license_switchToCloudDesc,
 		settings_billing_payInvoice
 	} from '$lib/paraglide/messages';
 
@@ -468,12 +469,15 @@
 				</InfoCard>
 
 				{#if locked}
-					<p class="text-secondary text-sm">
-						{settings_billing_license_notSelfHosting()}
-						<button type="button" onclick={openCloudPlans} class="text-link hover:underline">
-							{settings_billing_license_switchToCloud()}
-						</button>
-					</p>
+					<div class="space-y-1">
+						<p class="text-secondary text-sm">
+							{settings_billing_license_notSelfHosting()}
+							<button type="button" onclick={openCloudPlans} class="text-link hover:underline">
+								{settings_billing_license_switchToCloud()}
+							</button>
+						</p>
+						<p class="text-tertiary text-xs">{settings_billing_license_switchToCloudDesc()}</p>
+					</div>
 				{/if}
 			</div>
 		{/if}

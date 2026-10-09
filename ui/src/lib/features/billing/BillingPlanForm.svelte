@@ -104,8 +104,6 @@
 		 * new subscription, not a no-op.
 		 */
 		currentPlanLapsed?: boolean;
-		/** Shown above the cards while the Cloud plans are listed. */
-		cloudNotice?: string | null;
 	}
 
 	// eslint-disable-next-line svelte/no-unused-props
@@ -121,8 +119,7 @@
 		isReturningCustomer = false,
 		isCurrentlyTrialing = false,
 		currentPlanType = null,
-		currentPlanLapsed = false,
-		cloudNotice = null
+		currentPlanLapsed = false
 	}: Props = $props();
 
 	let loadingPlanType = $state<string | null>(null);
@@ -446,12 +443,6 @@
 			disabled={selfHostedActive}
 		/>
 	</div>
-
-	{#if cloudNotice && (!showHosting || hostingFilter === 'cloud')}
-		<div class="shrink-0 px-4 pt-2 lg:px-6">
-			<InlineInfo title="" body={cloudNotice} />
-		</div>
-	{/if}
 
 	<!-- Scrollable content -->
 	<div class="min-h-0 flex-1 overflow-y-auto">

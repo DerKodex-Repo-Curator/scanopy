@@ -12,7 +12,6 @@
 	import { emailCategories } from '$lib/shared/stores/metadata';
 	import {
 		settings_email_intro,
-		settings_email_introLocked,
 		settings_email_digestLabel,
 		settings_email_digestDescription,
 		settings_email_onboardingLabel,
@@ -119,9 +118,9 @@
 <div class="flex flex-1 flex-col">
 	<div class="flex-1 overflow-y-auto p-6">
 		<div class="space-y-6">
-			<p class="text-sm text-gray-600">
-				{anyToggleApplies ? settings_email_intro() : settings_email_introLocked()}
-			</p>
+			{#if anyToggleApplies}
+				<p class="text-sm text-gray-600">{settings_email_intro()}</p>
+			{/if}
 
 			<InfoCard>
 				<div class="space-y-4">
