@@ -81,19 +81,26 @@ fn parse_integration_target_token(token: &str) -> anyhow::Result<IntegrationTarg
 /// The daemon config file's contents with the names it was written under before the site rename
 /// read as the current ones: `network_id` as `site_id`, and an integration target's
 /// `"scope":"Network"` as `"Site"`. A file holding both ids keeps `site_id`. The next save writes
-/// the new names.
-fn config_file_with_site_names(path: &Path) -> anyhow::Result<String> {
+/// the new names. Every reader of `config.json` goes through this (or
+/// [`config_with_site_names`] when it already holds the contents).
+pub(crate) fn config_file_with_site_names(path: &Path) -> anyhow::Result<String> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read config file {}", path.display()))?;
-    let mut value: serde_json::Value = serde_json::from_str(&raw)
+    let value = config_with_site_names(&raw)
         .with_context(|| format!("Config file {} is not valid JSON", path.display()))?;
+    Ok(value.to_string())
+}
+
+/// [`config_file_with_site_names`] over contents already read.
+pub(crate) fn config_with_site_names(raw: &str) -> serde_json::Result<serde_json::Value> {
+    let mut value: serde_json::Value = serde_json::from_str(raw)?;
     if let Some(map) = value.as_object_mut()
         && map.contains_key("site_id")
     {
         map.remove("network_id");
     }
     rewrite_from_network_wire(&mut value);
-    Ok(value.to_string())
+    Ok(value)
 }
 
 fn parse_credential_id(value: &str, token: &str) -> anyhow::Result<Uuid> {
@@ -1065,8 +1072,9 @@ impl ConfigStore {
             .await
             .context("Failed to read config file")?;
 
-        let loaded_config: AppConfig =
-            serde_json::from_str(&content).context("Failed to parse config file")?;
+        let loaded_config: AppConfig = config_with_site_names(&content)
+            .and_then(serde_json::from_value)
+            .context("Failed to parse config file")?;
 
         // Merge loaded runtime state with current config
         let mut config = self.config.write().await;
@@ -1345,7 +1353,9 @@ mod tests {
 
     use serial_test::serial;
 
-    use crate::daemon::shared::config::{DaemonCli, parse_integration_target_tokens};
+    use crate::daemon::shared::config::{
+        ConfigStore, DaemonArgs, DaemonCli, config_with_site_names, parse_integration_target_tokens,
+    };
     use crate::server::credentials::r#impl::mapping::IntegrationTarget;
     use crate::{daemon::shared::config::AppConfig, tests::DAEMON_CONFIG_FIXTURE};
     use clap::{CommandFactory, Parser};
@@ -1363,7 +1373,8 @@ mod tests {
             let config_json =
                 std::fs::read_to_string(config_path).expect("Failed to read daemon config fixture");
 
-            let loaded: Result<AppConfig, _> = serde_json::from_str(&config_json);
+            let loaded: Result<AppConfig, _> =
+                config_with_site_names(&config_json).and_then(serde_json::from_value);
 
             assert!(
                 loaded.is_ok(),
@@ -1392,17 +1403,7 @@ mod tests {
     #[test]
     #[serial]
     fn a_config_written_before_the_site_rename_keeps_its_site() {
-        use crate::daemon::shared::config::DaemonArgs;
-
-        let mut fixture: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(DAEMON_CONFIG_FIXTURE).unwrap()).unwrap();
-        let network_id: Uuid = fixture["network_id"].as_str().unwrap().parse().unwrap();
-        // A broadcast credential, as `--credential-id <uuid>` persisted it before the rename.
-        let credential_id = Uuid::new_v4();
-        fixture["integration_targets"] =
-            serde_json::json!([{ "scope": "Network", "credential_id": credential_id }]);
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("config.json"), fixture.to_string()).unwrap();
+        let (dir, network_id, credential_id) = pre_rename_config_dir();
 
         let config = AppConfig::load(DaemonArgs {
             config_dir: Some(dir.path().to_path_buf()),
@@ -1419,6 +1420,78 @@ mod tests {
         assert_eq!(saved["site_id"], network_id.to_string());
         assert!(saved.get("network_id").is_none());
         assert_eq!(saved["integration_targets"][0]["scope"], "Site");
+    }
+
+    /// The last release's `config.json` (named `network_id`) in a temp config dir, with a
+    /// broadcast credential as `--credential-id <uuid>` persisted it before the rename. Returns
+    /// the dir, the fixture's network id and the credential id.
+    fn pre_rename_config_dir() -> (tempfile::TempDir, Uuid, Uuid) {
+        let mut fixture: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(DAEMON_CONFIG_FIXTURE).unwrap()).unwrap();
+        let network_id: Uuid = fixture["network_id"].as_str().unwrap().parse().unwrap();
+        let credential_id = Uuid::new_v4();
+        fixture["integration_targets"] =
+            serde_json::json!([{ "scope": "Network", "credential_id": credential_id }]);
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("config.json"), fixture.to_string()).unwrap();
+        (dir, network_id, credential_id)
+    }
+
+    /// GH #760: the runtime store re-reads `config.json` at startup. A pre-rename file loads
+    /// there without being written, and the next save writes the new names.
+    #[tokio::test]
+    #[serial]
+    async fn the_runtime_store_loads_a_pre_rename_config_and_saves_new_names() {
+        let (dir, network_id, _) = pre_rename_config_dir();
+        let path = dir.path().join("config.json");
+        let before = std::fs::read_to_string(&path).unwrap();
+        let fixture_id: Uuid = serde_json::from_str::<serde_json::Value>(&before).unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+
+        let config = AppConfig::load(DaemonArgs {
+            config_dir: Some(dir.path().to_path_buf()),
+            ..Default::default()
+        })
+        .unwrap();
+        let store = ConfigStore::new(path.clone(), config);
+        store
+            .initialize()
+            .await
+            .expect("a pre-rename config loads into the runtime store");
+        assert_eq!(store.get_id().await.unwrap(), fixture_id);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+
+        store.persist().await.unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(saved["site_id"], network_id.to_string());
+        assert!(saved.get("network_id").is_none());
+        assert_eq!(saved["integration_targets"][0]["scope"], "Site");
+    }
+
+    /// A file holding both ids keeps `site_id`; a current-format file comes back as written.
+    #[test]
+    fn site_names_keep_site_id_and_leave_current_files_alone() {
+        let site_id = Uuid::new_v4();
+        let both = serde_json::json!({ "network_id": Uuid::new_v4(), "site_id": site_id });
+        let migrated = config_with_site_names(&both.to_string()).unwrap();
+        assert_eq!(migrated, serde_json::json!({ "site_id": site_id }));
+
+        let current = serde_json::to_value(AppConfig {
+            site_id: Some(site_id),
+            integration_targets: vec![IntegrationTarget::Site {
+                credential_id: Uuid::new_v4(),
+            }],
+            ..AppConfig::default()
+        })
+        .unwrap();
+        assert_eq!(
+            config_with_site_names(&current.to_string()).unwrap(),
+            current
+        );
     }
 
     /// Composes and service units written before the site rename set `SCANOPY_NETWORK_ID` or pass
@@ -1462,8 +1535,6 @@ mod tests {
     #[test]
     #[serial]
     fn a_reconfigure_load_keeps_the_settings_it_does_not_carry() {
-        use crate::daemon::shared::config::DaemonArgs;
-
         let dir = tempfile::tempdir().unwrap();
         let daemon_id = Uuid::new_v4();
         std::fs::write(
@@ -1506,8 +1577,6 @@ mod tests {
     #[test]
     #[serial]
     fn a_trusted_ca_bundle_is_loaded_at_startup_and_fails_closed() {
-        use crate::daemon::shared::config::DaemonArgs;
-
         let dir = tempfile::tempdir().unwrap();
         let load = |bundle: std::path::PathBuf| {
             AppConfig::load(DaemonArgs {
