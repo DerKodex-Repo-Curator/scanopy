@@ -60,6 +60,7 @@
 	import { trackEvent } from '$lib/shared/utils/analytics';
 	import { downloadTopologyExport } from '$lib/shared/utils/csvExport';
 	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
+	import { closeModal } from '$lib/shared/stores/modal-registry';
 	import { triggerUpgrade } from '$lib/features/billing/trigger-upgrade';
 	import type { UpgradeFeature } from '$lib/shared/stores/metadata';
 	import RichSelect from '$lib/shared/components/forms/selection/RichSelect.svelte';
@@ -99,6 +100,16 @@
 
 	const { getNodes, getEdges, getInternalNode, getNodesBounds, getViewport, setViewport } =
 		useSvelteFlow();
+
+	/**
+	 * Close through the registry when the modal is registered: the parent derives `isOpen` from
+	 * it, so a local write leaves the registry (and the URL) naming this modal, and the next
+	 * `openModal` changes nothing the parent can see.
+	 */
+	function close() {
+		if (name) closeModal();
+		else isOpen = false;
+	}
 
 	/** Lowercase a site name and reduce non-alphanumerics to single hyphens for safe filenames. */
 	function sanitizeForFilename(name: string): string {
@@ -395,7 +406,7 @@
 		callback: (ctx: ExportCaptureContext) => Promise<void>,
 		{ decorate = true }: { decorate?: boolean } = {}
 	): Promise<void> {
-		isOpen = false;
+		close();
 
 		// Wait for modal to close so it's not captured in the image
 		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -747,7 +758,7 @@
 	}
 
 	async function handleMermaidExport() {
-		isOpen = false;
+		close();
 		try {
 			await downloadTopologyExport(topologyId, 'mermaid', $activeView);
 			pushSuccess(topology_exportComplete());
@@ -758,7 +769,7 @@
 	}
 
 	async function handleConfluenceExport() {
-		isOpen = false;
+		close();
 		try {
 			await downloadTopologyExport(topologyId, 'confluence', $activeView);
 			pushSuccess(topology_exportComplete());
@@ -774,13 +785,13 @@
 			source: 'export_modal',
 			surface: 'export_modal',
 			beforeModal: () => {
-				isOpen = false;
+				close();
 			}
 		});
 	}
 </script>
 
-<GenericModal title={topology_export()} {name} {isOpen} onClose={() => (isOpen = false)} size="sm">
+<GenericModal title={topology_export()} {name} {isOpen} onClose={close} size="sm">
 	<div class="p-6">
 		<div class="space-y-4">
 			<RichSelect
