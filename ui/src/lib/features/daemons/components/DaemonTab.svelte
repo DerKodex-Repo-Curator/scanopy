@@ -13,7 +13,9 @@
 	import OsTag from '$lib/features/hosts/components/OsTag.svelte';
 	import { hostOsOfDaemonOs } from '$lib/features/hosts/host-os';
 	import CreateDaemonModal from './CreateDaemonModal/CreateDaemonModal.svelte';
-	import { defineFields, type CardAction } from '$lib/shared/components/data/types';
+	import type { CardAction } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import { tagNames } from '$lib/features/tags/columns';
@@ -56,7 +58,6 @@
 		common_edit,
 		common_host,
 		common_maintainer,
-		common_name,
 		common_site,
 		common_status,
 		common_tags,
@@ -65,9 +66,7 @@
 		common_unknownSite,
 		common_update,
 		common_updated,
-		common_url,
 		daemons_retryConnection,
-		common_version,
 		daemons_config_mode,
 		daemons_interfacesWith,
 		daemons_lastSeen,
@@ -300,15 +299,20 @@
 		sort: { field: 'name', direction: 'asc' }
 	};
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all DaemonOrderField values are covered
+	// Related entities the registry's daemon fields read: the host, the maintainer, the site.
+	let lookup = $derived(
+		collectionLookup({ Host: daemonHosts, User: maintainers, Site: sitesData })
+	);
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every DaemonOrderField value must be listed.
 	let daemonFields = $derived(
-		defineFields<Daemon, DaemonOrderField>(
+		defineRegistryFields<Daemon, DaemonOrderField>(
+			'Daemon',
+			() => lookup,
 			{
 				// Identity field: grouping by it would render a header per daemon.
 				name: {
-					label: common_name(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					display: { order: 0, primary: true, width: 220 }
@@ -325,7 +329,6 @@
 				},
 				last_seen: {
 					label: daemons_lastSeen(),
-					type: 'date',
 					display: { order: 2, recency: true }
 				},
 				created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
@@ -335,7 +338,7 @@
 				{
 					// Host, version and subnet interfaces are display-only: none is a
 					// DaemonOrderField, so the server cannot
-					// order on them and defineFields rightly refuses them above.
+					// order on them and defineRegistryFields rightly refuses them above.
 					// One daemon per host, so the host neither groups nor filters; search finds it.
 					key: 'host_id',
 					label: common_host(),
@@ -454,8 +457,6 @@
 				},
 				{
 					key: 'version',
-					label: common_version(),
-					type: 'string',
 					searchable: true,
 					filterable: true,
 					// Numeric collation orders 0.17.10 after 0.17.9.
@@ -468,8 +469,6 @@
 					// The address the server dials. A DaemonPoll daemon dials out instead, so
 					// its stored url is unused and the cell stays empty.
 					key: 'url',
-					label: common_url(),
-					type: 'string',
 					searchable: true,
 					getValue: (daemon) => (daemon.mode === 'server_poll' ? daemon.url : null),
 					display: { hiddenByDefault: true }

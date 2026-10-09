@@ -461,7 +461,7 @@ export function readTab(tab: string): string {
 
 /** The `XOrderField` a tab passes to `defineFields<T, XOrderField>`, if any. */
 export function definedOrderField(source: string): string | undefined {
-	return source.match(/defineFields<\s*\w+\s*,\s*(\w+)\s*>/)?.[1];
+	return source.match(/define(?:Registry)?Fields<\s*\w+\s*,\s*(\w+)\s*>/)?.[1];
 }
 
 /** The openapi enum whose variants are the tab's orderable columns, if it has one. */
@@ -478,6 +478,11 @@ export function columnKeys(
 	orderFieldSchema = definedOrderField(source)
 ): Set<string> {
 	const keys = new Set([...source.matchAll(/\bkey:\s*'([^']+)'/g)].map((match) => match[1]));
+	const entity = registryEntity(source);
+	if (entity) {
+		const omitted = registryOmitted(source);
+		for (const field of registryFieldsOf(entity)) if (!omitted.has(field.id)) keys.add(field.id);
+	}
 	if (orderFieldSchema)
 		SCHEMAS[orderFieldSchema]?.enum?.forEach((value: string) => keys.add(value));
 	if (/getItemTags=/.test(source)) keys.add('tags');
@@ -491,4 +496,28 @@ export function dataControlsTabs(): string[] {
 		.filter((file) => fs.readFileSync(path.join(FEATURES, file), 'utf-8').includes('<DataControls'))
 		.map((file) => file.split(path.sep).join('/'))
 		.sort();
+}
+
+type RegistryField = Schemas['EntityField'];
+
+/** The entity a tab builds its columns from the field registry for (`defineRegistryFields`). */
+export function registryEntity(source: string): string | undefined {
+	return source.match(/defineRegistryFields<[^>]*>\(\s*'(\w+)'/)?.[1];
+}
+
+/** An entity type's registry fields, from the generated `entities.json` fixture. */
+export function registryFieldsOf(entity: string): RegistryField[] {
+	const fixture = JSON.parse(
+		fs.readFileSync(path.join(UI, 'src/lib/data/entities.json'), 'utf-8')
+	) as { id: string; metadata?: { fields?: RegistryField[] } }[];
+	return fixture.find((item) => item.id === entity)?.metadata?.fields ?? [];
+}
+
+/**
+ * The registry fields a tab passes as `defineRegistryFields`' trailing `omit` list: the array of
+ * string literals closing the call.
+ */
+export function registryOmitted(source: string): Set<string> {
+	const match = [...source.matchAll(/\[\s*((?:'\w+'\s*,?\s*)+)\]\s*\)\s*\);/g)].pop();
+	return new Set([...(match?.[1].matchAll(/'(\w+)'/g) ?? [])].map((m) => m[1]));
 }

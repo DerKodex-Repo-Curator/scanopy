@@ -15,15 +15,15 @@
 		type HostOsFamily
 	} from '$lib/features/hosts/host-os';
 	import OsTag from './OsTag.svelte';
-	import { interfaceDisplayName } from '$lib/features/hosts/interface-display-name';
 	import HostEditor from './HostEditModal/HostEditor.svelte';
 	import HostConsolidationModal from './HostConsolidationModal.svelte';
 	import HostExportModal from './HostExportModal.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { defineFields, entityRef, type CardAction } from '$lib/shared/components/data/types';
+	import { entityRef, type CardAction } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { tagNames } from '$lib/features/tags/columns';
-	import { siteItems } from '$lib/features/sites/columns';
 	import { credentialItems } from '$lib/features/credentials/columns';
 	import { entities, entitySources, concepts } from '$lib/shared/stores/metadata';
 	import { Plus, Trash2, RefreshCw, Replace, Eye, Edit } from 'lucide-svelte';
@@ -497,15 +497,31 @@
 		return subnet ? isContainerSubnet(subnet) : false;
 	}
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all HostOrderField values are covered
+	// Related entities the registry's host fields read, from the collections this page already
+	// loads. Keyed by id, since a virtualizing service or presenting interface can sit in both the
+	// page's cache and the by-id fetch, and a child lookup would otherwise list it twice.
+	let lookup = $derived(
+		collectionLookup({
+			IPAddress: ipAddressesData,
+			Port: portsData,
+			Interface: [
+				...new Map([...interfacesData, ...presentingInterfacesData].map((i) => [i.id, i])).values()
+			],
+			Service: [...new Map([...allServicesData, ...servicesData].map((s) => [s.id, s])).values()],
+			Site: sitesData
+		})
+	);
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters, sorts
+	// and groups. Every HostOrderField value must be listed.
 	let hostFields = $derived(
-		defineFields<Host, HostOrderField>(
+		defineRegistryFields<Host, HostOrderField>(
+			'Host',
+			() => lookup,
 			{
 				// Identity fields: grouping by one would render a header per host.
 				name: {
 					label: common_name(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					// The title, not the stored `name`. `getValue` rather than `display.cell`
@@ -526,10 +542,9 @@
 				},
 				hostname: {
 					label: common_hostname(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
-					display: { hiddenByDefault: true, getSource: (host) => host.hostname_source }
+					display: { hiddenByDefault: true }
 				},
 				virtualized_by: {
 					label: hosts_fields_virtualizedBy(),
@@ -565,24 +580,10 @@
 							}
 						}
 						return hosts_notVirtualized();
-					},
-					display: {
-						// No chips when a host isn't virtualized, so the cell renders the
-						// em dash rather than repeating "Not Virtualized" down the column.
-						// `getValue` keeps the phrase, so the filter still offers it.
-						getItems: (host) => {
-							const service = servicesData.find((s) => s.id === host.virtualization_service_id);
-							if (!service) return [];
-							return [
-								{
-									id: service.id,
-									label: service.name,
-									color: entities.getColorHelper('Service').color,
-									entityRef: entityRef('Service', service.id, service)
-								}
-							];
-						}
 					}
+					// The registry's chips: none when a host isn't virtualized, so the cell renders
+					// the em dash rather than repeating "Not Virtualized" down the column.
+					// `getValue` keeps the phrase, so the filter still offers it.
 				},
 				interface_ip: {
 					label: common_ipAddresses(),
@@ -642,7 +643,8 @@
 					getGroupValue: (item) => item.site_id,
 					getValue: (item) =>
 						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
-					display: { order: 2, getItems: (item) => siteItems(item.site_id, sitesData) }
+					// The registry's site chip.
+					display: { order: 2 }
 				},
 				// Audit dates stay available but off by default: 12 columns at once
 				// is unreadable, and these are rarely what someone is scanning for.
@@ -659,14 +661,12 @@
 				// ports and services, so the chip and filter read the stamped source, never those.
 				source: {
 					label: common_source(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					// The sources some host was stamped with, by name.
 					filterOptions: labelledFieldValueOptions(sourceValuesQuery.data, (id) =>
 						entitySources.getName(id)
 					),
-					getValue: (host) => entitySources.getName(host.source.type),
 					// The server groups on the raw `source.type`.
 					getGroupValue: (host) => host.source.type,
 					display: { order: 1, getItems: (host) => entitySourceItems(host.source) }
@@ -676,32 +676,28 @@
 				// stored string, which is also what renders.
 				manufacturer: {
 					label: common_manufacturer(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					filterOptions: fieldValueOptions(manufacturerValuesQuery.data),
-					display: { hiddenByDefault: true, getSource: (host) => host.manufacturer_source }
+					display: { hiddenByDefault: true }
 				},
 				model: {
 					label: common_model(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					filterOptions: fieldValueOptions(modelValuesQuery.data),
-					display: { hiddenByDefault: true, getSource: (host) => host.model_source }
+					display: { hiddenByDefault: true }
 				},
 				sys_location: {
 					label: common_location(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					filterOptions: fieldValueOptions(sysLocationValuesQuery.data),
-					display: { hiddenByDefault: true, getSource: (host) => host.sys_location_source }
+					display: { hiddenByDefault: true }
 				},
 				// Sorted, grouped and filtered by family; the cell shows the full product and release.
 				os_family: {
 					label: common_operatingSystem(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					// The families some host runs, resolved through the same list the handler
@@ -716,7 +712,6 @@
 				},
 				hidden: {
 					label: common_hidden(),
-					type: 'boolean',
 					filterable: true,
 					serverFiltered: true,
 					// Useful as a filter, but almost always false — a column of "false"
@@ -728,7 +723,6 @@
 				{
 					key: 'description',
 					label: common_description(),
-					type: 'string',
 					searchable: true,
 					display: { hiddenByDefault: true }
 				},
@@ -737,84 +731,38 @@
 				{
 					key: 'serial_number',
 					label: common_serialNumber(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.serial_number_source }
+					display: { hiddenByDefault: true }
 				},
-				{
-					key: 'asset_tag',
-					label: common_assetTag(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.asset_tag_source }
-				},
+				{ key: 'asset_tag', label: common_assetTag(), display: { hiddenByDefault: true } },
 				{
 					key: 'firmware_revision',
 					label: common_firmwareRevision(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.firmware_revision_source }
+					display: { hiddenByDefault: true }
 				},
 				{
 					key: 'software_revision',
 					label: common_softwareRevision(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.software_revision_source }
+					display: { hiddenByDefault: true }
 				},
-				{
-					key: 'sys_name',
-					label: hosts_snmp_sysName(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.sys_name_source }
-				},
-				{
-					key: 'sys_descr',
-					label: hosts_snmp_sysDescr(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.sys_descr_source }
-				},
+				{ key: 'sys_name', label: hosts_snmp_sysName(), display: { hiddenByDefault: true } },
+				{ key: 'sys_descr', label: hosts_snmp_sysDescr(), display: { hiddenByDefault: true } },
 				{
 					key: 'sys_object_id',
 					label: hosts_snmp_sysObjectId(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.sys_object_id_source }
+					display: { hiddenByDefault: true }
 				},
-				{
-					key: 'sys_contact',
-					label: common_contact(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.sys_contact_source }
-				},
-				{
-					key: 'chassis_id',
-					label: hosts_snmp_chassisId(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.chassis_id_source }
-				},
+				{ key: 'sys_contact', label: common_contact(), display: { hiddenByDefault: true } },
+				{ key: 'chassis_id', label: hosts_snmp_chassisId(), display: { hiddenByDefault: true } },
 				{
 					key: 'management_url',
 					label: hosts_snmp_managementUrl(),
-					type: 'string',
-					display: { hiddenByDefault: true, getSource: (host) => host.management_url_source }
+					display: { hiddenByDefault: true }
 				},
+				// The registry's chip for the interface on the virtualizing host.
 				{
 					key: 'presented_by',
 					label: hosts_fields_presentedBy(),
-					type: 'string',
-					display: {
-						hiddenByDefault: true,
-						getItems: (host) => {
-							const iface = presentingInterfacesData.find(
-								(i) => i.id === host.virtualization_interface_id
-							);
-							if (!iface) return [];
-							return [
-								{
-									id: iface.id,
-									label: interfaceDisplayName(iface),
-									color: entities.getColorHelper('Interface').color,
-									entityRef: entityRef('Interface', iface.id, iface)
-								}
-							];
-						}
-					}
+					display: { hiddenByDefault: true }
 				},
 				{
 					key: 'first_found_by',
@@ -862,30 +810,20 @@
 						getItems: (host) => credentialItems(hostCredentials(host))
 					}
 				},
+				// The registry's interface names and chips.
 				{
 					key: 'interfaces',
 					label: common_interfaces(),
-					type: 'array',
 					searchable: true,
-					getValue: (host) => hostInterfaces(host).map((i) => interfaceDisplayName(i)),
-					display: {
-						order: 4,
-						getItems: (host) =>
-							hostInterfaces(host).map((iface) => ({
-								id: iface.id,
-								label: interfaceDisplayName(iface),
-								color: entities.getColorHelper('Interface').color,
-								entityRef: entityRef('Interface', iface.id, iface)
-							}))
-					}
+					display: { order: 4 }
 				},
 				{
 					// Off by default: Services already says what answers on a port, and the open ports
 					// alone matter when nothing was matched to them.
 					key: 'ports',
 					label: common_ports(),
-					type: 'array',
 					searchable: true,
+					// Lowest port first, which the registry's collection order doesn't give.
 					getValue: (host) => hostPorts(host).map((p) => formatPort(p)),
 					display: {
 						hiddenByDefault: true,
@@ -906,7 +844,6 @@
 				{
 					key: 'services',
 					label: common_services(),
-					type: 'array',
 					searchable: true,
 					filterable: true,
 					serverFiltered: true,
@@ -914,8 +851,6 @@
 					// every live service name the server counts; the services cache only holds the
 					// loaded page's.
 					filterOptions: fieldValueOptions(serviceNameValuesQuery.data),
-					getValue: (host) =>
-						allServicesData.filter((s) => s.host_id === host.id).map((s) => s.name),
 					display: {
 						order: 6,
 						// Containers are services too, so they share this column rather

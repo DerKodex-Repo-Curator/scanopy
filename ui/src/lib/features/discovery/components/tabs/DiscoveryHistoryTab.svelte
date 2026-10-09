@@ -8,7 +8,8 @@
 	import DiscoveryEditModal from '../DiscoveryModal/DiscoveryEditModal.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import { formatDuration, formatTimestamp } from '$lib/shared/utils/formatting';
-	import { defineFields } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import {
 		useDiscoveryHistoryQuery,
 		useCreateDiscoveryMutation,
@@ -44,7 +45,6 @@
 		common_daemon,
 		common_details,
 		common_duration,
-		common_name,
 		common_none,
 		common_status,
 		common_tags,
@@ -323,13 +323,16 @@
 		return [{ label: common_details(), icon: Info, onClick: () => handleEditDiscovery(discovery) }];
 	}
 
+	// Related entities the registry's discovery fields read: the daemon, the site.
+	let lookup = $derived(collectionLookup({ Daemon: daemonsData, Site: sitesData }));
+
 	let fields = $derived(
-		defineFields<Discovery, DiscoveryOrderField>(
+		defineRegistryFields<Discovery, DiscoveryOrderField>(
+			'Discovery',
+			() => lookup,
 			{
 				// Runs of one scan share its name, so grouping by it gathers a scan's history.
 				name: {
-					label: common_name(),
-					type: 'string',
 					searchable: true,
 					display: { order: 0 }
 				},
@@ -478,7 +481,9 @@
 					getValue: (item) => tagNames(item.tags, tagsData),
 					display: { hiddenByDefault: true, getItems: (item) => tagItems(item.tags, tagsData) }
 				}
-			]
+			],
+			// Every run here is historical, so a run-type column would read the same on every row.
+			['run_type']
 		)
 	);
 </script>

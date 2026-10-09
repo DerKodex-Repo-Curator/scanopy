@@ -27,15 +27,15 @@ export const entityToExportPath: Record<EntityDiscriminants, string | null> = {
 	Daemon: 'daemons',
 	Site: 'sites',
 	Share: 'shares',
-	Discovery: 'discoveries',
-	Topology: 'topologies',
-	Snapshot: 'snapshots',
+	Discovery: 'discovery',
+	Topology: 'topology',
 	User: 'users',
 	Credential: 'credentials',
 	// API keys use auth paths
 	UserApiKey: 'auth/keys',
 	DaemonApiKey: 'auth/daemon',
 	// No CSV export
+	Snapshot: null,
 	Organization: null,
 	Invite: null
 };

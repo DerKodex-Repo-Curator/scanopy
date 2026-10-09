@@ -461,10 +461,12 @@ export function formatScheduleDisplay(
 
 export type DiscoveryOrderField = components['schemas']['DiscoveryOrderField'];
 
-/** One server-orderable discovery field; `defineFields` supplies the `orderField` from its key. */
-export type DiscoveryFieldEntry = Omit<
-	OrderableFieldConfig<Discovery, DiscoveryOrderField>,
-	'orderField'
+/**
+ * One server-orderable discovery field's settings; `defineRegistryFields` supplies the
+ * `orderField` from its key, and the entity field registry anything a registry field leaves out.
+ */
+export type DiscoveryFieldEntry = Partial<
+	Omit<OrderableFieldConfig<Discovery, DiscoveryOrderField>, 'orderField'>
 >;
 
 /**
@@ -487,16 +489,14 @@ export type DiscoveryConfigOrderField = Exclude<
 
 /**
  * The discovery fields that are server order fields on a scan configuration, one per
- * `DiscoveryConfigOrderField`, for `defineFields`. A new order field fails to compile here until
- * it has an entry, or is added to `RUN_RESULT_ORDER_FIELDS`.
+ * `DiscoveryConfigOrderField`, for `defineRegistryFields`. A new order field fails to compile here
+ * until it has an entry, or is added to `RUN_RESULT_ORDER_FIELDS`.
  */
 export const discoveryFields = (
 	daemons: Daemon[],
 	sites: Site[]
 ): Record<DiscoveryConfigOrderField, DiscoveryFieldEntry> => ({
 	name: {
-		label: m.common_name(),
-		type: 'string',
 		searchable: true,
 		// Identity field: grouping by it would render a header per discovery.
 		groupable: false

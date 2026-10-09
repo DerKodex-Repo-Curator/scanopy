@@ -12,7 +12,9 @@
 	import type { Tag } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { defineFields, type CardAction } from '$lib/shared/components/data/types';
+	import type { CardAction } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { Plus, Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -24,16 +26,12 @@
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import {
-		common_color,
 		common_confirmBulkDelete,
 		common_confirmDeleteName,
 		common_create,
 		common_created,
 		common_delete,
 		common_edit,
-		common_description,
-		common_icon,
-		common_name,
 		common_noEntityYet,
 		common_tags,
 		common_updated,
@@ -164,22 +162,21 @@
 		sort: { field: 'name', direction: 'asc' }
 	};
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all TagOrderField values are covered
-	const tagFields = defineFields<Tag, TagOrderField>(
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every TagOrderField value must be listed. Tag fields read no related entities.
+	const lookup = collectionLookup({});
+	const tagFields = defineRegistryFields<Tag, TagOrderField>(
+		'Tag',
+		() => lookup,
 		{
 			// Identity field: grouping by it would render a header per tag. Drawn as the tag itself,
 			// with its icon and colour, as it appears on every entity carrying it.
 			name: {
-				label: common_name(),
-				type: 'string',
 				searchable: true,
 				groupable: false,
 				display: { primary: true, width: 220, getItems: (tag) => tagItems([tag.id], [tag]) }
 			},
 			color: {
-				label: common_color(),
-				type: 'string',
 				searchable: true,
 				filterable: true,
 				// A colour name is worth showing in its own colour. Hidden by default: the name column
@@ -197,23 +194,20 @@
 			},
 			tag_group: {
 				label: tags_tagGroup(),
-				type: 'string',
 				filterable: true,
+				// The registry reads `tag_group.name`, which the Application group lacks.
 				getValue: (tag) => tagGroupLabel(tag.tag_group)
 			},
 			created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
 			updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
 		},
 		[
-			{ key: 'description', label: common_description(), type: 'string', searchable: true },
+			{ key: 'description', searchable: true },
 			{
 				// Hidden by default for the same reason as colour: the name column draws the icon.
 				key: 'icon',
-				label: common_icon(),
-				type: 'string',
 				filterable: true,
 				groupable: true,
-				getValue: (tag) => tag.icon ?? null,
 				display: {
 					hiddenByDefault: true,
 					getItems: (tag) => {
