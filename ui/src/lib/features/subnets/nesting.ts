@@ -7,12 +7,7 @@
  */
 import type { CardFieldItem } from '$lib/shared/components/data/types';
 import { isProvisionalCidr } from '$lib/shared/utils/cidr-source';
-import {
-	subnets_containsCount,
-	subnets_containsDetail,
-	subnets_within,
-	subnets_withinDetail
-} from '$lib/paraglide/messages';
+import { subnets_containsCount, subnets_containsDetail } from '$lib/paraglide/messages';
 import type { SubnetResponse } from './types/base';
 
 /** Share of a subnet's usable addresses in use, 0 to 1. */
@@ -22,36 +17,26 @@ export function utilizationRatio(subnet: SubnetResponse): number {
 }
 
 /**
- * The labels that say where a subnet sits: "Within <parent>" and "Contains N".
+ * The label that says a subnet holds others: "Contains N".
  *
  * Neutral, because nesting is information rather than a fault: a range a person recorded for a
  * whole site above the segments discovery read is deliberate. Empty on a provisional row, which
  * already carries the "Range assumed" badge and its own way to resolve a covering range (merge),
- * and on a row that nests with nothing.
+ * and on a row that contains nothing.
  */
 export function nestingItems(subnet: SubnetResponse, nesting: SubnetNesting): CardFieldItem[] {
 	if (isProvisionalCidr(subnet)) return [];
 
-	const items: CardFieldItem[] = [];
-	const parent = nesting.parentOf(subnet);
-	if (parent) {
-		items.push({
-			id: 'within',
-			label: subnets_within({ cidr: parent.cidr }),
-			color: 'Gray',
-			title: subnets_withinDetail({ name: parent.name, cidr: parent.cidr })
-		});
-	}
 	const count = nesting.childrenOf(subnet.id).length;
-	if (count > 0) {
-		items.push({
+	if (count === 0) return [];
+	return [
+		{
 			id: 'contains',
 			label: subnets_containsCount({ count }),
 			color: 'Gray',
 			title: subnets_containsDetail({ count })
-		});
-	}
-	return items;
+		}
+	];
 }
 
 /**

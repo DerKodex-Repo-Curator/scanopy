@@ -10192,7 +10192,7 @@ export interface components {
          * @description A section that can appear in the inspector panel
          * @enum {string}
          */
-        InspectorSection: "Identity" | "Details" | "InterfaceData" | "Services" | "Dependencies" | "HostDetail" | "Virtualization" | "OtherInterfaces" | "PortBindings" | "SubnetDetail" | "ElementSummary" | "DependencySummary" | "Application";
+        InspectorSection: "Identity" | "Services" | "Dependencies" | "HostDetail" | "Virtualization" | "OtherInterfaces" | "PortBindings" | "ElementSummary" | "DependencySummary" | "Application";
         /**
          * @description Everything the UI needs to install (or reconfigure) a daemon, one field per install method so
          *     each is a first-class peer with its own content — no method is a special case bolted onto a

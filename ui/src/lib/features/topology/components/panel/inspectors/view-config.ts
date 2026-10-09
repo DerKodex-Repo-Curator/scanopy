@@ -13,14 +13,11 @@ import type { components } from '$lib/api/schema';
 import { views } from '$lib/shared/stores/metadata';
 
 import SectionIdentity from './sections/SectionIdentity.svelte';
-import SectionDetails from './sections/SectionDetails.svelte';
-import SectionInterfaceData from './sections/SectionInterfaceData.svelte';
 import SectionServices from './sections/SectionServices.svelte';
 import SectionDependencies from './sections/SectionDependencies.svelte';
 import SectionHostDetail from './sections/SectionHostDetail.svelte';
 import SectionOtherIPAddresses from './sections/SectionOtherIPAddresses.svelte';
 import SectionPortBindings from './sections/SectionPortBindings.svelte';
-import SectionSubnetDetail from './sections/SectionSubnetDetail.svelte';
 import SectionElementSummary from './sections/SectionElementSummary.svelte';
 import SectionDependencySummary from './sections/SectionDependencySummary.svelte';
 import SectionApplication from './sections/SectionApplication.svelte';
@@ -34,15 +31,12 @@ export type ViewInspectorConfig = components['schemas']['ViewInspectorConfig'];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SECTION_COMPONENTS: Record<InspectorSection, Component<any>> = {
 	Identity: SectionIdentity,
-	Details: SectionDetails,
-	InterfaceData: SectionInterfaceData,
 	Services: SectionServices,
 	Dependencies: SectionDependencies,
 	HostDetail: SectionHostDetail,
 	Virtualization: SectionVirtualization,
 	OtherInterfaces: SectionOtherIPAddresses,
 	PortBindings: SectionPortBindings,
-	SubnetDetail: SectionSubnetDetail,
 	ElementSummary: SectionElementSummary,
 	DependencySummary: SectionDependencySummary,
 	Application: SectionApplication

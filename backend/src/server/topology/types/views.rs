@@ -501,16 +501,12 @@ pub enum DependencyMemberType {
 )]
 pub enum InspectorSection {
     Identity,
-    /// The selected entity's registry fields (`shared/entity_fields.rs`).
-    Details,
-    InterfaceData,
     Services,
     Dependencies,
     HostDetail,
     Virtualization,
     OtherInterfaces,
     PortBindings,
-    SubnetDetail,
     ElementSummary,
     DependencySummary,
     Application,
@@ -527,10 +523,7 @@ impl HasId for InspectorSection {
 impl EntityMetadataProvider for InspectorSection {
     fn color(&self) -> Color {
         match self {
-            InspectorSection::Identity
-            | InspectorSection::Details
-            | InspectorSection::ElementSummary => Color::Gray,
-            InspectorSection::InterfaceData => EntityDiscriminants::Interface.color(),
+            InspectorSection::Identity | InspectorSection::ElementSummary => Color::Gray,
             InspectorSection::Services => EntityDiscriminants::Service.color(),
             InspectorSection::Dependencies | InspectorSection::DependencySummary => {
                 EntityDiscriminants::Dependency.color()
@@ -539,7 +532,6 @@ impl EntityMetadataProvider for InspectorSection {
             InspectorSection::Virtualization => Concept::Virtualization.color(),
             InspectorSection::OtherInterfaces => EntityDiscriminants::IPAddress.color(),
             InspectorSection::PortBindings => EntityDiscriminants::Port.color(),
-            InspectorSection::SubnetDetail => EntityDiscriminants::Subnet.color(),
             InspectorSection::Application => Concept::Application.color(),
         }
     }
@@ -547,9 +539,7 @@ impl EntityMetadataProvider for InspectorSection {
     fn icon(&self) -> Icon {
         match self {
             InspectorSection::Identity => Icon::Crosshair,
-            InspectorSection::Details => Icon::List,
             InspectorSection::ElementSummary => Icon::PackageOpen,
-            InspectorSection::InterfaceData => EntityDiscriminants::Interface.icon(),
             InspectorSection::Services => EntityDiscriminants::Service.icon(),
             InspectorSection::Dependencies | InspectorSection::DependencySummary => {
                 EntityDiscriminants::Dependency.icon()
@@ -558,7 +548,6 @@ impl EntityMetadataProvider for InspectorSection {
             InspectorSection::Virtualization => Concept::Virtualization.icon(),
             InspectorSection::OtherInterfaces => EntityDiscriminants::IPAddress.icon(),
             InspectorSection::PortBindings => EntityDiscriminants::Port.icon(),
-            InspectorSection::SubnetDetail => EntityDiscriminants::Subnet.icon(),
             InspectorSection::Application => Concept::Application.icon(),
         }
     }
@@ -568,15 +557,12 @@ impl TypeMetadataProvider for InspectorSection {
     fn name(&self) -> &'static str {
         match self {
             InspectorSection::Identity => "Selected",
-            InspectorSection::Details => "Details",
-            InspectorSection::InterfaceData => "Interface data",
             InspectorSection::Services => "Services",
             InspectorSection::Dependencies => "Dependencies",
             InspectorSection::HostDetail => "Host",
             InspectorSection::Virtualization => "Runs on",
             InspectorSection::OtherInterfaces => "IP addresses",
             InspectorSection::PortBindings => "Port bindings",
-            InspectorSection::SubnetDetail => "Subnet",
             InspectorSection::ElementSummary => "Contents",
             InspectorSection::DependencySummary => "Crossing dependencies",
             InspectorSection::Application => "Application",
@@ -587,10 +573,6 @@ impl TypeMetadataProvider for InspectorSection {
     fn description(&self) -> &'static str {
         match self {
             InspectorSection::Identity => "The entity you selected",
-            InspectorSection::Details => "What Scanopy has recorded about it",
-            InspectorSection::InterfaceData => {
-                "Status and counters the device reports for this port"
-            }
             InspectorSection::Services => {
                 "Services on this host, and on the hosts it presents or runs"
             }
@@ -601,12 +583,38 @@ impl TypeMetadataProvider for InspectorSection {
             }
             InspectorSection::OtherInterfaces => "Every address this host holds",
             InspectorSection::PortBindings => "Ports this service listens on",
-            InspectorSection::SubnetDetail => "The subnet this box draws",
             InspectorSection::ElementSummary => "What this box holds, counted by type",
             InspectorSection::DependencySummary => {
                 "Dependencies with members both inside and outside this box"
             }
             InspectorSection::Application => "The application this service belongs to",
+        }
+    }
+
+    fn metadata(&self) -> serde_json::Value {
+        serde_json::json!({ "shown_entity": self.shown_entity() })
+    }
+}
+
+impl InspectorSection {
+    /// The entity type whose cards this section draws. The selected entity's detail rows skip a
+    /// field that points at an entity another section in the same panel already shows. `None`
+    /// for sections that show the selection itself or only counts.
+    pub fn shown_entity(&self) -> Option<EntityDiscriminants> {
+        match self {
+            InspectorSection::Identity
+            | InspectorSection::ElementSummary
+            | InspectorSection::PortBindings => None,
+            InspectorSection::HostDetail => Some(EntityDiscriminants::Host),
+            // The host's virtualizer is recorded as a service (`Host.virtualized_by`).
+            InspectorSection::Services | InspectorSection::Virtualization => {
+                Some(EntityDiscriminants::Service)
+            }
+            InspectorSection::OtherInterfaces => Some(EntityDiscriminants::IPAddress),
+            InspectorSection::Dependencies | InspectorSection::DependencySummary => {
+                Some(EntityDiscriminants::Dependency)
+            }
+            InspectorSection::Application => Some(EntityDiscriminants::Tag),
         }
     }
 }
@@ -1051,15 +1059,12 @@ impl TopologyView {
             Self::L3Logical => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
-                    InspectorSection::Details,
                     InspectorSection::HostDetail,
-                    InspectorSection::InterfaceData,
                     InspectorSection::Services,
                     InspectorSection::OtherInterfaces,
                 ],
                 container_sections: vec![
-                    InspectorSection::SubnetDetail,
-                    InspectorSection::Details,
+                    InspectorSection::Identity,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: Some(DependencyMemberType::Bindings),
@@ -1069,13 +1074,11 @@ impl TopologyView {
             Self::Application => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
-                    InspectorSection::Details,
                     InspectorSection::Dependencies,
                     InspectorSection::Application,
                 ],
                 container_sections: vec![
                     InspectorSection::Identity,
-                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                     InspectorSection::DependencySummary,
                 ],
@@ -1086,7 +1089,6 @@ impl TopologyView {
             Self::Workloads => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
-                    InspectorSection::Details,
                     InspectorSection::HostDetail,
                     InspectorSection::Virtualization,
                     InspectorSection::Services,
@@ -1094,7 +1096,6 @@ impl TopologyView {
                 ],
                 container_sections: vec![
                     InspectorSection::Identity,
-                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: Some(DependencyMemberType::Services),
@@ -1102,14 +1103,9 @@ impl TopologyView {
                 show_service_network_detail: true,
             },
             Self::L2Physical => ViewInspectorConfig {
-                element_sections: vec![
-                    InspectorSection::Identity,
-                    InspectorSection::Details,
-                    InspectorSection::InterfaceData,
-                ],
+                element_sections: vec![InspectorSection::Identity],
                 container_sections: vec![
                     InspectorSection::Identity,
-                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: None,

@@ -5,6 +5,8 @@ import { collectionLookup, type EntityLookup, type EntityType } from '$lib/share
 import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 import { getTopologyIndex } from './entity-index';
 import type { FreshnessSubject } from '$lib/shared/utils/freshness';
+import type { Interface } from '$lib/features/hosts/types/base';
+import type { InterfaceRelations } from '$lib/features/hosts/components/InterfaceRelationRows.svelte';
 
 /**
  * Where each entity type's instances live on a Topology.
@@ -711,4 +713,42 @@ export function topologyLookup(topology: RenderableTopology): EntityLookup {
 		Object.keys(ENTITY_COLLECTIONS).map((type) => [type, entityCollection(topology, type)])
 	);
 	return collectionLookup(collections);
+}
+
+/**
+ * The entities an interface links to on this topology: its IP address and that address's subnet,
+ * its tagged VLANs, and its resolved neighbours (GH #701: a port can have several).
+ */
+export function interfaceRelations(
+	iface: Interface,
+	topology: RenderableTopology
+): Required<InterfaceRelations> {
+	const linkedIpAddress = iface.ip_address_id
+		? (topology.ip_addresses.find((i) => i.id === iface.ip_address_id) ?? null)
+		: null;
+	const linkedSubnet = linkedIpAddress
+		? (topology.subnets.find((s) => s.id === linkedIpAddress.subnet_id) ?? null)
+		: null;
+	const neighbours = (topology.neighbours ?? [])
+		.filter((n) => n.interface_id === iface.id)
+		.map((row) => {
+			if (row.neighbor.type === 'Host') {
+				return {
+					id: row.id,
+					neighborHost: topology.hosts.find((h) => h.id === row.neighbor.id) ?? null,
+					neighborInterface: null
+				};
+			}
+			const remote = topology.interfaces.find((e) => e.id === row.neighbor.id) ?? null;
+			return {
+				id: row.id,
+				neighborInterface: remote,
+				neighborHost: remote ? (topology.hosts.find((h) => h.id === remote.host_id) ?? null) : null
+			};
+		});
+	const taggedVlans = (iface.vlan_ids ?? []).flatMap((id) => {
+		const vlan = topology.vlans.find((v) => v.id === id);
+		return vlan ? [vlan] : [];
+	});
+	return { linkedIpAddress, linkedSubnet, neighbours, taggedVlans };
 }
