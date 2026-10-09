@@ -194,6 +194,9 @@ pem = "3"
 webpki-roots = "0.25"
 base64ct = "1.8"
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
+# Verifies Amazon SNS message signatures (SHA256withRSA, PKCS#1 v1.5) for SES bounce and complaint
+# feedback. 0.9.10 was already in the tree through jsonwebtoken's rust_crypto backend.
+rsa = { version = "0.9", default-features = false, features = ["std"] }
 
 # === Configuration and Logging ===
 config = "0.14"
@@ -278,7 +281,8 @@ rand_core = "0.9.3"
 axum-extra = { version = "0.10.3", features = ["cookie", "query", "typed-header"] }
 time = "0.3.47"
 tower-sessions-sqlx-store = { version = "0.15", features = ["postgres"] }
-sha2 = "0.10.9"
+# `oid` lets rsa's PKCS#1 v1.5 verifier name SHA-256 in the DigestInfo it checks.
+sha2 = { version = "0.10.9", features = ["oid"] }
 hex = "0.4.3"
 hmac = "0.12"
 tokio-cron-scheduler = "0.15.1"
@@ -310,8 +314,6 @@ mailchecker = "6.0.20"
 hickory-resolver = { version = "0.26.1" }
 const_format = "0.2.35"
 posthog-rs = "0.4"
-psl = "2.1.216"
-idna = "1.1.0"
 
 # === Platform-specific Dependencies ===
 [target.'cfg(target_os = "linux")'.dependencies]

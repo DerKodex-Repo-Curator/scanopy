@@ -492,7 +492,7 @@ impl SubscriberFilter<EntityOperation> for EntityEventFilter {
 // ===========================================================================
 
 /// A subscriber for one operation type. Cross-event subscribers (PostHog,
-/// Logging, Metrics, Email, Brevo) implement this multiple times — once per
+/// Logging, Metrics, Email) implement this multiple times — once per
 /// operation type they care about. Registration on the `EventBus` is handled
 /// uniformly via `inventory::submit!(SubscriberRegistration::new::<Self, Op>())`
 /// next to the impl block; see `shared/events/registry.rs`.

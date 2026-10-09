@@ -36,9 +36,6 @@ pub struct RegisterRequest {
     pub password: String,
     /// Must be `true` — records that the user accepted the terms of service.
     pub terms_accepted: bool,
-    /// Whether the user agreed to receive product and marketing email.
-    #[serde(default)]
-    pub marketing_opt_in: bool,
     /// Honeypot field for bot detection
     #[serde(default, rename = "company_url")]
     pub website: Option<String>,
@@ -121,7 +118,6 @@ pub struct OidcAuthorizeParams {
     pub flow: Option<String>, // "login", "register", or "link"
     pub return_url: Option<String>,
     pub terms_accepted: Option<bool>,
-    pub marketing_opt_in: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

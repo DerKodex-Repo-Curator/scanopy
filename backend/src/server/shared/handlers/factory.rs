@@ -12,16 +12,17 @@ use crate::server::{
     credentials::handlers as credential_handlers,
     daemon_api_keys::handlers as daemon_api_key_handlers, daemons::handlers as daemon_handlers,
     dashboard::handlers as dashboard_handlers, dependencies::handlers as dependency_handlers,
-    discovery::handlers as discovery_handlers, hosts::handlers as host_handlers,
-    interfaces::handlers as interface_handlers, invites::handlers as invite_handlers,
-    ip_addresses::handlers as ip_address_handlers, license::handlers as license_handlers,
-    metrics::handlers as metrics_handlers, organizations::handlers as organization_handlers,
-    ports::handlers as port_handlers, search::handlers as search_handlers,
-    services::handlers as service_handlers, shares::handlers as share_handlers,
-    sites::handlers as site_handlers, snapshots::handlers as snapshot_handlers,
-    subnets::handlers as subnet_handlers, tags::handlers as tag_handlers,
-    topology::handlers as topology_handlers, user_api_keys::handlers as user_api_key_handlers,
-    users::handlers as user_handlers, vlans::handlers as vlan_handlers,
+    discovery::handlers as discovery_handlers, email::handlers as email_handlers,
+    hosts::handlers as host_handlers, interfaces::handlers as interface_handlers,
+    invites::handlers as invite_handlers, ip_addresses::handlers as ip_address_handlers,
+    license::handlers as license_handlers, metrics::handlers as metrics_handlers,
+    organizations::handlers as organization_handlers, ports::handlers as port_handlers,
+    search::handlers as search_handlers, services::handlers as service_handlers,
+    shares::handlers as share_handlers, sites::handlers as site_handlers,
+    snapshots::handlers as snapshot_handlers, subnets::handlers as subnet_handlers,
+    tags::handlers as tag_handlers, topology::handlers as topology_handlers,
+    user_api_keys::handlers as user_api_key_handlers, users::handlers as user_handlers,
+    vlans::handlers as vlan_handlers,
 };
 use axum::Json;
 use axum::Router;
@@ -110,6 +111,11 @@ fn create_billed_openapi_routes() -> OpenApiRouter<Arc<AppState>> {
 fn create_exempt_openapi_routes() -> OpenApiRouter<Arc<AppState>> {
     OpenApiRouter::new()
         .nest("/api/billing", billing_handlers::create_router())
+        // Public: one-click unsubscribe and SES feedback, no session.
+        .nest(
+            email_handlers::EMAIL_API_PREFIX,
+            email_handlers::create_router(),
+        )
         .nest("/api/v1/shares", share_handlers::create_router())
         .nest("/api/auth", auth_handlers::create_router())
         .nest("/api/daemons", daemon_handlers::create_internal_router())

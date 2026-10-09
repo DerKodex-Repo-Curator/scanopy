@@ -1,4 +1,5 @@
-pub mod brevo;
+pub mod feedback;
+pub mod handlers;
 pub mod logging;
 pub mod messages;
 pub mod service;

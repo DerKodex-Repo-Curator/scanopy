@@ -197,13 +197,9 @@
 		}
 	}
 
-	async function handleRegister(data: RegisterRequest, subscribed: boolean) {
+	async function handleRegister(data: RegisterRequest) {
 		try {
-			// Include marketing_opt_in in the registration request
-			await registerMutation.mutateAsync({
-				...data,
-				marketing_opt_in: subscribed
-			});
+			await registerMutation.mutateAsync(data);
 			setLastLoginMethod('email');
 
 			// Before clearing onboarding store, get state for tracking

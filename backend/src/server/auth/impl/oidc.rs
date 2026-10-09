@@ -30,7 +30,6 @@ pub struct OidcRegisterParams<'a> {
     pub billing_enabled: bool,
     pub provider_slug: &'a str,
     pub code: &'a str,
-    pub marketing_opt_in: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

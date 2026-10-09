@@ -117,6 +117,10 @@ pub struct ServerCli {
     #[arg(long)]
     smtp_port: Option<u16>,
 
+    /// ARN of the SNS topic that delivers SES bounce and complaint notifications.
+    #[arg(long)]
+    email_feedback_sns_topic_arn: Option<String>,
+
     /// URL users reach the server at. Used in password reset links, invite links and webhooks.
     #[arg(long)]
     public_url: Option<String>,
@@ -136,9 +140,6 @@ pub struct ServerCli {
     /// Bearer token the Prometheus metrics endpoint requires.
     #[arg(long)]
     pub metrics_token: Option<String>,
-
-    #[arg(long, hide = true)]
-    pub brevo_api_key: Option<String>,
 
     /// PEM file of extra CA certificates to trust for outbound TLS, in addition to the bundled
     /// roots.
@@ -188,13 +189,18 @@ pub struct ServerConfig {
     pub smtp_port: Option<u16>,
     /// Directory the logging email transport writes rendered emails to
     /// (`SCANOPY_EMAIL_LOG_DIR`). Setting it selects that transport ahead of
-    /// Brevo and SMTP, so nothing is actually delivered — it exists to
+    /// SMTP, so nothing is actually delivered — it exists to
     /// exercise email paths locally without credentials.
     ///
     /// Testing only: the written files contain full bodies, including
     /// password-reset and verification tokens, in plaintext on disk.
     #[serde(default)]
     pub email_log_dir: Option<PathBuf>,
+    /// ARN of the SNS topic that delivers SES bounce and complaint notifications to
+    /// `POST /api/email/feedback/sns` (`SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN`). Unset, that
+    /// endpoint answers 404. Messages from any other topic are rejected.
+    #[serde(default)]
+    pub email_feedback_sns_topic_arn: Option<String>,
     #[serde(default)]
     pub oidc_providers: Option<Vec<OidcProviderConfig>>,
 
@@ -210,9 +216,6 @@ pub struct ServerConfig {
 
     // Metrics
     pub metrics_token: Option<String>,
-
-    // Brevo CRM integration
-    pub brevo_api_key: Option<String>,
 
     // External service IP restrictions
     // Maps service name (lowercase) to list of allowed IPs/CIDRs
@@ -298,8 +301,6 @@ pub struct PublicConfigResponse {
     pub has_integrated_daemon: bool,
     /// Whether outbound email is configured. Invites and password resets need it.
     pub has_email_service: bool,
-    /// Whether the deployment asks users to opt in to product email.
-    pub has_email_opt_in: bool,
     /// Base URL this server is reachable at, as configured by the operator.
     #[schema(format = "uri")]
     pub public_url: String,
@@ -383,12 +384,12 @@ impl Default for ServerConfig {
             smtp_relay: None,
             smtp_port: Some(465),
             email_log_dir: None,
+            email_feedback_sns_topic_arn: None,
             client_ip_source: None,
             oidc_providers: None,
             posthog_key: None,
             enforce_billing_for_testing: false,
             metrics_token: None,
-            brevo_api_key: None,
             external_service_allowed_ips: HashMap::new(),
             license_key: None,
             license_signing_key: None,
@@ -452,6 +453,9 @@ impl ServerConfig {
         if let Some(smtp_port) = cli_args.smtp_port {
             figment = figment.merge(("smtp_port", smtp_port));
         }
+        if let Some(topic_arn) = cli_args.email_feedback_sns_topic_arn {
+            figment = figment.merge(("email_feedback_sns_topic_arn", topic_arn));
+        }
         if let Some(public_url) = cli_args.public_url {
             figment = figment.merge(("public_url", public_url));
         }
@@ -472,9 +476,6 @@ impl ServerConfig {
         }
         if let Some(metrics_token) = cli_args.metrics_token {
             figment = figment.merge(("metrics_token", metrics_token));
-        }
-        if let Some(brevo_api_key) = cli_args.brevo_api_key {
-            figment = figment.merge(("brevo_api_key", brevo_api_key));
         }
         if let Some(trusted_ca_bundle) = cli_args.trusted_ca_bundle {
             figment = figment.merge(("trusted_ca_bundle", trusted_ca_bundle));
@@ -740,10 +741,8 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
             // that silently do nothing.
             has_email_service: state.services.email_service.is_some(),
             public_url: state.config.public_url.clone(),
-            has_email_opt_in: state.config.brevo_api_key.is_some(),
             posthog_key: state.config.posthog_key.clone(),
-            needs_cookie_consent: state.config.posthog_key.is_some()
-                || state.config.brevo_api_key.is_some(),
+            needs_cookie_consent: state.config.posthog_key.is_some(),
             deployment_type,
             license_status,
             license_key_type,

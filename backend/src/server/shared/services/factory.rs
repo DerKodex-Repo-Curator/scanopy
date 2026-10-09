@@ -3,7 +3,6 @@ use crate::server::{
     auth::{oidc::OidcService, service::AuthService},
     billing::service::{BillingService, BillingServiceParams},
     bindings::service::BindingService,
-    brevo::service::BrevoService,
     config::ServerConfig,
     credentials::service::CredentialService,
     daemon_api_keys::service::DaemonApiKeyService,
@@ -12,7 +11,7 @@ use crate::server::{
     digest::service::DiscoveryDigestService,
     discovery::service::DiscoveryService,
     email::{
-        brevo::BrevoEmailProvider, logging::LoggingEmailProvider, service::EmailService,
+        feedback::EmailFeedbackService, logging::LoggingEmailProvider, service::EmailService,
         smtp::SmtpEmailProvider,
     },
     hosts::service::HostService,
@@ -72,7 +71,8 @@ pub struct ServiceFactory {
     pub oidc_service: Option<Arc<OidcService>>,
     pub billing_service: Option<Arc<BillingService>>,
     pub email_service: Option<Arc<EmailService>>,
-    pub brevo_service: Option<Arc<BrevoService>>,
+    /// Present only when `email_feedback_sns_topic_arn` is configured.
+    pub email_feedback_service: Option<Arc<EmailFeedbackService>>,
     pub posthog_service: Option<Arc<PosthogService>>,
     pub event_bus: Arc<EventBus>,
     pub logging_service: Arc<LoggingService>,
@@ -357,7 +357,7 @@ impl ServiceFactory {
         let public_url = config.public_url.clone();
         let deployment_type = crate::server::config::get_deployment_type(&config);
 
-        // A configured email log directory wins over Brevo/SMTP: it is a
+        // A configured email log directory wins over SMTP: it is a
         // testing transport you explicitly turn on, so it has to work with no
         // credentials present and override any that happen to be set.
         let email_service = if let Some(ref email_log_dir) = config.email_log_dir {
@@ -367,27 +367,6 @@ impl ServiceFactory {
             );
             Some(Arc::new(EmailService::new(
                 Box::new(LoggingEmailProvider::new(Some(email_log_dir.clone()))),
-                user_service.clone(),
-                organization_service.clone(),
-                host_service.clone(),
-                site_service.clone(),
-                service_service.clone(),
-                daemon_service.clone(),
-                public_url,
-                deployment_type,
-            )))
-        } else if let Some(ref brevo_api_key) = config.brevo_api_key {
-            // Brevo outranks SMTP. An operator who has both configured would otherwise
-            // never learn that their SMTP settings are being ignored.
-            if config.smtp_relay.is_some() {
-                tracing::warn!(
-                    "SCANOPY_BREVO_API_KEY is set and takes precedence: the SCANOPY_SMTP_* \
-                     settings will be ignored"
-                );
-            }
-            let brevo_provider = BrevoEmailProvider::new(brevo_api_key.clone());
-            Some(Arc::new(EmailService::new(
-                Box::new(brevo_provider),
                 user_service.clone(),
                 organization_service.clone(),
                 host_service.clone(),
@@ -463,6 +442,14 @@ impl ServiceFactory {
             }
         };
 
+        let email_feedback_service = config
+            .email_feedback_sns_topic_arn
+            .clone()
+            .map(|topic_arn| {
+                EmailFeedbackService::new(topic_arn, user_service.clone()).map(Arc::new)
+            })
+            .transpose()?;
+
         let billing_service = if let Some(stripe_secret) = config.stripe_secret
             && let Some(webhook_secret) = config.stripe_webhook_secret
         {
@@ -486,21 +473,6 @@ impl ServiceFactory {
             event_bus.clone(),
             license_service.clone(),
         ));
-
-        // Create Brevo service if API key is configured (before config is consumed)
-        let brevo_service = config.brevo_api_key.map(|api_key| {
-            Arc::new(BrevoService::new(
-                api_key.clone(),
-                site_service.clone(),
-                host_service.clone(),
-                user_service.clone(),
-                organization_service.clone(),
-                daemon_service.clone(),
-                tag_service.clone(),
-                user_api_key_service.clone(),
-                credential_service.clone(),
-            ))
-        });
 
         let posthog_service = if let Some(api_key) = config.posthog_key {
             Some(Arc::new(
@@ -551,7 +523,7 @@ impl ServiceFactory {
             oidc_service,
             billing_service,
             email_service,
-            brevo_service,
+            email_feedback_service,
             posthog_service,
             event_bus,
             logging_service,
@@ -608,7 +580,7 @@ impl ServiceFactory {
             oidc_service,
             billing_service,
             email_service,
-            brevo_service,
+            email_feedback_service: _, // not a Subscriber: driven by its HTTP endpoint
             posthog_service,
             event_bus: _, // not a service; not subscriber-dispatched
             logging_service,
@@ -657,7 +629,6 @@ impl ServiceFactory {
             .with_optional(oidc_service.clone())
             .with_optional(billing_service.clone())
             .with_optional(email_service.clone())
-            .with_optional(brevo_service.clone())
             .with_optional(posthog_service.clone())
             .build()
     }

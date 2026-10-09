@@ -326,6 +326,14 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
+    pub fn email_unsubscribe_token(mut self, token: &Uuid) -> Self {
+        let col = self.qualify_column("email_unsubscribe_token");
+        self.conditions
+            .push(format!("{} = ${}", col, self.values.len() + 1));
+        self.values.push(SqlValue::Uuid(*token));
+        self
+    }
+
     pub fn name(mut self, name: String) -> Self {
         let col = self.qualify_column("name");
         self.conditions

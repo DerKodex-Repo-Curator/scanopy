@@ -13,11 +13,11 @@ const SLUG_MAX_LEN: usize = 48;
 ///
 /// Every send is reported at INFO with the recipient, subject and category so
 /// email paths (verification, password reset, digests, …) can be exercised
-/// locally without SMTP or Brevo credentials. When an output directory is
+/// locally without SMTP credentials. When an output directory is
 /// configured the rendered message is also written there for review — one
 /// `.html` (browser-openable) and one `.txt` per send.
 ///
-/// Selected ahead of Brevo/SMTP whenever `SCANOPY_EMAIL_LOG_DIR` is set, so it
+/// Selected ahead of SMTP whenever `SCANOPY_EMAIL_LOG_DIR` is set, so it
 /// deliberately overrides credentials that happen to be present in the
 /// environment. Never appropriate for production: the written files contain
 /// full bodies, including password-reset and verification tokens.
@@ -54,6 +54,7 @@ impl LoggingEmailProvider {
         email: &dyn Email,
         base_url: &str,
         self_hosted: bool,
+        unsubscribe_url: Option<&str>,
     ) -> Result<PathBuf, std::io::Error> {
         let subject = email.subject();
         let timestamp = chrono::Utc::now();
@@ -73,6 +74,9 @@ impl LoggingEmailProvider {
             format!("Base-URL: {base_url}"),
             format!("Self-Hosted: {self_hosted}"),
         ];
+        if let Some(url) = unsubscribe_url {
+            metadata.push(format!("List-Unsubscribe: <{url}>"));
+        }
         // Attachment bytes are not written out; the header records enough to
         // tell which files a real send would have carried.
         for a in email.attachments() {
@@ -113,21 +117,24 @@ impl EmailTransport for LoggingEmailProvider {
         email: &dyn Email,
         base_url: &str,
         self_hosted: bool,
+        unsubscribe_url: Option<&str>,
     ) -> Result<(), Error> {
         // Bodies carry reset/verification tokens, so the log line stays on
         // metadata; the full rendering goes to the review file only.
         let written = match &self.output_dir {
-            Some(dir) => match Self::write_files(dir, &to, email, base_url, self_hosted) {
-                Ok(path) => Some(path),
-                Err(e) => {
-                    tracing::warn!(
-                        dir = %dir.display(),
-                        error = %e,
-                        "Could not write the email to the output directory"
-                    );
-                    None
+            Some(dir) => {
+                match Self::write_files(dir, &to, email, base_url, self_hosted, unsubscribe_url) {
+                    Ok(path) => Some(path),
+                    Err(e) => {
+                        tracing::warn!(
+                            dir = %dir.display(),
+                            error = %e,
+                            "Could not write the email to the output directory"
+                        );
+                        None
+                    }
                 }
-            },
+            }
             None => None,
         };
 
@@ -137,6 +144,7 @@ impl EmailTransport for LoggingEmailProvider {
             category = email.category().tag(),
             base_url = base_url,
             self_hosted = self_hosted,
+            unsubscribe = unsubscribe_url.is_some(),
             file = written.as_ref().map(|p| p.display().to_string()),
             "Email not delivered: the logging transport is active"
         );
@@ -215,7 +223,13 @@ mod tests {
         let provider = LoggingEmailProvider::new(Some(dir.path().to_path_buf()));
 
         provider
-            .send(recipient(), &TestEmail, "https://app.example.test", false)
+            .send(
+                recipient(),
+                &TestEmail,
+                "https://app.example.test",
+                false,
+                None,
+            )
             .await
             .unwrap();
 
@@ -250,7 +264,13 @@ mod tests {
         let provider = LoggingEmailProvider::new(None);
 
         provider
-            .send(recipient(), &TestEmail, "https://app.example.test", true)
+            .send(
+                recipient(),
+                &TestEmail,
+                "https://app.example.test",
+                true,
+                None,
+            )
             .await
             .unwrap();
     }
@@ -266,7 +286,13 @@ mod tests {
         let provider = LoggingEmailProvider::new(Some(blocker.join("emails")));
 
         provider
-            .send(recipient(), &TestEmail, "https://app.example.test", false)
+            .send(
+                recipient(),
+                &TestEmail,
+                "https://app.example.test",
+                false,
+                None,
+            )
             .await
             .unwrap();
     }
@@ -278,7 +304,13 @@ mod tests {
 
         for _ in 0..2 {
             provider
-                .send(recipient(), &TestEmail, "https://app.example.test", false)
+                .send(
+                    recipient(),
+                    &TestEmail,
+                    "https://app.example.test",
+                    false,
+                    None,
+                )
                 .await
                 .unwrap();
         }

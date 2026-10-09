@@ -22,6 +22,9 @@ use std::{net::IpAddr, num::NonZeroU32, sync::OnceLock, time::Duration};
 use uuid::Uuid;
 
 #[cfg(not(feature = "generate-fixtures"))]
+use crate::server::email::handlers::{SNS_FEEDBACK_PATH, UNSUBSCRIBE_PATH_PREFIX};
+
+#[cfg(not(feature = "generate-fixtures"))]
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum RateLimitKey {
     User(Uuid),
@@ -247,10 +250,19 @@ pub async fn rate_limit_middleware(
     {
         let path = request.uri().path();
 
-        let exempt_paths = ["/api/billing/webhooks", "/api/config", "/api/auth/me"];
+        let exempt_paths = [
+            "/api/billing/webhooks",
+            "/api/config",
+            "/api/auth/me",
+            SNS_FEEDBACK_PATH,
+        ];
 
-        // Exempt static file serving, billing webhooks, config and metadata
-        if !path.starts_with("/api/") || exempt_paths.contains(&path) {
+        // Exempt static file serving, billing webhooks, SES feedback, config and metadata,
+        // and one-click unsubscribes, which mail providers POST from shared addresses
+        if !path.starts_with("/api/")
+            || exempt_paths.contains(&path)
+            || path.starts_with(UNSUBSCRIBE_PATH_PREFIX)
+        {
             return Ok(next.run(request).await);
         }
 

@@ -1,7 +1,6 @@
 pub mod auth;
 pub mod billing;
 pub mod bindings;
-pub mod brevo;
 pub mod config;
 pub mod credentials;
 pub mod daemon_api_keys;

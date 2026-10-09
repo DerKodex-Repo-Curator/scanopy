@@ -2,7 +2,6 @@ fn main() {
     // Vendored data refreshes live in scripts/refresh-vendored-data.sh
     // (run by `make refresh-vendored-data` and the release workflow).
     println!("cargo:rerun-if-changed=assets/oui.csv");
-    println!("cargo:rerun-if-changed=assets/domain-classification");
 
     // Windows: delay-load the Npcap runtime (packet.dll). pnet links Packet.lib, which makes
     // packet.dll a load-time import, so without Npcap installed an exe fails to even start

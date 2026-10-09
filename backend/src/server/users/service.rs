@@ -13,7 +13,8 @@ use crate::server::{
     },
     tags::entity_tags::EntityTagService,
     users::r#impl::{
-        base::User, permissions::UserOrgPermissions, site_access::UserSiteAccessStorage,
+        base::User, email_settings::EmailSettings, permissions::UserOrgPermissions,
+        site_access::UserSiteAccessStorage,
     },
 };
 use anyhow::Error;
@@ -132,6 +133,45 @@ impl UserService {
             .get_unique(StorableFilter::<User>::new_from_email(email))
             .await?
             .at_most_one()
+    }
+
+    /// Look up the user whose one-click unsubscribe link carries `token`.
+    pub async fn get_by_unsubscribe_token(&self, token: &Uuid) -> Result<Option<User>> {
+        self.user_storage
+            .get_unique(StorableFilter::<User>::new_from_email_unsubscribe_token(
+                token,
+            ))
+            .await?
+            .at_most_one()
+    }
+
+    /// The token for `user`'s one-click unsubscribe links. Minted and stored
+    /// the first time a user needs one, then reused, so every link the user
+    /// has received keeps working.
+    pub async fn ensure_unsubscribe_token(&self, user: &User) -> Result<Uuid> {
+        if let Some(token) = user.base.email_unsubscribe_token {
+            return Ok(token);
+        }
+        let token = Uuid::new_v4();
+        let mut updated = user.clone();
+        updated.base.email_unsubscribe_token = Some(token);
+        self.update(&mut updated, AuthenticatedEntity::System)
+            .await?;
+        Ok(token)
+    }
+
+    /// Apply `change` to `user`'s email settings and store the result when it
+    /// changed anything. Returns whether it did.
+    pub async fn update_email_settings(
+        &self,
+        mut user: User,
+        change: impl FnOnce(&mut EmailSettings) -> bool + Send,
+    ) -> Result<bool> {
+        if !change(&mut user.base.email_settings) {
+            return Ok(false);
+        }
+        self.update(&mut user, AuthenticatedEntity::System).await?;
+        Ok(true)
     }
 
     pub async fn get_organization_owners(&self, organization_id: &Uuid) -> Result<Vec<User>> {

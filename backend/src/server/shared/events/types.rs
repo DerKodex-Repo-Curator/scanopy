@@ -99,7 +99,6 @@ pub enum AuthOperation {
     // User Auth
     Register {
         method: AuthMethod,
-        marketing_opt_in: bool,
         // If None, user was invited or OIDC and email verification is not required
         email_and_token: Option<EmailAndToken>,
     },
@@ -452,7 +451,7 @@ pub enum BillingOperation {
 
 impl BillingOperation {
     /// Plan carried by the event, where the variant has one. Used by analytics
-    /// subscribers (PostHog person properties, Brevo CRM sync) that need the
+    /// subscribers (PostHog person properties) that need the
     /// plan name without a per-call-site exhaustive match.
     pub fn plan(&self) -> Option<&BillingPlan> {
         match self {
@@ -475,7 +474,7 @@ impl BillingOperation {
     /// A receipt or "your plan is active" notice for a customer paying
     /// nothing: a cloud renewal invoice that charged nothing, or a
     /// non-trial cloud checkout or trial conversion onto a plan priced at
-    /// zero. The email, PostHog and Brevo subscribers skip these; every other
+    /// zero. The email and PostHog subscribers skip these; every other
     /// subscriber still sees them.
     pub fn is_zero_dollar_notice(&self) -> bool {
         match self {
@@ -503,8 +502,8 @@ impl BillingOperation {
 
     /// Canonical mapping from a billing event to the `PlanStatus` it implies
     /// — or `None` for telemetry-only variants that don't affect status.
-    /// Single source of truth used by Brevo's plan_status sync and PostHog
-    /// person properties.
+    /// Single source of truth used by the organization `plan_status` write
+    /// and PostHog person properties.
     pub fn implied_status(&self) -> Option<crate::server::billing::types::base::PlanStatus> {
         use crate::server::billing::types::base::PlanStatus;
         match self {
@@ -543,12 +542,7 @@ impl BillingOperation {
             //   active sub) `plan_status` was `Active` and stays `Active`;
             //   the lifecycle event that triggered the switch (or didn't
             //   trigger one — for paid→paid tier switches there's no
-            //   accompanying status change) owns the status. The chained
-            //   PlanChanged-for-Brevo-sync at the cancel site that used to
-            //   make this return `Active` is gone — see
-            //   `process_subscription_deleted_side_effects`; Brevo now
-            //   handles the Free plan_type write off `SubscriptionCancelled`
-            //   directly.
+            //   accompanying status change) owns the status.
             // - `PaymentSucceeded` fires on every invoice.paid webhook
             //   including the $0 trial-setup invoice Stripe creates
             //   alongside `customer.subscription.created`. Treating it as

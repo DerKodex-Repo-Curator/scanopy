@@ -157,7 +157,7 @@ impl AuthService {
 
         // Auto-verify when:
         // - invited user joining existing org (invite link proves email ownership), or
-        // - no email service is configured (self-hosted without SMTP/Brevo —
+        // - no email service is configured (self-hosted without SMTP —
         //   no other way for the user to receive a verification token).
         // Otherwise leave `email_verified = false` and emit a verification email.
         let auto_verify = provision_org.is_existing() || !self.has_email_service;
@@ -205,7 +205,6 @@ impl AuthService {
                 },
                 AuthOperation::Register {
                     method: AuthMethod::Password,
-                    marketing_opt_in: request.marketing_opt_in,
                     email_and_token,
                 },
                 authentication,
@@ -233,7 +232,7 @@ impl AuthService {
         } = params;
 
         // Plan at org creation time — surfaced on the OrgCreated onboarding
-        // event for downstream Brevo/PostHog identify.
+        // event for downstream PostHog identify.
         let mut new_org_plan: Option<BillingPlan> = None;
 
         let (organization_id, permissions) = match provision_org.clone() {
@@ -299,7 +298,6 @@ impl AuthService {
                             discount_save_offer_percent_off: None,
                             discount_save_offer_active_until: None,
                             next_renewal_at: None,
-                            brevo_company_id: None,
                             license_entitlement: None,
                             license_entitlement_at: None,
                             notifications: Default::default(),

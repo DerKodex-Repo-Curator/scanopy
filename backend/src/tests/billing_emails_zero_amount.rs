@@ -220,8 +220,8 @@ async fn a_zero_dollar_air_gapped_renewal_still_says_to_copy_the_key() {
     assert!(sent.contains(&campaign("airgap_renewal")), "{sent}");
 }
 
-/// PostHog and Brevo drop exactly the events whose email is skipped, so a
-/// receipt or welcome nobody was sent leaves no analytics or CRM trace.
+/// PostHog drops exactly the events whose email is skipped, so a receipt or
+/// welcome nobody was sent leaves no analytics trace.
 /// Self-hosted renewals stay: a $0 one still carries a new license period.
 #[test]
 fn analytics_drop_only_the_zero_dollar_notices() {

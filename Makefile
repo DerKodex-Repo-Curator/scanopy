@@ -423,7 +423,7 @@ generate-fixtures:
 	@echo "✅ Generated all metadata fixtures in ui/src/lib/data/"
 
 refresh-vendored-data:
-	@echo "Refreshing vendored data assets (oui.csv + domain-classification)..."
+	@echo "Refreshing vendored data assets (oui.csv)..."
 	backend/scripts/refresh-vendored-data.sh
 	@echo "✅ Vendored data refreshed. Rebuild to embed new data."
 

@@ -11,14 +11,14 @@ use uuid::Uuid;
 use super::messages::{
     AirgapExpiring, AirgapRenewal, CancellationInitiated, CheckoutCompleted, DaemonStandby,
     DaemonSunset, DaemonUnreachable, DiscoveryDigest, DiscoveryGuide, Email, EmailAttachment,
-    EmailChangedOld, InstallCommand, Invite, InvoiceCredited, InvoiceFinalizationFailed,
-    InvoiceIssued, InvoiceOverdue, OidcLinked, OidcUnlinked, OrganizationDeleted, PasswordChanged,
-    PasswordReset, PaymentActionRequired, PaymentFailed, PaymentMethodAdded, PaymentMethodRemoved,
-    PaymentRecovered, PlanChanged, PlanLimitApproaching, PlanLimitReached, SelfHostedLicenseEnded,
-    SelfHostedLicenseResumed, SelfHostedPaymentFailed, SelfHostedPlanChanged,
-    SelfHostedTrialEnding, SelfHostedWelcome, SubscriptionCancelled, SubscriptionPaused,
-    SubscriptionReactivated, SubscriptionResumed, TrialConverted, TrialEnding, TrialExpired,
-    TrialStarted, UsageSummary, Verification, links,
+    EmailCategory, EmailChangedOld, InstallCommand, Invite, InvoiceCredited,
+    InvoiceFinalizationFailed, InvoiceIssued, InvoiceOverdue, OidcLinked, OidcUnlinked,
+    OrganizationDeleted, PasswordChanged, PasswordReset, PaymentActionRequired, PaymentFailed,
+    PaymentMethodAdded, PaymentMethodRemoved, PaymentRecovered, PlanChanged, PlanLimitApproaching,
+    PlanLimitReached, SelfHostedLicenseEnded, SelfHostedLicenseResumed, SelfHostedPaymentFailed,
+    SelfHostedPlanChanged, SelfHostedTrialEnding, SelfHostedWelcome, SubscriptionCancelled,
+    SubscriptionPaused, SubscriptionReactivated, SubscriptionResumed, TrialConverted, TrialEnding,
+    TrialExpired, TrialStarted, UsageSummary, Verification, links,
 };
 use super::transport::EmailTransport;
 use crate::server::{
@@ -102,7 +102,7 @@ impl LimitLevelChange {
 }
 
 /// Email service: builds the right [`Email`] for each event and hands it to
-/// the configured transport (Brevo or SMTP).
+/// the configured transport (SMTP, or the logging transport in testing).
 pub struct EmailService {
     transport: Box<dyn EmailTransport>,
     pub user_service: Arc<UserService>,
@@ -154,9 +154,14 @@ impl EmailService {
     /// [`super::messages::EmailCategory::sent_while_self_hosted_plan_locked`] rules the
     /// category out. A recipient with no account yet (pre-signup) defaults to
     /// sending.
+    ///
+    /// A pausable email to a known user carries a one-click unsubscribe link
+    /// for its category. Required emails and recipients without an account get
+    /// none: there is nothing for them to turn off.
     async fn dispatch(&self, to: EmailAddress, email: &dyn Email) -> Result<()> {
         let recipient = self.user_service.get_by_email(&to).await?;
         let category = email.category();
+        let mut unsubscribe_url = None;
         if let Some(user) = &recipient {
             if !user.base.email_settings.allows(category) {
                 return Ok(());
@@ -168,6 +173,9 @@ impl EmailService {
             {
                 return Ok(());
             }
+            if category.pausable() {
+                unsubscribe_url = self.unsubscribe_url(user, category).await;
+            }
         }
         self.transport
             .send(
@@ -175,6 +183,7 @@ impl EmailService {
                 email,
                 &self.public_url,
                 self.deployment_type.is_self_hosted(),
+                unsubscribe_url.as_deref(),
             )
             .await?;
 
@@ -184,6 +193,23 @@ impl EmailService {
             self.publish_email_sent(&user, email).await;
         }
         Ok(())
+    }
+
+    /// `user`'s unsubscribe link for `category`. Best-effort: if the token
+    /// cannot be stored, the email goes out without the header, and the
+    /// footer's preferences link still reaches the same setting.
+    async fn unsubscribe_url(&self, user: &User, category: EmailCategory) -> Option<String> {
+        match self.user_service.ensure_unsubscribe_token(user).await {
+            Ok(token) => Some(links::unsubscribe_url(&self.public_url, token, category)),
+            Err(e) => {
+                tracing::warn!(
+                    user_id = %user.id,
+                    error = %e,
+                    "Could not store an unsubscribe token; sending without List-Unsubscribe",
+                );
+                None
+            }
+        }
     }
 
     /// Record a send for analytics. Best-effort: the email has already gone.

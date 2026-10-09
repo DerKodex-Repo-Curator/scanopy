@@ -34,3 +34,20 @@ pub const SETTINGS_EMAIL: &str = "{base_url}/?modal=settings&tab=email&{utm}";
 /// Daemon troubleshooting guide.
 pub const DOCS_DAEMON_TROUBLESHOOTING: &str =
     "https://scanopy.net/docs/setting-up-daemons/troubleshooting/";
+
+/// The one-click unsubscribe link (RFC 8058) for one pausable category,
+/// served by `email/handlers.rs`. Built from the installed public URL rather
+/// than a `{base_url}` token because it goes into a header, which is never
+/// rendered.
+pub fn unsubscribe_url(
+    public_url: &str,
+    token: uuid::Uuid,
+    category: super::EmailCategory,
+) -> String {
+    use crate::server::shared::types::metadata::HasId;
+    format!(
+        "{}/api/email/unsubscribe/{token}/{}",
+        public_url.trim_end_matches('/'),
+        category.id()
+    )
+}
