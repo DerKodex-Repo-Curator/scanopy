@@ -8,6 +8,7 @@
 //! endpoint can be pushed past its own limit even when all of the traffic goes
 //! to it. Per-endpoint buckets would need the request's path, which
 //! `CustomizedStripeRequest` gives up only by being taken apart.
+use crate::server::metrics::dependency::{Dependency, observe};
 use bytes::Bytes;
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
 use std::num::NonZeroU32;
@@ -100,15 +101,18 @@ impl RateLimitedStripe {
 impl StripeClient for RateLimitedStripe {
     type Err = StripeError;
 
+    /// Every typed Stripe request passes here, so this is where calls are counted. A request
+    /// that never gets a permit is our own limit, not Stripe's answer, and isn't counted.
     async fn execute(&self, req: CustomizedStripeRequest) -> Result<Bytes, StripeError> {
         self.acquire().await?;
-        self.inner.execute(req).await
+        observe(Dependency::Stripe, self.inner.execute(req)).await
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::server::metrics::dependency::tests::TestRecorder;
     use axum::Router;
     use axum::routing::get;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -208,6 +212,35 @@ pub(crate) mod tests {
 
         assert!(matches!(second, Err(StripeError::Timeout)));
         assert_eq!(hits.load(Ordering::SeqCst), 1);
+        server.abort();
+    }
+
+    /// A revoked or wrong secret key is answered with 401 on every call, and is counted as a
+    /// credentials failure so the auth alert fires on the first one.
+    #[tokio::test]
+    async fn a_rejected_key_counts_as_an_auth_failure() {
+        let router = Router::new().route(
+            "/{*path}",
+            get(|| async {
+                (
+                    axum::http::StatusCode::UNAUTHORIZED,
+                    r#"{"error":{"type":"invalid_request_error","message":"Invalid API Key provided"}}"#,
+                )
+            }),
+        );
+        let (url, server) = fake_stripe(router).await;
+        let quota = Quota::per_second(NonZeroU32::new(100).unwrap());
+        let client = client_for(&url, quota, Duration::from_secs(1));
+
+        let recorder = TestRecorder::new();
+        let _guard = recorder.install();
+        let result = RetrieveSubscription::new("sub_1").send(&client).await;
+
+        assert!(
+            matches!(result, Err(StripeError::Stripe(_, 401))),
+            "{result:?}"
+        );
+        assert!(recorder.count("stripe", "auth"), "{}", recorder.render());
         server.abort();
     }
 }

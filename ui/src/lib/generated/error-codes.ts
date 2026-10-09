@@ -56,6 +56,7 @@ export const ERROR_CODES = {
 	invite_email_mismatch: "Invite email doesn't match your account",
 	email_delivery_failed:
 		"Scanopy could not send this email. Ask an administrator to check the server logs for the mail server's response.",
+	email_feedback_rejected: 'Not an authentic message for the configured topic',
 	discovery_historical_read_only: 'Historical discovery cannot be modified via API',
 	discovery_subnet_site_mismatch: "Subnet '{subnet}' is on a different site",
 	discovery_session_not_found: "Discovery session '{id}' not found",
@@ -77,6 +78,7 @@ export const ERROR_CODES = {
 	billing_plan_limit_reached: "You've reached the limit of {limit} {resource} on your current plan",
 	billing_subscription_required: 'Active subscription required',
 	billing_setup_incomplete: 'Billing setup is incomplete',
+	billing_webhook_signature_invalid: 'The Stripe webhook signature is invalid',
 	billing_host_limit_reached:
 		"You've reached the limit of {limit} hosts on your current plan. Upgrade for unlimited hosts.",
 	billing_feature_not_available:
@@ -147,6 +149,7 @@ export interface ErrorParams {
 	invite_already_accepted: Record<string, never>;
 	invite_email_mismatch: Record<string, never>;
 	email_delivery_failed: Record<string, never>;
+	email_feedback_rejected: Record<string, never>;
 	discovery_historical_read_only: Record<string, never>;
 	discovery_subnet_site_mismatch: { subnet: string | number };
 	discovery_session_not_found: { id: string | number };
@@ -163,6 +166,7 @@ export interface ErrorParams {
 	billing_plan_limit_reached: { limit: string | number; resource: string | number };
 	billing_subscription_required: Record<string, never>;
 	billing_setup_incomplete: Record<string, never>;
+	billing_webhook_signature_invalid: Record<string, never>;
 	billing_host_limit_reached: { limit: string | number };
 	billing_feature_not_available: { feature: string | number };
 	billing_self_hosted_plan_locked: Record<string, never>;

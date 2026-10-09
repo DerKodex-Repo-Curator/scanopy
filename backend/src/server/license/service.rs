@@ -14,6 +14,7 @@ use super::online::{
 use super::types::{LicenseKeyType, LicenseStatus};
 use crate::server::billing::plans::plan_for_license;
 use crate::server::billing::types::base::BillingPlan;
+use crate::server::metrics::dependency::{Dependency, observe_http};
 use crate::server::organizations::service::OrganizationService;
 use crate::server::shared::trusted_ca::TrustedCaBundle;
 use crate::server::shared::types::api::{ApiErrorResponse, ApiResponse};
@@ -276,13 +277,13 @@ impl LicenseService {
         let request = EntitlementRequest {
             key: self.license_key.as_str().to_string(),
         };
-        let response = self
+        let send = self
             .http
             .post(format!("{base_url}{ENTITLEMENT_PATH}"))
             .header(SERVER_VERSION_HEADER, env!("CARGO_PKG_VERSION"))
             .json(&request)
-            .send()
-            .await?;
+            .send();
+        let response = observe_http(Dependency::LicenseServer, send).await?;
 
         let http_status = response.status();
         match http_status {

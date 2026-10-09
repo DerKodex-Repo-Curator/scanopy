@@ -9,6 +9,7 @@ use crate::server::daemons::r#impl::api::{
     ProvisionDaemonResponse, TestReachabilityRequest, TestReachabilityResponse,
 };
 use crate::server::daemons::r#impl::base::DaemonOs;
+use crate::server::metrics::dependency::{Dependency, observe_http};
 use crate::server::openapi::tags as api_tags;
 use crate::server::shared::entities::EntityDiscriminants;
 use crate::server::shared::extractors::Query;
@@ -358,9 +359,11 @@ pub async fn get_windows_msi(
     let bytes = match cache.get::<bytes::Bytes>(WINDOWS_MSI_CACHE_KEY).await {
         Some(cached) => cached,
         None => {
-            let response = reqwest::get(WINDOWS_MSI_URL).await.map_err(|e| {
-                ApiError::bad_gateway(format!("Failed to fetch MSI from GitHub: {e}"))
-            })?;
+            let response = observe_http(Dependency::Github, reqwest::get(WINDOWS_MSI_URL))
+                .await
+                .map_err(|e| {
+                    ApiError::bad_gateway(format!("Failed to fetch MSI from GitHub: {e}"))
+                })?;
 
             if !response.status().is_success() {
                 return Err(ApiError::bad_gateway(format!(

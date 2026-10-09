@@ -1,3 +1,4 @@
+use crate::server::metrics::dependency::{Dependency, observe};
 use crate::server::{
     auth::middleware::auth::ActorProperties,
     shared::{
@@ -65,6 +66,17 @@ impl PosthogService {
         Some((distinct_id, result))
     }
 
+    /// Deliver `event`, retrying twice. Counted once, with the final outcome.
+    async fn send(&self, event: posthog_rs::Event) -> Result<(), posthog_rs::Error> {
+        let attempts = (|| async { self.client.capture(event.clone()).await }).retry(
+            ExponentialBuilder::default()
+                .with_min_delay(Duration::from_millis(100))
+                .with_max_delay(Duration::from_millis(500))
+                .with_max_times(2),
+        );
+        observe(Dependency::Posthog, attempts).await
+    }
+
     /// Send an event, retrying twice. Returns the last error once the retries run out.
     async fn capture<M: Serialize>(
         &self,
@@ -75,13 +87,7 @@ impl PosthogService {
         let event = to_posthog_event(name, distinct_id, properties)
             .map_err(|e| anyhow::anyhow!("PostHog capture {name}: {e}"))?;
 
-        (|| async { self.client.capture(event.clone()).await })
-            .retry(
-                ExponentialBuilder::default()
-                    .with_min_delay(Duration::from_millis(100))
-                    .with_max_delay(Duration::from_millis(500))
-                    .with_max_times(2),
-            )
+        self.send(event)
             .await
             .map_err(|e| anyhow::anyhow!("PostHog capture {name}: {e}"))
     }
@@ -97,13 +103,7 @@ impl PosthogService {
             .insert_prop("$set", properties)
             .map_err(|e| anyhow::anyhow!("PostHog $identify: {e}"))?;
 
-        (|| async { self.client.capture(event.clone()).await })
-            .retry(
-                ExponentialBuilder::default()
-                    .with_min_delay(Duration::from_millis(100))
-                    .with_max_delay(Duration::from_millis(500))
-                    .with_max_times(2),
-            )
+        self.send(event)
             .await
             .map_err(|e| anyhow::anyhow!("PostHog $identify: {e}"))
     }
@@ -124,13 +124,7 @@ impl PosthogService {
             .and_then(|()| event.insert_prop("$group_set", properties))
             .map_err(|e| anyhow::anyhow!("{}: {e}", context()))?;
 
-        (|| async { self.client.capture(event.clone()).await })
-            .retry(
-                ExponentialBuilder::default()
-                    .with_min_delay(Duration::from_millis(100))
-                    .with_max_delay(Duration::from_millis(500))
-                    .with_max_times(2),
-            )
+        self.send(event)
             .await
             .map_err(|e| anyhow::anyhow!("{}: {e}", context()))
     }

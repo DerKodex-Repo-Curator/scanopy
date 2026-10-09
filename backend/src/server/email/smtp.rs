@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use email_address::EmailAddress;
 
 use super::{messages::Email, transport::EmailTransport};
+use crate::server::metrics::dependency::{Dependency, observe};
 use crate::server::shared::trusted_ca::{TrustedCaBundle, is_untrusted_certificate};
 
 /// Extra guidance for a failure where we never got a reply out of the server.
@@ -213,30 +214,32 @@ impl EmailTransport for SmtpEmailProvider {
         //
         // The error is passed on as itself, not stringified, so `ApiError` can recognise
         // it upstream instead of leaking this text to an end user.
-        self.mailer.send(message).await.map_err(|e| {
-            // lettre reports a rejected certificate as a connection error, not a TLS one. A
-            // rejected certificate also means the relay answered, so the port is not the
-            // problem and the implicit-TLS hint would send the operator the wrong way.
-            let cert_untrusted = is_untrusted_certificate(&e);
-            tracing::error!(
-                relay = %self.relay,
-                port = self.port.unwrap_or(465),
-                smtp_code = e.status().map(u16::from),
-                permanent = e.is_permanent(),
-                transient = e.is_transient(),
-                tls = e.is_tls() || cert_untrusted,
-                timeout = e.is_timeout(),
-                "Failed to send email: {e}.{}{}",
-                implicit_tls_hint(self.port, e.status().is_some() || cert_untrusted),
-                if cert_untrusted {
-                    " The relay's certificate is not trusted. If it is signed by a private CA, \
-                     set SCANOPY_TRUSTED_CA_BUNDLE to that CA's PEM file."
-                } else {
-                    ""
-                }
-            );
-            Error::new(e)
-        })?;
+        observe(Dependency::Smtp, self.mailer.send(message))
+            .await
+            .map_err(|e| {
+                // lettre reports a rejected certificate as a connection error, not a TLS one. A
+                // rejected certificate also means the relay answered, so the port is not the
+                // problem and the implicit-TLS hint would send the operator the wrong way.
+                let cert_untrusted = is_untrusted_certificate(&e);
+                tracing::error!(
+                    relay = %self.relay,
+                    port = self.port.unwrap_or(465),
+                    smtp_code = e.status().map(u16::from),
+                    permanent = e.is_permanent(),
+                    transient = e.is_transient(),
+                    tls = e.is_tls() || cert_untrusted,
+                    timeout = e.is_timeout(),
+                    "Failed to send email: {e}.{}{}",
+                    implicit_tls_hint(self.port, e.status().is_some() || cert_untrusted),
+                    if cert_untrusted {
+                        " The relay's certificate is not trusted. If it is signed by a private CA, \
+                         set SCANOPY_TRUSTED_CA_BUNDLE to that CA's PEM file."
+                    } else {
+                        ""
+                    }
+                );
+                Error::new(e)
+            })?;
 
         Ok(())
     }
@@ -246,6 +249,7 @@ impl EmailTransport for SmtpEmailProvider {
 mod tests {
     use super::*;
     use crate::server::email::messages::EmailCategory;
+    use crate::server::metrics::dependency::tests::TestRecorder;
     use crate::server::shared::types::api::ApiError;
     use crate::server::shared::types::error_codes::ErrorCode;
 
@@ -295,6 +299,8 @@ mod tests {
         )
         .expect("provider should build");
 
+        let recorder = TestRecorder::new();
+        let _guard = recorder.install();
         let err = provider
             .send(
                 "user@example.test".parse().unwrap(),
@@ -305,6 +311,9 @@ mod tests {
             )
             .await
             .expect_err("sending to a closed port must fail");
+
+        // Counted, so a relay that stops answering shows up without the logs.
+        assert!(recorder.count("smtp", "connect"), "{}", recorder.render());
 
         // The typed error survives, which is what lets the API layer recognise it.
         assert!(

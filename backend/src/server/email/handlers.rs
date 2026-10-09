@@ -14,6 +14,7 @@ use super::feedback::FeedbackError;
 use super::messages::{EmailCategory, links};
 use crate::server::config::AppState;
 use crate::server::openapi::tags as api_tags;
+use crate::server::shared::types::ErrorCode;
 use crate::server::shared::types::api::{
     ApiError, ApiErrorResponse, ApiResponse, ApiResult, EmptyApiResponse,
 };
@@ -139,8 +140,13 @@ async fn receive_sns_feedback(
     match feedback_service.handle(&body).await {
         Ok(()) => Ok(Json(ApiResponse::success(()))),
         Err(FeedbackError::Rejected(reason)) => {
+            // Coded, so a topic ARN that no longer matches (every delivery rejected, no bounce
+            // recorded) shows in `http_requests_total`.
             tracing::warn!(reason = reason.as_str(), "Rejected an SNS message");
-            Err(ApiError::bad_request("Invalid message"))
+            Err(ApiError::coded(
+                axum::http::StatusCode::BAD_REQUEST,
+                ErrorCode::EmailFeedbackRejected,
+            ))
         }
         Err(FeedbackError::Unavailable(e)) => {
             tracing::error!(error = %e, "Could not process an SNS message");
