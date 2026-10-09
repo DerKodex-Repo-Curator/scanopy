@@ -195,7 +195,7 @@ export interface TreeConfig<T> {
 /**
  * Base configuration shared by all field types.
  */
-interface BaseFieldConfig<T> {
+export interface BaseFieldConfig<T> {
 	/** How this field renders in the table. Omit for plain text. */
 	display?: DisplayConfig<T>;
 	type: 'string' | 'boolean' | 'date' | 'array';
@@ -379,7 +379,7 @@ export function groupPageSlice(
  * Configuration for a single orderable field entry.
  * The orderField value is derived from the map key, so it's not included here.
  */
-type OrderableFieldEntry<T> = BaseFieldConfig<T> & {
+export type OrderableFieldEntry<T> = BaseFieldConfig<T> & {
 	groupable?: boolean;
 };
 

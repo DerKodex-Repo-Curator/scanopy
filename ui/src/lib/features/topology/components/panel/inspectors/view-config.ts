@@ -12,6 +12,7 @@ import type { Component } from 'svelte';
 import { views } from '$lib/shared/stores/metadata';
 
 import SectionIdentity from './sections/SectionIdentity.svelte';
+import SectionDetails from './sections/SectionDetails.svelte';
 import SectionInterfaceData from './sections/SectionInterfaceData.svelte';
 import SectionServices from './sections/SectionServices.svelte';
 import SectionDependencies from './sections/SectionDependencies.svelte';
@@ -27,6 +28,7 @@ import SectionVirtualization from './sections/SectionVirtualization.svelte';
 
 export type InspectorSection =
 	| 'Identity'
+	| 'Details'
 	| 'InterfaceData'
 	| 'Services'
 	| 'Dependencies'
@@ -50,6 +52,7 @@ export interface ViewInspectorConfig {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SECTION_COMPONENTS: Record<InspectorSection, Component<any>> = {
 	Identity: SectionIdentity,
+	Details: SectionDetails,
 	InterfaceData: SectionInterfaceData,
 	Services: SectionServices,
 	Dependencies: SectionDependencies,

@@ -1,6 +1,7 @@
 import type { components } from '$lib/api/schema';
 import type { RenderableTopology, TopologyEdge, TopologyNode } from './types/base';
-import { entities } from '$lib/shared/stores/metadata';
+import { containerTypes, entities } from '$lib/shared/stores/metadata';
+import { collectionLookup, type EntityLookup, type EntityType } from '$lib/shared/entity-fields';
 import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 import { getTopologyIndex, type ContainerContents } from './entity-index';
 import type { FreshnessSubject } from '$lib/shared/utils/freshness';
@@ -23,7 +24,8 @@ export const ENTITY_COLLECTIONS: Record<string, keyof RenderableTopology> = {
 	Subnet: 'subnets',
 	Binding: 'bindings',
 	Dependency: 'dependencies',
-	Vlan: 'vlans'
+	Vlan: 'vlans',
+	Tag: 'entity_tags'
 };
 
 /** Instances of `entityType` on `topo`, or `undefined` if the type has no collection. */
@@ -758,4 +760,33 @@ export function containerEntity(
 	const entityId = node.entity_id ?? node.id;
 	return entityCollection(topology, node.container_type)?.find((e) => e.id === entityId) as
 		NodeEntity | undefined;
+}
+
+/**
+ * The entity a node stands for, from what the backend put on it: an element's `element_type` and
+ * `entity_id`, or a container's `entity_id` and its container type's `entity_type` metadata.
+ * `null` for grouping containers and for an element whose entity this topology doesn't hold.
+ *
+ * The single lookup from a drawn shape to what it describes; new consumers use this rather than
+ * switching on element or container types.
+ */
+export function nodeEntity(
+	node: TopologyNode,
+	topology: RenderableTopology
+): { entityType: EntityType; entity: NodeEntity } | null {
+	const entityType: EntityType | null | undefined =
+		node.node_type === 'Element'
+			? (node.element_type as EntityType)
+			: containerTypes.getMetadata(node.container_type ?? null).entity_type;
+	if (!entityType || !node.entity_id) return null;
+	const entity = entityCollection(topology, entityType)?.find((e) => e.id === node.entity_id);
+	return entity ? { entityType, entity: entity as NodeEntity } : null;
+}
+
+/** An `EntityLookup` over a topology's entity collections, for resolving registry fields. */
+export function topologyLookup(topology: RenderableTopology): EntityLookup {
+	const collections = Object.fromEntries(
+		Object.keys(ENTITY_COLLECTIONS).map((type) => [type, entityCollection(topology, type)])
+	);
+	return collectionLookup(collections);
 }

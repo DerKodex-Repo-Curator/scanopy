@@ -34,6 +34,7 @@ import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 import { getTopologyIndex } from './entity-index';
 import { entities, serviceDefinitions, views } from '$lib/shared/stores/metadata';
 import { getFreshnessTag } from '$lib/shared/utils/freshness';
+import { formatInterfaceSpeed } from '$lib/shared/utils/formatting';
 import type { Site } from '$lib/features/sites/types';
 import { get } from 'svelte/store';
 import { activeView, topologyOptions } from './queries';
@@ -271,13 +272,7 @@ function buildElementContent(
 				: undefined;
 		const iface = ifEntryId ? getTopologyIndex(topology).interfacesById.get(ifEntryId) : undefined;
 
-		let speed: string | null = null;
-		if (iface?.speed_bps) {
-			const bps = iface.speed_bps;
-			if (bps >= 1_000_000_000) speed = `${(bps / 1_000_000_000).toFixed(0)}G`;
-			else if (bps >= 1_000_000) speed = `${(bps / 1_000_000).toFixed(0)}M`;
-			else speed = `${bps} bps`;
-		}
+		const speed = iface?.speed_bps ? formatInterfaceSpeed(iface.speed_bps) : null;
 
 		return {
 			flags,
