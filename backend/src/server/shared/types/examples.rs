@@ -385,6 +385,7 @@ pub fn user() -> User {
             password_reset_token: None,
             password_reset_expires: None,
             pending_email: None,
+            email_unsubscribe_token: None,
             email_settings: Default::default(),
             display_settings: Default::default(),
             session_epoch: 0,

@@ -114,6 +114,11 @@ pub fn describe_metrics() {
         Unit::Count,
         "Finished discovery sessions the server failed to record, by step (finalize_scan, history_record)"
     );
+    describe_counter!(
+        "scanopy_email_feedback_total",
+        Unit::Count,
+        "SES bounce and complaint recipients reported over SNS, by type and bounce type"
+    );
     describe_histogram!(
         "scanopy_link_resolution_duration_seconds",
         Unit::Seconds,

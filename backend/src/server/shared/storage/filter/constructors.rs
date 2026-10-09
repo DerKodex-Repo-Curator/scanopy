@@ -74,6 +74,10 @@ impl<T: Storable> StorableFilter<T> {
         Self::new().email_verification_token(token)
     }
 
+    pub fn new_from_email_unsubscribe_token(token: &Uuid) -> Self {
+        Self::new().email_unsubscribe_token(token)
+    }
+
     pub fn new_from_host_ids(host_ids: &[Uuid]) -> Self {
         Self::new().host_ids(host_ids)
     }

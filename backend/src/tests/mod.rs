@@ -44,6 +44,7 @@ pub mod billing_emails_zero_amount;
 pub mod cloud_setup;
 pub mod demo_data_seeding;
 pub mod dependencies;
+pub mod email_unsubscribe;
 pub mod far_end_advertised_ports;
 pub mod fdb_resolution;
 pub mod field_values_scope;

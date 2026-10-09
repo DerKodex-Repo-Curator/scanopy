@@ -275,6 +275,7 @@ pub async fn update_user(
     request.base.oidc_provider = existing.base.oidc_provider.clone();
     request.base.oidc_subject = existing.base.oidc_subject.clone();
     request.base.oidc_linked_at = existing.base.oidc_linked_at;
+    request.base.email_unsubscribe_token = existing.base.email_unsubscribe_token;
 
     if !request.base.display_settings.has_valid_time_zone() {
         return Err(ApiError::bad_request(
@@ -368,6 +369,7 @@ async fn admin_update_user(
     request.base.oidc_provider = existing.base.oidc_provider.clone();
     request.base.oidc_subject = existing.base.oidc_subject.clone();
     request.base.oidc_linked_at = existing.base.oidc_linked_at;
+    request.base.email_unsubscribe_token = existing.base.email_unsubscribe_token;
     request.base.email_settings = existing.base.email_settings.clone();
     request.base.display_settings = existing.base.display_settings.clone();
 

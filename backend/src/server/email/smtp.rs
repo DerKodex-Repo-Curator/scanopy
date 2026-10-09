@@ -1,6 +1,9 @@
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
-    message::{Attachment, Mailbox, MultiPart, SinglePart, header::ContentType},
+    message::{
+        Attachment, Mailbox, MessageBuilder, MultiPart, SinglePart,
+        header::{ContentType, Header, HeaderName, HeaderValue},
+    },
     transport::smtp::{authentication::Credentials, client::Tls},
 };
 
@@ -26,6 +29,74 @@ fn implicit_tls_hint(port: Option<u16>, got_reply: bool) -> &'static str {
     " The configured port is 465, which means implicit TLS (this is the default when \
      SCANOPY_SMTP_PORT is unset). Servers that accept submission only on 587 with STARTTLS will \
      not answer there — if yours is one of them, set SCANOPY_SMTP_PORT=587."
+}
+
+/// `List-Unsubscribe: <url>` (RFC 2369). lettre has no typed header for it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ListUnsubscribe(String);
+
+impl Header for ListUnsubscribe {
+    fn name() -> HeaderName {
+        HeaderName::new_from_ascii_str("List-Unsubscribe")
+    }
+
+    fn parse(s: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let url = s
+            .trim()
+            .strip_prefix('<')
+            .and_then(|rest| rest.strip_suffix('>'))
+            .ok_or("List-Unsubscribe must be a <url>")?;
+        Ok(Self(url.to_string()))
+    }
+
+    fn display(&self) -> HeaderValue {
+        HeaderValue::new(Self::name(), format!("<{}>", self.0))
+    }
+}
+
+/// `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058), which tells a
+/// mail client it may unsubscribe with a single POST to the `List-Unsubscribe` URL.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ListUnsubscribePost;
+
+impl ListUnsubscribePost {
+    const VALUE: &'static str = "List-Unsubscribe=One-Click";
+}
+
+impl Header for ListUnsubscribePost {
+    fn name() -> HeaderName {
+        HeaderName::new_from_ascii_str("List-Unsubscribe-Post")
+    }
+
+    fn parse(s: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        if s.trim() == Self::VALUE {
+            Ok(Self)
+        } else {
+            Err("List-Unsubscribe-Post must be List-Unsubscribe=One-Click".into())
+        }
+    }
+
+    fn display(&self) -> HeaderValue {
+        HeaderValue::new(Self::name(), Self::VALUE.to_string())
+    }
+}
+
+/// Add the unsubscribe headers for `unsubscribe_url`, if there is one. RFC 8058
+/// requires the one-click URL to be HTTPS, so a plain-HTTP self-host gets only
+/// `List-Unsubscribe`, which mail clients open in a browser.
+fn with_unsubscribe_headers(
+    builder: MessageBuilder,
+    unsubscribe_url: Option<&str>,
+) -> MessageBuilder {
+    let Some(url) = unsubscribe_url else {
+        return builder;
+    };
+    let builder = builder.header(ListUnsubscribe(url.to_string()));
+    if url.starts_with("https://") {
+        builder.header(ListUnsubscribePost)
+    } else {
+        builder
+    }
 }
 
 /// SMTP-based email transport (lettre), used whenever `SCANOPY_EMAIL_LOG_DIR`
@@ -96,6 +167,7 @@ impl EmailTransport for SmtpEmailProvider {
         email: &dyn Email,
         base_url: &str,
         self_hosted: bool,
+        unsubscribe_url: Option<&str>,
     ) -> Result<(), Error> {
         let to_mbox = Mailbox::new(
             None,
@@ -126,11 +198,11 @@ impl EmailTransport for SmtpEmailProvider {
             mixed
         };
 
-        let message = lettre::Message::builder()
+        let builder = lettre::Message::builder()
             .from(self.from.clone())
             .to(to_mbox)
-            .subject(email.subject())
-            .multipart(body)?;
+            .subject(email.subject());
+        let message = with_unsubscribe_headers(builder, unsubscribe_url).multipart(body)?;
 
         // Log here rather than at the ~8 call sites: they each know *which* email failed
         // but have no idea why, and this is the only point that still holds the reply
@@ -229,6 +301,7 @@ mod tests {
                 &TestEmail,
                 "https://app.example.test",
                 true,
+                None,
             )
             .await
             .expect_err("sending to a closed port must fail");
@@ -250,6 +323,59 @@ mod tests {
             !api_error.message.contains(relay),
             "the relay host leaked to the client: {}",
             api_error.message
+        );
+    }
+
+    fn message_with_unsubscribe(url: Option<&str>) -> lettre::Message {
+        let builder = lettre::Message::builder()
+            .from("Scanopy <scanopy@example.test>".parse().unwrap())
+            .to("user@example.test".parse().unwrap())
+            .subject("Digest");
+        with_unsubscribe_headers(builder, url)
+            .body("body".to_string())
+            .unwrap()
+    }
+
+    /// RFC 8058 one-click needs HTTPS. A plain-HTTP self-host still gets a
+    /// `List-Unsubscribe` link, which a mail client opens in a browser.
+    #[test]
+    fn one_click_unsubscribe_is_offered_only_over_https() {
+        let https = "https://app.example.test/api/email/unsubscribe/t/discovery_digest";
+        let message = message_with_unsubscribe(Some(https));
+        assert_eq!(
+            message.headers().get::<ListUnsubscribe>(),
+            Some(ListUnsubscribe(https.to_string()))
+        );
+        assert_eq!(
+            message.headers().get::<ListUnsubscribePost>(),
+            Some(ListUnsubscribePost)
+        );
+
+        let http = "http://scanopy.lan:60072/api/email/unsubscribe/t/discovery_digest";
+        let message = message_with_unsubscribe(Some(http));
+        assert_eq!(
+            message.headers().get::<ListUnsubscribe>(),
+            Some(ListUnsubscribe(http.to_string()))
+        );
+        assert_eq!(message.headers().get::<ListUnsubscribePost>(), None);
+
+        let message = message_with_unsubscribe(None);
+        assert_eq!(message.headers().get::<ListUnsubscribe>(), None);
+        assert_eq!(message.headers().get::<ListUnsubscribePost>(), None);
+    }
+
+    /// Mail clients read the URL between the angle brackets of the raw header.
+    #[test]
+    fn the_unsubscribe_url_reaches_the_wire_intact() {
+        let url = "https://app.example.test/api/email/unsubscribe/0b6f/daemon_alerts";
+        let raw = String::from_utf8(message_with_unsubscribe(Some(url)).formatted()).unwrap();
+        assert!(
+            raw.contains(&format!("List-Unsubscribe: <{url}>\r\n")),
+            "{raw}"
+        );
+        assert!(
+            raw.contains("List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n"),
+            "{raw}"
         );
     }
 

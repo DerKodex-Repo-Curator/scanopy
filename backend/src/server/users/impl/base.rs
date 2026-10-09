@@ -87,6 +87,10 @@ pub struct UserBase {
     /// Pending email address for email change flow - never exposed to client
     #[serde(skip)]
     pub pending_email: Option<EmailAddress>,
+    /// Opaque token in the one-click unsubscribe link of pausable emails. Minted
+    /// on first need, never exposed to the client.
+    #[serde(skip)]
+    pub email_unsubscribe_token: Option<Uuid>,
     /// Per-user email preferences
     #[serde(default)]
     pub email_settings: EmailSettings,
@@ -120,6 +124,7 @@ impl Default for UserBase {
             password_reset_token: None,
             password_reset_expires: None,
             pending_email: None,
+            email_unsubscribe_token: None,
             email_settings: EmailSettings::default(),
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
@@ -155,6 +160,7 @@ impl UserBase {
             password_reset_token: None,
             password_reset_expires: None,
             pending_email: None,
+            email_unsubscribe_token: None,
             email_settings: EmailSettings::default(),
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
@@ -187,6 +193,7 @@ impl UserBase {
             password_reset_token: None,
             password_reset_expires: None,
             pending_email: None,
+            email_unsubscribe_token: None,
             email_settings: EmailSettings::default(),
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
@@ -291,6 +298,7 @@ impl Storable for User {
                     password_reset_token,
                     password_reset_expires,
                     pending_email,
+                    email_unsubscribe_token,
                     email_settings,
                     display_settings,
                     session_epoch,
@@ -318,6 +326,7 @@ impl Storable for User {
                 "password_reset_token",
                 "password_reset_expires",
                 "pending_email",
+                "email_unsubscribe_token",
                 "email_settings",
                 "display_settings",
                 "session_epoch",
@@ -340,6 +349,7 @@ impl Storable for User {
                 SqlValue::OptionalString(password_reset_token),
                 SqlValue::OptionTimestamp(password_reset_expires),
                 SqlValue::OptionalString(pending_email.map(|e| e.to_string())),
+                SqlValue::OptionalUuid(email_unsubscribe_token),
                 SqlValue::EmailSettings(email_settings),
                 SqlValue::DisplaySettings(display_settings),
                 SqlValue::I64(session_epoch),
@@ -385,6 +395,7 @@ impl Storable for User {
                 password_reset_token: row.get("password_reset_token"),
                 password_reset_expires: row.get("password_reset_expires"),
                 pending_email,
+                email_unsubscribe_token: row.get("email_unsubscribe_token"),
                 email_settings: row
                     .try_get::<serde_json::Value, _>("email_settings")
                     .ok()
@@ -465,5 +476,6 @@ impl Entity for User {
 
     fn preserve_immutable_fields(&mut self, existing: &Self) {
         self.base.terms_accepted_at = existing.base.terms_accepted_at;
+        self.base.email_unsubscribe_token = existing.base.email_unsubscribe_token;
     }
 }

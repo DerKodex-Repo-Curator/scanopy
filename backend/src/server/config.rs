@@ -117,6 +117,10 @@ pub struct ServerCli {
     #[arg(long)]
     smtp_port: Option<u16>,
 
+    /// ARN of the SNS topic that delivers SES bounce and complaint notifications.
+    #[arg(long)]
+    email_feedback_sns_topic_arn: Option<String>,
+
     /// URL users reach the server at. Used in password reset links, invite links and webhooks.
     #[arg(long)]
     public_url: Option<String>,
@@ -192,6 +196,11 @@ pub struct ServerConfig {
     /// password-reset and verification tokens, in plaintext on disk.
     #[serde(default)]
     pub email_log_dir: Option<PathBuf>,
+    /// ARN of the SNS topic that delivers SES bounce and complaint notifications to
+    /// `POST /api/email/feedback/sns` (`SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN`). Unset, that
+    /// endpoint answers 404. Messages from any other topic are rejected.
+    #[serde(default)]
+    pub email_feedback_sns_topic_arn: Option<String>,
     #[serde(default)]
     pub oidc_providers: Option<Vec<OidcProviderConfig>>,
 
@@ -375,6 +384,7 @@ impl Default for ServerConfig {
             smtp_relay: None,
             smtp_port: Some(465),
             email_log_dir: None,
+            email_feedback_sns_topic_arn: None,
             client_ip_source: None,
             oidc_providers: None,
             posthog_key: None,
@@ -442,6 +452,9 @@ impl ServerConfig {
         }
         if let Some(smtp_port) = cli_args.smtp_port {
             figment = figment.merge(("smtp_port", smtp_port));
+        }
+        if let Some(topic_arn) = cli_args.email_feedback_sns_topic_arn {
+            figment = figment.merge(("email_feedback_sns_topic_arn", topic_arn));
         }
         if let Some(public_url) = cli_args.public_url {
             figment = figment.merge(("public_url", public_url));

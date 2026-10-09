@@ -10,7 +10,10 @@ use crate::server::{
     dependencies::service::DependencyService,
     digest::service::DiscoveryDigestService,
     discovery::service::DiscoveryService,
-    email::{logging::LoggingEmailProvider, service::EmailService, smtp::SmtpEmailProvider},
+    email::{
+        feedback::EmailFeedbackService, logging::LoggingEmailProvider, service::EmailService,
+        smtp::SmtpEmailProvider,
+    },
     hosts::service::HostService,
     interface_neighbors::service::InterfaceNeighborService,
     interfaces::service::InterfaceService,
@@ -68,6 +71,8 @@ pub struct ServiceFactory {
     pub oidc_service: Option<Arc<OidcService>>,
     pub billing_service: Option<Arc<BillingService>>,
     pub email_service: Option<Arc<EmailService>>,
+    /// Present only when `email_feedback_sns_topic_arn` is configured.
+    pub email_feedback_service: Option<Arc<EmailFeedbackService>>,
     pub posthog_service: Option<Arc<PosthogService>>,
     pub event_bus: Arc<EventBus>,
     pub logging_service: Arc<LoggingService>,
@@ -437,6 +442,14 @@ impl ServiceFactory {
             }
         };
 
+        let email_feedback_service = config
+            .email_feedback_sns_topic_arn
+            .clone()
+            .map(|topic_arn| {
+                EmailFeedbackService::new(topic_arn, user_service.clone()).map(Arc::new)
+            })
+            .transpose()?;
+
         let billing_service = if let Some(stripe_secret) = config.stripe_secret
             && let Some(webhook_secret) = config.stripe_webhook_secret
         {
@@ -510,6 +523,7 @@ impl ServiceFactory {
             oidc_service,
             billing_service,
             email_service,
+            email_feedback_service,
             posthog_service,
             event_bus,
             logging_service,
@@ -566,6 +580,7 @@ impl ServiceFactory {
             oidc_service,
             billing_service,
             email_service,
+            email_feedback_service: _, // not a Subscriber: driven by its HTTP endpoint
             posthog_service,
             event_bus: _, // not a service; not subscriber-dispatched
             logging_service,

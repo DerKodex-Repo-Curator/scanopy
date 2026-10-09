@@ -192,6 +192,8 @@ impl EmailCategory {
     }
 }
 
+/// The id is also the category segment of the one-click unsubscribe URL, so
+/// renaming a pausable variant breaks the links in emails already sent.
 impl HasId for EmailCategory {
     fn id(&self) -> &'static str {
         self.into()

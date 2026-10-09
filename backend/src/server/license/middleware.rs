@@ -9,6 +9,7 @@ use axum::{
 use std::sync::Arc;
 
 use super::online::ENTITLEMENT_PATH;
+use crate::server::email::handlers::{SNS_FEEDBACK_PATH, UNSUBSCRIBE_PATH_PREFIX};
 
 /// Requests the guard lets through whatever the license status is.
 ///
@@ -20,12 +21,16 @@ use super::online::ENTITLEMENT_PATH;
 ///   instance is not a licensed feature, and blocking it deadlocks any server
 ///   that serves its own entitlements: it could never answer the request that
 ///   clears its own `Pending` status.
+/// - One-click unsubscribes and SES feedback — turning off email a recipient
+///   no longer wants is not a licensed feature.
 fn always_allowed(method: &Method, path: &str) -> bool {
     method.is_safe()
         || path.starts_with("/api/auth/")
         || path == "/api/config"
         || path == "/api/health"
         || path == ENTITLEMENT_PATH
+        || path.starts_with(UNSUBSCRIBE_PATH_PREFIX)
+        || path == SNS_FEEDBACK_PATH
 }
 
 /// Middleware that blocks mutating requests when the license is locked.
@@ -75,5 +80,15 @@ mod tests {
         // A server that serves entitlements has to answer this POST even while
         // its own license is locked, or it can never clear its own `Pending`.
         assert!(always_allowed(&Method::POST, ENTITLEMENT_PATH));
+    }
+
+    #[test]
+    fn unsubscribes_and_email_feedback_survive_a_lock() {
+        let unsubscribe = format!(
+            "{UNSUBSCRIBE_PATH_PREFIX}{}/discovery_digest",
+            uuid::Uuid::nil()
+        );
+        assert!(always_allowed(&Method::POST, &unsubscribe));
+        assert!(always_allowed(&Method::POST, SNS_FEEDBACK_PATH));
     }
 }

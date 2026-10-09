@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use utoipa::ToSchema;
 
 use crate::server::email::messages::EmailCategory;
@@ -59,6 +60,40 @@ impl EmailSettings {
             EmailCategory::TrialAndUsage => self.trial_and_usage,
         }
     }
+
+    /// Switch one pausable category on or off. Returns whether the setting
+    /// changed, so a caller can skip a write that would store the same value,
+    /// or `None` for a required category, which has no setting.
+    pub fn set(&mut self, category: EmailCategory, enabled: bool) -> Option<bool> {
+        let flag = self.flag_mut(category)?;
+        let changed = *flag != enabled;
+        *flag = enabled;
+        Some(changed)
+    }
+
+    /// Switch every pausable category off, leaving only required emails.
+    /// Returns whether any setting changed.
+    pub fn pause_all(&mut self) -> bool {
+        EmailCategory::iter()
+            .filter(|category| category.pausable())
+            .fold(false, |changed, category| {
+                self.set(category, false).unwrap_or(false) || changed
+            })
+    }
+
+    fn flag_mut(&mut self, category: EmailCategory) -> Option<&mut bool> {
+        match category {
+            EmailCategory::Auth
+            | EmailCategory::Account
+            | EmailCategory::Billing
+            | EmailCategory::DaemonSetup
+            | EmailCategory::Invitation => None,
+            EmailCategory::DiscoveryDigest => Some(&mut self.discovery_digest),
+            EmailCategory::ProductOnboarding => Some(&mut self.product_onboarding),
+            EmailCategory::DaemonAlerts => Some(&mut self.daemon_alerts),
+            EmailCategory::TrialAndUsage => Some(&mut self.trial_and_usage),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -106,5 +141,44 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The unsubscribe link names one category and turns off that category
+    /// alone; a required category has nothing to turn off.
+    #[test]
+    fn set_turns_off_exactly_the_named_category() {
+        for category in EmailCategory::iter() {
+            let mut settings = EmailSettings::default();
+            if !category.pausable() {
+                assert_eq!(settings.set(category, false), None, "{}", category.id());
+                assert_eq!(settings, EmailSettings::default());
+                continue;
+            }
+            assert_eq!(settings.set(category, false), Some(true));
+            assert_eq!(
+                settings.set(category, false),
+                Some(false),
+                "a repeat is not a change"
+            );
+            for other in EmailCategory::iter() {
+                assert_eq!(
+                    settings.allows(other),
+                    other != category,
+                    "turning off {} changed {}",
+                    category.id(),
+                    other.id()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pause_all_leaves_only_required_emails() {
+        let mut settings = EmailSettings::default();
+        assert!(settings.pause_all());
+        for category in EmailCategory::iter() {
+            assert_eq!(settings.allows(category), !category.pausable());
+        }
+        assert!(!settings.pause_all(), "already paused: nothing to store");
     }
 }
