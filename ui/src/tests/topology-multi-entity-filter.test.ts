@@ -50,10 +50,23 @@ function buildTopology(): RenderableTopology {
 				id: 'bridge-container',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'docker-host'
+				host_id: 'docker-host',
+				entity_id: 'bridge-container'
 			},
-			{ id: 'sshd', node_type: 'Element', element_type: 'Service', host_id: 'docker-host' },
-			{ id: 'macvlan-card', node_type: 'Element', element_type: 'Host', host_id: 'macvlan' }
+			{
+				id: 'sshd',
+				node_type: 'Element',
+				element_type: 'Service',
+				host_id: 'docker-host',
+				entity_id: 'sshd'
+			},
+			{
+				id: 'macvlan-card',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'macvlan',
+				entity_id: 'macvlan'
+			}
 		],
 		edges: [],
 		subnets: [],

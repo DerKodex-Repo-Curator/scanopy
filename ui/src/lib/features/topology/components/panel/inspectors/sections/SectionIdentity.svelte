@@ -8,7 +8,7 @@
 	import { ServiceDisplay } from '$lib/shared/components/forms/selection/display/ServiceDisplay.svelte';
 	import { InterfaceDisplay } from '$lib/shared/components/forms/selection/display/InterfaceDisplay.svelte';
 	import { HostDisplay } from '$lib/shared/components/forms/selection/display/HostDisplay.svelte';
-	import type { RenderableTopology, TopologyNode } from '$lib/features/topology/types/base';
+	import type { RenderableTopology } from '$lib/features/topology/types/base';
 	import type { TopologyEditState } from '$lib/features/topology/state';
 	import type {
 		ElementRenderContext,
@@ -79,12 +79,7 @@
 	});
 
 	// For Interface (SNMP) elements: show the Interface
-	let thisInterface = $derived.by(() => {
-		if (elementContext?.elementType !== 'Interface') return null;
-		const nodeData = node.data as TopologyNode;
-		const interfaceId = 'interface_id' in nodeData ? (nodeData.interface_id as string) : undefined;
-		return interfaceId ? (topology.interfaces.find((e) => e.id === interfaceId) ?? null) : null;
-	});
+	let thisInterface = $derived(elementContext?.snmpInterface ?? null);
 
 	// For Host containers: resolve via entity_id on the container node
 	let thisHost = $derived.by(() => {

@@ -30,10 +30,16 @@ function buildTopology(): RenderableTopology {
 		hosts: [{ id: 'host-1', name: 'host-1', site_id: 'net-1', tags: [] }],
 		services: [service('svc-a', 'ip-a'), service('svc-b', 'ip-b'), service('svc-c', 'ip-c')],
 		nodes: [
-			{ id: 'svc-a', node_type: 'Element', element_type: 'Service' },
-			{ id: 'svc-b', node_type: 'Element', element_type: 'Service' },
-			{ id: 'svc-c', node_type: 'Element', element_type: 'Service' },
-			{ id: 'ip-a', node_type: 'Element', element_type: 'IPAddress', host_id: 'host-1' }
+			{ id: 'svc-a', node_type: 'Element', element_type: 'Service', entity_id: 'svc-a' },
+			{ id: 'svc-b', node_type: 'Element', element_type: 'Service', entity_id: 'svc-b' },
+			{ id: 'svc-c', node_type: 'Element', element_type: 'Service', entity_id: 'svc-c' },
+			{
+				id: 'ip-a',
+				node_type: 'Element',
+				element_type: 'IPAddress',
+				host_id: 'host-1',
+				entity_id: 'ip-a'
+			}
 		],
 		edges: []
 	} as unknown as RenderableTopology;

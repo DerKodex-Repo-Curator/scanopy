@@ -19,6 +19,7 @@ function serviceElement(id: string, containerId: string) {
 		node_type: 'Element',
 		element_type: 'Service',
 		host_id: 'host-1',
+		entity_id: id,
 		container_id: containerId
 	};
 }
@@ -88,6 +89,7 @@ function buildTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Host',
 				host_id: 'vm-host',
+				entity_id: 'vm-host',
 				container_id: 'hypervisor'
 			}
 		],

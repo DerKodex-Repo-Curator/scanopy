@@ -132,18 +132,23 @@
 	);
 	let containerTags = $derived(resolved?.tags ?? []);
 
-	// The entity this container stands for (a host box, a subnet box). Grouping containers
-	// (categories, tags, stacks) have none, so they get no stale pill and no filter-hover ring.
+	// The entity this container stands for (a host box, a subnet box, a VLAN box, a hypervisor's
+	// service), and its type. Grouping containers (categories, tags, stacks) have none, so they get
+	// no stale pill and no filter-hover ring.
 	const sitesQuery = useSitesQuery();
-	let entity = $derived(topology ? containerEntity(data as TopologyNode, topology) : undefined);
+	let containerSubject = $derived(
+		topology ? containerEntity(data as TopologyNode, topology) : null
+	);
+	let entity = $derived(containerSubject?.entity);
+	let entityType = $derived(containerSubject?.entityType);
 	let entitySite = $derived((sitesQuery.data ?? []).find((n) => n.id === entity?.site_id));
 
 	// Staleness pill, judged on that entity alone with `getFreshnessTag`, the same helper element
 	// cards and inventory badges use.
 	let staleTag = $derived(
-		entity
+		entity && entityType
 			? getFreshnessTag(entity, entitySite, {
-					entityTypeLabel: entities.getName(containerType) || undefined
+					entityTypeLabel: entities.getName(entityType) || undefined
 				})
 			: null
 	);
@@ -280,7 +285,8 @@
 		// the same ring element cards get.
 		if (
 			currentHoveredMetadata &&
-			matchesHoveredMetadata(entity, containerType, currentHoveredMetadata, entitySite, topology)
+			entityType &&
+			matchesHoveredMetadata(entity, entityType, currentHoveredMetadata, entitySite, topology)
 		) {
 			const ch = createColorHelper(
 				currentHoveredMetadata.color as Parameters<typeof createColorHelper>[0]

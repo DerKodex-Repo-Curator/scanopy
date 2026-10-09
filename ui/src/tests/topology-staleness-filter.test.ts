@@ -69,16 +69,30 @@ function buildTopology(): RenderableTopology {
 				id: 'svc-on-stale-host',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'stale-host'
+				host_id: 'stale-host',
+				entity_id: 'svc-on-stale-host'
 			},
 			{
 				id: 'svc-itself-stale',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'fresh-host'
+				host_id: 'fresh-host',
+				entity_id: 'svc-itself-stale'
 			},
-			{ id: 'stale-host', node_type: 'Element', element_type: 'Host', host_id: 'stale-host' },
-			{ id: 'fresh-host', node_type: 'Element', element_type: 'Host', host_id: 'fresh-host' }
+			{
+				id: 'stale-host',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'stale-host',
+				entity_id: 'stale-host'
+			},
+			{
+				id: 'fresh-host',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'fresh-host',
+				entity_id: 'fresh-host'
+			}
 		],
 		edges: [],
 		subnets: [],
@@ -250,14 +264,16 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'IPAddress',
 				host_id: 'stale-host',
-				ip_address_id: 'ip-stale'
+				ip_address_id: 'ip-stale',
+				entity_id: 'ip-stale'
 			},
 			{
 				id: 'n-ip-fresh',
 				node_type: 'Element',
 				element_type: 'IPAddress',
 				host_id: 'fresh-host',
-				ip_address_id: 'ip-fresh'
+				ip_address_id: 'ip-fresh',
+				entity_id: 'ip-fresh'
 			},
 			{
 				id: 'c-stale-host',
@@ -276,6 +292,7 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'stale-host',
+				entity_id: 'svc-on-stale-host',
 				container_id: 'c-stale-host'
 			},
 			{
@@ -283,6 +300,7 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'fresh-host',
+				entity_id: 'svc-itself-stale',
 				container_id: 'c-fresh-host'
 			}
 		]

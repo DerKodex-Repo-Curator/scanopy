@@ -21,8 +21,8 @@ import type { components } from '$lib/api/schema';
 import type { Site } from '$lib/features/sites/types';
 import { createColorHelper, type Color } from '$lib/shared/utils/styling';
 import { FILTER_VALUE_EXTRACTORS } from './interactions';
-import { cardEntityForFilter, type ElementRenderContext } from './resolvers';
-import type { RenderableTopology } from './types/base';
+import { cardEntityForFilter } from './resolvers';
+import type { RenderableTopology, TopologyNode } from './types/base';
 import { viewElementConfig, type ViewElementConfig } from './view-filters';
 
 type ElementMark = components['schemas']['ElementMark'];
@@ -44,12 +44,12 @@ export function markColor(config: ViewElementConfig, mark: ElementMark): Color |
 }
 
 /**
- * The colours `view` paints on the card `resolved` describes. Per channel the first matching mark
- * wins, which is how L2 puts a down port above a stale one.
+ * The colours `view` paints on the card `node` draws. Per channel the first matching mark wins,
+ * which is how L2 puts a down port above a stale one.
  */
 export function elementMarks(
 	view: string,
-	resolved: ElementRenderContext,
+	node: TopologyNode,
 	sites: Site[],
 	topology: RenderableTopology
 ): ElementMarks {
@@ -58,7 +58,7 @@ export function elementMarks(
 	if (!config) return marks;
 	for (const mark of config.element_marks ?? []) {
 		if (marks[mark.channel]) continue;
-		const entity = cardEntityForFilter(resolved, mark.entity);
+		const entity = cardEntityForFilter(node, topology, mark.entity);
 		const extract = FILTER_VALUE_EXTRACTORS[mark.entity]?.[mark.filter_type];
 		if (!entity || !extract) continue;
 		const site = sites.find((n) => n.id === (entity as { site_id?: string }).site_id);
