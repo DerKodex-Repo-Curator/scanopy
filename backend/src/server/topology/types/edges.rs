@@ -166,6 +166,10 @@ pub struct Edge {
     /// Text drawn on the edge.
     #[schema(required)]
     pub label: Option<String>,
+    /// The names of the two ends, source first, for edges that join two named things. The UI
+    /// draws each name at its own end; `label` carries the same names joined.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint_labels: Option<[String; 2]>,
     /// Which side of the source node the edge leaves from.
     pub source_handle: EdgeHandle,
     /// Which side of the target node the edge arrives at.

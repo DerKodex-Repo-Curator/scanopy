@@ -138,6 +138,23 @@ export function getRelationKey(edge: TopologyEdge): string | null {
 	return getRelationIdentity(edge);
 }
 
+/**
+ * The two end names to draw on an edge's label card, source first, or null to draw `label` as a
+ * single string.
+ *
+ * Gated on the label the flow edge actually renders, not on the edge data: an edge wholly inside
+ * one container has its label stripped, and an aggregated edge draws none, yet both still carry
+ * the endpoint names of the edge they came from.
+ */
+export function getEndpointLabels(
+	edge: TopologyEdge | undefined,
+	label: string | null | undefined
+): [string, string] | null {
+	if (!label) return null;
+	const endpoints = edge?.endpoint_labels;
+	return endpoints?.length === 2 ? [endpoints[0], endpoints[1]] : null;
+}
+
 /** Whether this edge should be elevated to target an accepting container. */
 export function willTargetContainer(edge: TopologyEdge): boolean {
 	const vc = getViewConfig(edge);
