@@ -9,6 +9,7 @@ use crate::server::{
     auth::{r#impl::base::PendingSiteSetup, middleware::auth::AuthenticatedEntity},
     billing::types::base::BillingPlan,
     organizations::r#impl::base::UseCase,
+    services::r#impl::categories::ServiceCategory,
     shared::{
         events::{
             traits::{Event, OrgScope},
@@ -19,7 +20,10 @@ use crate::server::{
     },
     sites::r#impl::Site,
     subnets::r#impl::{base::Subnet, types::SubnetType},
-    topology::types::base::Topology,
+    topology::types::{
+        base::{Topology, TopologyRequestOptions},
+        grouping::ElementRule,
+    },
 };
 
 /// Sites, subnet types per site, and topology count for an org.
@@ -234,4 +238,62 @@ async fn cloud_signup_gets_its_site_from_org_created() {
     let setup = org_setup(&services, org.id).await;
     assert_fresh_signup_shape(&setup);
     assert_eq!(setup.sites[0].id, requested.site_id);
+}
+
+fn infra_categories(options: &TopologyRequestOptions) -> Vec<ServiceCategory> {
+    options
+        .element_rules
+        .iter()
+        .find_map(|r| match &r.rule {
+            ElementRule::ByServiceCategory {
+                categories,
+                is_infra_rule: true,
+                ..
+            } => Some(categories.clone()),
+            _ => None,
+        })
+        .expect("a new topology carries an infrastructure rule")
+}
+
+/// The topology a site is created with groups infrastructure by its own org's use case, and the
+/// default options each org is offered are its own.
+#[tokio::test]
+async fn new_topology_and_default_options_follow_each_orgs_use_case() {
+    let (storage, services, _container) = test_services().await;
+    let mut msp = organization();
+    msp.base.use_case = UseCase::Msp;
+    let mut homelab = organization();
+    homelab.base.use_case = UseCase::Homelab;
+    storage.organizations.create(&msp).await.unwrap();
+    storage.organizations.create(&homelab).await.unwrap();
+
+    services
+        .topology_service
+        .ensure_cloud_setup(msp.id, None, AuthenticatedEntity::System)
+        .await
+        .unwrap();
+    let site_ids: Vec<Uuid> = org_setup(&services, msp.id)
+        .await
+        .sites
+        .iter()
+        .map(|s| s.id)
+        .collect();
+    let topology = services
+        .topology_service
+        .get_all(StorableFilter::<Topology>::new_from_site_ids(&site_ids))
+        .await
+        .unwrap()
+        .remove(0);
+    let stored = infra_categories(&topology.base.options.request);
+    assert!(!stored.contains(&ServiceCategory::NetworkAppliance));
+    assert!(stored.contains(&ServiceCategory::IoT));
+
+    let for_homelab = services
+        .topology_service
+        .default_request_options(homelab.id)
+        .await
+        .unwrap();
+    let homelab_infra = infra_categories(&for_homelab);
+    assert!(homelab_infra.contains(&ServiceCategory::NetworkAppliance));
+    assert!(!homelab_infra.contains(&ServiceCategory::IoT));
 }

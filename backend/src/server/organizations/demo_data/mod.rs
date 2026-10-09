@@ -44,6 +44,7 @@ use crate::server::{
     },
     interfaces::r#impl::base::{IfAdminStatus, IfOperStatus, Interface, InterfaceBase},
     ip_addresses::r#impl::base::{IPAddress, IPAddressBase},
+    organizations::r#impl::base::UseCase,
     ports::r#impl::base::{Port, PortType},
     services::r#impl::patterns::{ClientProbe, MatchConfidence, MatchDetails, MatchReason},
     services::{
@@ -176,8 +177,9 @@ pub struct DemoData {
 }
 
 impl DemoData {
-    /// Generate all demo data for the given organization
-    pub fn generate(organization_id: Uuid, user_id: Uuid) -> Self {
+    /// Generate all demo data for the given organization. `use_case` picks the topology's
+    /// default grouping rules, as it does for any new topology in that organization.
+    pub fn generate(organization_id: Uuid, user_id: Uuid, use_case: UseCase) -> Self {
         let now = Utc::now();
 
         // Pre-generate service UUIDs used by both host/service and dependency generators
@@ -240,7 +242,7 @@ impl DemoData {
         let daemon_interfaced_subnets = generate_daemon_interfaced_subnets(&daemons, &ip_addresses);
         let api_keys = generate_api_keys(&daemons, now);
         bind_daemon_api_keys(&mut daemons, &api_keys);
-        let topologies = generate_topologies(&sites, &tags, now);
+        let topologies = generate_topologies(&sites, &tags, use_case, now);
         let discoveries =
             generate_discoveries(&sites, &subnets, &daemons, &hosts, &credentials, now);
         let shares = generate_shares(&topologies, &sites, user_id, now);

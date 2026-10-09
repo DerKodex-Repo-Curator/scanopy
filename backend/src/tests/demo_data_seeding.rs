@@ -86,7 +86,7 @@ async fn demo_seed_persists_every_virtualization_relationship() {
     storage.users.create(&owner).await.unwrap();
 
     // Held rather than regenerated: `DemoData::generate` mints fresh UUIDs every call.
-    let demo_data = DemoData::generate(org.id, owner.id);
+    let demo_data = DemoData::generate(org.id, owner.id, org.base.use_case);
     let declared = DeclaredOwners::from(&demo_data);
     assert!(
         !declared.is_empty(),
@@ -247,7 +247,7 @@ async fn demo_seed_writes_daemon_subnets_and_the_demo_logins_api_keys() {
     let owner = user(&org.id);
     storage.users.create(&owner).await.unwrap();
 
-    let demo_data = DemoData::generate(org.id, owner.id);
+    let demo_data = DemoData::generate(org.id, owner.id, org.base.use_case);
     let declared_subnets: HashMap<Uuid, HashSet<Uuid>> = demo_data
         .daemon_interfaced_subnets
         .iter()

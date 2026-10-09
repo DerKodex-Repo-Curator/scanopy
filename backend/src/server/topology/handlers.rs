@@ -27,7 +27,11 @@ use crate::server::{
     // `TopologyEdgeHandleUpdate`, defined in `topology::types::base`) are only
     // needed by the disabled node-position / node-resize / edge-handle
     // endpoints below. Re-add them here when those endpoints are revived.
-    topology::types::{api::TopologyData, base::Topology, views::TopologyView},
+    topology::types::{
+        api::TopologyData,
+        base::{Topology, TopologyRequestOptions},
+        views::TopologyView,
+    },
 };
 use axum::{
     body::Body,
@@ -69,6 +73,7 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
     OpenApiRouter::new()
         .routes(routes!(get_all_topologies))
         .routes(routes!(get_topology_data))
+        .routes(routes!(get_default_options))
         .routes(routes!(generated::get_by_id, update_topology))
         .routes(routes!(generated::export_csv))
         .routes(routes!(export_mermaid))
@@ -192,6 +197,38 @@ async fn get_topology_data(
     Ok(Json(ApiResponse::success(data)))
 }
 
+/// Grouping and hide options a new topology starts with in the caller's organization.
+///
+/// The infrastructure grouping rule depends on the organization's use case, so this is per
+/// organization rather than a fixed default.
+#[utoipa::path(
+    get,
+    path = "/default-options",
+    tags = [Topology::ENTITY_NAME_PLURAL, api_tags::INTERNAL],
+    responses(
+        (status = 200, description = "Default topology request options", body = ApiResponse<TopologyRequestOptions>),
+        (status = 403, description = "Access denied", body = ApiErrorResponse),
+    ),
+    security(("user_api_key" = []), ("session" = []))
+)]
+async fn get_default_options(
+    State(state): State<Arc<AppState>>,
+    auth: Authorized<Viewer>,
+) -> ApiResult<Json<ApiResponse<TopologyRequestOptions>>> {
+    let organization_id = auth
+        .organization_id()
+        .ok_or_else(|| ApiError::forbidden("Organization context required"))?;
+
+    let options = state
+        .services
+        .topology_service
+        .default_request_options(organization_id)
+        .await
+        .map_err(|e| ApiError::internal_error(&e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(options)))
+}
+
 #[utoipa::path(
     put,
     path = "/{id}",
@@ -261,8 +298,20 @@ async fn get_all_topologies(
     // entry for it, so without this every existing topology would keep rendering as though the
     // filter had been switched off — which for L2's link-state filter means every ifTable row.
     // Only absent keys are filled; see `merge_missing_hide_defaults`.
+    //
+    // The infrastructure rule the grouping-rules migration wrote has no categories; it takes the
+    // organization's set here, so the rule editor shows what the rule is meant to hold.
+    let use_case = Topology::get_service(&state)
+        .organization_use_case(organization_id)
+        .await
+        .map_err(|e| ApiError::internal_error(&e.to_string()))?;
     for topology in &mut result.items {
         topology.base.options.request.merge_missing_hide_defaults();
+        topology
+            .base
+            .options
+            .request
+            .populate_empty_infra_rule(use_case);
     }
 
     let limit = pagination.effective_limit().unwrap_or(0);

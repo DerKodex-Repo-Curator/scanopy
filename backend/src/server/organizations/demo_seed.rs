@@ -11,6 +11,7 @@ use crate::server::bindings::r#impl::base::Binding;
 use crate::server::hosts::r#impl::base::Host;
 use crate::server::interface_neighbors::r#impl::base::Neighbor;
 use crate::server::organizations::demo_data::DemoData;
+use crate::server::organizations::r#impl::base::UseCase;
 use crate::server::services::r#impl::base::Service;
 use crate::server::shared::services::factory::ServiceFactory;
 use crate::server::shared::services::traits::CrudService;
@@ -253,9 +254,10 @@ pub(crate) async fn seed_demo_data(
     services: &ServiceFactory,
     organization_id: Uuid,
     user_id: Uuid,
+    use_case: UseCase,
     entity: AuthenticatedEntity,
 ) -> ApiResult<()> {
-    let demo_data = DemoData::generate(organization_id, user_id);
+    let demo_data = DemoData::generate(organization_id, user_id, use_case);
     insert_demo_data(services, demo_data, organization_id, user_id, entity).await
 }
 

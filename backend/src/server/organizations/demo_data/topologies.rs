@@ -5,6 +5,7 @@ use super::*;
 pub(super) fn generate_topologies(
     sites: &[Site],
     tags: &[Tag],
+    use_case: UseCase,
     now: DateTime<Utc>,
 ) -> Vec<Topology> {
     let critical_tag_id = tags
@@ -16,9 +17,9 @@ pub(super) fn generate_topologies(
         .iter()
         .map(|site| {
             let mut base = TopologyBase::new(site.id);
+            let mut request = TopologyRequestOptions::for_use_case(use_case);
             // Add Critical tag to the default ByTag element rule
             if let Some(tag_id) = critical_tag_id {
-                let mut request = TopologyRequestOptions::default();
                 // Replace the default empty ByTag rule with one that includes Critical
                 for rule in &mut request.element_rules {
                     if matches!(rule.rule, ElementRule::ByTag { .. }) {
@@ -28,11 +29,11 @@ pub(super) fn generate_topologies(
                         };
                     }
                 }
-                base.options = TopologyOptions {
-                    request,
-                    ..base.options
-                };
             }
+            base.options = TopologyOptions {
+                request,
+                ..base.options
+            };
             Topology {
                 id: Uuid::new_v4(),
                 created_at: now,

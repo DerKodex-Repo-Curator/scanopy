@@ -10,11 +10,7 @@ import { queryClient, queryKeys } from '$lib/api/query-client';
 import { apiClient } from '$lib/api/client';
 import { unwrapData } from '$lib/api/query-helpers';
 import type { Topology, TopologyEdge, TopologyOptions, RenderableTopology } from './types/base';
-import type { ContainerGraphRule, ElementGraphRule, ElementRule } from './types/grouping';
-import { makeGraphRule } from './types/grouping';
-import type { ContainerRule } from './types/grouping';
-import _containerRuleTypes from '$lib/data/container-rule-types.json';
-import _elementRuleTypes from '$lib/data/element-rule-types.json';
+import type { ElementGraphRule } from './types/grouping';
 import type { Organization } from '$lib/features/organizations/types';
 import { BaseSSEManager, type SSEConfig } from '$lib/shared/utils/sse';
 import throttle from 'just-throttle';
@@ -24,8 +20,6 @@ import { getDefaultHiddenEdgeTypes } from './layout/edge-classification';
 import type { components } from '$lib/api/schema';
 import viewsJson from '$lib/data/views.json';
 import { declaredMetadataFilters, filtersFor, type HiddenMetadataValues } from './view-filters';
-import { getIrrelevantServiceCategories } from '$lib/shared/stores/metadata';
-import { common_infrastructure } from '$lib/paraglide/messages';
 
 export type TopologyView = components['schemas']['TopologyView'];
 
@@ -46,21 +40,12 @@ export function sanitizeOptionsForApi(options: TopologyOptions): TopologyOptions
 	};
 }
 
-type ServiceCategory = components['schemas']['ServiceCategory'];
 type TopologyLocalOptions = components['schemas']['TopologyLocalOptions'];
 
 /** Get the org's use case from the query cache, defaulting to 'other' */
 export function getOrgUseCase(): string {
 	const org = queryClient.getQueryData<Organization>(queryKeys.organizations.current());
 	return org?.use_case ?? 'other';
-}
-
-/**
- * Get categories that are irrelevant for the org's use case (for grouping into
- * the "Infrastructure Services" ByServiceCategory element rule).
- */
-function getIrrelevantCategories(useCase: string): ServiceCategory[] {
-	return [...getIrrelevantServiceCategories(useCase)] as ServiceCategory[];
 }
 
 /** Scan a set of element rules for the ByServiceCategory rule flagged is_infra_rule. */
@@ -105,25 +90,6 @@ export function getInfrastructureRuleIdForTopology(
 }
 
 const ALL_VIEWS: TopologyView[] = viewsJson.map((p) => p.id as TopologyView);
-
-/**
- * Filter values a view hides before the user has touched anything.
- *
- * Read from the generated view fixture rather than restated here, so it is the same list the
- * backend seeds a new topology's hide-set from — it used to be written out separately in both
- * places.
- *
- * These seed a topology that has never stored an opinion, and nothing else. A default in force is
- * counted by the filters-applied badge and removed by Clear all, exactly like a value the user
- * hid: a default nothing surfaces and nothing clears is a view that filters itself to empty with
- * no way back, which is what `Interface/LinkState = [Unlinked]` did in L2.
- */
-export function defaultHiddenValuesFor(view: string): Record<string, Record<string, string[]>> {
-	const meta = viewsJson.find((v) => v.id === view)?.metadata as
-		| { element_config?: { default_hidden_values?: Record<string, Record<string, string[]>> } }
-		| undefined;
-	return meta?.element_config?.default_hidden_values ?? {};
-}
 
 /**
  * What one entity's hide-set becomes when its filters are cleared: every filter the view declares,
@@ -194,57 +160,18 @@ function initDefaultLocalOptions(): Record<TopologyView, TopologyLocalOptions> {
 }
 
 /**
- * Default request options matching the backend's TopologyRequestOptions::default().
- * Container rules and hidden categories are per-view HashMaps.
- * Element rules are shared cross-view.
+ * Request options held before any topology has hydrated the store: no rules and no hides.
+ *
+ * Product defaults live on the backend (they depend on the organization's use case), and every
+ * topology row carries its own. The render pipeline waits for hydration before its first layout
+ * (`topologyOptionsHydrated`), so this placeholder is never drawn.
  */
-function defaultRequestOptions(): components['schemas']['TopologyRequestOptions'] {
-	// Build container rules per view from fixture metadata
-	const containerRules: Record<string, ContainerGraphRule[]> = {};
-	for (const p of ALL_VIEWS) {
-		containerRules[p] = _containerRuleTypes
-			.filter((r) => (r.metadata as { views?: string[] })?.views?.includes(p))
-			.map((r) => {
-				if (r.id === 'ByApplication') {
-					return makeGraphRule({ ByApplication: { tag_ids: [] } } as ContainerRule);
-				}
-				return makeGraphRule(r.id as ContainerRule);
-			});
-	}
-
-	// Element rules: one of each type (shared cross-view)
-	const seen = new Set<string>();
-	const elementRules: ElementGraphRule[] = [];
-	for (const r of _elementRuleTypes) {
-		if (!seen.has(r.id)) {
-			seen.add(r.id);
-			if (r.id === 'ByServiceCategory') {
-				const rule = makeGraphRule({
-					ByServiceCategory: {
-						categories: getIrrelevantCategories(getOrgUseCase()),
-						title: common_infrastructure(),
-						is_infra_rule: true
-					}
-				});
-				elementRules.push(rule);
-			} else if (r.id === 'ByTag') {
-				elementRules.push(makeGraphRule({ ByTag: { tag_ids: [], title: null } }));
-			} else {
-				elementRules.push(makeGraphRule(r.id as ElementRule));
-			}
-		}
-	}
-
-	const hideMetadataValues: Record<string, Record<string, Record<string, string[]>>> = {};
-	for (const p of ALL_VIEWS) {
-		hideMetadataValues[p] = structuredClone(defaultHiddenValuesFor(p));
-	}
-
+function emptyRequestOptions(): components['schemas']['TopologyRequestOptions'] {
 	return {
 		hide_entities: {},
-		hide_metadata_values: hideMetadataValues,
-		container_rules: containerRules,
-		element_rules: elementRules,
+		hide_metadata_values: {},
+		container_rules: {},
+		element_rules: [],
 		element_sort: {}
 	};
 }
@@ -559,7 +486,7 @@ const topologyOptionsStore = writable<{
 	request: components['schemas']['TopologyRequestOptions'];
 	perViewLocal: Record<TopologyView, TopologyLocalOptions>;
 }>({
-	request: defaultRequestOptions(),
+	request: emptyRequestOptions(),
 	perViewLocal: initDefaultLocalOptions()
 });
 
@@ -695,33 +622,6 @@ export function hydrateStoresFromTopology(
 		if (isInitial) {
 			const request = { ...opts.request };
 
-			// Auto-populate infra rule categories if empty (new topology or migration).
-			// Only targets is_infra_rule rules with no categories — preserves user edits.
-			const elementRules = [...(request.element_rules ?? [])];
-			for (let i = 0; i < elementRules.length; i++) {
-				const rule = elementRules[i].rule;
-				if (
-					typeof rule === 'object' &&
-					'ByServiceCategory' in rule &&
-					rule.ByServiceCategory.is_infra_rule &&
-					(!rule.ByServiceCategory.categories || rule.ByServiceCategory.categories.length === 0)
-				) {
-					const useCase = getOrgUseCase();
-					elementRules[i] = {
-						...elementRules[i],
-						rule: {
-							ByServiceCategory: {
-								...rule.ByServiceCategory,
-								categories: getIrrelevantCategories(useCase),
-								title: common_infrastructure()
-							}
-						}
-					};
-					break;
-				}
-			}
-			request.element_rules = elementRules;
-
 			// Full hydration: use backend request options + default local options.
 			// When useDefaultLocal is true (share/embed), always use view defaults —
 			// the viewer has no stored preferences and the creator's shouldn't leak.
@@ -809,9 +709,10 @@ export function consumePreferredSite(): string | null {
 	return preferred;
 }
 
+/** Drop the signed-out user's options. The next topology to load hydrates the store again. */
 export function resetTopologyOptions(): void {
 	topologyOptionsStore.set({
-		request: defaultRequestOptions(),
+		request: emptyRequestOptions(),
 		perViewLocal: initDefaultLocalOptions()
 	});
 	if (browser) {

@@ -187,6 +187,18 @@ impl GraphRule for ContainerRule {
     }
 }
 
+impl ContainerRule {
+    /// The rule as "Add rule" creates it: no tags chosen.
+    pub fn default_payload(&self) -> Self {
+        match self {
+            ContainerRule::ByApplication { .. } => ContainerRule::ByApplication { tag_ids: vec![] },
+            ContainerRule::BySubnet => ContainerRule::BySubnet,
+            ContainerRule::MergeContainerBridges => ContainerRule::MergeContainerBridges,
+            ContainerRule::ByHost => ContainerRule::ByHost,
+        }
+    }
+}
+
 impl HasId for ContainerRule {
     fn id(&self) -> &'static str {
         self.into()
@@ -242,6 +254,7 @@ impl TypeMetadataProvider for ContainerRule {
             "allow_multiple": self.allow_multiple(),
             "views": self.applicable_views(),
             "will_accept_edges": self.will_accept_edges(),
+            "default_payload": self.default_payload(),
         })
     }
 }
@@ -469,6 +482,30 @@ impl GraphRule for ElementRule {
     }
 }
 
+impl ElementRule {
+    /// The rule as "Add rule" creates it: nothing chosen, no title, and never the
+    /// infrastructure rule (only the defaults carry that).
+    pub fn default_payload(&self) -> Self {
+        match self {
+            ElementRule::ByServiceCategory { .. } => ElementRule::ByServiceCategory {
+                categories: vec![],
+                title: None,
+                is_infra_rule: false,
+            },
+            ElementRule::ByTag { .. } => ElementRule::ByTag {
+                tag_ids: vec![],
+                title: None,
+            },
+            ElementRule::ByHypervisor => ElementRule::ByHypervisor,
+            ElementRule::ByContainerRuntime => ElementRule::ByContainerRuntime,
+            ElementRule::ByStack => ElementRule::ByStack,
+            ElementRule::ByTrunkPort => ElementRule::ByTrunkPort,
+            ElementRule::ByVLAN => ElementRule::ByVLAN,
+            ElementRule::ByPortOpStatus => ElementRule::ByPortOpStatus,
+        }
+    }
+}
+
 impl HasId for ElementRule {
     fn id(&self) -> &'static str {
         self.into()
@@ -540,6 +577,7 @@ impl TypeMetadataProvider for ElementRule {
             "allow_multiple": self.allow_multiple(),
             "views": self.applicable_views(),
             "will_accept_edges": self.will_accept_edges(),
+            "default_payload": self.default_payload(),
         })
     }
 }
