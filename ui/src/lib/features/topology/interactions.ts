@@ -259,11 +259,7 @@ export function clearEdgeHoverState(): void {
 	groupHoverState.set(new Map());
 }
 
-interface TagFilter {
-	hidden_host_tag_ids?: string[];
-	hidden_service_tag_ids?: string[];
-	hidden_subnet_tag_ids?: string[];
-}
+type TagFilter = components['schemas']['TopologyTagFilter'];
 
 /**
  * Update hidden nodes/services based on tag filter and category filter settings.
@@ -573,14 +569,6 @@ export function updateTagFilter(
 	const serviceIsInline = viewInlinesEntity(config, 'Service');
 	const serviceIsVisible = serviceIsElement || serviceIsInline;
 
-	const hiddenHostTagIds = tagFilter?.hidden_host_tag_ids ?? [];
-	const hiddenServiceTagIds = tagFilter?.hidden_service_tag_ids ?? [];
-	const hiddenSubnetTagIds = tagFilter?.hidden_subnet_tag_ids ?? [];
-
-	const hideUntaggedHosts = hiddenHostTagIds.includes(UNTAGGED_SENTINEL);
-	const hideUntaggedServices = hiddenServiceTagIds.includes(UNTAGGED_SENTINEL);
-	const hideUntaggedSubnets = hiddenSubnetTagIds.includes(UNTAGGED_SENTINEL);
-
 	const hiddenNodeIds = new Set<string>();
 	// Entity-space hits, plus the same ids grouped by type. The grouping is what lets the single
 	// resolution pass at the end reach nodes that represent an entity *indirectly* — a node whose
@@ -598,57 +586,56 @@ export function updateTagFilter(
 	};
 	const index = buildEntityNodeIndex(topology.nodes);
 
-	// Host filtering: runs when Host is container, element, or parent of an element entity
-	if (hostIsRelevant) {
-		const hiddenHostIds = new Set<string>();
-		for (const host of topology.hosts) {
-			const isUntagged = host.tags.length === 0;
-			const hostHasHiddenTag = host.tags.some((t) => hiddenHostTagIds.includes(t));
-			if (hostHasHiddenTag || (isUntagged && hideUntaggedHosts)) {
-				hiddenHostIds.add(host.id);
-				// Hide element nodes that represent this host entity (VMs in Workloads)
-				const nodeIds = index.hostIdToNodes.get(host.id);
-				nodeIds?.forEach((id) => hiddenNodeIds.add(id));
-			}
-		}
-
-		// When Host is the container (L2, Workloads): hide container nodes + descendants
-		if (hostIsContainer && hiddenHostIds.size > 0) {
-			const hiddenContainerIds = new Set<string>();
+	// What hiding a tagged entity of each type does to this view. A type with no entry, or one
+	// whose gate is closed in this view, hides nothing.
+	const tagHideEffects: Partial<Record<string, (hiddenIds: Set<string>) => void>> = {
+		// Runs when Host is container, element, or parent of an element entity.
+		Host: (hiddenHostIds) => {
+			if (!hostIsRelevant) return;
+			// Hide element nodes that represent this host entity (VMs in Workloads)
 			for (const hostId of hiddenHostIds) {
-				index.entityIdToContainerIds.get(hostId)?.forEach((cid) => hiddenContainerIds.add(cid));
+				index.hostIdToNodes.get(hostId)?.forEach((id) => hiddenNodeIds.add(id));
 			}
-			hideContainersAndDescendants(hiddenContainerIds, topology.nodes, hiddenNodeIds);
+			// When Host is the container (L2, Workloads): hide container nodes + descendants
+			if (hostIsContainer) {
+				const hiddenContainerIds = new Set<string>();
+				for (const hostId of hiddenHostIds) {
+					index.entityIdToContainerIds.get(hostId)?.forEach((cid) => hiddenContainerIds.add(cid));
+				}
+				hideContainersAndDescendants(hiddenContainerIds, topology.nodes, hiddenNodeIds);
+			}
+		},
+		// Records entity-space only; whether a hidden service also removes a node is settled by the
+		// resolution pass at the end. Category / other metadata filters come through the generic
+		// metadata-filter pass below.
+		Service: (hiddenServiceIds) => {
+			if (!serviceIsVisible) return;
+			for (const id of hiddenServiceIds) noteHidden('Service', id);
+		},
+		// Hide subnet container nodes and their child elements.
+		Subnet: (hiddenSubnetIds) => {
+			for (const id of hiddenSubnetIds) hiddenNodeIds.add(id);
+			hideContainersAndDescendants(new Set(hiddenSubnetIds), topology.nodes, hiddenNodeIds);
 		}
-	}
+	};
 
-	// Service filtering: tag-based only. Category / other metadata filters
-	// come through the generic metadata-filter pass below.
-	//
-	// Records entity-space only; whether a hidden service also removes a node is settled by the
-	// resolution pass at the end, which is what the `serviceIsElement` gate used to decide here.
-	if (serviceIsVisible) {
-		for (const service of topology.services) {
-			const isUntagged = service.tags.length === 0;
-			const serviceHasHiddenTag = service.tags.some((t) => hiddenServiceTagIds.includes(t));
-			if (serviceHasHiddenTag || (isUntagged && hideUntaggedServices)) {
-				noteHidden('Service', service.id);
+	// Tag filter: an entity is hidden when it carries a hidden tag of its type, or carries no tags
+	// and its type's list holds UNTAGGED_SENTINEL.
+	for (const [entityType, hiddenTagIds] of Object.entries(tagFilter?.hidden_tag_ids ?? {})) {
+		const applyHide = tagHideEffects[entityType];
+		if (!applyHide || !hiddenTagIds?.length) continue;
+		const hideUntagged = hiddenTagIds.includes(UNTAGGED_SENTINEL);
+		const matched = new Set<string>();
+		for (const entity of (entityCollection(topology, entityType) ?? []) as Array<{
+			id: string;
+			tags: string[];
+		}>) {
+			const isUntagged = entity.tags.length === 0;
+			if (entity.tags.some((t) => hiddenTagIds.includes(t)) || (isUntagged && hideUntagged)) {
+				matched.add(entity.id);
 			}
 		}
-	}
-
-	// Subnet filtering: hide container nodes and their child elements
-	if (hiddenSubnetTagIds.length > 0) {
-		const hiddenContainerIds = new Set<string>();
-		for (const subnet of topology.subnets) {
-			const isUntagged = subnet.tags.length === 0;
-			const subnetHasHiddenTag = subnet.tags.some((t) => hiddenSubnetTagIds.includes(t));
-			if (subnetHasHiddenTag || (isUntagged && hideUntaggedSubnets)) {
-				hiddenNodeIds.add(subnet.id);
-				hiddenContainerIds.add(subnet.id);
-			}
-		}
-		hideContainersAndDescendants(hiddenContainerIds, topology.nodes, hiddenNodeIds);
+		if (matched.size > 0) applyHide(matched);
 	}
 
 	// Generic metadata-filter hide: for each (entity, filter) in the user's
@@ -730,16 +717,8 @@ export function updateTagFilter(
 	hiddenEntityIdsByType.set(hiddenByType);
 }
 
-function isTagFilterEmpty(filter: {
-	hidden_host_tag_ids?: string[];
-	hidden_service_tag_ids?: string[];
-	hidden_subnet_tag_ids?: string[];
-}): boolean {
-	return (
-		(filter.hidden_host_tag_ids?.length ?? 0) === 0 &&
-		(filter.hidden_service_tag_ids?.length ?? 0) === 0 &&
-		(filter.hidden_subnet_tag_ids?.length ?? 0) === 0
-	);
+function isTagFilterEmpty(filter: TagFilter): boolean {
+	return Object.values(filter.hidden_tag_ids ?? {}).every((ids) => (ids?.length ?? 0) === 0);
 }
 
 function hasAnyMetadataFilter(m: Record<string, Record<string, string[]>> | undefined): boolean {
@@ -826,11 +805,7 @@ export function activeViewFilters(
 	}
 
 	if (tagFilter && !isTagFilterEmpty(tagFilter)) {
-		const hiddenTagIds = [
-			...(tagFilter.hidden_host_tag_ids ?? []),
-			...(tagFilter.hidden_service_tag_ids ?? []),
-			...(tagFilter.hidden_subnet_tag_ids ?? [])
-		];
+		const hiddenTagIds = Object.values(tagFilter.hidden_tag_ids ?? {}).flatMap((ids) => ids ?? []);
 		summaries.push({
 			label: common_byTag(),
 			values: hiddenTagIds.map(

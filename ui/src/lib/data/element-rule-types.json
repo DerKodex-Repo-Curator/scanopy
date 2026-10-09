@@ -8,6 +8,13 @@
     "color": "Purple",
     "metadata": {
       "allow_multiple": true,
+      "default_payload": {
+        "ByServiceCategory": {
+          "categories": [],
+          "is_infra_rule": false,
+          "title": null
+        }
+      },
       "is_configurable": true,
       "is_removable": true,
       "is_reorderable": true,
@@ -27,6 +34,12 @@
     "color": "Orange",
     "metadata": {
       "allow_multiple": true,
+      "default_payload": {
+        "ByTag": {
+          "tag_ids": [],
+          "title": null
+        }
+      },
       "is_configurable": true,
       "is_removable": true,
       "is_reorderable": true,
@@ -48,6 +61,7 @@
     "color": "Amber",
     "metadata": {
       "allow_multiple": false,
+      "default_payload": "ByHypervisor",
       "is_configurable": false,
       "is_removable": false,
       "is_reorderable": true,
@@ -66,6 +80,7 @@
     "color": "Blue",
     "metadata": {
       "allow_multiple": false,
+      "default_payload": "ByContainerRuntime",
       "is_configurable": false,
       "is_removable": false,
       "is_reorderable": true,
@@ -84,6 +99,7 @@
     "color": "Blue",
     "metadata": {
       "allow_multiple": false,
+      "default_payload": "ByStack",
       "is_configurable": false,
       "is_removable": false,
       "is_reorderable": true,
@@ -103,6 +119,7 @@
     "color": "Amber",
     "metadata": {
       "allow_multiple": false,
+      "default_payload": "ByTrunkPort",
       "is_configurable": false,
       "is_removable": false,
       "is_reorderable": false,
@@ -121,6 +138,7 @@
     "color": "Teal",
     "metadata": {
       "allow_multiple": false,
+      "default_payload": "ByVLAN",
       "is_configurable": false,
       "is_removable": false,
       "is_reorderable": false,
@@ -139,6 +157,7 @@
     "color": "Gray",
     "metadata": {
       "allow_multiple": false,
+      "default_payload": "ByPortOpStatus",
       "is_configurable": false,
       "is_removable": false,
       "is_reorderable": false,

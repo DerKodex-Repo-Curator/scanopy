@@ -46,6 +46,8 @@ pub trait ChangeTriggersTopologyStaleness<T> {
     Display,
     AsRefStr,
     Hash,
+    PartialOrd,
+    Ord,
     EnumIter,
     IntoStaticStr,
     Serialize,

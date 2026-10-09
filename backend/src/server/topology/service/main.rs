@@ -25,6 +25,7 @@ use crate::server::{
     },
     interfaces::{r#impl::base::Interface, service::InterfaceService},
     ip_addresses::{r#impl::base::IPAddress, service::IPAddressService},
+    organizations::{r#impl::base::UseCase, service::OrganizationService},
     ports::{r#impl::base::Port, service::PortService},
     services::{r#impl::base::Service, service::ServiceService},
     shared::{
@@ -43,7 +44,7 @@ use crate::server::{
         service::{context::TopologyContext, edge_builder::EdgeBuilder},
         types::{
             api::{TopologyData, TopologyHost},
-            base::{Topology, TopologyOptions},
+            base::{Topology, TopologyOptions, TopologyRequestOptions},
             edges::Edge,
             grouping::{ContainerRule, ElementRule, GroupingConfig},
             nodes::Node,
@@ -67,6 +68,7 @@ pub struct TopologyService {
     pub(crate) tag_service: Arc<TagService>,
     pub(crate) vlan_service: Arc<VlanService>,
     pub(crate) site_service: Arc<SiteService>,
+    pub(crate) organization_service: Arc<OrganizationService>,
     event_bus: Arc<EventBus>,
     /// Broadcast channel emitting `site_id`s whose live entity set has
     /// just changed. Frontend SSE consumers refetch the live topology row +
@@ -240,6 +242,7 @@ impl TopologyService {
         tag_service: Arc<TagService>,
         vlan_service: Arc<VlanService>,
         site_service: Arc<SiteService>,
+        organization_service: Arc<OrganizationService>,
         storage: Arc<GenericPostgresStorage<Topology>>,
         event_bus: Arc<EventBus>,
     ) -> Self {
@@ -258,9 +261,29 @@ impl TopologyService {
             tag_service,
             vlan_service,
             site_service,
+            organization_service,
             event_bus,
             live_update_tx,
         }
+    }
+
+    /// The use case `organization_id` chose at signup.
+    pub async fn organization_use_case(&self, organization_id: Uuid) -> Result<UseCase, Error> {
+        self.organization_service
+            .get_by_id(&organization_id)
+            .await?
+            .map(|org| org.base.use_case)
+            .ok_or_else(|| anyhow::anyhow!("Organization {organization_id} not found"))
+    }
+
+    /// The request options a new topology in `organization_id` starts with.
+    pub async fn default_request_options(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<TopologyRequestOptions, Error> {
+        Ok(TopologyRequestOptions::for_use_case(
+            self.organization_use_case(organization_id).await?,
+        ))
     }
 
     /// Subscribe to live-topology update pings. Each emitted `Uuid` is a

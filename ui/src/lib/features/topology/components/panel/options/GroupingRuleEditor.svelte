@@ -43,7 +43,7 @@
 	import { formatEntityLabel, formatEntityLabelTitle } from '$lib/features/topology/labels';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { type Color } from '$lib/shared/utils/styling';
-	interface RuleTypeMetadata {
+	interface RuleTypeMetadata<R> {
 		id: string;
 		name: string | null;
 		description: string | null;
@@ -56,12 +56,14 @@
 			is_configurable: boolean;
 			allow_multiple: boolean;
 			views?: string[];
+			/** The rule as "Add rule" creates it. */
+			default_payload: R;
 		} | null;
 	}
 	import _containerRuleTypes from '$lib/data/container-rule-types.json';
 	import _elementRuleTypes from '$lib/data/element-rule-types.json';
-	const typedContainerRuleTypes = _containerRuleTypes as RuleTypeMetadata[];
-	const typedElementRuleTypes = _elementRuleTypes as RuleTypeMetadata[];
+	const typedContainerRuleTypes = _containerRuleTypes as RuleTypeMetadata<ContainerRule>[];
+	const typedElementRuleTypes = _elementRuleTypes as RuleTypeMetadata<ElementRule>[];
 	import {
 		topology_containerGroupingHelp,
 		topology_containerGroupingPerspective,
@@ -322,13 +324,9 @@
 	}
 
 	function handleContainerAdd(optionId: string) {
-		let rule: ContainerRule;
-		if (optionId === 'ByApplication') {
-			rule = { ByApplication: { tag_ids: [] } };
-		} else {
-			rule = optionId as 'BySubnet' | 'MergeContainerBridges';
-		}
-		updateContainerRules([...containerRules, makeGraphRule(rule)]);
+		const rule = containerRuleMeta[optionId]?.metadata?.default_payload;
+		if (!rule) return;
+		updateContainerRules([...containerRules, makeGraphRule(structuredClone(rule))]);
 	}
 
 	function handleContainerRemove(index: number) {
@@ -437,20 +435,11 @@
 	}
 
 	function handleElementAdd(optionId: string) {
-		let newRule: ElementRule;
-		switch (optionId) {
-			case 'ByServiceCategory':
-				newRule = { ByServiceCategory: { categories: [], title: null } };
-				break;
-			case 'ByTag':
-				newRule = { ByTag: { tag_ids: [], title: null } };
-				break;
-			default:
-				return;
-		}
-		const graphRule = makeGraphRule(newRule);
+		const meta = elementRuleMeta[optionId]?.metadata;
+		if (!meta) return;
+		const graphRule = makeGraphRule(structuredClone(meta.default_payload));
 		updateElementRules([...elementRules, graphRule]);
-		editingElementId = graphRule.id;
+		if (meta.is_configurable) editingElementId = graphRule.id;
 	}
 
 	function handleElementRemove(index: number) {

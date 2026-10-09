@@ -3212,6 +3212,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topology/default-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Grouping and hide options a new topology starts with in the caller's organization.
+         * @description The infrastructure grouping rule depends on the organization's use case, so this is per
+         *     organization rather than a fixed default.
+         */
+        get: operations["get_default_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topology/export/csv": {
         parameters: {
             query?: never;
@@ -6022,6 +6043,192 @@ export interface components {
                 tags: components["schemas"]["Tag"][];
                 /** @description VLANs included in this topology. */
                 vlans: components["schemas"]["Vlan"][];
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
+        ApiResponse_TopologyRequestOptions: {
+            /** @description The result payload. Omitted on failure. */
+            data?: {
+                /**
+                 * @description Rules deciding how nodes are grouped into containers.
+                 * @default {
+                 *       "Application": [
+                 *         {
+                 *           "id": "81f97cad-4116-4b77-8bc5-b70cd00614b3",
+                 *           "rule": {
+                 *             "ByApplication": {
+                 *               "tag_ids": []
+                 *             }
+                 *           }
+                 *         }
+                 *       ],
+                 *       "L2Physical": [
+                 *         {
+                 *           "id": "656a9809-cf65-4218-8a4c-c06d0f9ae4a3",
+                 *           "rule": "ByHost"
+                 *         }
+                 *       ],
+                 *       "L3Logical": [
+                 *         {
+                 *           "id": "79aad34d-7d19-4536-8d09-51ffac3c2db8",
+                 *           "rule": "BySubnet"
+                 *         },
+                 *         {
+                 *           "id": "75bf6948-225d-4931-9fd4-1f96281a3bbb",
+                 *           "rule": "MergeContainerBridges"
+                 *         }
+                 *       ],
+                 *       "Workloads": [
+                 *         {
+                 *           "id": "656a9809-cf65-4218-8a4c-c06d0f9ae4a3",
+                 *           "rule": "ByHost"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                container_rules: {
+                    [key: string]: components["schemas"]["IdentifiedRule_ContainerRule"][];
+                };
+                /**
+                 * @description Rules deciding how entities are placed and inlined within containers. A missing field
+                 *     takes the rules for an organization with no stated use case.
+                 * @default [
+                 *       {
+                 *         "id": "2d4f0abe-39b4-4a6a-bd8a-00b8c9e3836b",
+                 *         "rule": "ByTrunkPort"
+                 *       },
+                 *       {
+                 *         "id": "6ed59522-9181-4197-ad2e-9cfe814a31e2",
+                 *         "rule": "ByVLAN"
+                 *       },
+                 *       {
+                 *         "id": "5c31eeca-0e05-4a15-b9e9-714c9cea1679",
+                 *         "rule": "ByPortOpStatus"
+                 *       },
+                 *       {
+                 *         "id": "bfa9ea16-438d-40ed-8712-de31c968560a",
+                 *         "rule": {
+                 *           "ByServiceCategory": {
+                 *             "categories": [
+                 *               "NetworkCore",
+                 *               "NetworkAccess",
+                 *               "NetworkAppliance",
+                 *               "RemoteAccess",
+                 *               "Workstation",
+                 *               "Mobile",
+                 *               "IoT",
+                 *               "Printer",
+                 *               "OpenPorts",
+                 *               "NetworkIdentities"
+                 *             ],
+                 *             "is_infra_rule": true,
+                 *             "title": "Infrastructure"
+                 *           }
+                 *         }
+                 *       },
+                 *       {
+                 *         "id": "5d36fddd-2bc0-450d-80ea-f2aab0a47d1b",
+                 *         "rule": {
+                 *           "ByTag": {
+                 *             "tag_ids": [],
+                 *             "title": null
+                 *           }
+                 *         }
+                 *       },
+                 *       {
+                 *         "id": "0c5c4850-0619-4db3-aa24-08d74a7c6fbe",
+                 *         "rule": "ByHypervisor"
+                 *       },
+                 *       {
+                 *         "id": "ac1f8a64-f7af-46fb-b25e-21d812c62d80",
+                 *         "rule": "ByContainerRuntime"
+                 *       },
+                 *       {
+                 *         "id": "dd6c0a27-d298-4b63-8923-895cba2505b0",
+                 *         "rule": "ByStack"
+                 *       }
+                 *     ]
+                 */
+                element_rules: components["schemas"]["IdentifiedRule_ElementRule"][];
+                /**
+                 * @description How nodes are ordered inside containers, per view. A view with no entry uses the
+                 *     layout's own order.
+                 * @default {}
+                 */
+                element_sort: {
+                    [key: string]: components["schemas"]["ElementSort"];
+                };
+                /**
+                 * @description Entity types hidden per view. Keyed by TopologyView, values are entity
+                 *     types (matching those declared as container/element/inline in the
+                 *     view's element_config). Hides every manifestation of the entity in
+                 *     that view — element nodes, container nodes, and inline rows on
+                 *     element cards. Supersedes the old `hide_ports` (L3-only, inline-only).
+                 * @default {}
+                 */
+                hide_entities: {
+                    [key: string]: components["schemas"]["EntityDiscriminants"][];
+                };
+                /**
+                 * @description Generic per-(view, entity, filter) hide-set for metadata filters
+                 *     (Category, Virtualization, etc). Supersedes the old
+                 *     `hide_service_categories`; nested so JSON keys are strings all the
+                 *     way down.
+                 * @default {
+                 *       "Application": {
+                 *         "Service": {
+                 *           "Category": [
+                 *             "OpenPorts"
+                 *           ]
+                 *         }
+                 *       },
+                 *       "L2Physical": {
+                 *         "Interface": {
+                 *           "LinkState": [
+                 *             "Unlinked"
+                 *           ]
+                 *         },
+                 *         "Service": {
+                 *           "Category": [
+                 *             "OpenPorts"
+                 *           ]
+                 *         }
+                 *       },
+                 *       "L3Logical": {
+                 *         "Service": {
+                 *           "Category": [
+                 *             "OpenPorts"
+                 *           ]
+                 *         }
+                 *       },
+                 *       "Workloads": {
+                 *         "Service": {
+                 *           "Category": [
+                 *             "OpenPorts"
+                 *           ]
+                 *         }
+                 *       }
+                 *     }
+                 */
+                hide_metadata_values: {
+                    [key: string]: {
+                        [key: string]: {
+                            [key: string]: string[];
+                        };
+                    };
+                };
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -13731,9 +13938,7 @@ export interface components {
             show_minimap: boolean;
             /**
              * @default {
-             *       "hidden_host_tag_ids": [],
-             *       "hidden_service_tag_ids": [],
-             *       "hidden_subnet_tag_ids": []
+             *       "hidden_tag_ids": {}
              *     }
              */
             tag_filter: components["schemas"]["TopologyTagFilter"];
@@ -13786,30 +13991,33 @@ export interface components {
                 [key: string]: components["schemas"]["IdentifiedRule_ContainerRule"][];
             };
             /**
-             * @description Rules deciding how entities are placed and inlined within containers.
+             * @description Rules deciding how entities are placed and inlined within containers. A missing field
+             *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "ed0cb9e1-1407-4563-98d2-a82f6e766bdd",
+             *         "id": "5f4b85d8-48c6-4d8a-be5a-71389381eb3b",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "162cf844-911a-4dad-8af5-8d5f6ad13fd7",
+             *         "id": "ee2e61f7-d1aa-494e-b02f-cfaaaa5c4026",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "f972dfa5-c88d-4310-8e55-a7690d577197",
+             *         "id": "320cdf6d-49a7-4c15-bae5-2aeb0e67ef46",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "1717d0ff-17e3-478a-83a1-f0e7eafb2e7d",
+             *         "id": "fabd23bc-9374-4eb8-8826-3090eca5a0e4",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
              *               "NetworkCore",
              *               "NetworkAccess",
+             *               "NetworkAppliance",
              *               "RemoteAccess",
              *               "Workstation",
              *               "Mobile",
+             *               "IoT",
              *               "Printer",
              *               "OpenPorts",
              *               "NetworkIdentities"
@@ -13913,12 +14121,10 @@ export interface components {
         };
         /** @description Filter settings for hiding entities by tag in topology visualization. */
         TopologyTagFilter: {
-            /** @description Host tag IDs to hide (hosts with these tags will fade out) */
-            hidden_host_tag_ids?: string[];
-            /** @description Service tag IDs to hide (services with these tags will be hidden from nodes) */
-            hidden_service_tag_ids?: string[];
-            /** @description Subnet tag IDs to hide (subnets with these tags will fade out) */
-            hidden_subnet_tag_ids?: string[];
+            /** @description Tag IDs to hide, per entity type. An entity of that type carrying one of them is hidden. */
+            hidden_tag_ids?: {
+                [key: string]: string[];
+            };
         };
         /**
          * @description Which topology view is being rendered
@@ -22370,6 +22576,35 @@ export interface operations {
             };
             /** @description Snapshot not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_default_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default topology request options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_TopologyRequestOptions"];
+                };
+            };
+            /** @description Access denied */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
