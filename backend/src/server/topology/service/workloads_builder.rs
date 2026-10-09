@@ -487,6 +487,7 @@ impl ViewBuilder for WorkloadsBuilder {
                 target_handle: EdgeHandle::Top,
                 is_multi_hop: false,
                 view_config: EdgeViewConfig::default(),
+                endpoint_labels: None,
                 relation_key: None,
             });
         }
@@ -590,6 +591,7 @@ impl ViewBuilder for WorkloadsBuilder {
                             target_handle: EdgeHandle::Top,
                             is_multi_hop: false,
                             view_config: EdgeViewConfig::default(),
+                            endpoint_labels: None,
                             relation_key: None,
                         });
                     }
@@ -611,6 +613,7 @@ impl ViewBuilder for WorkloadsBuilder {
                                 target_handle: EdgeHandle::Top,
                                 is_multi_hop: false,
                                 view_config: EdgeViewConfig::default(),
+                                endpoint_labels: None,
                                 relation_key: None,
                             });
                         }

@@ -67,11 +67,8 @@ impl ViewBuilder for L2Builder {
                 continue;
             }
 
-            let label = Some(format!(
-                "{} ↔ {}",
-                source_entry.display_name(),
-                target_entry.display_name()
-            ));
+            let endpoint_labels = [source_entry.display_name(), target_entry.display_name()];
+            let label = Some(endpoint_labels.join(" ↔ "));
 
             edges.push(Edge {
                 id: Uuid::new_v4(),
@@ -83,6 +80,7 @@ impl ViewBuilder for L2Builder {
                     protocol: DiscoveryProtocol::default(),
                 },
                 label,
+                endpoint_labels: Some(endpoint_labels),
                 source_handle: EdgeHandle::Bottom,
                 target_handle: EdgeHandle::Top,
                 is_multi_hop: false,
@@ -771,7 +769,7 @@ mod tests {
         let h2 = make_host("switch-2");
 
         let ie1 = make_if_entry(h1.id, 1, 6);
-        let ie2 = make_if_entry(h2.id, 1, 6);
+        let ie2 = make_if_entry(h2.id, 2, 6);
         let neighbours = vec![neighbor_row(ie1.id, Neighbor::Interface(ie2.id))];
 
         let hosts = vec![h1, h2];
@@ -820,6 +818,24 @@ mod tests {
         // 1 PhysicalLink edge
         assert_eq!(edges.len(), 1);
         assert!(matches!(edges[0].edge_type, EdgeType::PhysicalLink { .. }));
+
+        // Each end carries its own interface's name, in source/target order, and `label`
+        // still joins the two for the exports.
+        let name_of = |id: Uuid| {
+            interfaces
+                .iter()
+                .find(|i| i.id == id)
+                .map(Interface::display_name)
+                .unwrap()
+        };
+        let [source_label, target_label] = edges[0].endpoint_labels.clone().unwrap();
+        assert_eq!(source_label, name_of(edges[0].source));
+        assert_eq!(target_label, name_of(edges[0].target));
+        assert_ne!(source_label, target_label);
+        assert_eq!(
+            edges[0].label.as_deref(),
+            Some(format!("{source_label} ↔ {target_label}").as_str())
+        );
     }
 
     /// An LLDP neighbour that identifies the remote device but not the remote port used to

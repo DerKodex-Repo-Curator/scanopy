@@ -243,6 +243,7 @@ impl EdgeBuilder {
                             target_handle: EdgeHandle::Top,
                             is_multi_hop,
                             view_config: EdgeViewConfig::default(),
+                            endpoint_labels: None,
                             relation_key: None,
                         }
                     })
@@ -302,6 +303,7 @@ impl EdgeBuilder {
                         target_handle: EdgeHandle::Top,
                         is_multi_hop: ctx.edge_is_multi_hop(&anchor, target),
                         view_config: EdgeViewConfig::default(),
+                        endpoint_labels: None,
                         relation_key: None,
                     })
                     .collect::<Vec<Edge>>()
@@ -416,6 +418,7 @@ impl EdgeBuilder {
                                     target_handle: EdgeHandle::Top,
                                     is_multi_hop,
                                     view_config: EdgeViewConfig::default(),
+                                    endpoint_labels: None,
                                     relation_key: None,
                                 });
                             }
@@ -447,6 +450,7 @@ impl EdgeBuilder {
                     target_handle: EdgeHandle::Top,
                     is_multi_hop: false,
                     view_config: EdgeViewConfig::default(),
+                    endpoint_labels: None,
                     relation_key: None,
                 })
             })
@@ -522,6 +526,7 @@ impl EdgeBuilder {
                                 target_handle: EdgeHandle::Top,
                                 is_multi_hop,
                                 view_config: EdgeViewConfig::default(),
+                                endpoint_labels: None,
                                 relation_key: None,
                             })
                         })
@@ -615,6 +620,7 @@ impl EdgeBuilder {
                     target_handle: EdgeHandle::Top,
                     is_multi_hop,
                     view_config: EdgeViewConfig::default(),
+                    endpoint_labels: None,
                     relation_key: None,
                 })
             })
@@ -701,6 +707,11 @@ impl EdgeBuilder {
                     DiscoveryProtocol::CDP
                 };
 
+                let endpoint_labels = [
+                    ctx.host_container_header(source_host).unwrap_or_default(),
+                    ctx.host_container_header(target_host).unwrap_or_default(),
+                ];
+
                 Some(Edge {
                     id: Uuid::new_v4(),
                     source: node_for_host(source_host_id),
@@ -710,11 +721,8 @@ impl EdgeBuilder {
                         target_host_id,
                         protocol,
                     },
-                    label: Some(format!(
-                        "{} ↔ {}",
-                        ctx.host_container_header(source_host).unwrap_or_default(),
-                        ctx.host_container_header(target_host).unwrap_or_default()
-                    )),
+                    label: Some(endpoint_labels.join(" ↔ ")),
+                    endpoint_labels: Some(endpoint_labels),
                     source_handle: EdgeHandle::Bottom,
                     target_handle: EdgeHandle::Top,
                     is_multi_hop: false,
@@ -803,6 +811,7 @@ impl EdgeBuilder {
             target_handle: EdgeHandle::Top,
             is_multi_hop,
             view_config: EdgeViewConfig::default(),
+            endpoint_labels: None,
             relation_key: None,
         })
     }
