@@ -222,7 +222,7 @@ dev-fresh:
 	@trap 'kill 0' EXIT; \
 	cd ui && npm run dev & \
 	export DATABASE_URL="postgresql://postgres:password@localhost:5432/scanopy" && \
-	cd backend && $(OP_RUN) cargo run --bin server -- --log-level debug --public-url http://localhost:60072
+	cd backend && $(OP_RUN) cargo run --bin server -- --log-level debug
 
 test-merge:
 	@if ! git diff --quiet || ! git diff --cached --quiet; then \
@@ -310,7 +310,7 @@ test-results:
 dev-server:
 	make generate-fixtures
 	@export DATABASE_URL="postgresql://postgres:password@localhost:5432/scanopy" && \
-	cd backend && $(OP_RUN) cargo run --bin server -- --log-level debug --public-url http://localhost:60072
+	cd backend && $(OP_RUN) cargo run --bin server -- --log-level debug
 
 # Unenrolled foreground daemon against a local server. For a daemon that is already
 # installed as a service, prefer `make daemon-dev`: it reuses the installed identity
