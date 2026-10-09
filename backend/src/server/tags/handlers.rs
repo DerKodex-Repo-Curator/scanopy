@@ -54,9 +54,7 @@ impl OrderField for TagOrderField {
             Self::Name => "tags.name",
             Self::Color => "tags.color",
             Self::UpdatedAt => "tags.updated_at",
-            Self::TagGroup => {
-                "CASE WHEN tags.is_application THEN 'Application' ELSE tags.tag_group END"
-            }
+            Self::TagGroup => "tags.tag_group",
         }
     }
 }

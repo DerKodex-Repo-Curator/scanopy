@@ -34,6 +34,7 @@ pub enum Concept {
     L2,
     L3,
     Application,
+    Status,
 }
 
 impl HasId for Concept {
@@ -61,6 +62,7 @@ impl EntityMetadataProvider for Concept {
             Concept::Containerization => Color::Blue,
 
             Concept::Application => Color::Purple,
+            Concept::Status => Color::Blue,
         }
     }
 
@@ -82,6 +84,7 @@ impl EntityMetadataProvider for Concept {
             Concept::Containerization => Icon::Box,
 
             Concept::Application => Icon::Component,
+            Concept::Status => Icon::ListChecks,
         }
     }
 }

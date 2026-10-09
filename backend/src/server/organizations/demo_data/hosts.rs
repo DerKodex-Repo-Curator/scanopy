@@ -163,6 +163,12 @@ pub(super) fn generate_hosts_and_services(
     let devops_tag = find_tag("DevOps Pipeline");
     let storage_tag = find_tag("Storage");
     let messaging_tag = find_tag("Messaging");
+    let staging_tag = find_tag("Staging");
+    let lab_tag = find_tag("Lab");
+    let medium_tag = find_tag("Medium");
+    let managed_tag = find_tag("Managed");
+    let unmanaged_tag = find_tag("Unmanaged");
+    let third_party_tag = find_tag("Third-party");
 
     // Pre-generated service UUIDs for virtualization wiring
     let pve_hq1_svc_id = Uuid::new_v4(); // Proxmox VE on proxmox-hv01
@@ -276,7 +282,7 @@ pub(super) fn generate_hosts_and_services(
                     hq,
                     hq_mgmt,
                     Ipv4Addr::new(10, 0, 1, 10),
-                    vec![],
+                    managed_tag.into_iter().collect(),
                     None,
                     None,
                     now
@@ -1040,7 +1046,7 @@ pub(super) fn generate_hosts_and_services(
             hq,
             hq_servers,
             Ipv4Addr::new(10, 0, 20, 21),
-            vec![],
+            lab_tag.into_iter().collect(),
             None,
             Some((
                 HostVirtualization::Docker(ContainerHostVirtualization {
@@ -1266,7 +1272,7 @@ pub(super) fn generate_hosts_and_services(
                     hq,
                     hq_storage,
                     Ipv4Addr::new(10, 0, 40, 21),
-                    backup_tag.into_iter().collect(),
+                    backup_tag.into_iter().chain(medium_tag).collect(),
                     None,
                     None,
                     now,
@@ -1440,7 +1446,7 @@ pub(super) fn generate_hosts_and_services(
                 hq,
                 hq_iot,
                 Ipv4Addr::new(10, 0, 30, 10),
-                iot_tag.into_iter().collect(),
+                iot_tag.into_iter().chain(unmanaged_tag).collect(),
                 None,
                 None,
                 now
@@ -1567,7 +1573,7 @@ pub(super) fn generate_hosts_and_services(
                 hq,
                 hq_iot,
                 Ipv4Addr::new(10, 0, 30, 70),
-                iot_tag.into_iter().collect(),
+                iot_tag.into_iter().chain(third_party_tag).collect(),
                 None,
                 None,
                 now
@@ -2631,7 +2637,7 @@ pub(super) fn generate_hosts_and_services(
                     dc,
                     dc_storage,
                     Ipv4Addr::new(172, 16, 20, 31),
-                    monitoring_tag.into_iter().collect(),
+                    monitoring_tag.into_iter().chain(staging_tag).collect(),
                     None,
                     None,
                     now

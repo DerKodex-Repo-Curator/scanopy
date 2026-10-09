@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { groupNames, tagTooltip, withTagAdded } from '$lib/features/tags/groups';
+import { groupNames, isSystemGroupName, tagTooltip, withTagAdded } from '$lib/features/tags/groups';
 import { createDefaultTag, type Tag } from '$lib/features/tags/types/base';
 
 function tag(id: string, tag_group: Tag['tag_group'] = null): Tag {
 	return { ...createDefaultTag('org'), id, name: id, tag_group };
 }
 
-const status = (name: string) => tag(name, { type: 'Named', name: 'Status' });
+const status = (name: string) => tag(name, { type: 'Status' });
 const environment = (name: string) => tag(name, { type: 'Named', name: 'Environment' });
 const application = (name: string) => tag(name, { type: 'Application' });
 
@@ -42,10 +42,17 @@ describe('withTagAdded', () => {
 });
 
 describe('groupNames', () => {
-	it('lists each named group once, without the application group', () => {
+	it('lists each named group once, without the system groups', () => {
 		expect(
-			groupNames([status('a'), environment('b'), status('c'), application('d'), tag('e')])
-		).toEqual(['Environment', 'Status']);
+			groupNames([
+				environment('a'),
+				tag('b', { type: 'Named', name: 'Tier' }),
+				environment('c'),
+				application('d'),
+				status('e'),
+				tag('f')
+			])
+		).toEqual(['Environment', 'Tier']);
 	});
 });
 
@@ -67,5 +74,13 @@ describe('tagTooltip', () => {
 	it('is empty for a tag with neither, so the chip shows no tooltip', () => {
 		expect(tagTooltip({ ...tag('critical'), description: '   ' })).toBe('');
 		expect(tagTooltip(null)).toBe('');
+	});
+});
+
+describe('isSystemGroupName', () => {
+	it('matches a system group in any case, so the picker never creates a named copy', () => {
+		expect(isSystemGroupName(' status ')).toBe(true);
+		expect(isSystemGroupName('APPLICATION')).toBe(true);
+		expect(isSystemGroupName('Environment')).toBe(false);
 	});
 });

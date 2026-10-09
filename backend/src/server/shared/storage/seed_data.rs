@@ -63,47 +63,134 @@ be found by scanning. Create ip_addresses on this subnet to include them in your
     Subnet::new(base)
 }
 
-/// The tag group an asset's status sits in, on its way from planned to decommissioned.
-pub const STATUS_TAG_GROUP: &str = "Status";
+/// A tag every organization starts with: (name, description, color, icon).
+type StarterTag = (&'static str, &'static str, Color, Icon);
 
-/// The Status tags every organization starts with: (name, description, color, icon), in the
-/// order an asset moves through them.
-const STATUS_TAGS: [(&str, &str, Color, Icon); 4] = [
+/// The tag groups every organization starts with, by stored group name, each with its tags in
+/// order. "Status" is the system [`TagGroup::Status`]; the others are named groups, a starting
+/// point the organization can rename, extend or empty.
+const STARTER_TAG_GROUPS: [(&str, &[StarterTag]); 4] = [
     (
-        "Planned",
-        "Ordered or scheduled, not yet in service",
-        Color::Blue,
-        Icon::CalendarClock,
+        "Status",
+        &[
+            (
+                "Planned",
+                "Ordered or scheduled, not yet in service",
+                Color::Blue,
+                Icon::CalendarClock,
+            ),
+            ("Active", "In service", Color::Green, Icon::CircleCheck),
+            (
+                "Decommissioning",
+                "Being retired; still on the network",
+                Color::Orange,
+                Icon::Hourglass,
+            ),
+            (
+                "Decommissioned",
+                "Retired from service; kept for the record",
+                Color::Gray,
+                Icon::Archive,
+            ),
+        ],
     ),
-    ("Active", "In service", Color::Green, Icon::CircleCheck),
     (
-        "Decommissioning",
-        "Being retired; still on the network",
-        Color::Orange,
-        Icon::Hourglass,
+        "Environment",
+        &[
+            (
+                "Production",
+                "Serves live users and business traffic",
+                Color::Red,
+                Icon::Server,
+            ),
+            (
+                "Staging",
+                "A pre-release copy of production for final testing",
+                Color::Amber,
+                Icon::FlaskConical,
+            ),
+            (
+                "Development",
+                "Used to build and test changes",
+                Color::Blue,
+                Icon::Code,
+            ),
+            (
+                "Lab",
+                "Test bench or experimental equipment",
+                Color::Purple,
+                Icon::TestTube,
+            ),
+        ],
     ),
     (
-        "Decommissioned",
-        "Retired from service; kept for the record",
-        Color::Gray,
-        Icon::Archive,
+        "Criticality",
+        &[
+            (
+                "Critical",
+                "An outage stops the business",
+                Color::Red,
+                Icon::Siren,
+            ),
+            (
+                "High",
+                "An outage disrupts many people",
+                Color::Orange,
+                Icon::ArrowUp,
+            ),
+            (
+                "Medium",
+                "An outage disrupts some people",
+                Color::Yellow,
+                Icon::Minus,
+            ),
+            (
+                "Low",
+                "An outage has little impact",
+                Color::Gray,
+                Icon::ArrowDown,
+            ),
+        ],
+    ),
+    (
+        "Management",
+        &[
+            (
+                "Managed",
+                "Administered by your IT team",
+                Color::Green,
+                Icon::ShieldCheck,
+            ),
+            (
+                "Unmanaged",
+                "Administered by no one, such as a personal device",
+                Color::Orange,
+                Icon::ShieldQuestionMark,
+            ),
+            (
+                "Third-party",
+                "Administered by a vendor or another organization",
+                Color::Blue,
+                Icon::Handshake,
+            ),
+        ],
     ),
 ];
 
-/// The default Status tags for an organization.
-pub fn create_status_tags(organization_id: Uuid) -> Vec<Tag> {
-    STATUS_TAGS
+/// The tags every organization starts with, in their groups.
+pub fn create_starter_tags(organization_id: Uuid) -> Vec<Tag> {
+    STARTER_TAG_GROUPS
         .iter()
-        .map(|(name, description, color, icon)| {
-            Tag::new(TagBase {
-                name: name.to_string(),
-                description: Some(description.to_string()),
-                color: *color,
-                organization_id,
-                tag_group: Some(TagGroup::Named {
-                    name: STATUS_TAG_GROUP.to_string(),
-                }),
-                icon: Some(TagIcon(*icon)),
+        .flat_map(|(group, tags)| {
+            tags.iter().map(move |(name, description, color, icon)| {
+                Tag::new(TagBase {
+                    name: name.to_string(),
+                    description: Some(description.to_string()),
+                    color: *color,
+                    organization_id,
+                    tag_group: Some(TagGroup::from_stored_name(group.to_string())),
+                    icon: Some(TagIcon(*icon)),
+                })
             })
         })
         .collect()
