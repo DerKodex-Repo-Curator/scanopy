@@ -1,4 +1,4 @@
-.PHONY: daemon-build daemon-rebuild daemon-dev daemon-fix-perms help build test test-unit clean format lint lint-migrations generate-schema generate-messages generate-fixtures refresh-vendored-data seed-dev set-plan-community set-plan-starter set-plan-pro set-plan-team set-plan-business set-plan-enterprise test-plan test-merge test-results install-dev-mac install-dev-linux install-dev-windows snmp-seed-credentials snmp-fixtures snmp-deploy snmp-verify snmp-status ssh-lab-deploy ssh-lab-verify ssh-lab-status ssh-lab-rotate-hostkey wol-lab-provision wol-lab-listener wol-lab-sleep wol-lab-hibernate wol-lab-verify wol-lab-status wol-lab-log dcp-start dcp-stop dcp-verify dcp-status docker-proxy-up docker-proxy-up-tls docker-proxy-down docker-proxy-status podman-proxy-up podman-proxy-up-tls podman-proxy-down podman-proxy-status podman-workload-up podman-workload-down unifi-status unifi-capture issue-license daemon-clean daemon-purge daemon-logs daemon-restart daemon-config
+.PHONY: daemon-build daemon-rebuild daemon-dev daemon-fix-perms help build test test-unit clean format lint lint-migrations generate-schema generate-messages generate-fixtures refresh-vendored-data seed-dev set-plan-community set-plan-starter set-plan-pro set-plan-team set-plan-business set-plan-enterprise set-plan-self-hosted-standard set-plan-self-hosted-plus test-plan test-merge test-results install-dev-mac install-dev-linux install-dev-windows snmp-seed-credentials snmp-fixtures snmp-deploy snmp-verify snmp-status ssh-lab-deploy ssh-lab-verify ssh-lab-status ssh-lab-rotate-hostkey wol-lab-provision wol-lab-listener wol-lab-sleep wol-lab-hibernate wol-lab-verify wol-lab-status wol-lab-log dcp-start dcp-stop dcp-verify dcp-status docker-proxy-up docker-proxy-up-tls docker-proxy-down docker-proxy-status podman-proxy-up podman-proxy-up-tls podman-proxy-down podman-proxy-status podman-workload-up podman-workload-down unifi-status unifi-capture issue-license daemon-clean daemon-purge daemon-logs daemon-restart daemon-config
 
 DAYS ?= 365
 PLAN ?= standard
@@ -75,6 +75,8 @@ help:
 	@echo "  make set-plan-team        - Set to Team"
 	@echo "  make set-plan-business    - Set to Business"
 	@echo "  make set-plan-enterprise  - Set to Enterprise"
+	@echo "  make set-plan-self-hosted-standard - Set to Self-Hosted Standard"
+	@echo "  make set-plan-self-hosted-plus     - Set to Self-Hosted Plus"
 	@echo ""
 	@echo "Test Environments:"
 	@echo "  make snmp-seed-credentials - Seed the SNMP sim credentials into the DB, assigned to every network"
@@ -523,43 +525,58 @@ install-dev-windows:
 set-plan-community:
 	@echo "Setting all organizations to Community plan..."
 	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
-		"UPDATE organizations SET plan = '{\"type\": \"Community\", \"base_cents\": 0, \"rate\": \"Month\", \"trial_days\": 0, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": null, \"included_networks\": null}'::jsonb"
+		"UPDATE organizations SET plan = '{\"type\": \"Community\", \"base_cents\": 0, \"rate\": \"Month\", \"trial_days\": 0, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": null, \"included_networks\": null}'::jsonb, plan_status = 'active'"
 	@echo "Done!"
 
 set-plan-free:
 	@echo "Setting all organizations to Free plan..."
 	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
-		"UPDATE organizations SET plan = '{\"type\": \"Free\", \"base_cents\": 999, \"rate\": \"Month\", \"trial_days\": 7, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": 1, \"included_networks\": 1, \"included_hosts\": 25}'::jsonb"
+		"UPDATE organizations SET plan = '{\"type\": \"Free\", \"base_cents\": 999, \"rate\": \"Month\", \"trial_days\": 7, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": 1, \"included_networks\": 1, \"included_hosts\": 25}'::jsonb, plan_status = 'active'"
 	@echo "Done!"
 
 set-plan-starter:
 	@echo "Setting all organizations to Starter plan..."
 	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
-		"UPDATE organizations SET plan = '{\"type\": \"Starter\", \"base_cents\": 999, \"rate\": \"Month\", \"trial_days\": 7, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": 1, \"included_networks\": 1}'::jsonb"
+		"UPDATE organizations SET plan = '{\"type\": \"Starter\", \"base_cents\": 999, \"rate\": \"Month\", \"trial_days\": 7, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": 1, \"included_networks\": 1}'::jsonb, plan_status = 'active'"
 	@echo "Done!"
 
 set-plan-pro:
 	@echo "Setting all organizations to Pro plan..."
 	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
-		"UPDATE organizations SET plan = '{\"type\": \"Pro\", \"base_cents\": 1999, \"rate\": \"Month\", \"trial_days\": 7, \"seat_cents\": null, \"network_cents\": 800, \"included_seats\": 1, \"included_networks\": 3}'::jsonb"
+		"UPDATE organizations SET plan = '{\"type\": \"Pro\", \"base_cents\": 1999, \"rate\": \"Month\", \"trial_days\": 7, \"seat_cents\": null, \"network_cents\": 800, \"included_seats\": 1, \"included_networks\": 3}'::jsonb, plan_status = 'active'"
 	@echo "Done!"
 
 set-plan-business:
 	@echo "Setting all organizations to Business plan..."
 	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
-		"UPDATE organizations SET plan = '{\"type\": \"Business\", \"base_cents\": 5999, \"rate\": \"Month\", \"trial_days\": 14, \"seat_cents\": 800, \"network_cents\": 500, \"included_seats\": 5, \"included_networks\": 15}'::jsonb"
+		"UPDATE organizations SET plan = '{\"type\": \"Business\", \"base_cents\": 5999, \"rate\": \"Month\", \"trial_days\": 14, \"seat_cents\": 800, \"network_cents\": 500, \"included_seats\": 5, \"included_networks\": 15}'::jsonb, plan_status = 'active'"
 	@echo "Done!"
 
 set-plan-enterprise:
 	@echo "Setting all organizations to Enterprise plan..."
 	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
-		"UPDATE organizations SET plan = '{\"type\": \"Enterprise\", \"base_cents\": 0, \"rate\": \"Month\", \"trial_days\": 0, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": null, \"included_networks\": null}'::jsonb"
+		"UPDATE organizations SET plan = '{\"type\": \"Enterprise\", \"base_cents\": 0, \"rate\": \"Month\", \"trial_days\": 0, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": null, \"included_networks\": null}'::jsonb, plan_status = 'active'"
 	@echo "Done!"
 
 set-plan-demo:
 	@echo "Setting all organizations to Demo plan..."
 	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
-		"UPDATE organizations SET plan = '{\"type\": \"Demo\", \"base_cents\": 0, \"rate\": \"Month\", \"trial_days\": 0, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": null, \"included_networks\": null}'::jsonb"
+		"UPDATE organizations SET plan = '{\"type\": \"Demo\", \"base_cents\": 0, \"rate\": \"Month\", \"trial_days\": 0, \"seat_cents\": null, \"network_cents\": null, \"included_seats\": null, \"included_networks\": null}'::jsonb, plan_status = 'active'"
+	@echo "Done!"
+
+# Values mirror get_self_hosted_standard_plan / get_self_hosted_plus_plan in
+# backend/src/server/billing/plans.rs. A self-hosted server with a valid license
+# key reconciles org plans to the key's tier on boot, overwriting these.
+set-plan-self-hosted-standard:
+	@echo "Setting all organizations to Self-Hosted Standard plan..."
+	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
+		"UPDATE organizations SET plan = '{\"type\": \"SelfHostedStandard\", \"base_cents\": 400000, \"rate\": \"Year\", \"trial_days\": 14, \"seat_cents\": null, \"site_cents\": null, \"host_cents\": null, \"included_seats\": 25, \"included_sites\": 50, \"included_hosts\": null, \"included_orgs\": 1}'::jsonb, plan_status = 'active'"
+	@echo "Done!"
+
+set-plan-self-hosted-plus:
+	@echo "Setting all organizations to Self-Hosted Plus plan..."
+	@docker exec -t scanopy-postgres psql -U postgres -d scanopy -c \
+		"UPDATE organizations SET plan = '{\"type\": \"SelfHostedPlus\", \"base_cents\": 600000, \"rate\": \"Year\", \"trial_days\": 14, \"seat_cents\": null, \"site_cents\": null, \"host_cents\": null, \"included_seats\": 50, \"included_sites\": 100, \"included_hosts\": null, \"included_orgs\": 5}'::jsonb, plan_status = 'active'"
 	@echo "Done!"
 
 # Test Environments
