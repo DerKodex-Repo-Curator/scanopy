@@ -1,8 +1,6 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
-use strum::IntoDiscriminant;
 use uuid::Uuid;
 
 use crate::server::{
@@ -16,17 +14,6 @@ use crate::server::{
         storage::traits::{Entity, SqlValue, Storable},
     },
 };
-
-/// CSV row representation for Credential export
-#[derive(Serialize)]
-pub struct CredentialCsvRow {
-    pub id: Uuid,
-    pub organization_id: Uuid,
-    pub name: String,
-    pub credential_type: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Credential {
     const HAS_SCD2: bool = false;
@@ -140,19 +127,6 @@ impl Entity for Credential {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = CredentialCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        CredentialCsvRow {
-            id: self.id,
-            organization_id: self.base.organization_id,
-            name: self.base.name.clone(),
-            credential_type: self.base.credential_type.discriminant().to_string(),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

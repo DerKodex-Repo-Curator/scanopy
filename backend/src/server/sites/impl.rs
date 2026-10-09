@@ -19,16 +19,6 @@ use validator::Validate;
 use crate::server::shared::entity_metadata::EntityCategory;
 use crate::server::shared::storage::traits::{Entity, SqlValue, Storable};
 
-/// CSV row representation for Site export
-#[derive(Serialize)]
-pub struct SiteCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub organization_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 #[derive(
     Debug, Clone, Serialize, Deserialize, Validate, PartialEq, Eq, Hash, Default, ToSchema,
 )]
@@ -258,18 +248,6 @@ impl Entity for Site {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = SiteCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        SiteCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            organization_id: self.base.organization_id,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

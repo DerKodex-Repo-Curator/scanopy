@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -20,20 +19,6 @@ use crate::server::{
     },
     topology::types::edges::EdgeStyle,
 };
-
-/// CSV row representation for Dependency export (excludes nested members)
-#[derive(Serialize)]
-pub struct DependencyCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub description: Option<String>,
-    pub dependency_type: String,
-    pub color: String,
-    pub site_id: Uuid,
-    pub source: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Dependency {
     type BaseData = DependencyBase;
@@ -198,23 +183,6 @@ impl Entity for Dependency {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = DependencyCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        let dependency_type_str: &'static str = self.base.dependency_type.into();
-        DependencyCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            description: self.base.description.clone(),
-            dependency_type: dependency_type_str.to_string(),
-            color: self.base.color.to_string(),
-            site_id: self.base.site_id,
-            source: format!("{:?}", self.base.source),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

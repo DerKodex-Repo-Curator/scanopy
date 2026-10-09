@@ -242,11 +242,13 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
+          "Details",
           "ElementSummary"
         ],
         "dependency_creation": null,
         "element_sections": [
           "Identity",
+          "Details",
           "InterfaceData"
         ],
         "show_application_picker": false
@@ -680,11 +682,13 @@
       "inspector_config": {
         "container_sections": [
           "SubnetDetail",
+          "Details",
           "ElementSummary"
         ],
         "dependency_creation": "Bindings",
         "element_sections": [
           "Identity",
+          "Details",
           "HostDetail",
           "InterfaceData",
           "Services",
@@ -1144,11 +1148,13 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
+          "Details",
           "ElementSummary"
         ],
         "dependency_creation": "Services",
         "element_sections": [
           "Identity",
+          "Details",
           "HostDetail",
           "Virtualization",
           "Services",
@@ -1514,12 +1520,14 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
+          "Details",
           "ElementSummary",
           "DependencySummary"
         ],
         "dependency_creation": "Services",
         "element_sections": [
           "Identity",
+          "Details",
           "Dependencies",
           "Application"
         ],

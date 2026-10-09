@@ -1,10 +1,9 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
 
-use crate::server::ip_addresses::r#impl::base::{MacEvidenceValue, mac_of};
+use crate::server::ip_addresses::r#impl::base::MacEvidenceValue;
 use crate::server::shared::attribution::Attributed;
 use crate::server::shared::storage::attributed;
 use crate::server::{
@@ -19,38 +18,6 @@ use crate::server::{
         },
     },
 };
-
-/// CSV row representation for Interface export
-/// A status column for CSV export: the variant's name, or blank where nothing read it.
-///
-/// Blank rather than the string "None", because a spreadsheet column reading `None` looks like a
-/// status the device reported. An empty cell is how every other unknown in this export reads.
-fn csv_status<S: std::fmt::Debug>(status: Option<S>) -> String {
-    status.map_or_else(String::new, |s| format!("{s:?}"))
-}
-
-#[derive(Serialize)]
-pub struct InterfaceCsvRow {
-    pub id: Uuid,
-    pub host_id: Uuid,
-    pub site_id: Uuid,
-    pub if_index: Option<i32>,
-    pub if_descr: Option<String>,
-    pub if_name: Option<String>,
-    pub if_alias: Option<String>,
-    pub if_type: Option<i32>,
-    pub speed_bps: Option<i64>,
-    pub admin_status: String,
-    pub oper_status: String,
-    pub mac_address: Option<String>,
-    pub ip_address_id: Option<Uuid>,
-    pub ip_configured: bool,
-    pub fdb_macs: Option<String>,
-    pub native_vlan_id: Option<Uuid>,
-    pub vlan_ids: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Interface {
     type BaseData = InterfaceBase;
@@ -261,40 +228,6 @@ impl Entity for Interface {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = InterfaceCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        InterfaceCsvRow {
-            id: self.id,
-            host_id: self.base.host_id,
-            site_id: self.base.site_id,
-            if_index: self.base.if_index,
-            if_descr: self.base.if_descr.clone(),
-            if_name: self.base.if_name.clone(),
-            if_alias: self.base.if_alias.clone(),
-            if_type: self.base.if_type,
-            speed_bps: self.base.speed_bps,
-            admin_status: csv_status(self.base.admin_status),
-            oper_status: csv_status(self.base.oper_status),
-            mac_address: mac_of(&self.base.mac_address).map(|m| m.to_string()),
-            ip_address_id: self.base.ip_address_id,
-            ip_configured: self.base.ip_configured,
-            fdb_macs: self
-                .base
-                .fdb_macs
-                .as_ref()
-                .and_then(|m| serde_json::to_string(m).ok()),
-            native_vlan_id: self.base.native_vlan_id,
-            vlan_ids: self
-                .base
-                .vlan_ids
-                .as_ref()
-                .and_then(|v| serde_json::to_string(v).ok()),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

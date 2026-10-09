@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -13,21 +12,6 @@ use crate::server::{
     user_api_keys::r#impl::base::{UserApiKey, UserApiKeyBase},
     users::r#impl::permissions::UserOrgPermissions,
 };
-
-/// CSV row representation for UserApiKey export (excludes sensitive key field)
-#[derive(Serialize)]
-pub struct UserApiKeyCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub user_id: Uuid,
-    pub organization_id: Uuid,
-    pub permissions: String,
-    pub is_enabled: bool,
-    pub last_used: Option<DateTime<Utc>>,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for UserApiKey {
     const HAS_SCD2: bool = false;
@@ -147,23 +131,6 @@ impl Entity for UserApiKey {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = UserApiKeyCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        UserApiKeyCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            user_id: self.base.user_id,
-            organization_id: self.base.organization_id,
-            permissions: format!("{:?}", self.base.permissions),
-            is_enabled: self.base.is_enabled,
-            last_used: self.base.last_used,
-            expires_at: self.base.expires_at,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

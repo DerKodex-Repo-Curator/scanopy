@@ -22,20 +22,6 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
-/// CSV row representation for User export (excludes sensitive password/token fields)
-#[derive(Serialize)]
-pub struct UserCsvRow {
-    pub id: Uuid,
-    pub email: String,
-    pub permissions: String,
-    pub organization_id: Uuid,
-    pub email_verified: bool,
-    pub oidc_provider: Option<String>,
-    pub terms_accepted_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Validate, PartialEq, Eq, Hash, ToSchema)]
 pub struct UserBase {
     /// The user's email address, also their login identifier.
@@ -416,22 +402,6 @@ impl Entity for User {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = UserCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        UserCsvRow {
-            id: self.id,
-            email: self.base.email.to_string(),
-            permissions: format!("{:?}", self.base.permissions),
-            organization_id: self.base.organization_id,
-            email_verified: self.base.email_verified,
-            oidc_provider: self.base.oidc_provider.clone(),
-            terms_accepted_at: self.base.terms_accepted_at,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

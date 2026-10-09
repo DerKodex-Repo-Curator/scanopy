@@ -8993,6 +8993,30 @@ export interface components {
         };
         /** @enum {string} */
         EntityDiscriminants: "Site" | "Vlan" | "Subnet" | "Host" | "Service" | "IPAddress" | "Interface" | "Port" | "Binding" | "Discovery" | "Daemon" | "DaemonApiKey" | "Tag" | "User" | "UserApiKey" | "Credential" | "Organization" | "Invite" | "Topology" | "Snapshot" | "Share" | "Dependency";
+        /** @description One fact that describes an entity, possibly read from a related entity. */
+        EntityField: {
+            /**
+             * @description Dotted path to the value on the last object, or `None` for the object itself (an
+             *     `Entity` or `Port` field).
+             */
+            field?: string | null;
+            format: components["schemas"]["FieldFormat"];
+            /** @description Stable key: the CSV header, the list-table column id and the diagram Shape Data name. */
+            id: string;
+            /** @description English label; the UI translates it through a generated `meta_*` key. */
+            label: string;
+            /**
+             * @description Whether one entity can hold several values: set by any `Children` or `Embedded` hop, and
+             *     declared with [`EntityField::many`] for a key holding an array of ids or values.
+             */
+            many: boolean;
+            /** @description Steps from the entity to the objects the value is read from. Empty for the entity itself. */
+            path: components["schemas"]["Hop"][];
+            /** @description Sibling field holding the value's attribution, for attributed host facts. */
+            source_field?: string | null;
+            /** @description Shown by default in tables and in the inspector's details. Every field is exported. */
+            summary: boolean;
+        };
         /**
          * @description How recently discovery last observed an entity.
          *
@@ -9108,6 +9132,39 @@ export interface components {
             /** @description Whether the value is a secret, so it is masked and never echoed back. */
             secret: boolean;
         };
+        /** @description How a field's value is written. Chosen by the value's shape, never by where it is shown. */
+        FieldFormat: {
+            /** @enum {string} */
+            type: "Text";
+        } | {
+            /** @enum {string} */
+            type: "Number";
+        } | {
+            /** @enum {string} */
+            type: "Boolean";
+        } | {
+            /** @enum {string} */
+            type: "Timestamp";
+        } | {
+            /** @enum {string} */
+            type: "Identifier";
+        } | {
+            /** @enum {string} */
+            type: "BitsPerSecond";
+        } | {
+            /** @enum {string} */
+            type: "Port";
+        } | {
+            /** @enum {string} */
+            type: "OperatingSystem";
+        } | {
+            fixture: components["schemas"]["MetadataFixture"];
+            /** @enum {string} */
+            type: "Metadata";
+        } | {
+            /** @enum {string} */
+            type: "Entity";
+        };
         /**
          * @description Field types for dynamic form generation.
          *
@@ -9196,6 +9253,22 @@ export interface components {
              *     NULL (the "ungrouped" bucket).
              */
             value?: string | null;
+        };
+        /** @description One step from an object to related objects. */
+        Hop: {
+            entity: components["schemas"]["EntityDiscriminants"];
+            key: string;
+            /** @enum {string} */
+            type: "Parent";
+        } | {
+            entity: components["schemas"]["EntityDiscriminants"];
+            key: string;
+            /** @enum {string} */
+            type: "Children";
+        } | {
+            key: string;
+            /** @enum {string} */
+            type: "Embedded";
         };
         /**
          * @example {
@@ -10867,6 +10940,12 @@ export interface components {
          */
         MetadataFilterType: "Category" | "Virtualization" | "LinkState" | "Staleness" | "OperStatus";
         /**
+         * @description A metadata fixture whose entries name an enum-valued field, so the UI shows the fixture's
+         *     name for the raw value. Serializes to the fixture key.
+         * @enum {string}
+         */
+        MetadataFixture: "if_oper_statuses" | "subnet_types" | "entity_sources" | "dependency_types" | "discovery_types" | "service_definitions" | "discovery_protocols" | "permissions" | "credential_types";
+        /**
          * @description The Windows MSI install method. The MSI itself is a static release asset the UI links to; only
          *     the per-daemon pre-fill data is tenant-specific.
          */
@@ -10969,6 +11048,13 @@ export interface components {
              * @description Container this element is drawn inside.
              */
             container_id?: string;
+            /**
+             * Format: uuid
+             * @description The entity this element stands for, of the type `element_type` names: the frontend's
+             *     one lookup from a card to what it describes. `None` only for an IP address element with
+             *     no known address.
+             */
+            entity_id?: string | null;
             /**
              * Format: uuid
              * @description Host the element belongs to.

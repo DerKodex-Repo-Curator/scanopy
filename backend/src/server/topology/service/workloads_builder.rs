@@ -1056,6 +1056,44 @@ mod tests {
     }
 
     #[test]
+    fn every_shape_that_stands_for_an_entity_names_one_in_the_build() {
+        let hypervisor = make_host("pve-01");
+        let proxmox_svc = make_proxmox_service(hypervisor.id);
+        let vm = make_proxmox_vm("vm-web", proxmox_svc.id);
+        let host_ids = [hypervisor.id, vm.id];
+
+        let (nodes, _) = build(&[hypervisor, vm], std::slice::from_ref(&proxmox_svc));
+
+        let names_known = |entity: EntityDiscriminants, id: Uuid| match entity {
+            EntityDiscriminants::Host => host_ids.contains(&id),
+            EntityDiscriminants::Service => id == proxmox_svc.id,
+            _ => false,
+        };
+        let mut checked = 0;
+        for node in &nodes {
+            let (entity, entity_id) = match &node.node_type {
+                NodeType::Element {
+                    element, entity_id, ..
+                } => (EntityDiscriminants::from(element), *entity_id),
+                NodeType::Container {
+                    container_type,
+                    entity_id,
+                    ..
+                } => match container_type.entity_type() {
+                    Some(entity) => (entity, *entity_id),
+                    None => continue,
+                },
+            };
+            let id =
+                entity_id.unwrap_or_else(|| panic!("{entity} shape {} has no entity", node.id));
+            assert!(names_known(entity, id), "{entity} shape names unknown {id}");
+            checked += 1;
+        }
+        // The hypervisor's Host container, its Hypervisor subcontainer and the VM card.
+        assert_eq!(checked, 3);
+    }
+
+    #[test]
     fn test_docker_host_with_containers() {
         let host = make_host("server-01");
         let docker_svc = make_docker_service(host.id);

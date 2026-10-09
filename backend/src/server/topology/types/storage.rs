@@ -7,20 +7,9 @@ use crate::server::{
     topology::types::base::{Topology, TopologyBase, TopologyOptions},
 };
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
-
-/// CSV row representation for Topology export (slimmed: `options` lives in JSONB;
-/// the per-view graph is built on request and never persisted).
-#[derive(Serialize)]
-pub struct TopologyCsvRow {
-    pub id: Uuid,
-    pub site_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Topology {
     const HAS_SCD2: bool = false;
@@ -97,17 +86,6 @@ impl Entity for Topology {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = TopologyCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        TopologyCsvRow {
-            id: self.id,
-            site_id: self.base.site_id,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

@@ -2,12 +2,11 @@ use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use ipnetwork::IpNetwork;
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
 
-use crate::server::ip_addresses::r#impl::base::{MacEvidenceValue, mac_of};
+use crate::server::ip_addresses::r#impl::base::MacEvidenceValue;
 use crate::server::shared::storage::attributed;
 use crate::server::{
     ip_addresses::r#impl::base::{IPAddress, IPAddressBase},
@@ -21,21 +20,6 @@ use crate::server::{
         },
     },
 };
-
-/// CSV row representation for IPAddress export
-#[derive(Serialize)]
-pub struct IPAddressCsvRow {
-    pub id: Uuid,
-    pub ip_address: String,
-    pub mac_address: Option<String>,
-    pub name: Option<String>,
-    pub host_id: Uuid,
-    pub subnet_id: Uuid,
-    pub site_id: Uuid,
-    pub position: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for IPAddress {
     type BaseData = IPAddressBase;
@@ -188,23 +172,6 @@ impl Entity for IPAddress {
         self.created_at = time;
     }
 
-    type CsvRow = IPAddressCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        IPAddressCsvRow {
-            id: self.id,
-            ip_address: self.base.ip_address.to_string(),
-            mac_address: mac_of(&self.base.mac_address).map(|m| m.to_string()),
-            name: self.base.name.clone(),
-            host_id: self.base.host_id,
-            subnet_id: self.base.subnet_id,
-            site_id: self.base.site_id,
-            position: self.base.position,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::IPAddress
     }
@@ -324,7 +291,9 @@ impl DiscoveryTracked for IPAddress {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::ip_addresses::r#impl::base::{IPAddress, IPAddressBase, MacEvidence};
+    use crate::server::ip_addresses::r#impl::base::{
+        IPAddress, IPAddressBase, MacEvidence, mac_of,
+    };
     use crate::server::services::r#impl::patterns::ClientProbe;
     use crate::server::shared::attribution::AttributeSource;
 

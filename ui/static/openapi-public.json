@@ -25613,6 +25613,60 @@
           "Dependency"
         ]
       },
+      "EntityField": {
+        "type": "object",
+        "description": "One fact that describes an entity, possibly read from a related entity.",
+        "required": [
+          "id",
+          "label",
+          "path",
+          "format",
+          "summary",
+          "many"
+        ],
+        "properties": {
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Dotted path to the value on the last object, or `None` for the object itself (an\n`Entity` or `Port` field)."
+          },
+          "format": {
+            "$ref": "#/components/schemas/FieldFormat"
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable key: the CSV header, the list-table column id and the diagram Shape Data name."
+          },
+          "label": {
+            "type": "string",
+            "description": "English label; the UI translates it through a generated `meta_*` key."
+          },
+          "many": {
+            "type": "boolean",
+            "description": "Whether one entity can hold several values: set by any `Children` or `Embedded` hop, and\ndeclared with [`EntityField::many`] for a key holding an array of ids or values."
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Hop"
+            },
+            "description": "Steps from the entity to the objects the value is read from. Empty for the entity itself."
+          },
+          "source_field": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sibling field holding the value's attribution, for attributed host facts."
+          },
+          "summary": {
+            "type": "boolean",
+            "description": "Shown by default in tables and in the inspector's details. Every field is exported."
+          }
+        }
+      },
       "EntityFreshness": {
         "type": "string",
         "description": "How recently discovery last observed an entity.\n\nDerived, never persisted — computed from `last_seen_at` against the\nentity's site staleness window (`Site::stale_cutoff`). Shared by the\ndiscovery digest email and the UI so a host reported stale in the digest is\nthe same host badged stale in the inventory and topology; running two\ndifferent measures let them disagree (a scan-count measure calls an entity\nmissing after 3 scans, which is 45 minutes on one site and 3 months on\nanother).\n\nOnly discovery-managed entities can be `Stale` — see\n[`DiscoveryTracked::is_discovery_managed`](crate::server::shared::storage::snapshot::DiscoveryTracked::is_discovery_managed).",
@@ -25908,6 +25962,161 @@
           }
         }
       },
+      "FieldFormat": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Text"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Number"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Boolean"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Timestamp"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A value read as a code rather than prose (MAC, CIDR, chassis id): monospace, copyable.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Identifier"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`speed_bps`, written as 1G / 100M.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "BitsPerSecond"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A `{number, protocol}` port, written as 80/tcp.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Port"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A host `os` object, written as its name and version.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "OperatingSystem"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An enum value, named through a metadata fixture.",
+            "required": [
+              "fixture",
+              "type"
+            ],
+            "properties": {
+              "fixture": {
+                "$ref": "#/components/schemas/MetadataFixture"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Metadata"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A related entity. The UI links it; CSV writes its id; text-only outputs write its display\nfield.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Entity"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "How a field's value is written. Chosen by the value's shape, never by where it is shown."
+      },
       "FieldType": {
         "type": "string",
         "description": "Field types for dynamic form generation.\n\nThe serialized lowercase name is the wire contract with the frontend, which switches on it to\npick a renderer and a validator. Adding a variant means teaching the frontend about it.",
@@ -26097,6 +26306,76 @@
             "description": "The group's value, rendered as text. `null` for rows whose group key is\nNULL (the \"ungrouped\" bucket)."
           }
         }
+      },
+      "Hop": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The entities named by `key` on the current object: one id, or an array of ids.",
+            "required": [
+              "entity",
+              "key",
+              "type"
+            ],
+            "properties": {
+              "entity": {
+                "$ref": "#/components/schemas/EntityDiscriminants"
+              },
+              "key": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Parent"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Every entity of type `entity` whose `key` holds the current object's id.",
+            "required": [
+              "entity",
+              "key",
+              "type"
+            ],
+            "properties": {
+              "entity": {
+                "$ref": "#/components/schemas/EntityDiscriminants"
+              },
+              "key": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Children"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The array of objects held on the current object under `key`, such as a service's bindings.",
+            "required": [
+              "key",
+              "type"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Embedded"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One step from an object to related objects."
       },
       "Host": {
         "allOf": [
@@ -29504,6 +29783,21 @@
           "OperStatus"
         ]
       },
+      "MetadataFixture": {
+        "type": "string",
+        "description": "A metadata fixture whose entries name an enum-valued field, so the UI shows the fixture's\nname for the raw value. Serializes to the fixture key.",
+        "enum": [
+          "if_oper_statuses",
+          "subnet_types",
+          "entity_sources",
+          "dependency_types",
+          "discovery_types",
+          "service_definitions",
+          "discovery_protocols",
+          "permissions",
+          "credential_types"
+        ]
+      },
       "MsiInstall": {
         "type": "object",
         "description": "The Windows MSI install method. The MSI itself is a static release asset the UI links to; only\nthe per-daemon pre-fill data is tenant-specific.",
@@ -29705,6 +29999,14 @@
                     "type": "string",
                     "format": "uuid",
                     "description": "Container this element is drawn inside."
+                  },
+                  "entity_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid",
+                    "description": "The entity this element stands for, of the type `element_type` names: the frontend's\none lookup from a card to what it describes. `None` only for an IP address element with\nno known address."
                   },
                   "host_id": {
                     "type": "string",

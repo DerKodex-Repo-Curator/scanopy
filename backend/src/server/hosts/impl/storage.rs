@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -11,7 +10,6 @@ use crate::server::{
         virtualization::HostVirtualization,
     },
     shared::{
-        attribution,
         entities::EntityDiscriminants,
         entity_metadata::EntityCategory,
         storage::{
@@ -22,37 +20,6 @@ use crate::server::{
         types::entities::EntitySource,
     },
 };
-
-/// CSV row representation for Host export
-#[derive(Serialize)]
-pub struct HostCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub hostname: Option<String>,
-    pub description: Option<String>,
-    pub site_id: Uuid,
-    pub source: String,
-    pub hidden: bool,
-    // Everything the device reported about itself. Field order is column order — headers are
-    // derived from these names — so the two timestamps stay last, as they are on every other
-    // CsvRow.
-    pub sys_descr: Option<String>,
-    pub sys_object_id: Option<String>,
-    pub sys_location: Option<String>,
-    pub sys_contact: Option<String>,
-    pub management_url: Option<String>,
-    pub chassis_id: Option<String>,
-    pub sys_name: Option<String>,
-    pub manufacturer: Option<String>,
-    pub model: Option<String>,
-    pub serial_number: Option<String>,
-    pub asset_tag: Option<String>,
-    pub firmware_revision: Option<String>,
-    pub software_revision: Option<String>,
-    pub os: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Host {
     type BaseData = HostBase;
@@ -383,36 +350,6 @@ impl Entity for Host {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = HostCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        HostCsvRow {
-            id: self.id,
-            name: self.base.name.to_string(),
-            hostname: attribution::text_of(&self.base.hostname),
-            description: self.base.description.clone(),
-            site_id: self.base.site_id,
-            source: format!("{:?}", self.base.source),
-            hidden: self.base.hidden,
-            sys_descr: attribution::text_of(&self.base.sys_descr),
-            sys_object_id: attribution::text_of(&self.base.sys_object_id),
-            sys_location: attribution::text_of(&self.base.sys_location),
-            sys_contact: attribution::text_of(&self.base.sys_contact),
-            management_url: attribution::text_of(&self.base.management_url),
-            chassis_id: attribution::text_of(&self.base.chassis_id),
-            sys_name: attribution::text_of(&self.base.sys_name),
-            manufacturer: attribution::text_of(&self.base.manufacturer),
-            model: attribution::text_of(&self.base.model),
-            serial_number: attribution::text_of(&self.base.serial_number),
-            asset_tag: attribution::text_of(&self.base.asset_tag),
-            firmware_revision: attribution::text_of(&self.base.firmware_revision),
-            software_revision: attribution::text_of(&self.base.software_revision),
-            os: attribution::text_of(&self.base.os),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

@@ -20,19 +20,6 @@ use crate::server::{
     users::r#impl::permissions::UserOrgPermissions,
 };
 
-/// CSV row representation for Invite export (excludes sensitive url field)
-#[derive(Serialize)]
-pub struct InviteCsvRow {
-    pub id: Uuid,
-    pub organization_id: Uuid,
-    pub permissions: String,
-    pub created_by: Uuid,
-    pub send_to: Option<String>,
-    pub expires_at: DateTime<Utc>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default, ToSchema, Validate,
 )]
@@ -215,21 +202,6 @@ impl Entity for Invite {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = InviteCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        InviteCsvRow {
-            id: self.id,
-            organization_id: self.base.organization_id,
-            permissions: format!("{:?}", self.base.permissions),
-            created_by: self.base.created_by,
-            send_to: self.base.send_to.as_ref().map(|e| e.to_string()),
-            expires_at: self.base.expires_at,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

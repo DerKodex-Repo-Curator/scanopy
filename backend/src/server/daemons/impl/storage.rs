@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use semver::Version;
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -13,21 +12,6 @@ use crate::server::{
         storage::traits::{Entity, SqlValue, Storable},
     },
 };
-
-/// CSV row representation for Daemon export (excludes sensitive url field)
-#[derive(Serialize)]
-pub struct DaemonCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub mode: String,
-    pub version: Option<String>,
-    pub host_id: Uuid,
-    pub site_id: Uuid,
-    pub user_id: Uuid,
-    pub last_seen: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Daemon {
     const HAS_SCD2: bool = false;
@@ -187,23 +171,6 @@ impl Entity for Daemon {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = DaemonCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        DaemonCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            mode: format!("{:?}", self.base.mode),
-            version: self.base.version.as_ref().map(|v| v.to_string()),
-            host_id: self.base.host_id,
-            site_id: self.base.site_id,
-            user_id: self.base.user_id,
-            last_seen: self.base.last_seen,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

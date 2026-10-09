@@ -264,13 +264,6 @@ pub trait Entity: Storable {
     /// Entity type discriminant for the entity enum
     fn entity_type() -> EntityDiscriminants;
 
-    /// CSV row type for export. Must be Serialize.
-    /// The csv crate derives headers automatically from field names.
-    type CsvRow: serde::Serialize;
-
-    /// Converts this entity to a CSV row struct.
-    fn to_csv_row(&self) -> Self::CsvRow;
-
     /// Singular name for error messages (e.g., "host")
     /// Use the constant in const contexts, use the method at runtime.
     const ENTITY_NAME_SINGULAR: &'static str;

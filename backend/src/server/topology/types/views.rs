@@ -496,6 +496,8 @@ pub enum DependencyMemberType {
 )]
 pub enum InspectorSection {
     Identity,
+    /// The selected entity's registry fields (`shared/entity_fields.rs`).
+    Details,
     InterfaceData,
     Services,
     Dependencies,
@@ -520,7 +522,9 @@ impl HasId for InspectorSection {
 impl EntityMetadataProvider for InspectorSection {
     fn color(&self) -> Color {
         match self {
-            InspectorSection::Identity | InspectorSection::ElementSummary => Color::Gray,
+            InspectorSection::Identity
+            | InspectorSection::Details
+            | InspectorSection::ElementSummary => Color::Gray,
             InspectorSection::InterfaceData => EntityDiscriminants::Interface.color(),
             InspectorSection::Services => EntityDiscriminants::Service.color(),
             InspectorSection::Dependencies | InspectorSection::DependencySummary => {
@@ -538,6 +542,7 @@ impl EntityMetadataProvider for InspectorSection {
     fn icon(&self) -> Icon {
         match self {
             InspectorSection::Identity => Icon::Crosshair,
+            InspectorSection::Details => Icon::List,
             InspectorSection::ElementSummary => Icon::PackageOpen,
             InspectorSection::InterfaceData => EntityDiscriminants::Interface.icon(),
             InspectorSection::Services => EntityDiscriminants::Service.icon(),
@@ -558,6 +563,7 @@ impl TypeMetadataProvider for InspectorSection {
     fn name(&self) -> &'static str {
         match self {
             InspectorSection::Identity => "Selected",
+            InspectorSection::Details => "Details",
             InspectorSection::InterfaceData => "Interface data",
             InspectorSection::Services => "Services",
             InspectorSection::Dependencies => "Dependencies",
@@ -576,6 +582,7 @@ impl TypeMetadataProvider for InspectorSection {
     fn description(&self) -> &'static str {
         match self {
             InspectorSection::Identity => "The entity you selected",
+            InspectorSection::Details => "What Scanopy has recorded about it",
             InspectorSection::InterfaceData => {
                 "Status and counters the device reports for this port"
             }
@@ -964,6 +971,7 @@ impl TopologyView {
             Self::L3Logical => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::HostDetail,
                     InspectorSection::InterfaceData,
                     InspectorSection::Services,
@@ -971,6 +979,7 @@ impl TopologyView {
                 ],
                 container_sections: vec![
                     InspectorSection::SubnetDetail,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: Some(DependencyMemberType::Bindings),
@@ -979,11 +988,13 @@ impl TopologyView {
             Self::Application => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::Dependencies,
                     InspectorSection::Application,
                 ],
                 container_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                     InspectorSection::DependencySummary,
                 ],
@@ -993,6 +1004,7 @@ impl TopologyView {
             Self::Workloads => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::HostDetail,
                     InspectorSection::Virtualization,
                     InspectorSection::Services,
@@ -1000,15 +1012,21 @@ impl TopologyView {
                 ],
                 container_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: Some(DependencyMemberType::Services),
                 show_application_picker: false,
             },
             Self::L2Physical => ViewInspectorConfig {
-                element_sections: vec![InspectorSection::Identity, InspectorSection::InterfaceData],
+                element_sections: vec![
+                    InspectorSection::Identity,
+                    InspectorSection::Details,
+                    InspectorSection::InterfaceData,
+                ],
                 container_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: None,

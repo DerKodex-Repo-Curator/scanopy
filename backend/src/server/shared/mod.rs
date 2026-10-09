@@ -2,6 +2,7 @@ pub mod api_key_common;
 pub mod attribution;
 pub mod concepts;
 pub mod entities;
+pub mod entity_fields;
 pub mod entity_metadata;
 pub mod env_file;
 pub mod events;
