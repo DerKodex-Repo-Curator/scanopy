@@ -615,7 +615,7 @@ export function resolveContainerNode(
 	return resolveContainer(nodeId, node, topology);
 }
 
-/** An entity a topology node stands for, as the filter extractors and freshness helpers read it. */
+/** An entity a topology node stands for, as the metadata filters and freshness helpers read it. */
 export type NodeEntity = FreshnessSubject & { id: string; site_id?: string };
 
 /** The host an element card sits on, from its `host_id`. */

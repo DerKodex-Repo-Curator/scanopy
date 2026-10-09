@@ -145,6 +145,17 @@ pub fn interfaces_with_neighbours<'a>(
     neighbours.map(|row| row.interface_id).collect()
 }
 
+impl FilterValueContext {
+    /// The context for a bundle, built from its resolved neighbour rows. One context serves both
+    /// the server-side filter and the values stamped on the entities, so the two cannot disagree.
+    pub fn from_neighbours(neighbours: &[InterfaceNeighborRow]) -> Self {
+        Self {
+            interfaces_referenced_as_neighbours: referenced_neighbour_interfaces(neighbours.iter()),
+            interfaces_with_neighbours: interfaces_with_neighbours(neighbours.iter()),
+        }
+    }
+}
+
 /// Drop entities of one type that every rendering view hides, tallied by the filter responsible.
 ///
 /// Generic over the entity so this file names no entity type; the caller supplies the vector and
@@ -213,13 +224,6 @@ mod tests {
         }
     }
 
-    fn ctx(neighbours: &[InterfaceNeighborRow]) -> FilterValueContext {
-        FilterValueContext {
-            interfaces_referenced_as_neighbours: referenced_neighbour_interfaces(neighbours.iter()),
-            interfaces_with_neighbours: interfaces_with_neighbours(neighbours.iter()),
-        }
-    }
-
     fn total(dropped: &BTreeMap<MetadataFilterType, usize>) -> usize {
         dropped.values().sum()
     }
@@ -240,7 +244,7 @@ mod tests {
             interface(unlinked),
         ];
         let neighbours = vec![neighbor_row(linked_out, Neighbor::Interface(linked_in))];
-        let ctx = ctx(&neighbours);
+        let ctx = FilterValueContext::from_neighbours(&neighbours);
 
         let dropped = retain_visible(
             &mut interfaces,

@@ -20,19 +20,19 @@ import type {
 	TopologyEdge,
 	Binding,
 	Vlan,
-	FilteredOutCounts
+	FilteredOutCounts,
+	TopologyHost,
+	TopologyService,
+	TopologyInterface
 } from './types/base';
 import type { TopologyView } from './queries';
 import type { components } from '$lib/api/schema';
 import type {
-	Host,
 	IPAddress,
-	Interface,
 	Port,
 	InterfaceNeighborRow,
 	InterfaceNeighborCandidate
 } from '$lib/features/hosts/types/base';
-import type { Service } from '$lib/features/services/types/base';
 import type { Subnet } from '$lib/features/subnets/types/base';
 import type { Dependency } from '$lib/features/dependencies/types/base';
 import type { Tag } from '$lib/features/tags/types/base';
@@ -40,13 +40,13 @@ import type { Tag } from '$lib/features/tags/types/base';
 type TopologyData = components['schemas']['TopologyData'];
 
 export interface EntityBundle {
-	hosts: Host[];
-	services: Service[];
+	hosts: TopologyHost[];
+	services: TopologyService[];
 	subnets: Subnet[];
 	ip_addresses: IPAddress[];
 	ports: Port[];
 	bindings: Binding[];
-	interfaces: Interface[];
+	interfaces: TopologyInterface[];
 	/**
 	 * GH #701: resolved adjacencies + their raw evidence, built on request alongside `nodes`/`edges`
 	 * — see `TopologyData.neighbours`/`.candidates`.

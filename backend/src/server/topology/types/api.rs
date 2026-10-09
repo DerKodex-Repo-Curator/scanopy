@@ -46,6 +46,61 @@ pub struct TopologyHost {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(read_only)]
     pub display_name: Option<String>,
+    /// This host's value for each metadata filter it takes part in, keyed by filter. See
+    /// [`TopologyData::stamp_filter_values`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[schema(read_only)]
+    pub filter_values: BTreeMap<MetadataFilterType, String>,
+}
+
+/// A [`Service`] as the topology bundle ships it: the domain row plus its metadata filter values.
+///
+/// A wrapper rather than a field on [`Service`] itself: `Service` is the row every other endpoint
+/// and the daemon protocol serialize, where a topology-only value would always be absent.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TopologyService {
+    #[serde(flatten)]
+    pub service: Service,
+    /// This service's value for each metadata filter it takes part in, keyed by filter. See
+    /// [`TopologyData::stamp_filter_values`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[schema(read_only)]
+    pub filter_values: BTreeMap<MetadataFilterType, String>,
+}
+
+/// An [`Interface`] as the topology bundle ships it: the domain row plus its metadata filter
+/// values.
+///
+/// A wrapper rather than a field on [`Interface`] itself, for the same reason as
+/// [`TopologyService`]: the shared row is serialized by every interface endpoint, where a
+/// topology-only value would always be absent.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TopologyInterface {
+    #[serde(flatten)]
+    pub interface: Interface,
+    /// This interface's value for each metadata filter it takes part in, keyed by filter. See
+    /// [`TopologyData::stamp_filter_values`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[schema(read_only)]
+    pub filter_values: BTreeMap<MetadataFilterType, String>,
+}
+
+impl From<Service> for TopologyService {
+    fn from(service: Service) -> Self {
+        Self {
+            service,
+            filter_values: BTreeMap::new(),
+        }
+    }
+}
+
+impl From<Interface> for TopologyInterface {
+    fn from(interface: Interface) -> Self {
+        Self {
+            interface,
+            filter_values: BTreeMap::new(),
+        }
+    }
 }
 
 impl TopologyHost {
@@ -69,7 +124,11 @@ impl TopologyHost {
             .map(|host| {
                 let display_name =
                     host.display_name(by_host.get(&host.id).into_iter().flatten().copied());
-                Self { host, display_name }
+                Self {
+                    host,
+                    display_name,
+                    filter_values: BTreeMap::new(),
+                }
             })
             .collect()
     }
@@ -85,11 +144,40 @@ impl std::ops::Deref for TopologyHost {
     }
 }
 
-/// Server-side metadata filters run over the bundle, which holds wrapped hosts. The values they
-/// filter on are the host's own.
+impl std::ops::Deref for TopologyService {
+    type Target = Service;
+
+    fn deref(&self) -> &Service {
+        &self.service
+    }
+}
+
+impl std::ops::Deref for TopologyInterface {
+    type Target = Interface;
+
+    fn deref(&self) -> &Interface {
+        &self.interface
+    }
+}
+
+/// Server-side metadata filters run over the bundle, which holds wrapped entities. The values
+/// they filter on are the entity's own, computed rather than read from the stamped field, so the
+/// filter does not depend on stamping having run first.
 impl HasFilterValues for TopologyHost {
     fn filter_values(&self, ctx: &FilterValueContext) -> BTreeMap<MetadataFilterType, String> {
         self.host.filter_values(ctx)
+    }
+}
+
+impl HasFilterValues for TopologyService {
+    fn filter_values(&self, ctx: &FilterValueContext) -> BTreeMap<MetadataFilterType, String> {
+        self.service.filter_values(ctx)
+    }
+}
+
+impl HasFilterValues for TopologyInterface {
+    fn filter_values(&self, ctx: &FilterValueContext) -> BTreeMap<MetadataFilterType, String> {
+        self.interface.filter_values(ctx)
     }
 }
 
@@ -116,8 +204,8 @@ pub struct TopologyData {
     pub ports: Vec<Port>,
     /// Service bindings included in this topology.
     pub bindings: Vec<Binding>,
-    /// Interfaces included in this topology.
-    pub interfaces: Vec<Interface>,
+    /// Interfaces included in this topology, each carrying its metadata filter values.
+    pub interfaces: Vec<TopologyInterface>,
     /// Resolved LLDP/CDP neighbour adjacencies (GH #701): the merged read-model of
     /// `interface_neighbor_interfaces` + `interface_neighbor_hosts`, replacing the old
     /// `Interface.neighbor` scalar now that a port can anchor several links.
@@ -129,8 +217,8 @@ pub struct TopologyData {
     /// can answer (they carry no raw evidence, by design — see `interface_neighbors`).
     #[serde(default)]
     pub candidates: Vec<InterfaceNeighborCandidate>,
-    /// Services included in this topology.
-    pub services: Vec<Service>,
+    /// Services included in this topology, each carrying its metadata filter values.
+    pub services: Vec<TopologyService>,
     /// VLANs included in this topology.
     pub vlans: Vec<Vlan>,
     /// Tags assigned to this entity.
@@ -162,4 +250,125 @@ pub struct TopologyData {
     /// snapshot — while the live view shows all views with setup prompts.
     #[serde(default)]
     pub available_views: Vec<TopologyView>,
+}
+
+impl TopologyData {
+    /// Stamp every host, service and interface with its metadata filter values, so the frontend
+    /// reads them off the entity instead of re-deriving them.
+    ///
+    /// `ctx` must be built from this bundle's own `neighbours`: an interface's link state depends
+    /// on which ports point at it, and a context built from anything else would stamp a value the
+    /// server-side filter never saw.
+    pub fn stamp_filter_values(&mut self, ctx: &FilterValueContext) {
+        for host in &mut self.hosts {
+            host.filter_values = host.host.filter_values(ctx);
+        }
+        for service in &mut self.services {
+            service.filter_values = service.service.filter_values(ctx);
+        }
+        for interface in &mut self.interfaces {
+            interface.filter_values = interface.interface.filter_values(ctx);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::hosts::r#impl::base::HostBase;
+    use crate::server::interface_neighbors::r#impl::base::Neighbor;
+    use crate::server::interfaces::r#impl::base::{
+        IfOperStatus, InterfaceBase, InterfaceLinkState,
+    };
+    use crate::server::services::r#impl::base::ServiceBase;
+    use crate::server::services::r#impl::virtualization::{
+        DockerVirtualization, ServiceVirtualization,
+    };
+    use crate::server::shared::storage::traits::Storable;
+    use crate::server::shared::types::metadata::HasId;
+
+    fn interface(oper_status: Option<IfOperStatus>) -> Interface {
+        Interface::new(InterfaceBase {
+            oper_status,
+            ..Default::default()
+        })
+    }
+
+    /// A bundle covering each value source: a linked port (outbound), a port linked only because
+    /// another points at it, an unlinked port with no status, a containerized service and a plain
+    /// one.
+    fn bundle() -> TopologyData {
+        let outbound = interface(Some(IfOperStatus::Up));
+        let inbound = interface(Some(IfOperStatus::Down));
+        let unlinked = interface(None);
+        let neighbours = vec![InterfaceNeighborRow {
+            id: Uuid::new_v4(),
+            interface_id: outbound.id,
+            neighbor: Neighbor::Interface(inbound.id),
+            neighbor_seen_at: None,
+        }];
+        let containerized = Service::new(ServiceBase {
+            virtualization_metadata: Some(ServiceVirtualization::Docker(DockerVirtualization {
+                container_name: None,
+                container_id: None,
+                compose_project: None,
+            })),
+            ..Default::default()
+        });
+        TopologyData {
+            hosts: TopologyHost::wrap_all(vec![Host::new(HostBase::default())], &[]),
+            services: vec![
+                containerized.into(),
+                Service::new(ServiceBase::default()).into(),
+            ],
+            interfaces: vec![outbound.into(), inbound.into(), unlinked.into()],
+            neighbours,
+            ..Default::default()
+        }
+    }
+
+    /// The stamped field is what the frontend filters and colours on, and the server-side filter
+    /// computes the same values afresh. They must agree for every entity, or a value the browser
+    /// offers as a chip is not the value the server drops by.
+    #[test]
+    fn stamped_filter_values_match_each_entitys_own() {
+        let mut data = bundle();
+        let ctx = FilterValueContext::from_neighbours(&data.neighbours);
+        data.stamp_filter_values(&ctx);
+
+        for host in &data.hosts {
+            assert!(!host.filter_values.is_empty());
+            assert_eq!(host.filter_values, host.host.filter_values(&ctx));
+        }
+        for service in &data.services {
+            assert!(!service.filter_values.is_empty());
+            assert_eq!(service.filter_values, service.service.filter_values(&ctx));
+        }
+        for interface in &data.interfaces {
+            assert!(!interface.filter_values.is_empty());
+            assert_eq!(
+                interface.filter_values,
+                interface.interface.filter_values(&ctx)
+            );
+        }
+    }
+
+    /// The frontend reads `entity.filter_values[filter]` off the same object as the entity's own
+    /// fields, so the wrapper has to serialize flat, keyed by the filter's id.
+    #[test]
+    fn filter_values_serialize_beside_the_entity_fields() {
+        let mut data = bundle();
+        let ctx = FilterValueContext::from_neighbours(&data.neighbours);
+        data.stamp_filter_values(&ctx);
+
+        let inbound = &data.interfaces[1];
+        let json = serde_json::to_value(inbound).unwrap();
+        assert_eq!(json["id"], serde_json::json!(inbound.id));
+        assert_eq!(
+            json["filter_values"][MetadataFilterType::LinkState.id()],
+            serde_json::json!(InterfaceLinkState::Linked.id())
+        );
+        let round_trip: TopologyInterface = serde_json::from_value(json).unwrap();
+        assert_eq!(round_trip.filter_values, inbound.filter_values);
+    }
 }

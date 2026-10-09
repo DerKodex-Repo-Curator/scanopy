@@ -26,24 +26,22 @@ function buildTopology(): RenderableTopology {
 		id: 'topo-1',
 		site_id: SITE_ID,
 		hosts: [
-			{ ...base, id: 'docker-host' },
-			{
-				...base,
-				id: 'macvlan',
-				virtualization_metadata: {
-					type: 'Docker',
-					details: { network_type: 'MacVlan' }
-				}
-			}
+			{ ...base, id: 'docker-host', filter_values: { Virtualization: 'BareMetal' } },
+			{ ...base, id: 'macvlan', filter_values: { Virtualization: 'Containerized' } }
 		],
 		services: [
 			{
 				...base,
 				id: 'bridge-container',
 				host_id: 'docker-host',
-				virtualization_metadata: { type: 'Docker', details: {} }
+				filter_values: { Category: 'Development', Virtualization: 'Containerized' }
 			},
-			{ ...base, id: 'sshd', host_id: 'docker-host' }
+			{
+				...base,
+				id: 'sshd',
+				host_id: 'docker-host',
+				filter_values: { Category: 'RemoteAccess' }
+			}
 		],
 		nodes: [
 			{
@@ -106,9 +104,9 @@ describe('a filter covering hosts and services', () => {
 		};
 		const [, macvlan] = topo.hosts;
 		const [container, sshd] = topo.services;
-		expect(matchesHoveredMetadata(container, 'Service', hovered, site, topo)).toBe(true);
-		expect(matchesHoveredMetadata(macvlan, 'Host', hovered, site, topo)).toBe(true);
-		expect(matchesHoveredMetadata(sshd, 'Service', hovered, site, topo)).toBe(false);
+		expect(matchesHoveredMetadata(container, 'Service', hovered, site)).toBe(true);
+		expect(matchesHoveredMetadata(macvlan, 'Host', hovered, site)).toBe(true);
+		expect(matchesHoveredMetadata(sshd, 'Service', hovered, site)).toBe(false);
 	});
 
 	it('hides both when Containerized is hidden through the chip', () => {

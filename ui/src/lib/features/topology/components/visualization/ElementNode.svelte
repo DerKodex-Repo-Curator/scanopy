@@ -105,7 +105,7 @@
 		selectedEdgeContext ? $selectedEdgeContext : $globalSelectedEdge
 	) as Edge | null;
 
-	// Sites are still needed locally for the metadata-filter extractors below.
+	// Sites are still needed locally: the Staleness filter value reads the site window.
 	let sitesData = $derived(sitesQuery.data ?? []);
 	const siteFor = (entity: { site_id?: string } | undefined | null) =>
 		sitesData.find((n) => n.id === entity?.site_id);
@@ -222,12 +222,7 @@
 
 	// Member hosts in this card's manager boxes that carry the hovered Host filter value.
 	let matchingInlineHosts = $derived(
-		inlineHostsMatching(
-			nodeRenderData?.inlineGroups ?? [],
-			currentHoveredMetadata,
-			siteFor,
-			topology
-		)
+		inlineHostsMatching(nodeRenderData?.inlineGroups ?? [], currentHoveredMetadata, siteFor)
 	);
 	// Pulse colour for a matching member host row.
 	let inlineHostPulseStyle = $derived.by(() => {
@@ -240,7 +235,7 @@
 
 	// Metadata hover context — mirrors `hoveredRelationship` + tag ring/pulse
 	// but driven by `hoveredMetadata`. Element-mode when this card's own
-	// entity matches the extractor, inline-mode when an inline row matches.
+	// entity carries the hovered value, inline-mode when an inline row matches.
 	// Host metadata also bubbles up to IPAddress/Interface cards (same
 	// fallback as cardEntityTags).
 	let metadataHoverContext = $derived.by(
@@ -258,7 +253,7 @@
 				const cardEntity = cardEntityForFilter(data as TopologyNode, topology, entityType);
 				if (
 					cardEntity &&
-					matchesHoveredMetadata(cardEntity, entityType, hovered, siteFor(cardEntity), topology)
+					matchesHoveredMetadata(cardEntity, entityType, hovered, siteFor(cardEntity))
 				) {
 					return { mode: 'element', color };
 				}
@@ -267,7 +262,7 @@
 			if (matchingInlineHosts.size > 0) return { mode: 'inline', color };
 
 			for (const service of nodeRenderData?.services ?? []) {
-				if (matchesHoveredMetadata(service, 'Service', hovered, siteFor(service), topology))
+				if (matchesHoveredMetadata(service, 'Service', hovered, siteFor(service)))
 					return { mode: 'inline', color };
 			}
 			return null;
@@ -457,8 +452,7 @@
 									service,
 									'Service',
 									currentHoveredMetadata,
-									siteFor(service),
-									topology
+									siteFor(service)
 								)
 							)
 								return '';

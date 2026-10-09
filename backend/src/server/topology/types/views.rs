@@ -451,8 +451,13 @@ pub struct FilterValueContext {
 
 /// Entities that can surface metadata filter values. Returns the stable
 /// `FilterValue::id` (per `MetadataFilterType`) for each filter the entity
-/// participates in. Serialized alongside the entity so the frontend
-/// doesn't need any extractor logic.
+/// participates in.
+///
+/// The server-side filter (`metadata_filter::retain_visible`) calls this directly. The topology
+/// bundle also stamps the result on each wrapped host, service and interface as `filter_values`
+/// (`TopologyData::stamp_filter_values`), which is what the frontend filters, hovers and colours
+/// on. Staleness is the one filter absent here: it depends on the clock and the site window, so
+/// the frontend computes it.
 pub trait HasFilterValues {
     fn filter_values(&self, ctx: &FilterValueContext) -> BTreeMap<MetadataFilterType, String>;
 }

@@ -43,7 +43,13 @@ use crate::server::{
     topology::{
         service::{context::TopologyContext, edge_builder::EdgeBuilder},
         types::{
-            api::{TopologyData, TopologyHost},
+            api::{
+                TopologyData,
+                TopologyHost,
+                TopologyInterface,
+                // The bundle row, not this module's `TopologyService` (the service itself).
+                TopologyService as TopologyServiceRow,
+            },
             base::{Topology, TopologyOptions, TopologyRequestOptions},
             edges::Edge,
             grouping::{ContainerRule, ElementRule, GroupingConfig},
@@ -424,13 +430,16 @@ impl TopologyService {
         let hosts = TopologyHost::wrap_all(hosts, &ip_addresses);
         // Interfaces likewise, as `HostResponse` titles them: the inspector cards label an
         // interface with `display_name`, and without it every one reads "Unnamed interface".
-        let interfaces: Vec<Interface> = interfaces
+        // Filter values are stamped later, by `get_topology_render_data`, once the server-side
+        // filter has run against the same context.
+        let interfaces: Vec<TopologyInterface> = interfaces
             .into_iter()
             .map(|mut interface| {
                 interface.display_name = Some(interface.display_name());
-                interface
+                interface.into()
             })
             .collect();
+        let services: Vec<TopologyServiceRow> = services.into_iter().map(Into::into).collect();
 
         Ok(TopologyData {
             hosts,
@@ -554,7 +563,11 @@ impl TopologyService {
         // reference a tag applied to nothing (e.g. ByTag on an unused tag); the
         // frontend needs its name/color to label the group, so ship it too.
         self.augment_grouping_rule_tags(&mut data, &options).await?;
-        Self::apply_server_metadata_filters(&mut data, &options);
+        // One context for both the server-side drop and the values the frontend reads, so a
+        // value offered as a chip is the value the server filters by.
+        let filter_ctx = FilterValueContext::from_neighbours(&data.neighbours);
+        Self::apply_server_metadata_filters(&mut data, &options, &filter_ctx);
+        data.stamp_filter_values(&filter_ctx);
         let (nodes, edges) = self.build_all_view_graphs(&data, &options);
         data.nodes = nodes;
         data.edges = edges;
@@ -569,20 +582,15 @@ impl TopologyService {
     /// render 2,872, and the difference is what exhausts a customer's browser.
     ///
     /// Silent when nothing is hidden server-side, which is the common case.
-    fn apply_server_metadata_filters(data: &mut TopologyData, options: &TopologyOptions) {
+    fn apply_server_metadata_filters(
+        data: &mut TopologyData,
+        options: &TopologyOptions,
+        ctx: &FilterValueContext,
+    ) {
         let hide_sets = metadata_filter::server_hide_sets(options);
         if hide_sets.is_empty() {
             return;
         }
-
-        let ctx = FilterValueContext {
-            interfaces_referenced_as_neighbours: metadata_filter::referenced_neighbour_interfaces(
-                data.neighbours.iter(),
-            ),
-            interfaces_with_neighbours: metadata_filter::interfaces_with_neighbours(
-                data.neighbours.iter(),
-            ),
-        };
 
         let mut filtered_out: HashMap<EntityDiscriminants, BTreeMap<MetadataFilterType, usize>> =
             HashMap::new();
@@ -597,7 +605,7 @@ impl TopologyService {
             metadata_filter::retain_visible(
                 &mut data.interfaces,
                 hide_sets.get(&EntityDiscriminants::Interface),
-                &ctx,
+                ctx,
             ),
         );
         record(
@@ -605,7 +613,7 @@ impl TopologyService {
             metadata_filter::retain_visible(
                 &mut data.hosts,
                 hide_sets.get(&EntityDiscriminants::Host),
-                &ctx,
+                ctx,
             ),
         );
         record(
@@ -613,7 +621,7 @@ impl TopologyService {
             metadata_filter::retain_visible(
                 &mut data.services,
                 hide_sets.get(&EntityDiscriminants::Service),
-                &ctx,
+                ctx,
             ),
         );
 
@@ -699,21 +707,28 @@ impl TopologyService {
         let mut nodes_by_view = HashMap::new();
         let mut edges_by_view = HashMap::new();
 
-        // The builders take plain domain hosts; the bundle carries them wrapped with the title
-        // computed at load. Unwrap once here rather than threading the wrapper through
-        // `TopologyContext` and every builder — and once for all views, not once each.
+        // The builders take plain domain rows; the bundle carries hosts, services and interfaces
+        // wrapped with values computed at load. Unwrap once here rather than threading the
+        // wrappers through `TopologyContext` and every builder — and once for all views, not once
+        // each.
         let hosts: Vec<Host> = data.hosts.iter().map(|h| h.host.clone()).collect();
+        let services: Vec<Service> = data.services.iter().map(|s| s.service.clone()).collect();
+        let interfaces: Vec<Interface> = data
+            .interfaces
+            .iter()
+            .map(|i| i.interface.clone())
+            .collect();
 
         for view in TopologyView::iter() {
             let (nodes, edges) = self.build_graph(BuildGraphParams {
                 hosts: &hosts,
                 ip_addresses: &data.ip_addresses,
-                services: &data.services,
+                services: &services,
                 subnets: &data.subnets,
                 dependencies: &data.dependencies,
                 ports: &data.ports,
                 bindings: &data.bindings,
-                interfaces: &data.interfaces,
+                interfaces: &interfaces,
                 neighbours: &data.neighbours,
                 candidates: &data.candidates,
                 entity_tags: &data.tags,

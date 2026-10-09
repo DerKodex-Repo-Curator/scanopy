@@ -286,7 +286,7 @@
 		if (
 			currentHoveredMetadata &&
 			entityType &&
-			matchesHoveredMetadata(entity, entityType, currentHoveredMetadata, entitySite, topology)
+			matchesHoveredMetadata(entity, entityType, currentHoveredMetadata, entitySite)
 		) {
 			const ch = createColorHelper(
 				currentHoveredMetadata.color as Parameters<typeof createColorHelper>[0]
