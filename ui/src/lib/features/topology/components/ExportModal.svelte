@@ -19,7 +19,8 @@
 	import type { RenderableTopology } from '../types/base';
 	import { escapeXml } from '../diagram-export/xml';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { billingPlans, views } from '$lib/shared/stores/metadata';
+	import { billingPlans, containerTypes, views } from '$lib/shared/stores/metadata';
+	import { EXTERNAL_TITLE_OFFSET } from './visualization/ContainerHeader.svelte';
 	import { isExporting } from '../interactions';
 	import {
 		topology_createdUsing,
@@ -221,7 +222,7 @@
 			value: 'drawio',
 			label: topology_exportDrawio(),
 			description: topology_exportDrawioDesc(),
-			icon: Workflow,
+			icon: Network,
 			featureKey: 'drawio_export',
 			supportsTheme: true,
 			supportsHeader: true
@@ -230,7 +231,7 @@
 			value: 'vsdx',
 			label: topology_exportVsdx(),
 			description: topology_exportVsdxDesc(),
-			icon: Network,
+			icon: Workflow,
 			featureKey: 'vsdx_export',
 			supportsTheme: true,
 			supportsHeader: true
@@ -353,13 +354,21 @@
 		// coords. The hook's getNodesBounds resolves nested container offsets via
 		// the internal node lookup, so the crop is tight and symmetric on all sides.
 		const bounds = getNodesBounds(nodes);
+		// External title pills draw above their container's box, outside the node bounds.
+		const contentTop = nodes.reduce((top, node) => {
+			const containerType = (node.data as { container_type?: string })?.container_type;
+			if (!containerType || containerTypes.getMetadata(containerType).title_style !== 'External')
+				return top;
+			const y = getInternalNode(node.id)?.internals.positionAbsolute.y ?? node.position.y;
+			return Math.min(top, y - EXTERNAL_TITLE_OFFSET);
+		}, bounds.y);
 		const topPadding = withHeader
 			? Math.max(EXPORT_PADDING, HEADER_BAND_PX / EXPORT_ZOOM)
 			: EXPORT_PADDING;
 		const minX = bounds.x - EXPORT_PADDING;
-		const minY = bounds.y - topPadding;
+		const minY = contentTop - topPadding;
 		const boundsWidth = bounds.width + EXPORT_PADDING * 2;
-		const boundsHeight = bounds.height + topPadding + EXPORT_PADDING;
+		const boundsHeight = bounds.y + bounds.height - contentTop + topPadding + EXPORT_PADDING;
 		const targetZoom = EXPORT_ZOOM;
 		const imageWidth = Math.round(boundsWidth * targetZoom);
 		const imageHeight = Math.round(boundsHeight * targetZoom);
@@ -819,11 +828,7 @@
 					/>
 					<span class="min-w-0 space-y-1">
 						<span class="text-secondary block text-sm">{topology_exportIncludeHeader()}</span>
-						<span
-							class="text-tertiary block border-l-2 pl-2 text-xs transition-opacity {includeHeader
-								? ''
-								: 'opacity-50'}"
-						>
+						<span class="text-tertiary block text-xs">
 							<span class="block truncate font-medium">{headerPreview.title}</span>
 							<span class="block">{headerPreview.subtitle}</span>
 						</span>
