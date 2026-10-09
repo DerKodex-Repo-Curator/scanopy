@@ -8,7 +8,6 @@
 	import {
 		common_close,
 		common_email,
-		support_description,
 		support_discordDesc,
 		support_emailDesc,
 		support_incorrectDetection,
@@ -119,10 +118,6 @@
 
 <div class="flex min-h-0 flex-1 flex-col">
 	<div class="flex-1 space-y-6 overflow-auto p-6">
-		<p class="text-secondary text-sm">
-			{support_description()}
-		</p>
-
 		<div class="grid grid-cols-2 gap-3">
 			{#each supportOptions as option (option.description)}
 				{@const colors = createColorHelper(option.color)}

@@ -2755,7 +2755,6 @@
 	"subnets_subnetType": "Subnet Type",
 	"subnets_utilizationDetail": "{used} of {usable} usable addresses in use, counting the subnets inside this range",
 	"subnets_utilizationValue": "{used} / {usable}",
-	"support_description": "Need help with Scanopy? Choose one of the options below to get support.",
 	"support_discordDesc": "Join our community for help and discussions",
 	"support_emailDesc": "Email the Scanopy team directly",
 	"support_incorrectDetection": "Incorrect Service Detection",
