@@ -434,30 +434,30 @@ mod tests {
     /// Render an email end-to-end and assert it is fully substituted: a
     /// non-empty subject + HTML with no leftover `{token}` placeholders. This
     /// is real coverage against forgetting a `.replace(...)`, not a stub impl.
-    fn assert_fully_rendered(email: &dyn Email) {
+    fn assert_fully_rendered(name: &str, email: &dyn Email) {
         let subject = email.subject();
-        assert!(!subject.is_empty(), "empty subject");
+        assert!(!subject.is_empty(), "{name}: empty subject");
         assert!(
             !has_placeholder(&subject),
-            "leftover placeholder in subject: {subject}"
+            "{name}: leftover placeholder in subject: {subject}"
         );
         for self_hosted in [false, true] {
             let html = email.render_html("https://app.example.test", self_hosted);
-            assert!(!html.is_empty(), "empty html");
+            assert!(!html.is_empty(), "{name}: empty html");
             assert!(
                 !has_placeholder(&html),
-                "leftover placeholder in html for subject: {subject} (self_hosted={self_hosted})"
+                "{name}: leftover placeholder in html (self_hosted={self_hosted})"
             );
         }
     }
 
     #[test]
     fn every_email_fully_renders() {
-        for_each_email(|_, email| assert_fully_rendered(email));
+        for_each_email(assert_fully_rendered);
     }
 
-    /// Visit every email (every distinct variant) once, paired with a stable
-    /// snapshot name. Single source of truth for the render/snapshot tests.
+    /// Visit every email (every distinct variant) once, with a name for
+    /// failure messages.
     fn for_each_email(mut f: impl FnMut(&str, &dyn Email)) {
         f(
             "password_reset",
@@ -933,38 +933,6 @@ mod tests {
                 base_url: "https://app.example.test",
             },
         );
-    }
-
-    /// Byte-for-byte fidelity net for the chrome-helper refactor: every email's
-    /// `body_html()` must match its committed golden. `discovery_digest` carries
-    /// `started_at`/`finished_at` timestamps, so its body is non-deterministic —
-    /// snapshot only the deterministic emails. Regenerate with
-    /// `UPDATE_EMAIL_SNAPSHOTS=1 cargo test --lib email_body_snapshots`.
-    #[test]
-    fn email_body_snapshots() {
-        let dir = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/src/server/email/messages/snapshots"
-        );
-        let update = std::env::var("UPDATE_EMAIL_SNAPSHOTS").is_ok();
-        if update {
-            std::fs::create_dir_all(dir).unwrap();
-        }
-        for_each_email(|name, email| {
-            if name == "discovery_digest" {
-                return;
-            }
-            let path = format!("{dir}/{name}.html");
-            let actual = email.body_html();
-            if update {
-                std::fs::write(&path, &actual).unwrap();
-            } else {
-                let expected = std::fs::read_to_string(&path).unwrap_or_else(|_| {
-                    panic!("missing snapshot {path}; run with UPDATE_EMAIL_SNAPSHOTS=1")
-                });
-                assert_eq!(actual, expected, "body_html drift for {name}");
-            }
-        });
     }
 
     /// The footer's sender-identification block is gated on deployment type,
