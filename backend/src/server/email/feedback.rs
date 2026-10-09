@@ -269,6 +269,10 @@ pub enum SesFeedback {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SesNotification {
+    /// `notificationType` in identity feedback notifications, `eventType`
+    /// when the topic is an event-publishing destination. The `bounce` and
+    /// `complaint` objects are the same in both.
+    #[serde(alias = "eventType")]
     notification_type: String,
     bounce: Option<SesBounce>,
     complaint: Option<SesComplaint>,
@@ -396,9 +400,16 @@ impl EmailFeedbackService {
                     .map_err(FeedbackError::Unavailable)?,
                 // Authentic but not something this server reads. Retrying
                 // would not change that, so it is acknowledged.
+                // The top-level keys show which format arrived without
+                // logging any values, which hold addresses.
                 Err(e) => tracing::warn!(
                     message_id = %msg.message_id,
                     error = %e,
+                    keys = %serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
+                        &msg.message
+                    )
+                    .map(|fields| fields.keys().cloned().collect::<Vec<_>>().join(","))
+                    .unwrap_or_default(),
                     "Ignoring an SNS notification that is not SES feedback"
                 ),
             },
@@ -771,6 +782,19 @@ mod tests {
                 recipients: vec!["recipient1@example.com".to_string()],
             }
         );
+    }
+
+    /// An event-publishing destination names the type `eventType` and is
+    /// otherwise the same, so either setup yields the same feedback.
+    #[test]
+    fn event_publishing_records_parse_like_identity_notifications() {
+        for sample in [SES_BOUNCE, SES_COMPLAINT] {
+            let event = sample.replace("\"notificationType\"", "\"eventType\"");
+            assert_eq!(
+                parse_ses_notification(&event).unwrap(),
+                parse_ses_notification(sample).unwrap()
+            );
+        }
     }
 
     #[test]
