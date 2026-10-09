@@ -191,8 +191,10 @@ function boxShapeXml(
 		cell('RightMargin', inches(6)),
 		cell('TopMargin', inches(6)),
 		cell('BottomMargin', inches(4)),
+		// 1 draws the group's own box behind its members. 2 draws it in front and, filled, hides a
+		// container's cards and a card's icon in Visio (draw.io's importer ignores the cell).
 		isGroup ? cell('SelectMode', 1) : '',
-		isGroup ? cell('DisplayMode', 2) : ''
+		isGroup ? cell('DisplayMode', 1) : ''
 	].join('');
 
 	const paragraph = `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', isContainer || iconRel ? 0 : 1)}</Row></Section>`;

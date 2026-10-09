@@ -326,8 +326,16 @@
 
 	/** Uniform padding (flow units) around the content bounds so the crop isn't flush to nodes. */
 	const EXPORT_PADDING = 40;
+	/** Image scale the raster formats capture at. */
+	const EXPORT_ZOOM = 0.75;
+	/**
+	 * Image pixels from the top the header block takes, with a gap below it: 12px offset, an 18px
+	 * title, a 12px date line and their line heights. Content starts below it so the header never
+	 * covers a node.
+	 */
+	const HEADER_BAND_PX = 66;
 
-	function calculateExportBounds() {
+	function calculateExportBounds(withHeader: boolean) {
 		const nodes = getNodes();
 
 		if (nodes.length === 0) {
@@ -345,11 +353,14 @@
 		// coords. The hook's getNodesBounds resolves nested container offsets via
 		// the internal node lookup, so the crop is tight and symmetric on all sides.
 		const bounds = getNodesBounds(nodes);
+		const topPadding = withHeader
+			? Math.max(EXPORT_PADDING, HEADER_BAND_PX / EXPORT_ZOOM)
+			: EXPORT_PADDING;
 		const minX = bounds.x - EXPORT_PADDING;
-		const minY = bounds.y - EXPORT_PADDING;
+		const minY = bounds.y - topPadding;
 		const boundsWidth = bounds.width + EXPORT_PADDING * 2;
-		const boundsHeight = bounds.height + EXPORT_PADDING * 2;
-		const targetZoom = 0.75;
+		const boundsHeight = bounds.height + topPadding + EXPORT_PADDING;
+		const targetZoom = EXPORT_ZOOM;
 		const imageWidth = Math.round(boundsWidth * targetZoom);
 		const imageHeight = Math.round(boundsHeight * targetZoom);
 		const boundsCenterX = minX + boundsWidth / 2;
@@ -380,7 +391,7 @@
 		// Wait for modal to close so it's not captured in the image
 		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-		const bounds = calculateExportBounds();
+		const bounds = calculateExportBounds(decorate && includeHeader);
 		if (!bounds) return;
 
 		const { flowElement, imageWidth, imageHeight, viewport: newViewport } = bounds;
@@ -799,14 +810,25 @@
 			{/if}
 
 			{#if selectedFormatDef?.supportsHeader}
-				<label class="flex cursor-pointer items-center gap-2">
-					<input type="checkbox" class="checkbox-card h-4 w-4" bind:checked={includeHeader} />
-					<span class="text-secondary text-sm">{topology_exportIncludeHeader()}</span>
+				<!-- One block: the checkbox and the header it adds, so the preview reads as its result. -->
+				<label class="card card-static flex cursor-pointer items-start gap-2 px-3 py-2">
+					<input
+						type="checkbox"
+						class="checkbox-card mt-0.5 h-4 w-4"
+						bind:checked={includeHeader}
+					/>
+					<span class="min-w-0 space-y-1">
+						<span class="text-secondary block text-sm">{topology_exportIncludeHeader()}</span>
+						<span
+							class="text-tertiary block border-l-2 pl-2 text-xs transition-opacity {includeHeader
+								? ''
+								: 'opacity-50'}"
+						>
+							<span class="block truncate font-medium">{headerPreview.title}</span>
+							<span class="block">{headerPreview.subtitle}</span>
+						</span>
+					</span>
 				</label>
-				<div class="text-tertiary -mt-2 pl-6 text-xs">
-					<div class="font-medium">{headerPreview.title}</div>
-					<div>{headerPreview.subtitle}</div>
-				</div>
 			{/if}
 
 			<button class="btn-primary w-full" onclick={handleExport}>
