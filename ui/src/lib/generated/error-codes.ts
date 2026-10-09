@@ -7,6 +7,10 @@ export const ERROR_CODES = {
 	validation_invalid_email: 'Invalid email address',
 	validation_email_domain_undeliverable:
 		"This email domain can't receive mail. Please use a valid email address.",
+	validation_email_undeliverable:
+		"We couldn't confirm this address can receive mail. Check it for typos or use a different address.",
+	validation_email_disposable:
+		"Temporary email addresses can't be used. Please sign up with a permanent address.",
 	validation_invalid_ip: 'Invalid IP address format',
 	validation_min_length: "Field '{field}' must be at least {min} characters",
 	validation_max_length: "Field '{field}' must be at most {max} characters",
@@ -104,6 +108,8 @@ export interface ErrorParams {
 	validation_empty: { field: string | number };
 	validation_invalid_email: Record<string, never>;
 	validation_email_domain_undeliverable: Record<string, never>;
+	validation_email_undeliverable: Record<string, never>;
+	validation_email_disposable: Record<string, never>;
 	validation_invalid_ip: Record<string, never>;
 	validation_min_length: { field: string | number; min: string | number };
 	validation_max_length: { field: string | number; max: string | number };

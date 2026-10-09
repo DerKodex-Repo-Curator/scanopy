@@ -1,3 +1,4 @@
+use crate::server::auth::email_validation::SesEmailValidator;
 use crate::server::license::service::LicenseService;
 use crate::server::{
     auth::{oidc::OidcService, service::AuthService},
@@ -73,6 +74,8 @@ pub struct ServiceFactory {
     pub email_service: Option<Arc<EmailService>>,
     /// Present only when `email_feedback_sns_topic_arn` is configured.
     pub email_feedback_service: Option<Arc<EmailFeedbackService>>,
+    /// Present only when the `email_validation_aws_*` settings are configured.
+    pub email_validator: Option<Arc<SesEmailValidator>>,
     pub posthog_service: Option<Arc<PosthogService>>,
     pub event_bus: Arc<EventBus>,
     pub logging_service: Arc<LoggingService>,
@@ -355,6 +358,7 @@ impl ServiceFactory {
             event_bus.clone(),
         ));
 
+        let email_validator = SesEmailValidator::from_config(&config)?.map(Arc::new);
         let public_url = config.public_url.clone();
         let deployment_type = crate::server::config::get_deployment_type(&config);
 
@@ -525,6 +529,7 @@ impl ServiceFactory {
             billing_service,
             email_service,
             email_feedback_service,
+            email_validator,
             posthog_service,
             event_bus,
             logging_service,
@@ -582,6 +587,7 @@ impl ServiceFactory {
             billing_service,
             email_service,
             email_feedback_service: _, // not a Subscriber: driven by its HTTP endpoint
+            email_validator: _,        // not a Subscriber: called by the register handler
             posthog_service,
             event_bus: _, // not a service; not subscriber-dispatched
             logging_service,
