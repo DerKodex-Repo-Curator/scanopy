@@ -30,6 +30,7 @@
 	import { formatLongDate, formatTimestamp } from '$lib/shared/utils/formatting';
 	import { startSetupPayment } from '$lib/shared/billing/setup-payment';
 	import { waitForOrgUpdate } from '$lib/shared/billing/wait-for-org-update';
+	import { tooltip } from '$lib/shared/actions/tooltip';
 	import type { components } from '$lib/api/schema';
 	import {
 		apiKeys_rotateKey,
@@ -469,15 +470,18 @@
 				</InfoCard>
 
 				{#if locked}
-					<div class="space-y-1">
-						<p class="text-secondary text-sm">
-							{settings_billing_license_notSelfHosting()}
-							<button type="button" onclick={openCloudPlans} class="text-link hover:underline">
-								{settings_billing_license_switchToCloud()}
-							</button>
-						</p>
-						<p class="text-tertiary text-xs">{settings_billing_license_switchToCloudDesc()}</p>
-					</div>
+					<p class="text-secondary text-sm">
+						{settings_billing_license_notSelfHosting()}
+						<button
+							type="button"
+							onclick={openCloudPlans}
+							class="text-link hover:underline"
+							data-tooltip={settings_billing_license_switchToCloudDesc()}
+							use:tooltip
+						>
+							{settings_billing_license_switchToCloud()}
+						</button>
+					</p>
 				{/if}
 			</div>
 		{/if}
