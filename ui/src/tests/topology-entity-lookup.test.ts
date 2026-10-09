@@ -193,7 +193,7 @@ describe('hiding a hypervisor service', () => {
 	it('by tag keeps the Hypervisor box and what is inside it', () => {
 		updateTagFilter(
 			buildTopology(),
-			{ hidden_service_tag_ids: ['tag-infra'] },
+			{ hidden_tag_ids: { Service: ['tag-infra'] } },
 			'Workloads',
 			undefined,
 			[],

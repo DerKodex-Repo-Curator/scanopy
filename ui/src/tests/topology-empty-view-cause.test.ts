@@ -35,11 +35,7 @@ function l2Topology(filteredOut: Record<string, Record<string, number>>): Render
 	} as unknown as RenderableTopology;
 }
 
-const NO_TAGS = {
-	hidden_host_tag_ids: [],
-	hidden_service_tag_ids: [],
-	hidden_subnet_tag_ids: []
-};
+const NO_TAGS = { hidden_tag_ids: {} };
 
 describe('what emptied a topology view', () => {
 	it('names the filter and counts the entities the server never sent', () => {

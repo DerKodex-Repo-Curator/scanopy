@@ -11,7 +11,10 @@ use crate::server::topology::types::views::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+};
 use strum::IntoEnumIterator;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -124,16 +127,47 @@ pub struct TopologyOptions {
 
 /// Filter settings for hiding entities by tag in topology visualization.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, Default, ToSchema)]
+#[serde(from = "TagFilterWire")]
 pub struct TopologyTagFilter {
-    /// Host tag IDs to hide (hosts with these tags will fade out)
+    /// Tag IDs to hide, per entity type. An entity of that type carrying one of them is hidden.
     #[serde(default)]
-    pub hidden_host_tag_ids: Vec<Uuid>,
-    /// Service tag IDs to hide (services with these tags will be hidden from nodes)
+    pub hidden_tag_ids: BTreeMap<EntityDiscriminants, Vec<Uuid>>,
+}
+
+/// What a stored tag filter may look like: the per-entity map, or the three per-entity lists
+/// written before it. Topology options are JSONB, so rows saved earlier still hold the lists.
+#[derive(Deserialize)]
+struct TagFilterWire {
     #[serde(default)]
-    pub hidden_service_tag_ids: Vec<Uuid>,
-    /// Subnet tag IDs to hide (subnets with these tags will fade out)
+    hidden_tag_ids: BTreeMap<EntityDiscriminants, Vec<Uuid>>,
     #[serde(default)]
-    pub hidden_subnet_tag_ids: Vec<Uuid>,
+    hidden_host_tag_ids: Vec<Uuid>,
+    #[serde(default)]
+    hidden_service_tag_ids: Vec<Uuid>,
+    #[serde(default)]
+    hidden_subnet_tag_ids: Vec<Uuid>,
+}
+
+impl From<TagFilterWire> for TopologyTagFilter {
+    fn from(wire: TagFilterWire) -> Self {
+        let mut hidden_tag_ids = wire.hidden_tag_ids;
+        for (entity, ids) in [
+            (EntityDiscriminants::Host, wire.hidden_host_tag_ids),
+            (EntityDiscriminants::Service, wire.hidden_service_tag_ids),
+            (EntityDiscriminants::Subnet, wire.hidden_subnet_tag_ids),
+        ] {
+            if ids.is_empty() {
+                continue;
+            }
+            let entry = hidden_tag_ids.entry(entity).or_default();
+            for id in ids {
+                if !entry.contains(&id) {
+                    entry.push(id);
+                }
+            }
+        }
+        Self { hidden_tag_ids }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, ToSchema)]
@@ -454,6 +488,45 @@ mod tests {
         }
         options.populate_empty_infra_rule(UseCase::Msp);
         assert_eq!(infra_categories(&options), &[ServiceCategory::DNS]);
+    }
+
+    /// Rows saved before the per-entity map hold three lists; every id in them carries over.
+    #[test]
+    fn stored_three_list_tag_filter_reads_into_the_map() {
+        let (host, service, subnet) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let filter: TopologyTagFilter = serde_json::from_value(serde_json::json!({
+            "hidden_host_tag_ids": [host],
+            "hidden_service_tag_ids": [service],
+            "hidden_subnet_tag_ids": [subnet]
+        }))
+        .unwrap();
+        assert_eq!(
+            filter.hidden_tag_ids,
+            BTreeMap::from([
+                (EntityDiscriminants::Host, vec![host]),
+                (EntityDiscriminants::Service, vec![service]),
+                (EntityDiscriminants::Subnet, vec![subnet]),
+            ])
+        );
+    }
+
+    #[test]
+    fn keyed_tag_filter_round_trips_in_the_new_shape() {
+        let filter = TopologyTagFilter {
+            hidden_tag_ids: BTreeMap::from([(EntityDiscriminants::Host, vec![Uuid::new_v4()])]),
+        };
+        let json = serde_json::to_value(&filter).unwrap();
+        assert!(json.get("hidden_host_tag_ids").is_none());
+        let back: TopologyTagFilter = serde_json::from_value(json).unwrap();
+        assert_eq!(back, filter);
+    }
+
+    #[test]
+    fn empty_or_missing_tag_filter_reads_as_empty() {
+        let empty: TopologyTagFilter = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(empty.hidden_tag_ids.is_empty());
+        let local: TopologyLocalOptions = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(local.tag_filter.hidden_tag_ids.is_empty());
     }
 
     /// A saved view that hides an edge type this binary doesn't know still loads, keeping the

@@ -32,9 +32,12 @@ export function sanitizeOptionsForApi(options: TopologyOptions): TopologyOptions
 		local: {
 			...options.local,
 			tag_filter: {
-				hidden_host_tag_ids: (tf?.hidden_host_tag_ids ?? []).filter((id) => !isSentinel(id)),
-				hidden_service_tag_ids: (tf?.hidden_service_tag_ids ?? []).filter((id) => !isSentinel(id)),
-				hidden_subnet_tag_ids: (tf?.hidden_subnet_tag_ids ?? []).filter((id) => !isSentinel(id))
+				hidden_tag_ids: Object.fromEntries(
+					Object.entries(tf?.hidden_tag_ids ?? {}).map(([entityType, ids]) => [
+						entityType,
+						(ids ?? []).filter((id) => !isSentinel(id))
+					])
+				)
 			}
 		}
 	};
@@ -142,11 +145,7 @@ function getDefaultLocalOptions(view: TopologyView): TopologyLocalOptions {
 		hide_edge_types: getDefaultHiddenEdgeTypes(view),
 		no_fade_edges: false,
 		bundle_edges: true,
-		tag_filter: {
-			hidden_host_tag_ids: [],
-			hidden_service_tag_ids: [],
-			hidden_subnet_tag_ids: []
-		},
+		tag_filter: { hidden_tag_ids: {} },
 		show_minimap: true
 	};
 }
@@ -557,11 +556,7 @@ export function showEverythingIn(view: string): void {
 			},
 			local: {
 				...opts.local,
-				tag_filter: {
-					hidden_host_tag_ids: [],
-					hidden_service_tag_ids: [],
-					hidden_subnet_tag_ids: []
-				}
+				tag_filter: { hidden_tag_ids: {} }
 			}
 		};
 	});
