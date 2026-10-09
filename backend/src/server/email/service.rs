@@ -102,7 +102,7 @@ impl LimitLevelChange {
 }
 
 /// Email service: builds the right [`Email`] for each event and hands it to
-/// the configured transport (Brevo or SMTP).
+/// the configured transport (SMTP, or the logging transport in testing).
 pub struct EmailService {
     transport: Box<dyn EmailTransport>,
     pub user_service: Arc<UserService>,

@@ -73,7 +73,6 @@ impl Storable for Organization {
                     discount_save_offer_percent_off,
                     discount_save_offer_active_until,
                     next_renewal_at,
-                    brevo_company_id,
                     license_entitlement,
                     license_entitlement_at,
                     notifications,
@@ -114,7 +113,6 @@ impl Storable for Organization {
                 "discount_save_offer_percent_off",
                 "discount_save_offer_active_until",
                 "next_renewal_at",
-                "brevo_company_id",
                 "license_entitlement",
                 "license_entitlement_at",
                 "notifications",
@@ -146,7 +144,6 @@ impl Storable for Organization {
                 SqlValue::OptionalI64(discount_save_offer_percent_off),
                 SqlValue::OptionTimestamp(discount_save_offer_active_until),
                 SqlValue::OptionTimestamp(next_renewal_at),
-                SqlValue::OptionalString(brevo_company_id),
                 SqlValue::OptionalString(license_entitlement),
                 SqlValue::OptionTimestamp(license_entitlement_at),
                 SqlValue::OrgNotifications(notifications),
@@ -214,7 +211,6 @@ impl Storable for Organization {
                     .try_get("discount_save_offer_active_until")
                     .unwrap_or(None),
                 next_renewal_at: row.try_get("next_renewal_at").unwrap_or(None),
-                brevo_company_id: row.get("brevo_company_id"),
                 license_entitlement: row.try_get("license_entitlement").unwrap_or(None),
                 license_entitlement_at: row.try_get("license_entitlement_at").unwrap_or(None),
                 notifications: row
@@ -321,8 +317,6 @@ impl Entity for Organization {
         self.base.next_renewal_at = existing.base.next_renewal_at;
         // Onboarding state is server-managed
         self.base.onboarding = existing.base.onboarding.clone();
-        // Brevo company ID is server-managed
-        self.base.brevo_company_id = existing.base.brevo_company_id.clone();
         // License state is server-managed. The key version is never
         // serialized, so a PUT body always carries the default and would
         // otherwise reset it (reviving retired online keys).

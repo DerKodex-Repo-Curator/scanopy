@@ -177,9 +177,6 @@ pub struct OrganizationBase {
     #[serde(default)]
     #[schema(read_only)]
     pub next_renewal_at: Option<DateTime<Utc>>,
-    /// Brevo company ID - internal, not exposed to API
-    #[serde(default, skip_serializing)]
-    pub brevo_company_id: Option<String>,
     /// Latest entitlement an online license key fetched from Scanopy Cloud.
     /// Instance-level: every org row holds the same value. It works as an
     /// offline key until it expires, so it is never read from or written to

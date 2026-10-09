@@ -47,11 +47,10 @@ jobs:
       - name: Generate UI fixtures before container build
         run: make generate-fixtures
 
-      # Best-effort per source: a failed download keeps the committed copy.
-      # Runs before the tests so the classifier's floor + ground-truth
-      # invariants validate refreshed data before it is committed or baked
+      # Best-effort: a failed download keeps the committed copy. Runs before
+      # the tests so refreshed data is tested before it is committed or baked
       # into the Docker images.
-      - name: Refresh vendored data (oui.csv + domain-classification)
+      - name: Refresh vendored data (oui.csv)
         run: backend/scripts/refresh-vendored-data.sh
 
       # Pull the test images up front, retrying a rate-limited registry (a homeassistant pull hit
@@ -90,7 +89,7 @@ jobs:
           git add backend/Cargo.toml backend/Cargo.lock ui/package.json ui/package-lock.json
           git add backend/src/tests/scanopy.sql backend/src/tests/daemon_config.json ui/static/services.json ui/static/schema.mermaid ui/static/schema-er.mermaid ui/static/entity-metadata.json
           git add backend/tests/integration/compat/fixtures/
-          git add backend/assets/oui.csv backend/assets/domain-classification/
+          git add backend/assets/oui.csv
 
           if git diff --staged --quiet; then
             echo "No fixture changes to commit"

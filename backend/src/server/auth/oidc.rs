@@ -128,7 +128,6 @@ impl OidcService {
             billing_enabled,
             terms_accepted_at,
             deployment_type,
-            marketing_opt_in,
         } = oidc_register_params;
 
         let provider = self
@@ -226,7 +225,6 @@ impl OidcService {
                 },
                 AuthOperation::Register {
                     method: AuthMethod::Oidc((&**provider).into()),
-                    marketing_opt_in,
                     // No email verification sent for OIDC logins
                     email_and_token: None,
                 },

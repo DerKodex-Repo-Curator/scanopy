@@ -116,15 +116,6 @@ pub(crate) async fn oidc_authorize(
             })?;
     }
 
-    if let Some(marketing_opt_in) = params.marketing_opt_in {
-        session
-            .insert("oidc_marketing_opt_in", marketing_opt_in)
-            .await
-            .map_err(|e| {
-                ApiError::internal_error(&format!("Failed to save marketing_opt_in: {}", e))
-            })?;
-    }
-
     Ok(Redirect::to(&auth_url))
 }
 
@@ -222,19 +213,12 @@ pub(crate) async fn oidc_callback(
         .ok()
         .flatten()
         .unwrap_or(false);
-    let marketing_opt_in: bool = session
-        .get("oidc_marketing_opt_in")
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or(false);
 
     // Consume OIDC state immediately to prevent replay attacks
     let _ = session.remove::<OidcPendingAuth>("oidc_pending_auth").await;
     let _ = session.remove::<String>("oidc_provider_slug").await;
     let _ = session.remove::<String>("oidc_return_url").await;
     let _ = session.remove::<bool>("oidc_terms_accepted").await;
-    let _ = session.remove::<bool>("oidc_marketing_opt_in").await;
 
     // Parse return URL for error handling
     let return_url_parsed = Url::parse(&return_url).map_err(|_| {
@@ -287,7 +271,6 @@ pub(crate) async fn oidc_callback(
             handle_register_flow(
                 state.clone(),
                 terms_accepted_at,
-                marketing_opt_in,
                 HandleLinkFlowParams {
                     oidc_service,
                     slug: &slug,
@@ -464,7 +447,6 @@ async fn handle_login_flow(
 async fn handle_register_flow(
     state: Arc<AppState>,
     terms_accepted_at: Option<DateTime<Utc>>,
-    marketing_opt_in: bool,
     params: HandleLinkFlowParams<'_>,
 ) -> Result<Redirect, Redirect> {
     let HandleLinkFlowParams {
@@ -533,7 +515,6 @@ async fn handle_register_flow(
                 provider_slug: slug,
                 code,
                 deployment_type: get_deployment_type(&state.config),
-                marketing_opt_in,
             },
         )
         .await

@@ -310,8 +310,6 @@ mailchecker = "6.0.20"
 hickory-resolver = { version = "0.26.1" }
 const_format = "0.2.35"
 posthog-rs = "0.4"
-psl = "2.1.216"
-idna = "1.1.0"
 
 # === Platform-specific Dependencies ===
 [target.'cfg(target_os = "linux")'.dependencies]

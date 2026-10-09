@@ -3,7 +3,7 @@
 //! Each email lives in its own file as a plain data struct holding that
 //! message's template variables, plus an `impl Email`. Adding a new email is:
 //! create a file here, define the struct, `impl Email` — no central registry
-//! to edit. The producers ([`super::brevo`] / [`super::smtp`]) dispatch on
+//! to edit. The transports ([`super::smtp`] / [`super::logging`]) dispatch on
 //! `&dyn Email` and never need to know which concrete email they're sending.
 
 mod airgap_expiring;
@@ -178,8 +178,7 @@ impl EmailCategory {
         }
     }
 
-    /// Stable lowercase tag for the provider (Brevo `tags`) and the default
-    /// `utm_medium`. Coarser than the category, and unchanged since before
+    /// Stable lowercase tag, used as the default `utm_medium`. Coarser than the category, and unchanged since before
     /// categories split by pausability, so analytics keeps its history.
     pub fn tag(self) -> &'static str {
         match self {

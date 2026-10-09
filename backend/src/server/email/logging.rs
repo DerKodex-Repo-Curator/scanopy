@@ -13,11 +13,11 @@ const SLUG_MAX_LEN: usize = 48;
 ///
 /// Every send is reported at INFO with the recipient, subject and category so
 /// email paths (verification, password reset, digests, …) can be exercised
-/// locally without SMTP or Brevo credentials. When an output directory is
+/// locally without SMTP credentials. When an output directory is
 /// configured the rendered message is also written there for review — one
 /// `.html` (browser-openable) and one `.txt` per send.
 ///
-/// Selected ahead of Brevo/SMTP whenever `SCANOPY_EMAIL_LOG_DIR` is set, so it
+/// Selected ahead of SMTP whenever `SCANOPY_EMAIL_LOG_DIR` is set, so it
 /// deliberately overrides credentials that happen to be present in the
 /// environment. Never appropriate for production: the written files contain
 /// full bodies, including password-reset and verification tokens.

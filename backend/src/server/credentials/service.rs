@@ -179,7 +179,7 @@ impl CrudService<Credential> for CredentialService {
                     .await?;
             }
 
-            // SNMP-specific event (preserves existing Brevo tracking) — any SNMP version counts.
+            // SNMP-specific event (feeds PostHog) — any SNMP version counts.
             if matches!(
                 created.base.credential_type,
                 CredentialType::SnmpV1 { .. }

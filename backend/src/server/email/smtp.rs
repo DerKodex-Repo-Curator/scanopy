@@ -28,8 +28,8 @@ fn implicit_tls_hint(port: Option<u16>, got_reply: bool) -> &'static str {
      not answer there — if yours is one of them, set SCANOPY_SMTP_PORT=587."
 }
 
-/// SMTP-based email transport (lettre), used as the fallback when Brevo is
-/// not configured.
+/// SMTP-based email transport (lettre), used whenever `SCANOPY_EMAIL_LOG_DIR`
+/// is not set.
 pub struct SmtpEmailProvider {
     mailer: AsyncSmtpTransport<Tokio1Executor>,
     from: Mailbox,

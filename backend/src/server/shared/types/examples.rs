@@ -415,7 +415,6 @@ pub fn organization() -> Organization {
             discount_save_offer_percent_off: None,
             discount_save_offer_active_until: None,
             next_renewal_at: None,
-            brevo_company_id: None,
             license_entitlement: None,
             license_entitlement_at: None,
             notifications: Default::default(),

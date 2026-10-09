@@ -1,4 +1,3 @@
-pub mod brevo;
 pub mod logging;
 pub mod messages;
 pub mod service;

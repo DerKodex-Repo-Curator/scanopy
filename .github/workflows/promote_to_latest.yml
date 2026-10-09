@@ -402,7 +402,7 @@ jobs:
             - Structure: 1-2 sentence intro paragraph, 3-5 bulleted highlights framed as problems solved or workflows improved
             - Do NOT include a changelog link or CTA — the email template adds those automatically
             - Do NOT copy-paste the changelog — write a concise, scannable email
-            - Do NOT include unsubscribe links (Brevo adds these automatically)
+            - Do NOT include unsubscribe links (the sending pipeline adds them)
 
             ---
 
@@ -577,7 +577,7 @@ jobs:
             fi
 
             if [ "$GEN_EMAIL" = "true" ]; then
-              echo "- Brevo email campaign draft (list 9) — preview and send from Brevo UI"
+              echo "- Product update email draft"
             fi
 
             echo ""
