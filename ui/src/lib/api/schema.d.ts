@@ -9041,6 +9041,8 @@ export interface components {
         ExportFeatures: {
             /** @description Viewer may export the diagram for Confluence. */
             confluence_export: boolean;
+            /** @description Viewer may export the diagram as an editable draw.io file. */
+            drawio_export: boolean;
             /** @description Viewer may export the diagram as standalone HTML. */
             html_export: boolean;
             /** @description Viewer may export the diagram as Mermaid. */
@@ -9053,6 +9055,8 @@ export interface components {
             remove_created_with: boolean;
             /** @description Viewer may export the diagram as SVG. */
             svg_export: boolean;
+            /** @description Viewer may export the diagram as an editable Visio (VSDX) file. */
+            vsdx_export: boolean;
         };
         /**
          * @description Definition of a form field for dynamic UI rendering.

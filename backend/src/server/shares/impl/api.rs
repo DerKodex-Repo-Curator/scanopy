@@ -56,6 +56,10 @@ pub struct ExportFeatures {
     pub pdf_export: bool,
     /// Viewer may export the diagram as standalone HTML.
     pub html_export: bool,
+    /// Viewer may export the diagram as an editable draw.io file.
+    pub drawio_export: bool,
+    /// Viewer may export the diagram as an editable Visio (VSDX) file.
+    pub vsdx_export: bool,
     /// Exports omit the Scanopy attribution line.
     pub remove_created_with: bool,
 }
