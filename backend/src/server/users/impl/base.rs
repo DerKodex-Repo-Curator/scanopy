@@ -474,8 +474,95 @@ impl Entity for User {
         self.updated_at = time;
     }
 
+    /// A request body may change only `permissions`, `site_ids`,
+    /// `email_settings` and `display_settings` (and the handlers narrow that
+    /// further). Every other field belongs to a server flow (signup, email
+    /// change, verification, password reset, OIDC linking, "log out
+    /// everywhere") and is taken from the stored user. `#[serde(skip)]` fields
+    /// arrive at their defaults, so a field missing here is reset on save.
     fn preserve_immutable_fields(&mut self, existing: &Self) {
-        self.base.terms_accepted_at = existing.base.terms_accepted_at;
-        self.base.email_unsubscribe_token = existing.base.email_unsubscribe_token;
+        let base = &mut self.base;
+        let stored = &existing.base;
+        base.email = stored.email.clone();
+        base.password_hash = stored.password_hash.clone();
+        base.has_password = stored.has_password;
+        base.oidc_provider = stored.oidc_provider.clone();
+        base.oidc_subject = stored.oidc_subject.clone();
+        base.oidc_linked_at = stored.oidc_linked_at;
+        base.terms_accepted_at = stored.terms_accepted_at;
+        base.email_verified = stored.email_verified;
+        base.email_verification_token = stored.email_verification_token.clone();
+        base.email_verification_expires = stored.email_verification_expires;
+        base.password_reset_token = stored.password_reset_token.clone();
+        base.password_reset_expires = stored.password_reset_expires;
+        base.pending_email = stored.pending_email.clone();
+        base.email_unsubscribe_token = stored.email_unsubscribe_token;
+        base.session_epoch = stored.session_epoch;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A stored user mid-flow: logged out everywhere twice, a password reset
+    /// and an email change pending, not yet verified.
+    fn stored_user() -> User {
+        let now = Utc::now();
+        User {
+            id: Uuid::new_v4(),
+            created_at: now - chrono::Duration::days(30),
+            updated_at: now,
+            base: UserBase {
+                email: EmailAddress::new_unchecked("owner@example.com"),
+                permissions: UserOrgPermissions::Admin,
+                password_hash: Some("argon2-hash".to_string()),
+                has_password: true,
+                oidc_provider: Some("google".to_string()),
+                oidc_subject: Some("subject-1".to_string()),
+                oidc_linked_at: Some(now),
+                terms_accepted_at: Some(now),
+                email_verified: false,
+                email_verification_token: Some("verify".to_string()),
+                email_verification_expires: Some(now),
+                password_reset_token: Some("reset".to_string()),
+                password_reset_expires: Some(now),
+                pending_email: Some(EmailAddress::new_unchecked("new@example.com")),
+                email_unsubscribe_token: Some(Uuid::new_v4()),
+                session_epoch: 2,
+                ..UserBase::default()
+            },
+        }
+    }
+
+    /// What `update_user` / `admin_update_user` do to a request body: only the
+    /// client-editable fields survive, everything server-owned comes from the
+    /// stored user, and the write is pinned to the stored user's id.
+    #[test]
+    fn a_request_body_changes_only_client_editable_fields() {
+        let existing = stored_user();
+
+        let mut body = serde_json::to_value(&existing).unwrap();
+        body["id"] = serde_json::json!(Uuid::new_v4());
+        body["created_at"] = serde_json::json!(Utc::now());
+        body["email"] = serde_json::json!("attacker@example.com");
+        body["email_verified"] = serde_json::json!(true);
+        body["terms_accepted_at"] = serde_json::Value::Null;
+        body["has_password"] = serde_json::json!(false);
+        body["permissions"] = serde_json::json!(UserOrgPermissions::Member);
+        body["email_settings"]["discovery_digest"] = serde_json::json!(false);
+        let mut request: User = serde_json::from_value(body).unwrap();
+
+        request.set_id(existing.id);
+        request.set_created_at(existing.created_at);
+        request.preserve_immutable_fields(&existing);
+
+        let mut expected = existing.base.clone();
+        expected.permissions = UserOrgPermissions::Member;
+        expected.email_settings.discovery_digest = false;
+
+        assert_eq!(request.id, existing.id);
+        assert_eq!(request.created_at, existing.created_at);
+        assert_eq!(request.base, expected);
     }
 }
