@@ -39,7 +39,7 @@ use std::process::Command;
 use uuid::Uuid;
 
 use crate::daemon::shared::config::{
-    AppConfig, ConfigStore, DaemonCommand, InstallArgs, UninstallArgs,
+    AppConfig, ConfigStore, DaemonCommand, InstallArgs, UninstallArgs, config_file_with_site_names,
 };
 use crate::server::daemons::r#impl::base::DaemonMode;
 
@@ -130,7 +130,7 @@ struct InstalledConfig {
 
 impl Installed {
     fn read(slot: String, config_path: PathBuf) -> Self {
-        let parsed = std::fs::read_to_string(&config_path)
+        let parsed = config_file_with_site_names(&config_path)
             .ok()
             .and_then(|c| serde_json::from_str::<InstalledConfig>(&c).ok());
         let (name, daemon_id, api_key, daemon_port) = match parsed {

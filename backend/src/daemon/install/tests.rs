@@ -223,6 +223,34 @@ fn a_second_daemon_is_moved_off_the_port_the_first_one_listens_on() {
     assert_eq!(next_free_port(&installed, DEFAULT_NAME), default_port);
 }
 
+/// A `config.json` written before the site rename (`network_id`, a `"scope":"Network"` target) is
+/// discovered with its identity, and discovery leaves the file as it was.
+#[test]
+fn an_install_from_before_the_site_rename_is_discovered_untouched() {
+    let base = tempfile::tempdir().unwrap();
+    let id = Uuid::new_v4();
+    let path = base.path().join("config.json");
+    let raw = serde_json::json!({
+        "name": "edge-01",
+        "id": id,
+        "daemon_api_key": "key-a",
+        "daemon_port": 60074,
+        "network_id": Uuid::new_v4(),
+        "integration_targets": [{ "scope": "Network", "credential_id": Uuid::new_v4() }],
+    })
+    .to_string();
+    std::fs::write(&path, &raw).unwrap();
+
+    let found = installed_in(base.path());
+
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].name.as_deref(), Some("edge-01"));
+    assert_eq!(found[0].daemon_id, Some(id));
+    assert_eq!(found[0].api_key.as_deref(), Some("key-a"));
+    assert_eq!(found[0].daemon_port, Some(60074));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), raw);
+}
+
 fn uninstall_args(name: Option<&str>, all: bool) -> UninstallArgs {
     UninstallArgs {
         name: name.map(str::to_string),
