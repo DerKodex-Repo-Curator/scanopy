@@ -466,7 +466,7 @@ mod tests {
                     key,
                 } => {
                     assert!(
-                        props(&target.to_string()).contains_key(key),
+                        props(target.as_ref()).contains_key(key),
                         "{root}.{}: no key `{key}` on {target}",
                         field.id
                     );
@@ -502,7 +502,7 @@ mod tests {
     fn every_field_path_names_keys_the_serialized_entities_carry() {
         for entity in EntityDiscriminants::iter() {
             for field in entity.fields() {
-                check_field(&entity.to_string(), field);
+                check_field(entity.as_ref(), field);
             }
         }
     }

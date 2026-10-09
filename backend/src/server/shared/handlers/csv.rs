@@ -31,7 +31,6 @@ use super::traits::{CrudHandlers, base_list_filter};
 /// Uses the same filtering as the list endpoint (including its SCD2 live/as-of narrowing) but
 /// ignores pagination, exporting ALL matching records. Columns come from the entity's field
 /// registry, with related entities read through their own services.
-
 pub async fn export_csv_handler<T>(
     State(state): State<Arc<AppState>>,
     auth: Authorized<Viewer>,
