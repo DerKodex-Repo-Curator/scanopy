@@ -27909,6 +27909,16 @@
               "relation_key"
             ],
             "properties": {
+              "endpoint_labels": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the two ends, source first, for edges that join two named things. The UI\ndraws each name at its own end; `label` carries the same names joined."
+              },
               "id": {
                 "type": "string",
                 "format": "uuid",

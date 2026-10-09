@@ -8679,6 +8679,11 @@ export interface components {
         };
         Edge: components["schemas"]["EdgeType"] & {
             /**
+             * @description The names of the two ends, source first, for edges that join two named things. The UI
+             *     draws each name at its own end; `label` carries the same names joined.
+             */
+            endpoint_labels?: string[] | null;
+            /**
              * Format: uuid
              * @description Server-assigned unique identifier.
              */
