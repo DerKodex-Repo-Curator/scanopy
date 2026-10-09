@@ -598,7 +598,19 @@ export const credentialIntegrations = createTypeMetadataHelpers<
 export const containerTypes = createTypeMetadataHelpers<'container_types', ContainerTypeMetadata>(
 	'container_types'
 );
-export const views = createTypeMetadataHelpers<'views', object>('views');
+/** A topology view's metadata, as `TopologyView::metadata()` writes it into the views fixture. */
+export interface ViewMetadata {
+	/** Short token naming the view in export filenames. */
+	slug: string;
+	element_config: components['schemas']['ViewElementConfig'];
+	edge_view_configs: Record<
+		components['schemas']['EdgeTypeDiscriminants'],
+		components['schemas']['EdgeViewConfig']
+	>;
+	inspector_config: components['schemas']['ViewInspectorConfig'];
+	layout: components['schemas']['ViewLayoutConfig'];
+}
+export const views = createTypeMetadataHelpers<'views', Partial<ViewMetadata>>('views');
 
 export interface ServiceCategoryMetadata {
 	application_relevant_use_cases: string[];

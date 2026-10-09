@@ -2,6 +2,7 @@ import type { RenderableTopology, TopologyNode, TopologyEdge } from '../types/ba
 import type { LayoutState, PrepareResult, XY } from './types';
 import { LayoutGraph } from '../layout/layout-graph';
 import { ElkLayoutEngine } from '../layout/engine';
+import { getViewLayout } from '../layout/view-layout';
 import { computeForceLayout, type ForceNode, type ForceLink } from '../layout/force-layout';
 import { containerTypes } from '$lib/shared/stores/metadata';
 import * as perf from '../perf';
@@ -52,13 +53,11 @@ export async function executeLayout(
 		rootContainerNodes.length <= FORCE_LAYOUT_MAX_ROOTS &&
 		rootContainerNodes.every((n) => collapsed.has(n.id));
 
-	// L2 Physical always lays out with ELK, at every collapse level. Its identity
-	// is the structured column of hosts under a switch; swapping to a force
-	// simulation when the last container collapses makes the fully-collapsed view
-	// a different diagram rather than a denser one, and reads worse. Workloads is
-	// excluded for the same reason.
-	const useForceLayout =
-		allRootCollapsed && currentView !== 'Workloads' && currentView !== 'L2Physical';
+	// A view without the force overview always lays out with ELK, at every collapse level. L2's
+	// identity is the structured column of hosts under a switch; swapping to a force simulation
+	// when the last container collapses makes the fully-collapsed view a different diagram rather
+	// than a denser one, and reads worse. Workloads opts out for the same reason.
+	const useForceLayout = allRootCollapsed && getViewLayout(currentView).force_overview;
 
 	if (useForceLayout) {
 		// Force layout for all-collapsed overview mode

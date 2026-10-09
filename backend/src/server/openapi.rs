@@ -55,7 +55,8 @@ use crate::server::tags::handlers::TagOrderField;
 use crate::server::tags::r#impl::base::Tag;
 use crate::server::topology::types::base::Topology;
 use crate::server::topology::types::views::{
-    DependencyMemberType, InspectorSection, ViewElementConfig, ViewInspectorConfig,
+    DependencyMemberType, InspectorSection, ViewElementConfig, ViewElementOrder,
+    ViewHandleStrategy, ViewInspectorConfig, ViewLayoutAlgorithm, ViewLayoutConfig, ViewRootOrder,
 };
 use crate::server::user_api_keys::r#impl::base::UserApiKey;
 use crate::server::users::r#impl::base::User;
@@ -128,6 +129,13 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         ViewInspectorConfig,
         InspectorSection,
         DependencyMemberType,
+        // A view's layout choices, from the same fixture; the topology layout pipeline reads
+        // these instead of branching on view ids.
+        ViewLayoutConfig,
+        ViewLayoutAlgorithm,
+        ViewHandleStrategy,
+        ViewElementOrder,
+        ViewRootOrder,
         // The filter state a host virtualization type files under. Travels inside
         // `host-virtualizations.json`'s untyped `TypeMetadata.metadata`.
         HostVirtualizationState,

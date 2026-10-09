@@ -14312,6 +14312,16 @@ export interface components {
             inline_entities: components["schemas"]["EntityDiscriminants"][];
         };
         /**
+         * @description How elements inside a container are ordered before layout.
+         * @enum {string}
+         */
+        ViewElementOrder: "automatic" | "oper_status";
+        /**
+         * @description How edge endpoints pick the side of a node they attach to.
+         * @enum {string}
+         */
+        ViewHandleStrategy: "horizontal" | "optimal";
+        /**
          * @description View-specific inspector panel configuration.
          *     Determines which sections appear and in what order for each view.
          */
@@ -14323,7 +14333,46 @@ export interface components {
             element_sections: components["schemas"]["InspectorSection"][];
             /** @description Whether the inspector offers the application picker. */
             show_application_picker: boolean;
+            /**
+             * @description Whether a service card shows the IP address and ports it is reached on. Application
+             *     groups services by what they do, not where they listen, so it leaves these out.
+             */
+            show_service_network_detail: boolean;
         };
+        /**
+         * @description Root-level layout algorithm for a view.
+         * @enum {string}
+         */
+        ViewLayoutAlgorithm: "layered_right" | "workloads" | "rect_packing" | "default";
+        /**
+         * @description How the UI lays out a view. Read by the topology layout pipeline in place of branching on
+         *     the view id.
+         */
+        ViewLayoutConfig: {
+            algorithm: components["schemas"]["ViewLayoutAlgorithm"];
+            /** @description Whether each column of root containers is aligned to the same top edge after layout. */
+            align_layers_top: boolean;
+            element_order: components["schemas"]["ViewElementOrder"];
+            /**
+             * @description Whether the view switches to a force-directed overview when every root container is
+             *     collapsed.
+             */
+            force_overview: boolean;
+            handle_strategy: components["schemas"]["ViewHandleStrategy"];
+            /**
+             * @description Whether root containers with no cross-container edges are moved beside the connected
+             *     ones after layout.
+             */
+            repack_disconnected: boolean;
+            /** @description Whether edges between root containers are passed to the root layout. */
+            root_edges: boolean;
+            root_order: components["schemas"]["ViewRootOrder"];
+        };
+        /**
+         * @description How root containers are ordered before layout.
+         * @enum {string}
+         */
+        ViewRootOrder: "input" | "workload_count";
         Vlan: components["schemas"]["VlanBase"] & {
             /**
              * Format: date-time

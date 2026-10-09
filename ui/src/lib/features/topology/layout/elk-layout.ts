@@ -1,7 +1,6 @@
 import type { ElkNode, ElkExtendedEdge } from 'elkjs';
 import type { TopologyNode } from '../types/base';
 import { affectsLayout } from './edge-classification';
-import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 import {
 	containerTypes,
 	getIrrelevantServiceCategories,
@@ -14,6 +13,7 @@ import * as perf from '../perf';
 import { resolveCollapsedAncestor } from '../collapse';
 import { noteElkRun } from '../diagnostics';
 import { pinChildOrder } from './child-order';
+import { getViewLayout, type ViewLayoutConfig } from './view-layout';
 
 /**
  * The port-constraint a container's own ports can honour.
@@ -135,6 +135,51 @@ const ROOT_LAYOUT_OPTIONS: Record<string, string> = {
 };
 
 /**
+ * Root-level ELK options per view layout algorithm. Keyed by the backend's algorithm enum, so an
+ * algorithm the backend adds fails to compile here until it has options.
+ */
+const ROOT_OPTIONS_BY_ALGORITHM: Record<ViewLayoutConfig['algorithm'], Record<string, string>> = {
+	layered_right: {
+		'elk.algorithm': 'layered',
+		'elk.direction': 'RIGHT',
+		'elk.edgeRouting': 'POLYLINE',
+		'elk.spacing.nodeNode': '50',
+		'elk.spacing.componentComponent': '75',
+		// Laid out RIGHT, a layer is a *vertical* stack of switches and the spacing between layers
+		// is the *horizontal* gap between those stacks — the axes are inverted relative to every
+		// view that runs DOWN. Widened from 75 so the port-to-port edges running between stacks
+		// have room to be followed by eye.
+		'elk.layered.spacing.nodeNodeBetweenLayers': '150',
+		'elk.layered.spacing.edgeNodeBetweenLayers': '25',
+		'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+		'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
+		'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+		'elk.layered.nodePlacement.strategy': 'SIMPLE',
+		'elk.layered.compaction.connectedComponents': 'true',
+		'elk.hierarchyHandling': 'SEPARATE_CHILDREN',
+		'elk.padding': '[top=25,left=25,bottom=25,right=25]'
+	},
+	workloads: {
+		...ROOT_LAYOUT_OPTIONS,
+		'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
+		'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+		'elk.layered.considerModelOrder.components': 'MODEL_ORDER'
+	},
+	// For mostly independent container groups (Application's Storage, Web Tier, Database,
+	// Monitoring, Ungrouped, …) with only a few cross-group flow edges. Layered layout strings the
+	// connected ones into a diagonal cascade and shelf-packs the rest, leaving large empty gaps.
+	// rectpacking instead tiles every group compactly into a landscape rectangle
+	// (whitespace-minimizing); the sparse flow edges still render but don't drive placement.
+	rect_packing: {
+		'elk.algorithm': 'rectpacking',
+		'elk.aspectRatio': '1.6',
+		'elk.spacing.nodeNode': '40',
+		'elk.padding': '[top=25,left=25,bottom=25,right=25]'
+	},
+	default: ROOT_LAYOUT_OPTIONS
+};
+
+/**
  * Build an ELK graph from topology data.
  * Containers become parent nodes; elements become children inside their container.
  * Only layout-affecting edges are included in the ELK graph.
@@ -171,10 +216,11 @@ function buildElkGraph(
 		? new Map(input.parentIndex.containerParent)
 		: new Map<string, string>();
 
-	// Determine if the current view benefits from layered child layout
+	// A left-to-right layered view lays its children out layered too
 	// (crossing minimization for port-to-port edges)
-	const view = input.view;
-	const useLayeredChildren = view === 'L2Physical';
+	const layout = getViewLayout(input.view);
+	const useLayeredChildren = layout.algorithm === 'layered_right';
+	const orderByOperStatus = layout.element_order === 'oper_status';
 	// The server has already sorted every container's children; the layout keeps that order.
 	const preserveOrder = !!input.preserveChildOrder;
 
@@ -308,8 +354,7 @@ function buildElkGraph(
 	}
 
 	// Add element nodes as children of their containers (skip collapsed)
-	// For L2 Physical: sort by oper_status (Up first) and assign layer IDs
-	// to spread ports across multiple columns within each container
+	// A view ordered by oper status sorts Up ports first.
 	// Collect elements per container for sorting
 	const elementsPerContainer = new Map<
 		string,
@@ -340,7 +385,7 @@ function buildElkGraph(
 		const parent = containers.get(parentId);
 		if (!parent?.children) continue;
 
-		if (useLayeredChildren) {
+		if (orderByOperStatus) {
 			// Sort: Up ports first, then Down, then others
 			const statusOrder = (n: TopologyNode): number => {
 				const status = (n as Record<string, unknown>).oper_status as string | undefined;
@@ -452,9 +497,9 @@ function buildElkGraph(
 		}
 	}
 
-	// For L2: count Up ports inside each subcontainer for sorting
+	// Ordered by oper status: count Up ports inside each subcontainer for sorting
 	const subcontainerUpCount = new Map<string, number>();
-	if (useLayeredChildren) {
+	if (orderByOperStatus) {
 		for (const [subId] of parentContainerMap) {
 			const sub = containers.get(subId);
 			if (!sub?.children) continue;
@@ -476,9 +521,9 @@ function buildElkGraph(
 	// input order instead.
 	const inputRank = new Map(input.nodes.map((node, index) => [node.id, index]));
 
-	// Sort children: for L2 views, subcontainers (with connected Up ports) come FIRST
-	// so edges don't traverse through disconnected Down ports.
-	// For other views: elements grouped by target, then subcontainers last.
+	// Sort children: ordered by oper status, elements keep their status order and subcontainers
+	// rank by Up port count, so edges don't traverse through disconnected Down ports.
+	// Otherwise: elements grouped by target, then subcontainers last.
 	for (const [containerId, container] of containers) {
 		if (!container.children || container.children.length < 2) continue;
 		if (preserveOrder) {
@@ -491,7 +536,7 @@ function buildElkGraph(
 			const aIsSub = containerIds.has(a.id) ? 1 : 0;
 			const bIsSub = containerIds.has(b.id) ? 1 : 0;
 
-			if (useLayeredChildren) {
+			if (orderByOperStatus) {
 				if (aIsSub !== bIsSub) return aIsSub - bIsSub;
 				if (aIsSub && bIsSub) {
 					// Sort subcontainers by Up port count ascending —
@@ -803,9 +848,6 @@ function buildElkGraph(
 	}
 
 	// Switch root containers with cross-child edges from box to layered
-	if (useLayeredChildren) {
-		// Cross-child edge containers switched to layered below
-	}
 	for (const rootId of rootsWithCrossChildEdges) {
 		const container = containers.get(rootId);
 		if (container?.layoutOptions) {
@@ -819,7 +861,7 @@ function buildElkGraph(
 			container.layoutOptions['elk.layered.spacing.nodeNodeBetweenLayers'] = '10';
 			container.layoutOptions['elk.layered.spacing.edgeNodeBetweenLayers'] = '5';
 			container.layoutOptions['elk.layered.compaction.postCompaction.strategy'] = 'EDGE_LENGTH';
-			if (useLayeredChildren) {
+			if (orderByOperStatus) {
 				// Force model order so our status-based sort (subcontainers first,
 				// Up ports next, Down ports last) is preserved
 				container.layoutOptions['elk.layered.crossingMinimization.forceNodeModelOrder'] = 'true';
@@ -911,12 +953,11 @@ function buildElkGraph(
 		}
 	}
 
-	// Workloads: sort containers by app-relevant workload count (descending).
+	// Sort root containers by app-relevant workload count (descending).
 	// Uses topology.services and topology.hosts (always full data, independent
 	// of collapse level) instead of input.nodes (which only has visible nodes).
-	const isWorkloads = view === 'Workloads';
-	const isApplication = view === 'Application';
-	if (isWorkloads && input.topology) {
+	const orderByWorkloadCount = layout.root_order === 'workload_count';
+	if (orderByWorkloadCount && input.topology) {
 		const irrelevantCategories = getIrrelevantServiceCategories(getOrgUseCase());
 
 		// Count app-relevant services per host_id
@@ -944,40 +985,37 @@ function buildElkGraph(
 			}
 		}
 
-		// Map host title → count, then sort containers by header (= the same title).
-		//
-		// Keyed on `hostDisplayName`, not the raw `name`: the join below is against
-		// `node.header`, which is the server-resolved title. Every host that has never been named
-		// keys as the empty string under `name`, so none of them ever matched their own container
-		// and the density sort silently degraded for exactly the hosts it mattered for.
-		const countByHostName = new Map<string, number>();
-		for (const host of input.topology.hosts ?? []) {
-			const count = countByHostId.get(host.id) ?? 0;
-			countByHostName.set(hostDisplayName(host), count);
-		}
-
-		// Names resolved once per container. Two linear scans per comparison over 19,095 nodes made
-		// this the single most expensive thing in graph construction.
-		const nameById = new Map(rootContainers.map((c) => [c.id, nodeById.get(c.id)?.header ?? '']));
+		// A host container's `entity_id` is its host's id, so the count joins on it directly; the
+		// header breaks ties. Count and header are resolved once per container: two linear scans per
+		// comparison over 19,095 nodes made this the single most expensive thing in graph
+		// construction.
+		const rankById = new Map(
+			rootContainers.map((c) => {
+				const node = nodeById.get(c.id);
+				const hostId =
+					node?.node_type === 'Container'
+						? ((node as Record<string, unknown>).entity_id as string | undefined)
+						: undefined;
+				return [
+					c.id,
+					{ count: hostId ? (countByHostId.get(hostId) ?? 0) : 0, name: node?.header ?? '' }
+				];
+			})
+		);
 		rootContainers.sort((a, b) => {
-			const nameA = nameById.get(a.id) ?? '';
-			const nameB = nameById.get(b.id) ?? '';
-			const countA = countByHostName.get(nameA) ?? 0;
-			const countB = countByHostName.get(nameB) ?? 0;
+			const rankA = rankById.get(a.id);
+			const rankB = rankById.get(b.id);
+			const countA = rankA?.count ?? 0;
+			const countB = rankB?.count ?? 0;
 			if (countB !== countA) return countB - countA;
-			return nameA.localeCompare(nameB);
+			return (rankA?.name ?? '').localeCompare(rankB?.name ?? '');
 		});
 	}
 
-	if (useLayeredChildren) {
-		// Root options set via ternary below
-	}
-
-	// Workloads: assign descending priority so box packing places
-	// highest-workload containers first (top-left).
-	// Backend sends containers sorted by descending workload count,
-	// so first container gets highest priority.
-	if (isWorkloads) {
+	// Assign descending priority so box packing places highest-workload containers first
+	// (top-left). The sort above put them in descending workload count, so the first container
+	// gets the highest priority.
+	if (orderByWorkloadCount) {
 		for (let i = 0; i < rootContainers.length; i++) {
 			const container = rootContainers[i];
 			if (!container.layoutOptions) container.layoutOptions = {};
@@ -985,58 +1023,14 @@ function buildElkGraph(
 		}
 	}
 
-	const rootOptions = useLayeredChildren
-		? {
-				'elk.algorithm': 'layered',
-				'elk.direction': 'RIGHT',
-				'elk.edgeRouting': 'POLYLINE',
-				'elk.spacing.nodeNode': '50',
-				'elk.spacing.componentComponent': '75',
-				// L2 lays out RIGHT, so a layer is a *vertical* stack of switches and the spacing
-				// between layers is the *horizontal* gap between those stacks — the axes are
-				// inverted relative to every other view, which runs DOWN. Widened from 75 so the
-				// port-to-port edges running between stacks have room to be followed by eye.
-				'elk.layered.spacing.nodeNodeBetweenLayers': '150',
-				'elk.layered.spacing.edgeNodeBetweenLayers': '25',
-				'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-				'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
-				'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-				'elk.layered.nodePlacement.strategy': 'SIMPLE',
-				'elk.layered.compaction.connectedComponents': 'true',
-				'elk.hierarchyHandling': 'SEPARATE_CHILDREN',
-				'elk.padding': '[top=25,left=25,bottom=25,right=25]'
-			}
-		: isWorkloads
-			? {
-					...ROOT_LAYOUT_OPTIONS,
-					'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
-					'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-					'elk.layered.considerModelOrder.components': 'MODEL_ORDER'
-				}
-			: isApplication
-				? {
-						// Application's container groups (Storage, Web Tier, Database,
-						// Monitoring, Ungrouped, …) are mostly independent with only a few
-						// cross-group flow edges. Layered layout strings the connected ones
-						// into a diagonal cascade and shelf-packs the rest, leaving large
-						// empty gaps. rectpacking instead tiles every group compactly into a
-						// landscape rectangle (whitespace-minimizing); the sparse flow edges
-						// still render but don't drive placement.
-						'elk.algorithm': 'rectpacking',
-						'elk.aspectRatio': '1.6',
-						'elk.spacing.nodeNode': '40',
-						'elk.padding': '[top=25,left=25,bottom=25,right=25]'
-					}
-				: ROOT_LAYOUT_OPTIONS;
-
 	const graph: ElkNode = {
 		id: 'root',
-		layoutOptions: rootOptions,
+		layoutOptions: ROOT_OPTIONS_BY_ALGORITHM[layout.algorithm],
 		children: rootContainers,
-		// rectpacking (Application) ignores edges for placement and can choke on
-		// cross-hierarchy endpoints; downstream reads only node positions, so the
-		// root edge set is unnecessary here. Container-internal edges are unaffected.
-		edges: isApplication ? [] : edges
+		// rectpacking ignores edges for placement and can choke on cross-hierarchy endpoints;
+		// downstream reads only node positions, so a view that packs its roots drops the root
+		// edge set. Container-internal edges are unaffected.
+		edges: layout.root_edges ? edges : []
 	};
 
 	return { graph, containerIds };
@@ -1483,10 +1477,9 @@ function repackDisconnectedContainers(
 	result: ElkLayoutResult,
 	input: ElkLayoutInput
 ): ElkLayoutResult {
-	const view = input.view;
-	// Application packs all root containers compactly via rectpacking, so the
-	// shelf-pack of "disconnected" groups would only scatter them back out.
-	if (view === 'L2Physical' || view === 'Workloads' || view === 'Application') return result;
+	// A view that packs every root container itself (rectpacking) or keeps a deliberate root order
+	// would only have its groups scattered back out by this shelf-pack.
+	if (!getViewLayout(input.view).repack_disconnected) return result;
 
 	// Build element → root container mapping
 	const parentContainerMap = new Map<string, string>();
@@ -1691,9 +1684,9 @@ export async function computeElkLayout(input: ElkLayoutInput): Promise<ElkLayout
 	const result2 = await elk.layout(graph2);
 	elkPass2Done();
 
-	// L2: top-align layers by shifting each layer's top node to the same Y.
+	// Top-align layers by shifting each layer's top node to the same Y.
 	// ELK centers layers independently, causing vertical misalignment.
-	if (input.view === 'L2Physical' && result2.children) {
+	if (getViewLayout(input.view).align_layers_top && result2.children) {
 		// Group children by X-band (layer). Merge bands whose containers
 		// would horizontally overlap after top-alignment — without merging,
 		// containers in nearby but distinct X-bands both get y=TOP and overlap.
