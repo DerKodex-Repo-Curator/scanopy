@@ -459,7 +459,7 @@
 								<DocsHint
 									class="mt-2"
 									text={settings_billing_license_installHint()}
-									href="https://scanopy.net/docs/self-hosted-server/server-installation/"
+									href="https://scanopy.net/docs/self-hosted-server/commercial-deployment/"
 									linkText={settings_billing_license_installLinkText()}
 								/>
 							</div>
