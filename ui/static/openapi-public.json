@@ -22643,6 +22643,14 @@
           }
         }
       },
+      "DependencyMemberType": {
+        "type": "string",
+        "description": "Whether dependencies are tracked by service or by specific binding",
+        "enum": [
+          "Services",
+          "Bindings"
+        ]
+      },
       "DependencyMembers": {
         "oneOf": [
           {
@@ -28236,6 +28244,25 @@
           "1-3 months",
           "3-6 months",
           "exploring"
+        ]
+      },
+      "InspectorSection": {
+        "type": "string",
+        "description": "A section that can appear in the inspector panel",
+        "enum": [
+          "Identity",
+          "Details",
+          "InterfaceData",
+          "Services",
+          "Dependencies",
+          "HostDetail",
+          "Virtualization",
+          "OtherInterfaces",
+          "PortBindings",
+          "SubnetDetail",
+          "ElementSummary",
+          "DependencySummary",
+          "Application"
         ]
       },
       "InstallArtifacts": {
@@ -36699,6 +36726,46 @@
               "$ref": "#/components/schemas/EntityDiscriminants"
             },
             "description": "Entity types folded into that element rather than drawn separately."
+          }
+        }
+      },
+      "ViewInspectorConfig": {
+        "type": "object",
+        "description": "View-specific inspector panel configuration.\nDetermines which sections appear and in what order for each view.",
+        "required": [
+          "element_sections",
+          "container_sections",
+          "show_application_picker"
+        ],
+        "properties": {
+          "container_sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectorSection"
+            },
+            "description": "Inspector sections shown when a container is selected."
+          },
+          "dependency_creation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DependencyMemberType",
+                "description": "What type of member a dependency can be drawn between in this view."
+              }
+            ]
+          },
+          "element_sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectorSection"
+            },
+            "description": "Inspector sections shown when an element is selected."
+          },
+          "show_application_picker": {
+            "type": "boolean",
+            "description": "Whether the inspector offers the application picker."
           }
         }
       },

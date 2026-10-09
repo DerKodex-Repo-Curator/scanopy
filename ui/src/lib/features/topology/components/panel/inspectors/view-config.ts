@@ -9,6 +9,7 @@
  */
 
 import type { Component } from 'svelte';
+import type { components } from '$lib/api/schema';
 import { views } from '$lib/shared/stores/metadata';
 
 import SectionIdentity from './sections/SectionIdentity.svelte';
@@ -18,7 +19,6 @@ import SectionServices from './sections/SectionServices.svelte';
 import SectionDependencies from './sections/SectionDependencies.svelte';
 import SectionHostDetail from './sections/SectionHostDetail.svelte';
 import SectionOtherIPAddresses from './sections/SectionOtherIPAddresses.svelte';
-import SectionTags from './sections/SectionTags.svelte';
 import SectionPortBindings from './sections/SectionPortBindings.svelte';
 import SectionSubnetDetail from './sections/SectionSubnetDetail.svelte';
 import SectionElementSummary from './sections/SectionElementSummary.svelte';
@@ -26,29 +26,11 @@ import SectionDependencySummary from './sections/SectionDependencySummary.svelte
 import SectionApplication from './sections/SectionApplication.svelte';
 import SectionVirtualization from './sections/SectionVirtualization.svelte';
 
-export type InspectorSection =
-	| 'Identity'
-	| 'Details'
-	| 'InterfaceData'
-	| 'Services'
-	| 'Dependencies'
-	| 'HostDetail'
-	| 'Virtualization'
-	| 'OtherInterfaces'
-	| 'Tags'
-	| 'PortBindings'
-	| 'SubnetDetail'
-	| 'ElementSummary'
-	| 'DependencySummary'
-	| 'Application';
+export type InspectorSection = components['schemas']['InspectorSection'];
+export type ViewInspectorConfig = components['schemas']['ViewInspectorConfig'];
 
-export interface ViewInspectorConfig {
-	element_sections: InspectorSection[];
-	container_sections: InspectorSection[];
-	dependency_creation: string | null;
-	show_application_picker: boolean;
-}
-
+// Keyed by the backend's section enum, so a section the backend adds fails to compile here until
+// it has a component.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SECTION_COMPONENTS: Record<InspectorSection, Component<any>> = {
 	Identity: SectionIdentity,
@@ -59,7 +41,6 @@ const SECTION_COMPONENTS: Record<InspectorSection, Component<any>> = {
 	HostDetail: SectionHostDetail,
 	Virtualization: SectionVirtualization,
 	OtherInterfaces: SectionOtherIPAddresses,
-	Tags: SectionTags,
 	PortBindings: SectionPortBindings,
 	SubnetDetail: SectionSubnetDetail,
 	ElementSummary: SectionElementSummary,
@@ -83,7 +64,7 @@ export function getInspectorConfig(viewId: string): ViewInspectorConfig {
 	if (meta?.inspector_config) return meta.inspector_config;
 	// Fallback for safety — should never happen if fixtures are up to date
 	return {
-		element_sections: ['Identity', 'Tags'],
+		element_sections: ['Identity'],
 		container_sections: ['Identity'],
 		dependency_creation: null,
 		show_application_picker: false

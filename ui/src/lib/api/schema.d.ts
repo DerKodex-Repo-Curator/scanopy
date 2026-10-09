@@ -7889,6 +7889,11 @@ export interface components {
             tags: string[];
         };
         /**
+         * @description Whether dependencies are tracked by service or by specific binding
+         * @enum {string}
+         */
+        DependencyMemberType: "Services" | "Bindings";
+        /**
          * @description The members of a dependency: either service-level or binding-level.
          *     Bindings are all-or-nothing: either every position has a binding (full L3 detail)
          *     or none do (Application-level only).
@@ -10178,6 +10183,11 @@ export interface components {
          * @enum {string}
          */
         InquiryTimeline: "immediately" | "1-3 months" | "3-6 months" | "exploring";
+        /**
+         * @description A section that can appear in the inspector panel
+         * @enum {string}
+         */
+        InspectorSection: "Identity" | "Details" | "InterfaceData" | "Services" | "Dependencies" | "HostDetail" | "Virtualization" | "OtherInterfaces" | "PortBindings" | "SubnetDetail" | "ElementSummary" | "DependencySummary" | "Application";
         /**
          * @description Everything the UI needs to install (or reconfigure) a daemon, one field per install method so
          *     each is a first-class peer with its own content — no method is a special case bolted onto a
@@ -14295,6 +14305,19 @@ export interface components {
             entity_type: components["schemas"]["EntityDiscriminants"];
             /** @description Entity types folded into that element rather than drawn separately. */
             inline_entities: components["schemas"]["EntityDiscriminants"][];
+        };
+        /**
+         * @description View-specific inspector panel configuration.
+         *     Determines which sections appear and in what order for each view.
+         */
+        ViewInspectorConfig: {
+            /** @description Inspector sections shown when a container is selected. */
+            container_sections: components["schemas"]["InspectorSection"][];
+            dependency_creation?: null | components["schemas"]["DependencyMemberType"];
+            /** @description Inspector sections shown when an element is selected. */
+            element_sections: components["schemas"]["InspectorSection"][];
+            /** @description Whether the inspector offers the application picker. */
+            show_application_picker: boolean;
         };
         Vlan: components["schemas"]["VlanBase"] & {
             /**

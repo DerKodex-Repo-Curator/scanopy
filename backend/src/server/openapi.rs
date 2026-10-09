@@ -54,7 +54,9 @@ use crate::server::subnets::r#impl::nesting::SubnetResponse;
 use crate::server::tags::handlers::TagOrderField;
 use crate::server::tags::r#impl::base::Tag;
 use crate::server::topology::types::base::Topology;
-use crate::server::topology::types::views::ViewElementConfig;
+use crate::server::topology::types::views::{
+    DependencyMemberType, InspectorSection, ViewElementConfig, ViewInspectorConfig,
+};
 use crate::server::user_api_keys::r#impl::base::UserApiKey;
 use crate::server::users::r#impl::base::User;
 use crate::server::vlans::handlers::VlanOrderField;
@@ -121,6 +123,11 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         // untyped `TypeMetadata.metadata`, so nothing else pulls it into the schema; the topology
         // types its colour marks and filters from here.
         ViewElementConfig,
+        // A view's inspector sections and dependency creation mode, from the same fixture; the
+        // inspector types its section registry from here rather than keeping its own union.
+        ViewInspectorConfig,
+        InspectorSection,
+        DependencyMemberType,
         // The filter state a host virtualization type files under. Travels inside
         // `host-virtualizations.json`'s untyped `TypeMetadata.metadata`.
         HostVirtualizationState,
