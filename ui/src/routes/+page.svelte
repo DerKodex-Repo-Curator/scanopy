@@ -25,7 +25,11 @@
 		useOrganizationQuery,
 		useDaemonPromptResponseMutation
 	} from '$lib/features/organizations/queries';
-	import { hasLicensedPlan, isBillingPlanActive } from '$lib/features/organizations/types';
+	import {
+		hasLicensedPlan,
+		isBillingPlanActive,
+		isSelfHostedPlanLocked as isSelfHostedPlanLockedFor
+	} from '$lib/features/organizations/types';
 	import { billingPlans } from '$lib/shared/stores/metadata';
 	import { licenseTabVisible } from '$lib/features/settings/license-tab';
 	import { reopenSettingsAfterBilling } from '$lib/features/billing/stores';
@@ -66,8 +70,8 @@
 	// within milliseconds and the License tab flickers out of the tab list.
 	let licensedPlanJustPicked = $state(false);
 	let isSelfHostedPlanLocked = $derived(
-		billingEnabled &&
-			(licensedPlanJustPicked || (organization != null && hasLicensedPlan(organization)))
+		(billingEnabled && licensedPlanJustPicked) ||
+			isSelfHostedPlanLockedFor(organization, billingEnabled)
 	);
 	$effect(() => {
 		if (licensedPlanJustPicked && organization != null && hasLicensedPlan(organization)) {
@@ -217,7 +221,7 @@
 
 	// A URL deep link (initModalFromUrl) can name a main-app modal, and the org may
 	// load after it opened. While locked, only the settings and billing modals stay.
-	const LOCKED_ORG_MODALS = ['settings', 'billing-plan', 'payment-method', 'support'];
+	const LOCKED_ORG_MODALS = ['settings', 'billing-plan', 'payment-method'];
 	$effect(() => {
 		const name = $modalState.name;
 		if (isSelfHostedPlanLocked && name && !LOCKED_ORG_MODALS.includes(name)) {

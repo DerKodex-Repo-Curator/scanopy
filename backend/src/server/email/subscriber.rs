@@ -177,7 +177,11 @@ impl Subscriber<BillingOperation> for EmailService {
                         // Leaving a self-hosted plan ends the license, which
                         // the cloud email has to say.
                         (from_licensed, false) => {
-                            self.send_plan_changed_email(org_owner, to.name(), from_licensed)
+                            // An org that never minted a key gets the online
+                            // wording; nothing is running on its key.
+                            let ended_license = from_licensed
+                                .then(|| license_key_type.unwrap_or(LicenseKeyType::Online));
+                            self.send_plan_changed_email(org_owner, to.name(), ended_license)
                                 .await?;
                         }
                     }

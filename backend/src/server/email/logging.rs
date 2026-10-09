@@ -68,7 +68,7 @@ impl LoggingEmailProvider {
         let mut metadata = vec![
             format!("To: {to}"),
             format!("Subject: {subject}"),
-            format!("Category: {}", email.category().as_str()),
+            format!("Category: {}", email.category().tag()),
             format!("Date: {}", timestamp.to_rfc3339()),
             format!("Base-URL: {base_url}"),
             format!("Self-Hosted: {self_hosted}"),
@@ -134,7 +134,7 @@ impl EmailTransport for LoggingEmailProvider {
         tracing::info!(
             to = %to,
             subject = %email.subject(),
-            category = email.category().as_str(),
+            category = email.category().tag(),
             base_url = base_url,
             self_hosted = self_hosted,
             file = written.as_ref().map(|p| p.display().to_string()),
@@ -174,7 +174,7 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::email::messages::{EmailCategory, EmailPreference};
+    use crate::server::email::messages::EmailCategory;
 
     struct TestEmail;
 
@@ -189,10 +189,6 @@ mod tests {
 
         fn category(&self) -> EmailCategory {
             EmailCategory::Auth
-        }
-
-        fn preference(&self) -> EmailPreference {
-            EmailPreference::Required
         }
 
         fn campaign(&self) -> &'static str {

@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent when a self-hosted licence renews and the organization holds an
 /// air-gapped key. That key carries its expiry inside it and the customer's
@@ -19,12 +19,8 @@ impl Email for AirgapRenewal<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
         // Skipping this one takes the customer's server read-only.
-        EmailPreference::Required
+        EmailCategory::Billing
     }
 
     fn campaign(&self) -> &'static str {

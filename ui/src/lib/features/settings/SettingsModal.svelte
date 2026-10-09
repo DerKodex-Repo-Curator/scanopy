@@ -1,7 +1,16 @@
 <script lang="ts">
 	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
 	import ModalHeaderIcon from '$lib/shared/components/layout/ModalHeaderIcon.svelte';
-	import { User, Building2, CreditCard, KeyRound, Mail, Settings, Monitor } from 'lucide-svelte';
+	import {
+		User,
+		Building2,
+		CreditCard,
+		KeyRound,
+		Mail,
+		Settings,
+		Monitor,
+		LifeBuoy
+	} from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { hasLicensedPlan } from '$lib/features/organizations/types';
@@ -17,6 +26,7 @@
 	import LicenseTab from './LicenseTab.svelte';
 	import EmailTab from './EmailTab.svelte';
 	import SystemTab from './SystemTab.svelte';
+	import SupportTab from './SupportTab.svelte';
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
 	import AppBanners from '$lib/shared/components/feedback/AppBanners.svelte';
 	import {
@@ -26,6 +36,7 @@
 		common_license,
 		common_organization,
 		common_settings,
+		common_support,
 		common_system,
 		settings_billing_ownerHoldsLicense,
 		settings_billing_ownerMustResolve
@@ -99,7 +110,8 @@
 			notification: billingNeedsAttention
 		},
 		{ id: 'license', label: common_license(), icon: KeyRound },
-		{ id: 'system', label: common_system(), icon: Monitor }
+		{ id: 'system', label: common_system(), icon: Monitor },
+		{ id: 'support', label: common_support(), icon: LifeBuoy }
 	]);
 
 	// Filter tabs based on permissions
@@ -213,6 +225,8 @@
 			<LicenseTab onClose={handleClose} {dismissible} />
 		{:else if activeTab === 'system'}
 			<SystemTab />
+		{:else if activeTab === 'support'}
+			<SupportTab onClose={handleClose} {dismissible} />
 		{/if}
 	</div>
 </GenericModal>

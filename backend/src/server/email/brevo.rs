@@ -46,7 +46,7 @@ fn send_payload(
         "to": [{ "email": to.to_string() }],
         "subject": email.subject(),
         "htmlContent": email.render_html(base_url, self_hosted),
-        "tags": [email.category().as_str(), email.campaign()],
+        "tags": [email.category().tag(), email.campaign()],
     });
 
     // Brevo takes attachments as base64 `content` + `name` entries.

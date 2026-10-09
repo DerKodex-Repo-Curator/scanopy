@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 const INSTALL_DOCS_URL: &str = "https://scanopy.net/docs/self-hosted-server/server-installation/";
 const BOOK_DEMO_URL: &str = "https://cal.com/mferrandiz/scanopy-demo";
@@ -21,13 +21,9 @@ impl Email for SelfHostedWelcome<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
         // Carries the license key location and the install guide: without it
         // the customer cannot run the software they just signed up for.
-        EmailPreference::Required
+        EmailCategory::Billing
     }
 
     fn campaign(&self) -> &'static str {
@@ -43,7 +39,10 @@ impl Email for SelfHostedWelcome<'_> {
             )
             .paragraph(&format!(
                 r#"The <a href="{INSTALL_DOCS_URL}?{{utm}}">self-hosted install guide</a> walks through running the server and pointing a daemon at it."#
-            ));
+            ))
+            .paragraph(
+                "Your server has its own accounts, so create one there the first time you open it. Your Scanopy Cloud login works only on Scanopy Cloud.",
+            );
 
         content = match self.trial_days {
             Some(days) => content.paragraph(&format!(

@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, PausableCategory, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Alerts that a daemon is unreachable and scheduled discoveries are skipped.
 pub struct DaemonUnreachable<'a> {
@@ -12,11 +12,7 @@ impl Email for DaemonUnreachable<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Daemon
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::DaemonAlerts)
+        EmailCategory::DaemonAlerts
     }
 
     fn campaign(&self) -> &'static str {

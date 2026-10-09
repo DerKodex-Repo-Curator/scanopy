@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent before a self-hosted licence renews, to an organization holding an
 /// air-gapped key. Their server never contacts Scanopy, so without this the
@@ -21,13 +21,9 @@ impl Email for AirgapExpiring<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
         // Missing this one means an unexpected charge, or a server that goes
         // read-only with no warning.
-        EmailPreference::Required
+        EmailCategory::Billing
     }
 
     fn campaign(&self) -> &'static str {

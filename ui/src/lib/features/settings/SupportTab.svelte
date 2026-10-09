@@ -1,24 +1,14 @@
 <script lang="ts">
-	import {
-		Bug,
-		AlertTriangle,
-		Lightbulb,
-		LifeBuoy,
-		BookOpen,
-		Mail,
-		CalendarCheck
-	} from 'lucide-svelte';
-	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
-	import ModalHeaderIcon from '$lib/shared/components/layout/ModalHeaderIcon.svelte';
+	import { Bug, AlertTriangle, Lightbulb, BookOpen, Mail, CalendarCheck } from 'lucide-svelte';
 	import { VERSION } from '$lib/version';
 	import { createColorHelper, type Color } from '$lib/shared/utils/styling';
 	import type { IconComponent } from '$lib/shared/utils/types';
-	import { useOrganizationQuery } from '../organizations/queries';
+	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { billingPlans } from '$lib/shared/stores/metadata';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import InfoCard from '$lib/shared/components/data/InfoCard.svelte';
 	import InfoRow from '$lib/shared/components/data/InfoRow.svelte';
-	import { BOOK_CALL_URL, supportEmailAddress } from './support';
+	import { BOOK_CALL_URL, supportEmailAddress } from '$lib/features/support/support';
 	import {
 		common_close,
 		common_email,
@@ -38,7 +28,6 @@
 		support_reportBugDesc,
 		support_requestFeature,
 		support_requestFeatureDesc,
-		support_title,
 		support_userGuide,
 		support_userGuideDesc
 	} from '$lib/paraglide/messages';
@@ -52,13 +41,11 @@
 	};
 
 	let {
-		isOpen = false,
 		onClose,
-		name = undefined
+		dismissible = true
 	}: {
-		isOpen: boolean;
 		onClose: () => void;
-		name?: string;
+		dismissible?: boolean;
 	} = $props();
 
 	// TanStack Query for current user and organization
@@ -142,52 +129,48 @@
 	}
 </script>
 
-<GenericModal {isOpen} title={support_title()} {name} {onClose} size="xl">
-	{#snippet headerIcon()}
-		<ModalHeaderIcon Icon={LifeBuoy} color="Blue" />
-	{/snippet}
+<div class="flex min-h-0 flex-1 flex-col">
+	<div class="flex-1 space-y-6 overflow-auto p-6">
+		<p class="text-secondary text-sm">
+			{support_description()}
+		</p>
 
-	<div class="flex min-h-0 flex-1 flex-col">
-		<div class="flex-1 space-y-6 overflow-auto p-6">
-			<p class="text-secondary text-sm">
-				{support_description()}
-			</p>
-
-			<div class="grid grid-cols-2 gap-3">
-				{#each supportOptions as option (option.description)}
-					{@const colors = createColorHelper(option.color)}
-					<button onclick={() => handleCardClick(option.url)} class="card w-full text-left">
-						<div class="flex items-center gap-3">
-							<div
-								class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg {colors.bg}"
-							>
-								{#if typeof option.icon === 'string'}
-									<img src={option.icon} alt={option.title} class="h-5 w-5" />
-								{:else}
-									<option.icon class="h-5 w-5 {colors.icon}" />
-								{/if}
-							</div>
-							<div class="min-w-0 flex-1">
-								<p class="text-primary text-sm font-medium">{option.title}</p>
-								<p class="text-secondary truncate text-xs">{option.description}</p>
-							</div>
+		<div class="grid grid-cols-2 gap-3">
+			{#each supportOptions as option (option.description)}
+				{@const colors = createColorHelper(option.color)}
+				<button onclick={() => handleCardClick(option.url)} class="card w-full text-left">
+					<div class="flex items-center gap-3">
+						<div
+							class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg {colors.bg}"
+						>
+							{#if typeof option.icon === 'string'}
+								<img src={option.icon} alt={option.title} class="h-5 w-5" />
+							{:else}
+								<option.icon class="h-5 w-5 {colors.icon}" />
+							{/if}
 						</div>
-					</button>
-				{/each}
-			</div>
-			<InfoCard title={support_info()}>
-				<InfoRow label={common_version()}>{VERSION}</InfoRow>
-				<InfoRow label={support_orgId()} mono={true}>
-					{organization?.id ?? '—'}
-				</InfoRow>
-				<InfoRow label={common_userId()} mono={true}>{currentUser?.id ?? '—'}</InfoRow>
-			</InfoCard>
+						<div class="min-w-0 flex-1">
+							<p class="text-primary text-sm font-medium">{option.title}</p>
+							<p class="text-secondary truncate text-xs">{option.description}</p>
+						</div>
+					</div>
+				</button>
+			{/each}
 		</div>
+		<InfoCard title={support_info()}>
+			<InfoRow label={common_version()}>{VERSION}</InfoRow>
+			<InfoRow label={support_orgId()} mono={true}>
+				{organization?.id ?? '—'}
+			</InfoRow>
+			<InfoRow label={common_userId()} mono={true}>{currentUser?.id ?? '—'}</InfoRow>
+		</InfoCard>
+	</div>
 
+	{#if dismissible}
 		<div class="modal-footer">
 			<div class="flex justify-end">
 				<button type="button" onclick={onClose} class="btn-secondary">{common_close()}</button>
 			</div>
 		</div>
-	</div>
-</GenericModal>
+	{/if}
+</div>

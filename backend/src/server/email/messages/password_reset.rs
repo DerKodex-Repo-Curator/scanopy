@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Sent when a user requests a password reset, providing a time-limited link
 /// to choose a new password.
@@ -14,10 +14,6 @@ impl Email for PasswordReset<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Auth
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

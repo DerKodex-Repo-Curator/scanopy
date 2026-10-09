@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent when a checkout completes: welcomes the user to their newly active paid
 /// plan.
@@ -13,10 +13,6 @@ impl Email for CheckoutCompleted<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

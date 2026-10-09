@@ -134,10 +134,13 @@ export function initModalFromUrl(): void {
 	const params = new URLSearchParams(window.location.search);
 	const name = params.get('modal');
 	if (!name) return;
+	// Support was its own modal before it became a Settings tab; older links
+	// still name it.
+	const isLegacySupport = name === 'support';
 	const state: ModalState = {
-		name,
+		name: isLegacySupport ? 'settings' : name,
 		id: params.get('id'),
-		tab: params.get('tab'),
+		tab: isLegacySupport ? 'support' : params.get('tab'),
 		subEntityId: params.get('subEntityId'),
 		returnUrl: null,
 		returnTitle: null

@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Sent as a security notice when an OIDC login provider is unlinked from a
 /// user's account.
@@ -13,10 +13,6 @@ impl Email for OidcUnlinked<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Auth
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Tells the user a previously failed payment has gone through and their
 /// subscription is active again.
@@ -13,10 +13,6 @@ impl Email for PaymentRecovered<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

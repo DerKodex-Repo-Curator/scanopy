@@ -15,7 +15,11 @@
 	import { priceToCharge } from '$lib/features/billing/pricing';
 	import { triggerUpgrade } from '$lib/features/billing/trigger-upgrade';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { hasLicensedPlan, isPlanLapsed } from '$lib/features/organizations/types';
+	import {
+		hasLicensedPlan,
+		isPlanLapsed,
+		isSelfHostedPlanLocked
+	} from '$lib/features/organizations/types';
 	import type { Organization } from '$lib/features/organizations/types';
 	import { billingPlans } from '$lib/shared/stores/metadata';
 	import { useConfigQuery } from '$lib/shared/stores/config-query';
@@ -54,6 +58,7 @@
 		settings_billing_license_keyTypeChanged,
 		settings_billing_license_keyTypeLabel,
 		settings_billing_license_lastCheckIn,
+		settings_billing_license_notSelfHosting,
 		settings_billing_license_offlineKeyUpsell,
 		settings_billing_license_onlineLockedUntil,
 		settings_billing_license_validThrough,
@@ -65,6 +70,7 @@
 		settings_billing_license_switchConfirm,
 		settings_billing_license_switchOnlineConfirm,
 		settings_billing_license_switchTitle,
+		settings_billing_license_switchToCloud,
 		settings_billing_payInvoice
 	} from '$lib/paraglide/messages';
 
@@ -282,6 +288,19 @@
 		startSetupPayment({ org, source: 'license_tab', trialDaysLeft: getTrialDaysLeft(org) });
 	}
 
+	// The way back for an org that decides not to self-host. Opens on the Cloud
+	// plans, where the picker says what happens to the license.
+	let locked = $derived(isSelfHostedPlanLocked(org, billingEnabled));
+	function openCloudPlans() {
+		triggerUpgrade({
+			source: 'settings_license_switch_to_cloud',
+			surface: 'billing_tab',
+			hosting: 'cloud',
+			reopenSettings: true,
+			beforeModal: () => onClose()
+		});
+	}
+
 	function openPlanPicker() {
 		triggerUpgrade({
 			source: 'settings_license',
@@ -447,6 +466,15 @@
 						</div>
 					</div>
 				</InfoCard>
+
+				{#if locked}
+					<p class="text-secondary text-sm">
+						{settings_billing_license_notSelfHosting()}
+						<button type="button" onclick={openCloudPlans} class="text-link hover:underline">
+							{settings_billing_license_switchToCloud()}
+						</button>
+					</p>
+				{/if}
 			</div>
 		{/if}
 	</div>

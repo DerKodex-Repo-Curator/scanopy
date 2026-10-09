@@ -11,14 +11,14 @@ use uuid::Uuid;
 use super::messages::{
     AirgapExpiring, AirgapRenewal, CancellationInitiated, CheckoutCompleted, DaemonStandby,
     DaemonSunset, DaemonUnreachable, DiscoveryDigest, DiscoveryGuide, Email, EmailAttachment,
-    EmailChangedOld, EmailPreference, InstallCommand, Invite, InvoiceCredited,
-    InvoiceFinalizationFailed, InvoiceIssued, InvoiceOverdue, OidcLinked, OidcUnlinked,
-    OrganizationDeleted, PasswordChanged, PasswordReset, PaymentActionRequired, PaymentFailed,
-    PaymentMethodAdded, PaymentMethodRemoved, PaymentRecovered, PlanChanged, PlanLimitApproaching,
-    PlanLimitReached, SelfHostedLicenseEnded, SelfHostedLicenseResumed, SelfHostedPaymentFailed,
-    SelfHostedPlanChanged, SelfHostedTrialEnding, SelfHostedWelcome, SubscriptionCancelled,
-    SubscriptionPaused, SubscriptionReactivated, SubscriptionResumed, TrialConverted, TrialEnding,
-    TrialExpired, TrialStarted, UsageSummary, Verification, links,
+    EmailChangedOld, InstallCommand, Invite, InvoiceCredited, InvoiceFinalizationFailed,
+    InvoiceIssued, InvoiceOverdue, OidcLinked, OidcUnlinked, OrganizationDeleted, PasswordChanged,
+    PasswordReset, PaymentActionRequired, PaymentFailed, PaymentMethodAdded, PaymentMethodRemoved,
+    PaymentRecovered, PlanChanged, PlanLimitApproaching, PlanLimitReached, SelfHostedLicenseEnded,
+    SelfHostedLicenseResumed, SelfHostedPaymentFailed, SelfHostedPlanChanged,
+    SelfHostedTrialEnding, SelfHostedWelcome, SubscriptionCancelled, SubscriptionPaused,
+    SubscriptionReactivated, SubscriptionResumed, TrialConverted, TrialEnding, TrialExpired,
+    TrialStarted, UsageSummary, Verification, links,
 };
 use super::transport::EmailTransport;
 use crate::server::{
@@ -28,6 +28,7 @@ use crate::server::{
     daemons::{r#impl::base::Daemon, service::DaemonService},
     digest::payload::DiscoveryDigestPayload,
     hosts::service::HostService,
+    license::types::LicenseKeyType,
     organizations::{
         r#impl::base::{LimitNotificationLevel, OrgNotifications, Organization},
         service::OrganizationService,
@@ -148,17 +149,25 @@ impl EmailService {
 
     /// Render `email` against the installed `public_url` and send it to `to`.
     ///
-    /// Pausable emails are gated on the recipient's preferences: if the user
-    /// has the matching category switched off, the send is silently skipped.
-    /// Required emails always send, and a recipient with no account yet
-    /// (pre-signup) defaults to sending.
+    /// Skipped silently when the recipient has paused the email's category,
+    /// or when their org is locked out of this app and
+    /// [`super::messages::EmailCategory::sent_while_self_hosted_plan_locked`] rules the
+    /// category out. A recipient with no account yet (pre-signup) defaults to
+    /// sending.
     async fn dispatch(&self, to: EmailAddress, email: &dyn Email) -> Result<()> {
         let recipient = self.user_service.get_by_email(&to).await?;
-        if matches!(email.preference(), EmailPreference::Pausable(_))
-            && let Some(user) = &recipient
-            && !user.base.email_settings.allows(email.preference())
-        {
-            return Ok(());
+        let category = email.category();
+        if let Some(user) = &recipient {
+            if !user.base.email_settings.allows(category) {
+                return Ok(());
+            }
+            if !category.sent_while_self_hosted_plan_locked()
+                && self
+                    .organization_self_hosted_plan_locked(&user.base.organization_id)
+                    .await?
+            {
+                return Ok(());
+            }
         }
         self.transport
             .send(
@@ -480,13 +489,13 @@ impl EmailService {
         &self,
         to: EmailAddress,
         plan_name: &str,
-        license_key_stops: bool,
+        ended_license: Option<LicenseKeyType>,
     ) -> Result<()> {
         self.dispatch(
             to,
             &PlanChanged {
                 plan_name,
-                license_key_stops,
+                ended_license,
             },
         )
         .await

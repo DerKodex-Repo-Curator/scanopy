@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, PausableCategory, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent when an organization crosses 80% of a plan limit (hosts/sites/seats).
 pub struct PlanLimitApproaching<'a> {
@@ -16,11 +16,7 @@ impl Email for PlanLimitApproaching<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::TrialAndUsage)
+        EmailCategory::TrialAndUsage
     }
 
     fn campaign(&self) -> &'static str {

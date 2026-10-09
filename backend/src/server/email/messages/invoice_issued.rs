@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Confirms that a self-hosted licence invoice has been sent, and that the
 /// licence key keeps working while the buyer's finance team pays it. Stripe
@@ -26,10 +26,6 @@ impl Email for InvoiceIssued<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

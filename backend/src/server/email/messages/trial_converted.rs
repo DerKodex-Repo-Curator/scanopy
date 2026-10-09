@@ -1,4 +1,4 @@
-use super::{BILLING_DETAILS_TAGLINE, Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{BILLING_DETAILS_TAGLINE, Body, Content, Email, EmailCategory, links};
 
 /// Sent when a trial converts to a paid subscription: confirms the active plan.
 pub struct TrialConverted<'a> {
@@ -13,10 +13,6 @@ impl Email for TrialConverted<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

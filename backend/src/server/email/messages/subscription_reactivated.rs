@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Confirms to the user that their pending cancellation was cleared and
 /// their subscription is active again. Fired by the email subscriber on
@@ -12,10 +12,6 @@ impl Email for SubscriptionReactivated {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

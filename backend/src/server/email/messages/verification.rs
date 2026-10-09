@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Sent after signup to confirm ownership of the email address via a
 /// time-limited verification link.
@@ -14,10 +14,6 @@ impl Email for Verification<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Auth
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

@@ -3,7 +3,6 @@
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { isBillingPlanActive, isPlanLapsed } from '$lib/features/organizations/types';
 	import SettingsModal from '$lib/features/settings/SettingsModal.svelte';
-	import SupportModal from '$lib/features/support/SupportModal.svelte';
 	import { billingPlans, entities, entityCategories } from '$lib/shared/stores/metadata';
 	import { useActiveSessionsQuery } from '$lib/features/discovery/queries';
 	import { useApiKeysQuery } from '$lib/features/daemon_api_keys/queries';
@@ -21,7 +20,6 @@
 		ChevronDown,
 		History,
 		Settings,
-		LifeBuoy,
 		ArrowUpCircle,
 		Clock,
 		Home,
@@ -41,7 +39,8 @@
 		globalSearch_openWithShortcut,
 		globalSearch_searchAll,
 		globalSearch_placeholder,
-		daemons_legacyKeyHelp
+		daemons_legacyKeyHelp,
+		common_settings
 	} from '$lib/paraglide/messages';
 	import {
 		getTrialDaysLeft,
@@ -111,8 +110,8 @@
 		settingsInitialTab?: string;
 		settingsDismissible?: boolean;
 		/** Org is locked out of the main app (licensed self-hosted plan on a
-		 * billing-enabled server): hide main navigation. Settings and Support
-		 * stay available. */
+		 * billing-enabled server): hide main navigation. Settings stays
+		 * available, with Support as one of its tabs. */
 		mainAppLocked?: boolean;
 		/** Config and org have loaded and the org is not locked. Main-app queries
 		 * wait for this rather than for `!mainAppLocked`, which is also true
@@ -164,8 +163,6 @@
 	let isReadOnly = $derived(
 		userPermissions === 'Viewer' || (organization != null && isPlanLapsed(organization))
 	);
-
-	let showSupport = $state(false);
 
 	// Show notification on settings only when trialing without payment method
 	// Free plan users don't need a payment method, so no dot for them.
@@ -231,14 +228,11 @@
 		daemonStatus = s.connectionStatus;
 	});
 
-	// Sync settings/support modal state from modal registry (for deep-link opens)
+	// Sync settings modal state from modal registry (for deep-link opens)
 	$effect(() => {
 		if ($modalState.name === 'settings' && !showSettings) {
 			settingsInitialTab = $modalState.tab ?? 'account';
 			showSettings = true;
-		}
-		if ($modalState.name === 'support' && !showSupport) {
-			showSupport = true;
 		}
 	});
 
@@ -411,20 +405,11 @@
 		...entitySections,
 		{
 			id: 'settings',
-			label: 'Settings',
+			label: common_settings(),
 			icon: Settings as IconComponent,
 			position: 'bottom',
 			onClick: async () => {
 				showSettings = true;
-			}
-		},
-		{
-			id: 'support',
-			label: 'Support',
-			icon: LifeBuoy,
-			position: 'bottom',
-			onClick: async () => {
-				showSupport = true;
 			}
 		}
 	];
@@ -963,4 +948,3 @@
 	dismissible={settingsDismissible}
 	{licensedPlanPending}
 />
-<SupportModal isOpen={showSupport} name="support" onClose={() => (showSupport = false)} />

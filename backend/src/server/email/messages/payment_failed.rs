@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent when a payment fails: prompts the user to update their payment method to
 /// avoid service interruption.
@@ -11,10 +11,6 @@ impl Email for PaymentFailed {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

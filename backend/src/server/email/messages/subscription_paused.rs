@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Confirms to the user that their subscription has been paused. Fired by the
 /// email subscriber on `BillingOperation::Paused`.
@@ -13,10 +13,6 @@ impl Email for SubscriptionPaused<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

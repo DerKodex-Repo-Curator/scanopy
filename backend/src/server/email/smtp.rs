@@ -173,7 +173,7 @@ impl EmailTransport for SmtpEmailProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::email::messages::{EmailCategory, EmailPreference};
+    use crate::server::email::messages::EmailCategory;
     use crate::server::shared::types::api::ApiError;
     use crate::server::shared::types::error_codes::ErrorCode;
 
@@ -190,10 +190,6 @@ mod tests {
 
         fn category(&self) -> EmailCategory {
             EmailCategory::Auth
-        }
-
-        fn preference(&self) -> EmailPreference {
-            EmailPreference::Required
         }
 
         fn campaign(&self) -> &'static str {

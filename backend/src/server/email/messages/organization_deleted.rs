@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Confirms that an organization and all of its data have been deleted.
 pub struct OrganizationDeleted;
@@ -10,10 +10,6 @@ impl Email for OrganizationDeleted {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Account
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {
