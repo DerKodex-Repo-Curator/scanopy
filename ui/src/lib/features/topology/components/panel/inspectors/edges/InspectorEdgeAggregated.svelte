@@ -16,9 +16,7 @@
 	import InspectorSection from '../shared/InspectorSection.svelte';
 	import InspectorSubsection from '../shared/InspectorSubsection.svelte';
 	import EntityDisplayWrapper from '$lib/shared/components/forms/selection/display/EntityDisplayWrapper.svelte';
-	import { SameHostEdgeDisplay } from '$lib/shared/components/forms/selection/display/SameHostEdgeDisplay.svelte';
-	import { PhysicalLinkEdgeDisplay } from '$lib/shared/components/forms/selection/display/PhysicalLinkEdgeDisplay.svelte';
-	import { HypervisorEdgeDisplay } from '$lib/shared/components/forms/selection/display/HypervisorEdgeDisplay.svelte';
+	import { aggregatedDisplay } from './aggregated-display';
 	import { DependencyDisplay } from '$lib/shared/components/forms/selection/display/DependencyDisplay.svelte';
 	import {
 		ServiceDisplay,
@@ -188,22 +186,8 @@
 		}));
 	});
 
-	function getDisplayComponent(edgeType: string) {
-		switch (edgeType) {
-			case 'Interface':
-				return SameHostEdgeDisplay;
-			case 'PhysicalLink':
-			case 'NeighborLink':
-				return PhysicalLinkEdgeDisplay;
-			case 'Hypervisor':
-				return HypervisorEdgeDisplay;
-			default:
-				return null;
-		}
-	}
-
 	function isDependencyEdge(edgeType: string) {
-		return edgeType === 'HubAndSpoke' || edgeType === 'RequestPath';
+		return edgeTypes.getMetadata(edgeType)?.is_dependency_edge ?? false;
 	}
 
 	function isContainerRuntime(edgeType: string) {
@@ -229,7 +213,7 @@
 			{@const typeName = isDependencyEdge(edgeType)
 				? common_dependenciesLabel()
 				: edgeTypes.getName(edgeType)}
-			{@const displayComponent = getDisplayComponent(edgeType)}
+			{@const displayComponent = aggregatedDisplay(edgeType)}
 
 			<InspectorSubsection
 				id={`edge:Aggregated:${edgeType}`}

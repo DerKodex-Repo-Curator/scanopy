@@ -242,15 +242,29 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
+          "Details",
           "ElementSummary"
         ],
         "dependency_creation": null,
         "element_sections": [
           "Identity",
+          "Details",
           "InterfaceData"
         ],
-        "show_application_picker": false
-      }
+        "show_application_picker": false,
+        "show_service_network_detail": true
+      },
+      "layout": {
+        "algorithm": "layered_right",
+        "align_layers_top": true,
+        "element_order": "oper_status",
+        "force_overview": false,
+        "handle_strategy": "horizontal",
+        "repack_disconnected": false,
+        "root_edges": true,
+        "root_order": "input"
+      },
+      "slug": "l2"
     }
   },
   {
@@ -680,18 +694,32 @@
       "inspector_config": {
         "container_sections": [
           "SubnetDetail",
+          "Details",
           "ElementSummary"
         ],
         "dependency_creation": "Bindings",
         "element_sections": [
           "Identity",
+          "Details",
           "HostDetail",
           "InterfaceData",
           "Services",
           "OtherInterfaces"
         ],
-        "show_application_picker": false
-      }
+        "show_application_picker": false,
+        "show_service_network_detail": true
+      },
+      "layout": {
+        "algorithm": "default",
+        "align_layers_top": false,
+        "element_order": "automatic",
+        "force_overview": true,
+        "handle_strategy": "optimal",
+        "repack_disconnected": true,
+        "root_edges": true,
+        "root_order": "input"
+      },
+      "slug": "l3"
     }
   },
   {
@@ -1144,18 +1172,32 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
+          "Details",
           "ElementSummary"
         ],
         "dependency_creation": "Services",
         "element_sections": [
           "Identity",
+          "Details",
           "HostDetail",
           "Virtualization",
           "Services",
           "OtherInterfaces"
         ],
-        "show_application_picker": false
-      }
+        "show_application_picker": false,
+        "show_service_network_detail": true
+      },
+      "layout": {
+        "algorithm": "workloads",
+        "align_layers_top": false,
+        "element_order": "automatic",
+        "force_overview": false,
+        "handle_strategy": "optimal",
+        "repack_disconnected": false,
+        "root_edges": true,
+        "root_order": "workload_count"
+      },
+      "slug": "infra"
     }
   },
   {
@@ -1514,17 +1556,31 @@
       "inspector_config": {
         "container_sections": [
           "Identity",
+          "Details",
           "ElementSummary",
           "DependencySummary"
         ],
         "dependency_creation": "Services",
         "element_sections": [
           "Identity",
+          "Details",
           "Dependencies",
           "Application"
         ],
-        "show_application_picker": true
-      }
+        "show_application_picker": true,
+        "show_service_network_detail": false
+      },
+      "layout": {
+        "algorithm": "rect_packing",
+        "align_layers_top": false,
+        "element_order": "automatic",
+        "force_overview": true,
+        "handle_strategy": "optimal",
+        "repack_disconnected": false,
+        "root_edges": false,
+        "root_order": "input"
+      },
+      "slug": "app"
     }
   }
 ]

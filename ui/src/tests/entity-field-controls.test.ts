@@ -20,8 +20,12 @@ import {
 	definedOrderField,
 	orderFieldSchema,
 	readTab,
+	registryEntity,
+	registryFieldsOf,
+	registryOmitted,
 	type SchemaNode
 } from './entity-tabs';
+import { columnType } from '$lib/shared/entity-fields/table';
 
 /**
  * Every column on every entity tab has a recorded sort, group and filter decision, and the tab
@@ -489,14 +493,22 @@ function parseEntry(src: string, start: number, end: number): Entry | null {
 	return { name, value: name, valueStart: i };
 }
 
-/** The flags of the field object literal at `open`, or why they cannot be read. */
-function parseField(src: string, open: number, orderable: boolean): ParsedField | string {
+/**
+ * The flags of the field object literal at `open`, or why they cannot be read. `registryType` is
+ * the type a registry-backed column gets when the literal leaves it out.
+ */
+function parseField(
+	src: string,
+	open: number,
+	orderable: boolean,
+	registryType?: FieldConfig<unknown>['type']
+): ParsedField | string {
 	const entries = objectEntries(src, open);
 	if (entries.some((entry) => entry.name === '...')) {
 		return 'spreads another object into the field, so its flags cannot be read here';
 	}
 	const byName = new Map(entries.map((entry) => [entry.name, entry.value]));
-	const type = byName.get('type')?.match(/^'(string|boolean|date|array)'$/)?.[1];
+	const type = byName.get('type')?.match(/^'(string|boolean|date|array)'$/)?.[1] ?? registryType;
 	if (!type) return `has no literal \`type\` ('string', 'boolean', 'date' or 'array')`;
 	const flags: ParsedField['flags'] = {};
 	for (const flag of FLAGS) {
@@ -509,6 +521,28 @@ function parseField(src: string, open: number, orderable: boolean): ParsedField 
 	}
 	const columnless = /\bhidden:\s*true\b/.test(byName.get('display') ?? '');
 	return { orderable, type: type as ParsedField['type'], flags, columnless };
+}
+
+/** Where the `n`th (0-based) top-level argument of the call whose `(` is at `paren` starts. */
+function argumentStart(src: string, paren: number, n: number): number {
+	let depth = 0;
+	let seen = 0;
+	for (let i = paren + 1; i < src.length;) {
+		const skipped = skipLiteral(src, i);
+		if (skipped !== i) {
+			i = skipped;
+			continue;
+		}
+		if (OPENERS.includes(src[i])) depth++;
+		else if (CLOSERS.includes(src[i])) depth--;
+		else if (src[i] === ',' && depth === 0 && ++seen === n) {
+			i++;
+			while (/\s/.test(src[i])) i++;
+			return i;
+		}
+		i++;
+	}
+	return paren + 1;
 }
 
 /** The `<script>` blocks of a Svelte file: the template's text would derail the brace matcher. */
@@ -529,9 +563,11 @@ function orderableFieldsObject(
 	tab: string,
 	script: string
 ): { src: string; open: number } | string {
-	const call = /defineFields<[^>]*>\s*\(\s*/.exec(script);
+	const call = /define(Registry)?Fields<[^>]*>\s*\(\s*/.exec(script);
 	if (!call) return 'calls no defineFields';
-	const argStart = call.index + call[0].length;
+	let argStart = call.index + call[0].length;
+	// `defineRegistryFields(entity, lookup, orderable, ...)`: the orderable object is the third.
+	if (call[1]) argStart = argumentStart(script, call.index + call[0].lastIndexOf('('), 2);
 	if (script[argStart] === '{') return { src: script, open: argStart };
 
 	const paren = call.index + call[0].lastIndexOf('(');
@@ -559,6 +595,11 @@ function tabFields(
 	const script = scriptOf(source);
 	const fields = new Map<string, ParsedField>();
 	const problems: string[] = [];
+	// Registry-backed tabs take a column's type from the registry when they don't declare one.
+	const entity = registryEntity(source);
+	const registry = new Map(
+		entity ? registryFieldsOf(entity).map((field) => [field.id, columnType(field)]) : []
+	);
 
 	if (definedOrderField(source)) {
 		const object = orderableFieldsObject(tab, script);
@@ -567,7 +608,7 @@ function tabFields(
 			for (const entry of objectEntries(object.src, object.open)) {
 				const field =
 					object.src[entry.valueStart] === '{'
-						? parseField(object.src, entry.valueStart, true)
+						? parseField(object.src, entry.valueStart, true, registry.get(entry.name))
 						: 'is not an object literal';
 				if (typeof field === 'string') problems.push(`orderable field "${entry.name}" ${field}`);
 				else fields.set(entry.name, field);
@@ -598,9 +639,15 @@ function tabFields(
 			problems.push(`declares the column "${key}" twice`);
 			continue;
 		}
-		const field = parseField(script, enclosing[0], false);
+		const field = parseField(script, enclosing[0], false, registry.get(key));
 		if (typeof field === 'string') problems.push(`display field "${key}" ${field}`);
 		else fields.set(key, field);
+	}
+	// Registry fields the tab neither lists nor omits are appended as plain display columns.
+	const omitted = registryOmitted(source);
+	for (const [id, type] of registry) {
+		if (fields.has(id) || omitted.has(id)) continue;
+		fields.set(id, { orderable: false, type, flags: {}, columnless: false });
 	}
 	return { fields, problems };
 }

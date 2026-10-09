@@ -171,8 +171,8 @@
 		for (const node of nodes) {
 			const data = node.data as TopologyNode | undefined;
 			if (!data) continue;
-			const target = resolveTagTarget(node.id, data);
-			if (!target) continue;
+			const target = resolveTagTarget(data);
+			if (target?.entityType !== 'Host' && target?.entityType !== 'Service') continue;
 			let set = byType.get(target.entityType);
 			if (!set) {
 				set = new SvelteSet();
@@ -1043,13 +1043,12 @@
 								size="sm"
 								fullWidth={true}
 							/>
-							{#if $activeView !== 'L3Logical'}
-								<p class="text-tertiary mt-1 text-xs">
-									{field.state.value === 'Bindings'
-										? dependencies_withPortsL3Hint()
-										: dependencies_servicesOnlyL3Hint()}
-								</p>
-							{/if}
+							<!-- Only reached in a view that doesn't draw bindings, so both hints point to L3. -->
+							<p class="text-tertiary mt-1 text-xs">
+								{field.state.value === 'Bindings'
+									? dependencies_withPortsL3Hint()
+									: dependencies_servicesOnlyL3Hint()}
+							</p>
 						{/snippet}
 					</form.Field>
 				{/if}

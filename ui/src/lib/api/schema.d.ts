@@ -5994,8 +5994,8 @@ export interface components {
                 };
                 /** @description Hosts included in this topology, each carrying the title the map and the host list share. */
                 hosts: components["schemas"]["TopologyHost"][];
-                /** @description Interfaces included in this topology. */
-                interfaces: components["schemas"]["Interface"][];
+                /** @description Interfaces included in this topology, each carrying its metadata filter values. */
+                interfaces: components["schemas"]["TopologyInterface"][];
                 /** @description IP addresses included in this topology. */
                 ip_addresses: components["schemas"]["IPAddress"][];
                 /**
@@ -6014,8 +6014,8 @@ export interface components {
                 };
                 /** @description Ports included in this topology. */
                 ports: components["schemas"]["Port"][];
-                /** @description Services included in this topology. */
-                services: components["schemas"]["Service"][];
+                /** @description Services included in this topology, each carrying its metadata filter values. */
+                services: components["schemas"]["TopologyService"][];
                 /** @description Subnets included in this topology. */
                 subnets: components["schemas"]["Subnet"][];
                 /** @description Tags assigned to this entity. */
@@ -7889,6 +7889,11 @@ export interface components {
             tags: string[];
         };
         /**
+         * @description Whether dependencies are tracked by service or by specific binding
+         * @enum {string}
+         */
+        DependencyMemberType: "Services" | "Bindings";
+        /**
          * @description The members of a dependency: either service-level or binding-level.
          *     Bindings are all-or-nothing: either every position has a binding (full L3 detail)
          *     or none do (Application-level only).
@@ -8674,6 +8679,11 @@ export interface components {
         };
         Edge: components["schemas"]["EdgeType"] & {
             /**
+             * @description The names of the two ends, source first, for edges that join two named things. The UI
+             *     draws each name at its own end; `label` carries the same names joined.
+             */
+            endpoint_labels?: string[] | null;
+            /**
              * Format: uuid
              * @description Server-assigned unique identifier.
              */
@@ -8993,6 +9003,30 @@ export interface components {
         };
         /** @enum {string} */
         EntityDiscriminants: "Site" | "Vlan" | "Subnet" | "Host" | "Service" | "IPAddress" | "Interface" | "Port" | "Binding" | "Discovery" | "Daemon" | "DaemonApiKey" | "Tag" | "User" | "UserApiKey" | "Credential" | "Organization" | "Invite" | "Topology" | "Snapshot" | "Share" | "Dependency";
+        /** @description One fact that describes an entity, possibly read from a related entity. */
+        EntityField: {
+            /**
+             * @description Dotted path to the value on the last object, or `None` for the object itself (an
+             *     `Entity` or `Port` field).
+             */
+            field?: string | null;
+            format: components["schemas"]["FieldFormat"];
+            /** @description Stable key: the CSV header, the list-table column id and the diagram Shape Data name. */
+            id: string;
+            /** @description English label; the UI translates it through a generated `meta_*` key. */
+            label: string;
+            /**
+             * @description Whether one entity can hold several values: set by any `Children` or `Embedded` hop, and
+             *     declared with [`EntityField::many`] for a key holding an array of ids or values.
+             */
+            many: boolean;
+            /** @description Steps from the entity to the objects the value is read from. Empty for the entity itself. */
+            path: components["schemas"]["Hop"][];
+            /** @description Sibling field holding the value's attribution, for attributed host facts. */
+            source_field?: string | null;
+            /** @description Shown by default in tables and in the inspector's details. Every field is exported. */
+            summary: boolean;
+        };
         /**
          * @description How recently discovery last observed an entity.
          *
@@ -9108,6 +9142,39 @@ export interface components {
             /** @description Whether the value is a secret, so it is masked and never echoed back. */
             secret: boolean;
         };
+        /** @description How a field's value is written. Chosen by the value's shape, never by where it is shown. */
+        FieldFormat: {
+            /** @enum {string} */
+            type: "Text";
+        } | {
+            /** @enum {string} */
+            type: "Number";
+        } | {
+            /** @enum {string} */
+            type: "Boolean";
+        } | {
+            /** @enum {string} */
+            type: "Timestamp";
+        } | {
+            /** @enum {string} */
+            type: "Identifier";
+        } | {
+            /** @enum {string} */
+            type: "BitsPerSecond";
+        } | {
+            /** @enum {string} */
+            type: "Port";
+        } | {
+            /** @enum {string} */
+            type: "OperatingSystem";
+        } | {
+            fixture: components["schemas"]["MetadataFixture"];
+            /** @enum {string} */
+            type: "Metadata";
+        } | {
+            /** @enum {string} */
+            type: "Entity";
+        };
         /**
          * @description Field types for dynamic form generation.
          *
@@ -9196,6 +9263,22 @@ export interface components {
              *     NULL (the "ungrouped" bucket).
              */
             value?: string | null;
+        };
+        /** @description One step from an object to related objects. */
+        Hop: {
+            entity: components["schemas"]["EntityDiscriminants"];
+            key: string;
+            /** @enum {string} */
+            type: "Parent";
+        } | {
+            entity: components["schemas"]["EntityDiscriminants"];
+            key: string;
+            /** @enum {string} */
+            type: "Children";
+        } | {
+            key: string;
+            /** @enum {string} */
+            type: "Embedded";
         };
         /**
          * @example {
@@ -10106,6 +10189,11 @@ export interface components {
          */
         InquiryTimeline: "immediately" | "1-3 months" | "3-6 months" | "exploring";
         /**
+         * @description A section that can appear in the inspector panel
+         * @enum {string}
+         */
+        InspectorSection: "Identity" | "Details" | "InterfaceData" | "Services" | "Dependencies" | "HostDetail" | "Virtualization" | "OtherInterfaces" | "PortBindings" | "SubnetDetail" | "ElementSummary" | "DependencySummary" | "Application";
+        /**
          * @description Everything the UI needs to install (or reconfigure) a daemon, one field per install method so
          *     each is a first-class peer with its own content — no method is a special case bolted onto a
          *     list. The binary methods are ready-to-paste commands (any api key is the [`API_KEY_PLACEHOLDER`],
@@ -10867,6 +10955,12 @@ export interface components {
          */
         MetadataFilterType: "Category" | "Virtualization" | "LinkState" | "Staleness" | "OperStatus";
         /**
+         * @description A metadata fixture whose entries name an enum-valued field, so the UI shows the fixture's
+         *     name for the raw value. Serializes to the fixture key.
+         * @enum {string}
+         */
+        MetadataFixture: "if_oper_statuses" | "subnet_types" | "entity_sources" | "dependency_types" | "discovery_types" | "service_definitions" | "discovery_protocols" | "permissions" | "credential_types";
+        /**
          * @description The Windows MSI install method. The MSI itself is a static release asset the UI links to; only
          *     the per-daemon pre-fill data is tenant-specific.
          */
@@ -10969,6 +11063,13 @@ export interface components {
              * @description Container this element is drawn inside.
              */
             container_id?: string;
+            /**
+             * Format: uuid
+             * @description The entity this element stands for, of the type `element_type` names: the frontend's
+             *     one lookup from a card to what it describes. `None` only for an IP address element with
+             *     no known address.
+             */
+            entity_id?: string | null;
             /**
              * Format: uuid
              * @description Host the element belongs to.
@@ -13550,8 +13651,8 @@ export interface components {
             };
             /** @description Hosts included in this topology, each carrying the title the map and the host list share. */
             hosts: components["schemas"]["TopologyHost"][];
-            /** @description Interfaces included in this topology. */
-            interfaces: components["schemas"]["Interface"][];
+            /** @description Interfaces included in this topology, each carrying its metadata filter values. */
+            interfaces: components["schemas"]["TopologyInterface"][];
             /** @description IP addresses included in this topology. */
             ip_addresses: components["schemas"]["IPAddress"][];
             /**
@@ -13570,8 +13671,8 @@ export interface components {
             };
             /** @description Ports included in this topology. */
             ports: components["schemas"]["Port"][];
-            /** @description Services included in this topology. */
-            services: components["schemas"]["Service"][];
+            /** @description Services included in this topology, each carrying its metadata filter values. */
+            services: components["schemas"]["TopologyService"][];
             /** @description Subnets included in this topology. */
             subnets: components["schemas"]["Subnet"][];
             /** @description Tags assigned to this entity. */
@@ -13603,6 +13704,30 @@ export interface components {
              *     list.
              */
             readonly display_name?: string | null;
+            /**
+             * @description This host's value for each metadata filter it takes part in, keyed by filter. See
+             *     [`TopologyData::stamp_filter_values`].
+             */
+            filter_values?: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * @description An [`Interface`] as the topology bundle ships it: the domain row plus its metadata filter
+         *     values.
+         *
+         *     A wrapper rather than a field on [`Interface`] itself, for the same reason as
+         *     [`TopologyService`]: the shared row is serialized by every interface endpoint, where a
+         *     topology-only value would always be absent.
+         */
+        TopologyInterface: components["schemas"]["Interface"] & {
+            /**
+             * @description This interface's value for each metadata filter it takes part in, keyed by filter. See
+             *     [`TopologyData::stamp_filter_values`].
+             */
+            filter_values?: {
+                [key: string]: string;
+            };
         };
         TopologyLocalOptions: {
             /**
@@ -13630,9 +13755,7 @@ export interface components {
             show_minimap: boolean;
             /**
              * @default {
-             *       "hidden_host_tag_ids": [],
-             *       "hidden_service_tag_ids": [],
-             *       "hidden_subnet_tag_ids": []
+             *       "hidden_tag_ids": {}
              *     }
              */
             tag_filter: components["schemas"]["TopologyTagFilter"];
@@ -13685,30 +13808,33 @@ export interface components {
                 [key: string]: components["schemas"]["IdentifiedRule_ContainerRule"][];
             };
             /**
-             * @description Rules deciding how entities are placed and inlined within containers.
+             * @description Rules deciding how entities are placed and inlined within containers. A missing field
+             *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "ed0cb9e1-1407-4563-98d2-a82f6e766bdd",
+             *         "id": "5f4b85d8-48c6-4d8a-be5a-71389381eb3b",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "162cf844-911a-4dad-8af5-8d5f6ad13fd7",
+             *         "id": "ee2e61f7-d1aa-494e-b02f-cfaaaa5c4026",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "f972dfa5-c88d-4310-8e55-a7690d577197",
+             *         "id": "320cdf6d-49a7-4c15-bae5-2aeb0e67ef46",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "1717d0ff-17e3-478a-83a1-f0e7eafb2e7d",
+             *         "id": "fabd23bc-9374-4eb8-8826-3090eca5a0e4",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
              *               "NetworkCore",
              *               "NetworkAccess",
+             *               "NetworkAppliance",
              *               "RemoteAccess",
              *               "Workstation",
              *               "Mobile",
+             *               "IoT",
              *               "Printer",
              *               "OpenPorts",
              *               "NetworkIdentities"
@@ -13810,14 +13936,27 @@ export interface components {
                 };
             };
         };
+        /**
+         * @description A [`Service`] as the topology bundle ships it: the domain row plus its metadata filter values.
+         *
+         *     A wrapper rather than a field on [`Service`] itself: `Service` is the row every other endpoint
+         *     and the daemon protocol serialize, where a topology-only value would always be absent.
+         */
+        TopologyService: components["schemas"]["Service"] & {
+            /**
+             * @description This service's value for each metadata filter it takes part in, keyed by filter. See
+             *     [`TopologyData::stamp_filter_values`].
+             */
+            filter_values?: {
+                [key: string]: string;
+            };
+        };
         /** @description Filter settings for hiding entities by tag in topology visualization. */
         TopologyTagFilter: {
-            /** @description Host tag IDs to hide (hosts with these tags will fade out) */
-            hidden_host_tag_ids?: string[];
-            /** @description Service tag IDs to hide (services with these tags will be hidden from nodes) */
-            hidden_service_tag_ids?: string[];
-            /** @description Subnet tag IDs to hide (subnets with these tags will fade out) */
-            hidden_subnet_tag_ids?: string[];
+            /** @description Tag IDs to hide, per entity type. An entity of that type carrying one of them is hidden. */
+            hidden_tag_ids?: {
+                [key: string]: string[];
+            };
         };
         /**
          * @description Which topology view is being rendered
@@ -14210,6 +14349,68 @@ export interface components {
             /** @description Entity types folded into that element rather than drawn separately. */
             inline_entities: components["schemas"]["EntityDiscriminants"][];
         };
+        /**
+         * @description How elements inside a container are ordered before layout.
+         * @enum {string}
+         */
+        ViewElementOrder: "automatic" | "oper_status";
+        /**
+         * @description How edge endpoints pick the side of a node they attach to.
+         * @enum {string}
+         */
+        ViewHandleStrategy: "horizontal" | "optimal";
+        /**
+         * @description View-specific inspector panel configuration.
+         *     Determines which sections appear and in what order for each view.
+         */
+        ViewInspectorConfig: {
+            /** @description Inspector sections shown when a container is selected. */
+            container_sections: components["schemas"]["InspectorSection"][];
+            dependency_creation?: null | components["schemas"]["DependencyMemberType"];
+            /** @description Inspector sections shown when an element is selected. */
+            element_sections: components["schemas"]["InspectorSection"][];
+            /** @description Whether the inspector offers the application picker. */
+            show_application_picker: boolean;
+            /**
+             * @description Whether a service card shows the IP address and ports it is reached on. Application
+             *     groups services by what they do, not where they listen, so it leaves these out.
+             */
+            show_service_network_detail: boolean;
+        };
+        /**
+         * @description Root-level layout algorithm for a view.
+         * @enum {string}
+         */
+        ViewLayoutAlgorithm: "layered_right" | "workloads" | "rect_packing" | "default";
+        /**
+         * @description How the UI lays out a view. Read by the topology layout pipeline in place of branching on
+         *     the view id.
+         */
+        ViewLayoutConfig: {
+            algorithm: components["schemas"]["ViewLayoutAlgorithm"];
+            /** @description Whether each column of root containers is aligned to the same top edge after layout. */
+            align_layers_top: boolean;
+            element_order: components["schemas"]["ViewElementOrder"];
+            /**
+             * @description Whether the view switches to a force-directed overview when every root container is
+             *     collapsed.
+             */
+            force_overview: boolean;
+            handle_strategy: components["schemas"]["ViewHandleStrategy"];
+            /**
+             * @description Whether root containers with no cross-container edges are moved beside the connected
+             *     ones after layout.
+             */
+            repack_disconnected: boolean;
+            /** @description Whether edges between root containers are passed to the root layout. */
+            root_edges: boolean;
+            root_order: components["schemas"]["ViewRootOrder"];
+        };
+        /**
+         * @description How root containers are ordered before layout.
+         * @enum {string}
+         */
+        ViewRootOrder: "input" | "workload_count";
         Vlan: components["schemas"]["VlanBase"] & {
             /**
              * Format: date-time

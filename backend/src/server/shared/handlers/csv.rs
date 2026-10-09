@@ -9,9 +9,10 @@ use crate::server::{
     shared::{
         entities::{ChangeTriggersTopologyStaleness, Entity as EntityEnum},
         extractors::Query,
-        handlers::query::FilterQueryExtractor,
-        services::{csv::build_csv, traits::CrudService},
-        storage::filter::StorableFilter,
+        services::{
+            entity_fields::{ServiceSource, entities_csv},
+            traits::CrudService,
+        },
         types::api::{ApiError, ApiResult},
     },
 };
@@ -23,19 +24,21 @@ use axum::{
 };
 use std::sync::Arc;
 
-use super::traits::CrudHandlers;
+use super::traits::{CrudHandlers, base_list_filter};
 
 /// Export entities to CSV format.
 ///
-/// Uses the same filtering as the list endpoint but ignores pagination parameters,
-/// exporting ALL matching records.
+/// Uses the same filtering as the list endpoint (including its SCD2 live/as-of narrowing) but
+/// ignores pagination, exporting ALL matching records. Columns come from the entity's field
+/// registry, with related entities read through their own services.
+
 pub async fn export_csv_handler<T>(
     State(state): State<Arc<AppState>>,
     auth: Authorized<Viewer>,
     Query(query): Query<T::FilterQuery>,
 ) -> ApiResult<impl IntoResponse>
 where
-    T: CrudHandlers + 'static + ChangeTriggersTopologyStaleness<T> + Default,
+    T: CrudHandlers + 'static + ChangeTriggersTopologyStaleness<T> + Default + serde::Serialize,
     EntityEnum: From<T>,
 {
     let site_ids = auth.site_ids();
@@ -44,11 +47,8 @@ where
         .ok_or_else(ApiError::organization_required)?;
     let user_id = auth.user_id();
 
-    // Build base filter based on entity scoping (same as get_all_handler)
-    let base_filter = StorableFilter::<T>::new_for_access(&site_ids, &organization_id);
-
-    // Apply entity-specific filters (but NOT pagination - we want all records)
-    let filter = query.apply_to_filter(base_filter, &site_ids, organization_id);
+    // The list endpoint's filter, without pagination.
+    let filter = base_list_filter::<T>(&site_ids, organization_id, &query);
 
     let service = T::get_service(&state);
 
@@ -63,16 +63,22 @@ where
         ApiError::internal_error(&e.to_string())
     })?;
 
-    // Build CSV
-    let csv_data = build_csv::<T>(&entities).map_err(|e| {
-        tracing::error!(
-            entity_type = T::table_name(),
-            user_id = ?user_id,
-            error = %e,
-            "Failed to build CSV"
-        );
-        ApiError::internal_error(&format!("Failed to build CSV: {}", e))
-    })?;
+    let source = ServiceSource {
+        services: &state.services,
+        site_ids: &site_ids,
+        organization_id,
+    };
+    let csv_data = entities_csv(&source, T::entity_type(), &entities)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                entity_type = T::table_name(),
+                user_id = ?user_id,
+                error = %e,
+                "Failed to build CSV"
+            );
+            ApiError::internal_error(&format!("Failed to build CSV: {}", e))
+        })?;
 
     // Build response with appropriate headers
     let filename = format!("{}.csv", T::entity_name_plural());

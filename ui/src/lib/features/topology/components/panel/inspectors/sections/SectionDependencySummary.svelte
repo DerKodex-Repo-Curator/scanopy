@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Node } from '@xyflow/svelte';
 	import type { RenderableTopology } from '$lib/features/topology/types/base';
-	import { getContainerContents, resolveInlineServiceIds } from '$lib/features/topology/resolvers';
+	import { resolveInlineServiceIds } from '$lib/features/topology/resolvers';
+	import { getTopologyIndex } from '$lib/features/topology/entity-index';
 	import { containerTypes } from '$lib/shared/stores/metadata';
 	import { inspector_crossContainerDeps, inspector_noDependencies } from '$lib/paraglide/messages';
 	import InspectorSection from '../shared/InspectorSection.svelte';
@@ -29,7 +30,7 @@
 	// elements in L3) must count as "inside" for the cross-boundary check — without
 	// this union, dependencies involving inlined services look mis-classified.
 	let descendantEntityIds = $derived.by(() => {
-		const c = getContainerContents(node.id, topology.nodes);
+		const c = getTopologyIndex(topology).containerContents(node.id);
 		const inlineServices = resolveInlineServiceIds(c.elementNodeIds, topology);
 		return new Set<string>([...c.elementNodeIds, ...inlineServices]);
 	});

@@ -21188,9 +21188,9 @@
               "interfaces": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Interface"
+                  "$ref": "#/components/schemas/TopologyInterface"
                 },
-                "description": "Interfaces included in this topology."
+                "description": "Interfaces included in this topology, each carrying its metadata filter values."
               },
               "ip_addresses": {
                 "type": "array",
@@ -21236,9 +21236,9 @@
               "services": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Service"
+                  "$ref": "#/components/schemas/TopologyService"
                 },
-                "description": "Services included in this topology."
+                "description": "Services included in this topology, each carrying its metadata filter values."
               },
               "subnets": {
                 "type": "array",
@@ -25648,6 +25648,14 @@
           }
         }
       },
+      "DependencyMemberType": {
+        "type": "string",
+        "description": "Whether dependencies are tracked by service or by specific binding",
+        "enum": [
+          "Services",
+          "Bindings"
+        ]
+      },
       "DependencyMembers": {
         "oneOf": [
           {
@@ -27901,6 +27909,16 @@
               "relation_key"
             ],
             "properties": {
+              "endpoint_labels": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "The names of the two ends, source first, for edges that join two named things. The UI\ndraws each name at its own end; `label` carries the same names joined."
+              },
               "id": {
                 "type": "string",
                 "format": "uuid",
@@ -28618,6 +28636,60 @@
           "Dependency"
         ]
       },
+      "EntityField": {
+        "type": "object",
+        "description": "One fact that describes an entity, possibly read from a related entity.",
+        "required": [
+          "id",
+          "label",
+          "path",
+          "format",
+          "summary",
+          "many"
+        ],
+        "properties": {
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Dotted path to the value on the last object, or `None` for the object itself (an\n`Entity` or `Port` field)."
+          },
+          "format": {
+            "$ref": "#/components/schemas/FieldFormat"
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable key: the CSV header, the list-table column id and the diagram Shape Data name."
+          },
+          "label": {
+            "type": "string",
+            "description": "English label; the UI translates it through a generated `meta_*` key."
+          },
+          "many": {
+            "type": "boolean",
+            "description": "Whether one entity can hold several values: set by any `Children` or `Embedded` hop, and\ndeclared with [`EntityField::many`] for a key holding an array of ids or values."
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Hop"
+            },
+            "description": "Steps from the entity to the objects the value is read from. Empty for the entity itself."
+          },
+          "source_field": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sibling field holding the value's attribution, for attributed host facts."
+          },
+          "summary": {
+            "type": "boolean",
+            "description": "Shown by default in tables and in the inspector's details. Every field is exported."
+          }
+        }
+      },
       "EntityFreshness": {
         "type": "string",
         "description": "How recently discovery last observed an entity.\n\nDerived, never persisted — computed from `last_seen_at` against the\nentity's site staleness window (`Site::stale_cutoff`). Shared by the\ndiscovery digest email and the UI so a host reported stale in the digest is\nthe same host badged stale in the inventory and topology; running two\ndifferent measures let them disagree (a scan-count measure calls an entity\nmissing after 3 scans, which is 45 minutes on one site and 3 months on\nanother).\n\nOnly discovery-managed entities can be `Stale` — see\n[`DiscoveryTracked::is_discovery_managed`](crate::server::shared::storage::snapshot::DiscoveryTracked::is_discovery_managed).",
@@ -28913,6 +28985,161 @@
           }
         }
       },
+      "FieldFormat": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Text"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Number"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Boolean"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Timestamp"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A value read as a code rather than prose (MAC, CIDR, chassis id): monospace, copyable.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Identifier"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`speed_bps`, written as 1G / 100M.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "BitsPerSecond"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A `{number, protocol}` port, written as 80/tcp.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Port"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A host `os` object, written as its name and version.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "OperatingSystem"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An enum value, named through a metadata fixture.",
+            "required": [
+              "fixture",
+              "type"
+            ],
+            "properties": {
+              "fixture": {
+                "$ref": "#/components/schemas/MetadataFixture"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Metadata"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A related entity. The UI links it; CSV writes its id; text-only outputs write its display\nfield.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Entity"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "How a field's value is written. Chosen by the value's shape, never by where it is shown."
+      },
       "FieldType": {
         "type": "string",
         "description": "Field types for dynamic form generation.\n\nThe serialized lowercase name is the wire contract with the frontend, which switches on it to\npick a renderer and a validator. Adding a variant means teaching the frontend about it.",
@@ -29102,6 +29329,76 @@
             "description": "The group's value, rendered as text. `null` for rows whose group key is\nNULL (the \"ungrouped\" bucket)."
           }
         }
+      },
+      "Hop": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The entities named by `key` on the current object: one id, or an array of ids.",
+            "required": [
+              "entity",
+              "key",
+              "type"
+            ],
+            "properties": {
+              "entity": {
+                "$ref": "#/components/schemas/EntityDiscriminants"
+              },
+              "key": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Parent"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Every entity of type `entity` whose `key` holds the current object's id.",
+            "required": [
+              "entity",
+              "key",
+              "type"
+            ],
+            "properties": {
+              "entity": {
+                "$ref": "#/components/schemas/EntityDiscriminants"
+              },
+              "key": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Children"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The array of objects held on the current object under `key`, such as a service's bindings.",
+            "required": [
+              "key",
+              "type"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Embedded"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One step from an object to related objects."
       },
       "Host": {
         "allOf": [
@@ -30964,6 +31261,25 @@
           "exploring"
         ]
       },
+      "InspectorSection": {
+        "type": "string",
+        "description": "A section that can appear in the inspector panel",
+        "enum": [
+          "Identity",
+          "Details",
+          "InterfaceData",
+          "Services",
+          "Dependencies",
+          "HostDetail",
+          "Virtualization",
+          "OtherInterfaces",
+          "PortBindings",
+          "SubnetDetail",
+          "ElementSummary",
+          "DependencySummary",
+          "Application"
+        ]
+      },
       "InstallArtifacts": {
         "type": "object",
         "description": "Everything the UI needs to install (or reconfigure) a daemon, one field per install method so\neach is a first-class peer with its own content — no method is a special case bolted onto a\nlist. The binary methods are ready-to-paste commands (any api key is the [`API_KEY_PLACEHOLDER`],\nfilled in client-side); docker and msi carry their own structured content.",
@@ -32509,6 +32825,21 @@
           "OperStatus"
         ]
       },
+      "MetadataFixture": {
+        "type": "string",
+        "description": "A metadata fixture whose entries name an enum-valued field, so the UI shows the fixture's\nname for the raw value. Serializes to the fixture key.",
+        "enum": [
+          "if_oper_statuses",
+          "subnet_types",
+          "entity_sources",
+          "dependency_types",
+          "discovery_types",
+          "service_definitions",
+          "discovery_protocols",
+          "permissions",
+          "credential_types"
+        ]
+      },
       "MsiInstall": {
         "type": "object",
         "description": "The Windows MSI install method. The MSI itself is a static release asset the UI links to; only\nthe per-daemon pre-fill data is tenant-specific.",
@@ -32710,6 +33041,14 @@
                     "type": "string",
                     "format": "uuid",
                     "description": "Container this element is drawn inside."
+                  },
+                  "entity_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid",
+                    "description": "The entity this element stands for, of the type `element_type` names: the frontend's\none lookup from a card to what it describes. `None` only for an IP address element with\nno known address."
                   },
                   "host_id": {
                     "type": "string",
@@ -38217,9 +38556,9 @@
           "interfaces": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Interface"
+              "$ref": "#/components/schemas/TopologyInterface"
             },
-            "description": "Interfaces included in this topology."
+            "description": "Interfaces included in this topology, each carrying its metadata filter values."
           },
           "ip_addresses": {
             "type": "array",
@@ -38265,9 +38604,9 @@
           "services": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Service"
+              "$ref": "#/components/schemas/TopologyService"
             },
-            "description": "Services included in this topology."
+            "description": "Services included in this topology, each carrying its metadata filter values."
           },
           "subnets": {
             "type": "array",
@@ -38307,11 +38646,62 @@
                 ],
                 "description": "What to call this host when `name` is empty: its hostname, sysName, chassis id or first\naddress, whichever it has. `None` when nothing identifies it.\n\nThe same ladder, and the same value, as `HostResponse.display_name` and the host\ncontainer's `header` — a host cannot be called one thing on the map and another in the\nlist.",
                 "readOnly": true
+              },
+              "filter_values": {
+                "type": "object",
+                "description": "This host's value for each metadata filter it takes part in, keyed by filter. See\n[`TopologyData::stamp_filter_values`].",
+                "additionalProperties": {
+                  "type": "string",
+                  "readOnly": true
+                },
+                "propertyNames": {
+                  "type": "string",
+                  "description": "The type of metadata filter. One variant per conceptually-distinct filter\nacross the app — Category (on Service), Virtualization (on Host), and so\non. Kept narrow on purpose: adding a new filter means adding a variant\nhere + a `HasFilterValues` impl on the relevant entity.",
+                  "enum": [
+                    "Category",
+                    "Virtualization",
+                    "LinkState",
+                    "Staleness",
+                    "OperStatus"
+                  ]
+                }
               }
             }
           }
         ],
         "description": "A [`Host`] as the topology bundle ships it: the domain row plus the title every surface has to\nagree on.\n\nThe ladder itself stays on [`Host::display_name`] — this only carries its result. The bundle\nhas to carry it per host because the frontend looks a host up *by id* at sites where no node\nfor that host is guaranteed to be in the current view (a service card naming its parent, a\n`hostA ↔ hostB` edge label, a dependency target), so [`Node::header`] cannot be the only place\nthe name exists.\n\nA wrapper rather than a field on [`Host`] itself: `Host` is the row every other endpoint and\nthe daemon protocol serialize, where a computed title would always be absent and read as \"this\nhost has no name\"."
+      },
+      "TopologyInterface": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Interface"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "filter_values": {
+                "type": "object",
+                "description": "This interface's value for each metadata filter it takes part in, keyed by filter. See\n[`TopologyData::stamp_filter_values`].",
+                "additionalProperties": {
+                  "type": "string",
+                  "readOnly": true
+                },
+                "propertyNames": {
+                  "type": "string",
+                  "description": "The type of metadata filter. One variant per conceptually-distinct filter\nacross the app — Category (on Service), Virtualization (on Host), and so\non. Kept narrow on purpose: adding a new filter means adding a variant\nhere + a `HasFilterValues` impl on the relevant entity.",
+                  "enum": [
+                    "Category",
+                    "Virtualization",
+                    "LinkState",
+                    "Staleness",
+                    "OperStatus"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "description": "An [`Interface`] as the topology bundle ships it: the domain row plus its metadata filter\nvalues.\n\nA wrapper rather than a field on [`Interface`] itself, for the same reason as\n[`TopologyService`]: the shared row is serialized by every interface endpoint, where a\ntopology-only value would always be absent."
       },
       "TopologyLocalOptions": {
         "type": "object",
@@ -38349,9 +38739,7 @@
               }
             ],
             "default": {
-              "hidden_host_tag_ids": [],
-              "hidden_service_tag_ids": [],
-              "hidden_subnet_tag_ids": []
+              "hidden_tag_ids": {}
             }
           }
         }
@@ -38435,30 +38823,32 @@
             "items": {
               "$ref": "#/components/schemas/IdentifiedRule_ElementRule"
             },
-            "description": "Rules deciding how entities are placed and inlined within containers.",
+            "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "ed0cb9e1-1407-4563-98d2-a82f6e766bdd",
+                "id": "5f4b85d8-48c6-4d8a-be5a-71389381eb3b",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "162cf844-911a-4dad-8af5-8d5f6ad13fd7",
+                "id": "ee2e61f7-d1aa-494e-b02f-cfaaaa5c4026",
                 "rule": "ByVLAN"
               },
               {
-                "id": "f972dfa5-c88d-4310-8e55-a7690d577197",
+                "id": "320cdf6d-49a7-4c15-bae5-2aeb0e67ef46",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "1717d0ff-17e3-478a-83a1-f0e7eafb2e7d",
+                "id": "fabd23bc-9374-4eb8-8826-3090eca5a0e4",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
                       "NetworkCore",
                       "NetworkAccess",
+                      "NetworkAppliance",
                       "RemoteAccess",
                       "Workstation",
                       "Mobile",
+                      "IoT",
                       "Printer",
                       "OpenPorts",
                       "NetworkIdentities"
@@ -38631,33 +39021,79 @@
           }
         }
       },
+      "TopologyService": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Service"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "filter_values": {
+                "type": "object",
+                "description": "This service's value for each metadata filter it takes part in, keyed by filter. See\n[`TopologyData::stamp_filter_values`].",
+                "additionalProperties": {
+                  "type": "string",
+                  "readOnly": true
+                },
+                "propertyNames": {
+                  "type": "string",
+                  "description": "The type of metadata filter. One variant per conceptually-distinct filter\nacross the app — Category (on Service), Virtualization (on Host), and so\non. Kept narrow on purpose: adding a new filter means adding a variant\nhere + a `HasFilterValues` impl on the relevant entity.",
+                  "enum": [
+                    "Category",
+                    "Virtualization",
+                    "LinkState",
+                    "Staleness",
+                    "OperStatus"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "description": "A [`Service`] as the topology bundle ships it: the domain row plus its metadata filter values.\n\nA wrapper rather than a field on [`Service`] itself: `Service` is the row every other endpoint\nand the daemon protocol serialize, where a topology-only value would always be absent."
+      },
       "TopologyTagFilter": {
         "type": "object",
         "description": "Filter settings for hiding entities by tag in topology visualization.",
         "properties": {
-          "hidden_host_tag_ids": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
+          "hidden_tag_ids": {
+            "type": "object",
+            "description": "Tag IDs to hide, per entity type. An entity of that type carrying one of them is hidden.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
             },
-            "description": "Host tag IDs to hide (hosts with these tags will fade out)"
-          },
-          "hidden_service_tag_ids": {
-            "type": "array",
-            "items": {
+            "propertyNames": {
               "type": "string",
-              "format": "uuid"
-            },
-            "description": "Service tag IDs to hide (services with these tags will be hidden from nodes)"
-          },
-          "hidden_subnet_tag_ids": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Subnet tag IDs to hide (subnets with these tags will fade out)"
+              "enum": [
+                "Site",
+                "Vlan",
+                "Subnet",
+                "Host",
+                "Service",
+                "IPAddress",
+                "Interface",
+                "Port",
+                "Binding",
+                "Discovery",
+                "Daemon",
+                "DaemonApiKey",
+                "Tag",
+                "User",
+                "UserApiKey",
+                "Credential",
+                "Organization",
+                "Invite",
+                "Topology",
+                "Snapshot",
+                "Share",
+                "Dependency"
+              ]
+            }
           }
         }
       },
@@ -39404,6 +39840,129 @@
             "description": "Entity types folded into that element rather than drawn separately."
           }
         }
+      },
+      "ViewElementOrder": {
+        "type": "string",
+        "description": "How elements inside a container are ordered before layout.",
+        "enum": [
+          "automatic",
+          "oper_status"
+        ]
+      },
+      "ViewHandleStrategy": {
+        "type": "string",
+        "description": "How edge endpoints pick the side of a node they attach to.",
+        "enum": [
+          "horizontal",
+          "optimal"
+        ]
+      },
+      "ViewInspectorConfig": {
+        "type": "object",
+        "description": "View-specific inspector panel configuration.\nDetermines which sections appear and in what order for each view.",
+        "required": [
+          "element_sections",
+          "container_sections",
+          "show_application_picker",
+          "show_service_network_detail"
+        ],
+        "properties": {
+          "container_sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectorSection"
+            },
+            "description": "Inspector sections shown when a container is selected."
+          },
+          "dependency_creation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DependencyMemberType",
+                "description": "What type of member a dependency can be drawn between in this view."
+              }
+            ]
+          },
+          "element_sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectorSection"
+            },
+            "description": "Inspector sections shown when an element is selected."
+          },
+          "show_application_picker": {
+            "type": "boolean",
+            "description": "Whether the inspector offers the application picker."
+          },
+          "show_service_network_detail": {
+            "type": "boolean",
+            "description": "Whether a service card shows the IP address and ports it is reached on. Application\ngroups services by what they do, not where they listen, so it leaves these out."
+          }
+        }
+      },
+      "ViewLayoutAlgorithm": {
+        "type": "string",
+        "description": "Root-level layout algorithm for a view.",
+        "enum": [
+          "layered_right",
+          "workloads",
+          "rect_packing",
+          "default"
+        ]
+      },
+      "ViewLayoutConfig": {
+        "type": "object",
+        "description": "How the UI lays out a view. Read by the topology layout pipeline in place of branching on\nthe view id.",
+        "required": [
+          "algorithm",
+          "handle_strategy",
+          "element_order",
+          "root_order",
+          "root_edges",
+          "repack_disconnected",
+          "align_layers_top",
+          "force_overview"
+        ],
+        "properties": {
+          "algorithm": {
+            "$ref": "#/components/schemas/ViewLayoutAlgorithm"
+          },
+          "align_layers_top": {
+            "type": "boolean",
+            "description": "Whether each column of root containers is aligned to the same top edge after layout."
+          },
+          "element_order": {
+            "$ref": "#/components/schemas/ViewElementOrder"
+          },
+          "force_overview": {
+            "type": "boolean",
+            "description": "Whether the view switches to a force-directed overview when every root container is\ncollapsed."
+          },
+          "handle_strategy": {
+            "$ref": "#/components/schemas/ViewHandleStrategy"
+          },
+          "repack_disconnected": {
+            "type": "boolean",
+            "description": "Whether root containers with no cross-container edges are moved beside the connected\nones after layout."
+          },
+          "root_edges": {
+            "type": "boolean",
+            "description": "Whether edges between root containers are passed to the root layout."
+          },
+          "root_order": {
+            "$ref": "#/components/schemas/ViewRootOrder"
+          }
+        }
+      },
+      "ViewRootOrder": {
+        "type": "string",
+        "description": "How root containers are ordered before layout.",
+        "enum": [
+          "input",
+          "workload_count"
+        ]
       },
       "Vlan": {
         "allOf": [

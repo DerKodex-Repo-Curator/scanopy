@@ -26,34 +26,45 @@ function buildTopology(): RenderableTopology {
 		id: 'topo-1',
 		site_id: SITE_ID,
 		hosts: [
-			{ ...base, id: 'docker-host' },
-			{
-				...base,
-				id: 'macvlan',
-				virtualization_metadata: {
-					type: 'Docker',
-					details: { network_type: 'MacVlan' }
-				}
-			}
+			{ ...base, id: 'docker-host', filter_values: { Virtualization: 'BareMetal' } },
+			{ ...base, id: 'macvlan', filter_values: { Virtualization: 'Containerized' } }
 		],
 		services: [
 			{
 				...base,
 				id: 'bridge-container',
 				host_id: 'docker-host',
-				virtualization_metadata: { type: 'Docker', details: {} }
+				filter_values: { Category: 'Development', Virtualization: 'Containerized' }
 			},
-			{ ...base, id: 'sshd', host_id: 'docker-host' }
+			{
+				...base,
+				id: 'sshd',
+				host_id: 'docker-host',
+				filter_values: { Category: 'RemoteAccess' }
+			}
 		],
 		nodes: [
 			{
 				id: 'bridge-container',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'docker-host'
+				host_id: 'docker-host',
+				entity_id: 'bridge-container'
 			},
-			{ id: 'sshd', node_type: 'Element', element_type: 'Service', host_id: 'docker-host' },
-			{ id: 'macvlan-card', node_type: 'Element', element_type: 'Host', host_id: 'macvlan' }
+			{
+				id: 'sshd',
+				node_type: 'Element',
+				element_type: 'Service',
+				host_id: 'docker-host',
+				entity_id: 'sshd'
+			},
+			{
+				id: 'macvlan-card',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'macvlan',
+				entity_id: 'macvlan'
+			}
 		],
 		edges: [],
 		subnets: [],
@@ -93,9 +104,9 @@ describe('a filter covering hosts and services', () => {
 		};
 		const [, macvlan] = topo.hosts;
 		const [container, sshd] = topo.services;
-		expect(matchesHoveredMetadata(container, 'Service', hovered, site, topo)).toBe(true);
-		expect(matchesHoveredMetadata(macvlan, 'Host', hovered, site, topo)).toBe(true);
-		expect(matchesHoveredMetadata(sshd, 'Service', hovered, site, topo)).toBe(false);
+		expect(matchesHoveredMetadata(container, 'Service', hovered, site)).toBe(true);
+		expect(matchesHoveredMetadata(macvlan, 'Host', hovered, site)).toBe(true);
+		expect(matchesHoveredMetadata(sshd, 'Service', hovered, site)).toBe(false);
 	});
 
 	it('hides both when Containerized is hidden through the chip', () => {

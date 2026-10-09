@@ -12,7 +12,7 @@ import { serializeDrawio, toDrawioCells } from '$lib/features/topology/diagram-e
 import { fieldKeys } from '$lib/features/topology/diagram-export/xml';
 import { buildVsdxParts, zipVsdx } from '$lib/features/topology/diagram-export/vsdx';
 import { createDescriber } from '$lib/features/topology/diagram-export/describe';
-import type { RenderableTopology } from '$lib/features/topology/types/base';
+import type { RenderableTopology, TopologyNode } from '$lib/features/topology/types/base';
 
 /**
  * A subnet holding a host card and a nested subcontainer (holding another card), plus a second
@@ -140,21 +140,60 @@ describe('diagram model', () => {
 });
 
 describe('diagram describer', () => {
-	const topology = { dependencies: [], options: {} } as unknown as RenderableTopology;
+	const topology = {
+		dependencies: [],
+		options: {},
+		interfaces: [
+			{ id: 'i1', display_name: 'Gi0/1' },
+			{ id: 'i2', display_name: 'eth0' }
+		],
+		vlans: [{ id: 'v10', vlan_number: 10, name: 'users' }]
+	} as unknown as RenderableTopology;
 	const flowEdge = (id: string, data: Record<string, unknown>): Edge =>
 		({ id, source: 'a', target: 'b', data }) as unknown as Edge;
 	const activeLink = { type: 'active', stroke: 'solid' };
 
-	function describerFor(edges: Edge[], hiddenEdgeTypes: string[]) {
+	function describerFor(
+		edges: Edge[],
+		hiddenEdgeTypes: string[],
+		nodeData: Map<string, TopologyNode> = new Map()
+	) {
 		return createDescriber({
 			topology,
-			nodeData: new Map(),
+			nodeData,
 			edges: new Map(edges.map((e) => [e.id, e])),
 			hiddenEdgeTypes,
 			theme: 'light',
 			iconKeys: new Map()
 		});
 	}
+
+	it('carries the facts of the entity each shape stands for, read through the registry', () => {
+		const link = flowEdge('link', {
+			edge_type: 'PhysicalLink',
+			view_config: activeLink,
+			source_entity_id: 'i1',
+			target_entity_id: 'i2',
+			protocol: 'Lldp'
+		});
+		const vlanBox = {
+			node_type: 'Container',
+			container_type: 'VLAN',
+			entity_id: 'v10',
+			header: 'VLAN 10 (users)'
+		} as unknown as TopologyNode;
+		const describer = describerFor([link], [], new Map([['vlan', vlanBox]]));
+
+		const edgeValues = describer
+			.edge({ id: 'link', source: 'a', target: 'b' })
+			?.data?.map((d) => d.value);
+		expect(edgeValues).toEqual(expect.arrayContaining(['Gi0/1', 'eth0']));
+
+		const boxValues = describer
+			.node({ id: 'vlan', type: 'Container', x: 0, y: 0, width: 10, height: 10 })
+			.data?.map((d) => d.value);
+		expect(boxValues).toEqual(expect.arrayContaining(['10', 'users']));
+	});
 
 	it('leaves out edges whose type is hidden and dependency preview edges', () => {
 		const edges = [

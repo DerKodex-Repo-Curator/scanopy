@@ -62,7 +62,12 @@ function buildTopology(): RenderableTopology {
 		entity_tags: [],
 		name: 'test',
 		nodes: [
-			{ id: 'container-outer', node_type: 'Container', container_type: 'Subnet' },
+			{
+				id: 'container-outer',
+				node_type: 'Container',
+				container_type: 'Subnet',
+				entity_id: 'container-outer'
+			},
 			{
 				id: 'container-inner',
 				node_type: 'Container',
@@ -75,6 +80,7 @@ function buildTopology(): RenderableTopology {
 				element_type: 'IPAddress',
 				host_id: 'host-a',
 				ip_address_id: 'ip-a1',
+				entity_id: 'ip-a1',
 				container_id: 'container-outer'
 			},
 			{
@@ -83,6 +89,7 @@ function buildTopology(): RenderableTopology {
 				element_type: 'IPAddress',
 				host_id: 'host-b',
 				ip_address_id: 'ip-b1',
+				entity_id: 'ip-b1',
 				container_id: 'container-inner'
 			},
 			{
@@ -90,6 +97,7 @@ function buildTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'host-b',
+				entity_id: 'svc-standalone',
 				container_id: 'container-inner'
 			}
 		],

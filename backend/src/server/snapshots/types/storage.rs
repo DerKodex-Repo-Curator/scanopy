@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -12,16 +11,6 @@ use crate::server::{
     },
     snapshots::types::base::{Snapshot, SnapshotBase},
 };
-
-#[derive(Serialize)]
-pub struct SnapshotCsvRow {
-    pub id: Uuid,
-    pub site_id: Uuid,
-    pub taken_at: DateTime<Utc>,
-    pub created_by_user_id: Option<Uuid>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Snapshot {
     const HAS_SCD2: bool = false;
@@ -107,19 +96,6 @@ impl Entity for Snapshot {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = SnapshotCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        SnapshotCsvRow {
-            id: self.id,
-            site_id: self.base.site_id,
-            taken_at: self.base.taken_at,
-            created_by_user_id: self.base.created_by_user_id,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

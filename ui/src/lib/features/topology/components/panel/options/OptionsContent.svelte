@@ -26,7 +26,7 @@
 	import { type Color } from '$lib/shared/utils/styling';
 	import { useServicesCacheQuery } from '$lib/features/services/queries';
 	import { useSubnetsQuery } from '$lib/features/subnets/queries';
-	import type { RenderableTopology } from '../../../types/base';
+	import type { RenderableTopology, TopologyOptions } from '../../../types/base';
 	import viewsJson from '$lib/data/views.json';
 	import TagFilterGroup from './TagFilterGroup.svelte';
 	import OptionToggle from './OptionToggle.svelte';
@@ -265,18 +265,32 @@
 		return m;
 	});
 
-	function onToggleTagForEntity(entityType: EntityType, tagId: string) {
-		if (entityType === 'Host') toggleHostTag(tagId);
-		else if (entityType === 'Service') toggleServiceTag(tagId);
-		else if (entityType === 'Subnet') toggleSubnetTag(tagId);
+	function hiddenTagIdsForEntity(entityType: EntityType): string[] {
+		return $topologyOptions.local.tag_filter?.hidden_tag_ids?.[entityType] ?? [];
 	}
 
-	function hiddenTagIdsForEntity(entityType: EntityType): string[] {
-		const f = $topologyOptions.local.tag_filter;
-		if (entityType === 'Host') return f?.hidden_host_tag_ids ?? [];
-		if (entityType === 'Service') return f?.hidden_service_tag_ids ?? [];
-		if (entityType === 'Subnet') return f?.hidden_subnet_tag_ids ?? [];
-		return [];
+	/** Set `entityType`'s hidden tag list, leaving every other type's as it is. */
+	function withHiddenTagIds(
+		opts: TopologyOptions,
+		entityType: EntityType,
+		ids: string[]
+	): TopologyOptions['local'] {
+		return {
+			...opts.local,
+			tag_filter: {
+				hidden_tag_ids: { ...(opts.local.tag_filter?.hidden_tag_ids ?? {}), [entityType]: ids }
+			}
+		};
+	}
+
+	function onToggleTagForEntity(entityType: EntityType, tagId: string) {
+		updateTopologyOptions((opts) => {
+			const hiddenIds = opts.local.tag_filter?.hidden_tag_ids?.[entityType] ?? [];
+			const next = hiddenIds.includes(tagId)
+				? hiddenIds.filter((id) => id !== tagId)
+				: [...hiddenIds, tagId];
+			return { ...opts, local: withHiddenTagIds(opts, entityType, next) };
+		});
 	}
 
 	/** Hidden values across `filters`, each filter counted once however many entities it covers. */
@@ -319,16 +333,6 @@
 	function clearFiltersForEntity(entityType: EntityType) {
 		const view = $activeView;
 		updateTopologyOptions((opts) => {
-			const tf = opts.local.tag_filter ?? {
-				hidden_host_tag_ids: [],
-				hidden_service_tag_ids: [],
-				hidden_subnet_tag_ids: []
-			};
-			const newTf = { ...tf };
-			if (entityType === 'Host') newTf.hidden_host_tag_ids = [];
-			if (entityType === 'Service') newTf.hidden_service_tag_ids = [];
-			if (entityType === 'Subnet') newTf.hidden_subnet_tag_ids = [];
-
 			const hideMeta = {
 				...((opts.request.hide_metadata_values ?? {}) as Record<
 					string,
@@ -343,7 +347,7 @@
 
 			return {
 				...opts,
-				local: { ...opts.local, tag_filter: newTf },
+				local: withHiddenTagIds(opts, entityType, []),
 				request: {
 					...opts.request,
 					hide_metadata_values: hideMeta
@@ -378,11 +382,7 @@
 				...opts,
 				local: {
 					...opts.local,
-					tag_filter: {
-						hidden_host_tag_ids: [],
-						hidden_service_tag_ids: [],
-						hidden_subnet_tag_ids: []
-					}
+					tag_filter: { hidden_tag_ids: {} }
 				},
 				request: {
 					...opts.request,
@@ -408,55 +408,6 @@
 					hide_entities: { ...map, [view]: next }
 				}
 			};
-		});
-	}
-
-	// Toggle functions for tag filter
-	function toggleHostTag(tagId: string) {
-		updateTopologyOptions((opts) => {
-			const currentFilter = opts.local.tag_filter;
-			const hiddenIds = currentFilter?.hidden_host_tag_ids ?? [];
-			const idx = hiddenIds.indexOf(tagId);
-			const newHiddenIds =
-				idx === -1 ? [...hiddenIds, tagId] : hiddenIds.filter((id) => id !== tagId);
-			opts.local.tag_filter = {
-				hidden_host_tag_ids: newHiddenIds,
-				hidden_service_tag_ids: currentFilter?.hidden_service_tag_ids ?? [],
-				hidden_subnet_tag_ids: currentFilter?.hidden_subnet_tag_ids ?? []
-			};
-			return opts;
-		});
-	}
-
-	function toggleServiceTag(tagId: string) {
-		updateTopologyOptions((opts) => {
-			const currentFilter = opts.local.tag_filter;
-			const hiddenIds = currentFilter?.hidden_service_tag_ids ?? [];
-			const idx = hiddenIds.indexOf(tagId);
-			const newHiddenIds =
-				idx === -1 ? [...hiddenIds, tagId] : hiddenIds.filter((id) => id !== tagId);
-			opts.local.tag_filter = {
-				hidden_host_tag_ids: currentFilter?.hidden_host_tag_ids ?? [],
-				hidden_service_tag_ids: newHiddenIds,
-				hidden_subnet_tag_ids: currentFilter?.hidden_subnet_tag_ids ?? []
-			};
-			return opts;
-		});
-	}
-
-	function toggleSubnetTag(tagId: string) {
-		updateTopologyOptions((opts) => {
-			const currentFilter = opts.local.tag_filter;
-			const hiddenIds = currentFilter?.hidden_subnet_tag_ids ?? [];
-			const idx = hiddenIds.indexOf(tagId);
-			const newHiddenIds =
-				idx === -1 ? [...hiddenIds, tagId] : hiddenIds.filter((id) => id !== tagId);
-			opts.local.tag_filter = {
-				hidden_host_tag_ids: currentFilter?.hidden_host_tag_ids ?? [],
-				hidden_service_tag_ids: currentFilter?.hidden_service_tag_ids ?? [],
-				hidden_subnet_tag_ids: newHiddenIds
-			};
-			return opts;
 		});
 	}
 

@@ -5,7 +5,6 @@
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import {
-		defineFields,
 		entityRef,
 		type CardAction,
 		type LabelledCardFieldItem
@@ -18,7 +17,6 @@
 	import { lastSeenItems } from '$lib/shared/utils/freshness';
 	import type { IPAddress, Port } from '$lib/features/hosts/types/base';
 	import { tagNames } from '$lib/features/tags/columns';
-	import { siteItems } from '$lib/features/sites/columns';
 	import { entities, entitySources, matchConfidences } from '$lib/shared/stores/metadata';
 	import { entitySourceItems } from '$lib/shared/utils/entity-source';
 	import { Trash2, Edit } from 'lucide-svelte';
@@ -41,6 +39,8 @@
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import type { TabProps } from '$lib/shared/types';
 	import type { components } from '$lib/api/schema';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { closeModal, modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
@@ -56,12 +56,8 @@
 		common_host,
 		common_lastSeen,
 		common_category,
-		common_name,
-		common_site,
 		common_noEntityYet,
-		common_position,
 		common_services,
-		common_source,
 		common_tags,
 		common_type,
 		common_unbound,
@@ -528,21 +524,33 @@
 		)
 	);
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all ServiceOrderField values are covered
+	// Related entities the registry's Service fields read, from the collections this tab loads.
+	let lookup = $derived(
+		collectionLookup({
+			Host: hostsData,
+			Port: portsData,
+			IPAddress: ipAddressesData,
+			Service: runtimesData,
+			Site: sitesData,
+			Subnet: subnetsData
+		})
+	);
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts, and keeps its own cells where they show more than the registry's. Every
+	// ServiceOrderField value must be listed.
 	let serviceFields = $derived(
-		defineFields<Service, ServiceOrderField>(
+		defineRegistryFields<Service, ServiceOrderField>(
+			'Service',
+			() => lookup,
 			{
 				// Identity field: grouping by it would render a header per service.
 				name: {
-					label: common_name(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					display: { order: 0, primary: true, width: 220 }
 				},
 				host: {
-					label: common_host(),
 					type: 'string',
 					searchable: true,
 					filterable: true,
@@ -581,7 +589,6 @@
 					}
 				},
 				site_id: {
-					label: common_site(),
 					type: 'string',
 					searchable: true,
 					filterable: true,
@@ -596,18 +603,15 @@
 					getGroupValue: (item) => item.site_id,
 					getValue: (item) =>
 						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
-					display: { order: 2, getItems: (item) => siteItems(item.site_id, sitesData) }
+					display: { order: 2 }
 				},
 				// Per-service ordinal, so grouping by it is one header per service.
 				position: {
-					label: common_position(),
-					type: 'string',
 					groupable: false,
 					display: { hiddenByDefault: true, align: 'right' }
 				},
 				service_definition: {
 					label: common_type(),
-					type: 'string',
 					searchable: true,
 					filterable: true,
 					serverFiltered: true,
@@ -619,7 +623,6 @@
 					// The server groups on the raw definition id; the UI renders its
 					// friendly name, so the group key has to be supplied separately.
 					getGroupValue: (service) => service.service_definition,
-					getValue: (service) => serviceDefinitions.getName(service.service_definition),
 					display: {
 						order: 4,
 						getItems: (service) => [
@@ -706,15 +709,12 @@
 					display: { hiddenByDefault: true }
 				},
 				source: {
-					label: common_source(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					// The sources some service was stamped with, by name.
 					filterOptions: labelledFieldValueOptions(sourceValuesQuery.data, (id) =>
 						entitySources.getName(id)
 					),
-					getValue: (service) => entitySources.getName(service.source.type),
 					// The server groups on the raw `source.type`.
 					getGroupValue: (service) => service.source.type,
 					display: {

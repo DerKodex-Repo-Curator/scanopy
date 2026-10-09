@@ -47,9 +47,16 @@ function buildTopology(): RenderableTopology {
 				site_id: SITE_ID,
 				tags: [],
 				display_name: '192.168.4.101',
-				virtualization_metadata: { type: 'NetworkIdentity', details: { interface: 'mv-snmp1' } }
+				virtualization_metadata: { type: 'NetworkIdentity', details: { interface: 'mv-snmp1' } },
+				filter_values: { Virtualization: 'NetworkIdentity' }
 			},
-			{ id: 'mv-2', site_id: SITE_ID, tags: [], display_name: '192.168.4.102' }
+			{
+				id: 'mv-2',
+				site_id: SITE_ID,
+				tags: [],
+				display_name: '192.168.4.102',
+				filter_values: { Virtualization: 'BareMetal' }
+			}
 		],
 		subnets: [],
 		ip_addresses: [],
@@ -140,14 +147,11 @@ describe('host metadata hover on inline members', () => {
 	});
 
 	it('marks a site identity as a site identity, not virtualized or bare metal', () => {
-		const topology = buildTopology();
-		expect(
-			inlineHostsMatching(groups(), hover('NetworkIdentity'), () => undefined, topology)
-		).toEqual(new Set(['mv-1']));
-		expect(inlineHostsMatching(groups(), hover('Virtualized'), () => undefined, topology)).toEqual(
-			new Set()
+		expect(inlineHostsMatching(groups(), hover('NetworkIdentity'), () => undefined)).toEqual(
+			new Set(['mv-1'])
 		);
-		expect(inlineHostsMatching(groups(), hover('BareMetal'), () => undefined, topology)).toEqual(
+		expect(inlineHostsMatching(groups(), hover('Virtualized'), () => undefined)).toEqual(new Set());
+		expect(inlineHostsMatching(groups(), hover('BareMetal'), () => undefined)).toEqual(
 			new Set(['mv-2'])
 		);
 	});

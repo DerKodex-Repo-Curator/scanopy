@@ -4,8 +4,8 @@
  * A colour on the canvas is shown only when the view gives the user a way to read it. Each view
  * declares its colours as element marks (`element_marks` in the views fixture), and every mark
  * names a filter value the view offers in its filter panel. The colour is that value's chip
- * colour, and a card carries it when the value's extractor, the same one the chip's hover ring
- * uses, returns that value for the card. Nothing here picks a colour of its own, so a card colour
+ * colour, and a card carries it when its entity carries that value, read through the same
+ * `filterValueOf` the chip's hover ring uses. Nothing here picks a colour of its own, so a card colour
  * without a chip to explain it has nowhere to come from. L3's amber host titles went this way:
  * L3 offers no Host filter, so it paints no Host title.
  *
@@ -20,9 +20,9 @@
 import type { components } from '$lib/api/schema';
 import type { Site } from '$lib/features/sites/types';
 import { createColorHelper, type Color } from '$lib/shared/utils/styling';
-import { FILTER_VALUE_EXTRACTORS } from './interactions';
-import { cardEntityForFilter, type ElementRenderContext } from './resolvers';
-import type { RenderableTopology } from './types/base';
+import { filterValueOf } from './interactions';
+import { cardEntityForFilter } from './resolvers';
+import type { RenderableTopology, TopologyNode } from './types/base';
 import { viewElementConfig, type ViewElementConfig } from './view-filters';
 
 type ElementMark = components['schemas']['ElementMark'];
@@ -44,12 +44,12 @@ export function markColor(config: ViewElementConfig, mark: ElementMark): Color |
 }
 
 /**
- * The colours `view` paints on the card `resolved` describes. Per channel the first matching mark
- * wins, which is how L2 puts a down port above a stale one.
+ * The colours `view` paints on the card `node` draws. Per channel the first matching mark wins,
+ * which is how L2 puts a down port above a stale one.
  */
 export function elementMarks(
 	view: string,
-	resolved: ElementRenderContext,
+	node: TopologyNode,
 	sites: Site[],
 	topology: RenderableTopology
 ): ElementMarks {
@@ -58,11 +58,10 @@ export function elementMarks(
 	if (!config) return marks;
 	for (const mark of config.element_marks ?? []) {
 		if (marks[mark.channel]) continue;
-		const entity = cardEntityForFilter(resolved, mark.entity);
-		const extract = FILTER_VALUE_EXTRACTORS[mark.entity]?.[mark.filter_type];
-		if (!entity || !extract) continue;
+		const entity = cardEntityForFilter(node, topology, mark.entity);
+		if (!entity) continue;
 		const site = sites.find((n) => n.id === (entity as { site_id?: string }).site_id);
-		if (extract(entity, { site, topology }) !== mark.value) continue;
+		if (filterValueOf(entity, mark.filter_type, site) !== mark.value) continue;
 		const color = markColor(config, mark);
 		if (color) marks[mark.channel] = color;
 	}

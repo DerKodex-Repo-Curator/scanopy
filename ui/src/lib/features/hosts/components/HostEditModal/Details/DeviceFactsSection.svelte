@@ -2,7 +2,7 @@
 	import type { HostFormData } from '$lib/features/hosts/types/base';
 	import type { AttributeSource } from '$lib/shared/utils/attribute-source';
 	import AttributeSourceTag from '$lib/shared/components/data/AttributeSourceTag.svelte';
-	import { hostOsLabel, type HostOs } from '$lib/features/hosts/host-os';
+	import { type HostOs } from '$lib/features/hosts/host-os';
 	import OsTag from '../../OsTag.svelte';
 	import EntityTag from '$lib/shared/components/data/EntityTag.svelte';
 	import CopyableValue from '$lib/shared/components/data/CopyableValue.svelte';
@@ -22,22 +22,19 @@
 	import { useInterfacesQuery } from '$lib/features/interfaces/queries';
 	import { sysContactEmail } from '$lib/features/hosts/sys-contact';
 	import {
-		common_assetTag,
-		common_contact,
-		common_firmwareRevision,
+		collectionLookup,
+		entityFieldLabel,
+		entityFields,
+		fieldSource,
+		fieldText
+	} from '$lib/shared/entity-fields';
+	import {
 		common_hardware,
-		common_hostname,
 		common_hypervisor,
 		common_interface,
-		common_location,
 		common_manager,
-		common_manufacturer,
-		common_model,
-		common_operatingSystem,
 		common_presentedBy,
 		common_runtime,
-		common_serialNumber,
-		common_softwareRevision,
 		common_virtualization,
 		hosts_deviceFacts_composeProject,
 		hosts_deviceFacts_containerId,
@@ -48,12 +45,7 @@
 		hosts_deviceFacts_identityGroup,
 		hosts_deviceFacts_locationGroup,
 		hosts_deviceFacts_networkType,
-		hosts_deviceFacts_vmId,
-		hosts_snmp_chassisId,
-		hosts_snmp_managementUrl,
-		hosts_snmp_sysDescr,
-		hosts_snmp_sysName,
-		hosts_snmp_sysObjectId
+		hosts_deviceFacts_vmId
 	} from '$lib/paraglide/messages';
 
 	let { host }: { host: HostFormData } = $props();
@@ -110,6 +102,22 @@
 		ids: ownerHostId ? [ownerHostId] : []
 	}));
 	let ownerHost = $derived(ownerHostQuery.data?.items.find((h) => h.id === ownerHostId) ?? null);
+
+	// The attributed host facts come from the entity field registry: label, value, provenance and
+	// whether a value reads as an identifier. This section only groups and lays them out.
+	const HOST_FIELDS = new Map(entityFields('Host').map((field) => [field.id, field]));
+	const NO_RELATIONS = collectionLookup({});
+	function registryFact(id: string, extras: Partial<Fact> = {}): Fact {
+		const field = HOST_FIELDS.get(id);
+		if (!field) return { label: id, value: undefined, source: undefined, ...extras };
+		return {
+			label: entityFieldLabel('Host', field),
+			value: fieldText(field, host, NO_RELATIONS) || undefined,
+			source: fieldSource(field, host),
+			identifier: field.format.type === 'Identifier',
+			...extras
+		};
+	}
 
 	function sourceless(label: string, value: string | null | undefined, identifier = false): Fact {
 		return { label, value, source: null, sourceless: true, identifier };
@@ -196,95 +204,34 @@
 			[
 				{
 					title: hosts_deviceFacts_identityGroup(),
-					facts: [
-						{
-							label: common_hostname(),
-							value: host.hostname,
-							source: host.hostname_source
-						},
-						{ label: hosts_snmp_sysName(), value: host.sys_name, source: host.sys_name_source },
-						{
-							label: hosts_snmp_chassisId(),
-							value: host.chassis_id,
-							source: host.chassis_id_source,
-							identifier: true
-						}
-					] satisfies Fact[]
+					facts: [registryFact('hostname'), registryFact('sys_name'), registryFact('chassis_id')]
 				},
 				{
 					title: common_hardware(),
 					facts: [
-						{
-							label: common_manufacturer(),
-							value: host.manufacturer,
-							source: host.manufacturer_source
-						},
-						{ label: common_model(), value: host.model, source: host.model_source },
-						{
-							label: common_serialNumber(),
-							value: host.serial_number,
-							source: host.serial_number_source,
-							identifier: true
-						},
-						{
-							label: common_assetTag(),
-							value: host.asset_tag,
-							source: host.asset_tag_source,
-							identifier: true
-						},
-						{
-							label: hosts_snmp_sysObjectId(),
-							value: host.sys_object_id,
-							source: host.sys_object_id_source,
-							identifier: true
-						}
-					] satisfies Fact[]
+						registryFact('manufacturer'),
+						registryFact('model'),
+						registryFact('serial_number'),
+						registryFact('asset_tag'),
+						registryFact('sys_object_id')
+					]
 				},
 				{
 					title: hosts_deviceFacts_firmwareGroup(),
 					facts: [
-						{
-							label: common_operatingSystem(),
-							value: host.os ? hostOsLabel(host.os) : undefined,
-							source: host.os_source,
-							os: host.os
-						},
-						{
-							label: common_firmwareRevision(),
-							value: host.firmware_revision,
-							source: host.firmware_revision_source,
-							identifier: true
-						},
-						{
-							label: common_softwareRevision(),
-							value: host.software_revision,
-							source: host.software_revision_source,
-							identifier: true
-						},
-						{ label: hosts_snmp_sysDescr(), value: host.sys_descr, source: host.sys_descr_source }
-					] satisfies Fact[]
+						registryFact('os_family', { os: host.os ?? undefined }),
+						registryFact('firmware_revision'),
+						registryFact('software_revision'),
+						registryFact('sys_descr')
+					]
 				},
 				{
 					title: hosts_deviceFacts_locationGroup(),
 					facts: [
-						{
-							label: common_location(),
-							value: host.sys_location,
-							source: host.sys_location_source
-						},
-						{
-							label: common_contact(),
-							value: host.sys_contact,
-							source: host.sys_contact_source,
-							mailto: sysContactEmail(host.sys_contact)
-						},
-						{
-							label: hosts_snmp_managementUrl(),
-							value: host.management_url,
-							source: host.management_url_source,
-							link: true
-						}
-					] satisfies Fact[]
+						registryFact('sys_location'),
+						registryFact('sys_contact', { mailto: sysContactEmail(host.sys_contact) }),
+						registryFact('management_url', { link: true })
+					]
 				},
 				{
 					title: common_virtualization(),

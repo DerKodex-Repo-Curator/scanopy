@@ -1,23 +1,21 @@
 /**
  * Text and colours for each node and edge of a diagram export, read from the same sources the
- * canvas components use (`ElementNode`, `ContainerNode`, `CustomEdge`), plus the entity fields each
- * shape carries as data.
+ * canvas components use (`ElementNode`, `ContainerNode`, `CustomEdge`), plus each shape's entity
+ * fields from the backend registry as Shape Data.
  */
 
 import type { Edge } from '@xyflow/svelte';
 import { containerTypes, edgeTypes, entities } from '$lib/shared/stores/metadata';
-import { hostDisplayName } from '$lib/features/hosts/host-display-name';
+import { common_type } from '$lib/paraglide/messages';
 import {
-	common_cidr,
-	common_host,
-	common_id,
-	common_interface,
-	common_ipAddress,
-	common_macAddress,
-	common_services,
-	common_type
-} from '$lib/paraglide/messages';
-import { elementEntity, resolveElementNode } from '../resolvers';
+	edgeFieldLabel,
+	edgeFields,
+	entityFieldLabel,
+	entityFields,
+	fieldText,
+	type EntityLookup
+} from '$lib/shared/entity-fields';
+import { nodeEntity, topologyLookup } from '../resolvers';
 import { createColorHelper, type Color } from '$lib/shared/utils/styling';
 import { buildElementRender, currentElementRenderContext } from '../element-render-data';
 import { formatElementSummary, tallyContainerElements } from '../labels';
@@ -115,52 +113,41 @@ function elementDescription(
 	return { title, lines };
 }
 
-/** Keep only fields with a value, so a shape's data lists what is known about it. */
-function fields(entries: [string, string | null | undefined][]): DiagramField[] {
-	return entries
-		.filter((entry): entry is [string, string] => !!entry[1]?.trim())
-		.map(([label, value]) => ({ label, value }));
-}
-
-function elementFields(
-	id: string,
+/**
+ * A shape's Shape Data: its type, then every registry field of the entity it stands for, with
+ * empty fields left out. Which fields an entity has, and where related values come from, is the
+ * backend registry's call (`shared/entity-fields`).
+ */
+function shapeData(
+	typeName: string,
 	node: TopologyNode,
-	topology: RenderableTopology
+	topology: RenderableTopology,
+	lookup: EntityLookup
 ): DiagramField[] {
-	const resolved = resolveElementNode(id, node, topology);
-	const iface = resolved.snmpInterface;
-	const subnet = topology.subnets.find((s) => s.id === resolved.subnetId);
-	return fields([
-		[common_host(), resolved.host ? hostDisplayName(resolved.host) : null],
-		[common_ipAddress(), resolved.ipAddress?.ip_address],
-		[common_macAddress(), resolved.ipAddress?.mac_address ?? iface?.mac_address],
-		[common_interface(), iface?.if_name ?? iface?.if_descr],
-		[entities.getName('Subnet'), subnet?.cidr],
-		[common_services(), resolved.services.map((s) => s.name).join(', ')],
-		[common_id(), elementEntity(resolved)?.id]
-	]);
+	const data: DiagramField[] = [{ label: common_type(), value: typeName }];
+	const resolved = nodeEntity(node, topology);
+	if (!resolved) return data;
+	for (const field of entityFields(resolved.entityType)) {
+		const value = fieldText(field, resolved.entity, lookup);
+		if (value) data.push({ label: entityFieldLabel(resolved.entityType, field), value });
+	}
+	return data;
 }
 
-function containerFields(
-	id: string,
-	node: TopologyNode & { node_type: 'Container' },
-	topology: RenderableTopology
-): DiagramField[] {
-	const containerType = node.container_type ?? 'Subnet';
-	const entityId = node.entity_id ?? id;
-	const subnet =
-		containerType === 'Subnet' ? topology.subnets.find((s) => s.id === entityId) : undefined;
-	return fields([
-		[common_type(), containerTypes.getName(containerType)],
-		[common_cidr(), subnet?.cidr],
-		[common_id(), node.entity_id]
-	]);
+function edgeData(edge: TopologyEdge, lookup: EntityLookup): DiagramField[] {
+	const data: DiagramField[] = [{ label: common_type(), value: edgeTypes.getName(edge.edge_type) }];
+	for (const field of edgeFields(edge.edge_type)) {
+		const value = fieldText(field, edge, lookup);
+		if (value) data.push({ label: edgeFieldLabel(edge.edge_type, field), value });
+	}
+	return data;
 }
 
 export function createDescriber(input: DescriberInput): DiagramDescriber {
 	const palette = DIAGRAM_PALETTE[input.theme];
 	const infraRuleId = getInfrastructureRuleIdForTopology(input.topology);
 	const activeView = currentElementRenderContext().activeView;
+	const lookup = topologyLookup(input.topology);
 
 	return {
 		node(source: DiagramSourceNode): DiagramNodeDescription {
@@ -174,7 +161,9 @@ export function createDescriber(input: DescriberInput): DiagramDescriber {
 					title,
 					lines,
 					iconKey,
-					data: data ? elementFields(source.id, data, input.topology) : [],
+					data: data
+						? shapeData(entities.getName(data.element_type ?? null), data, input.topology, lookup)
+						: [],
 					style: { fill: palette.node, stroke: palette.border, text: palette.text }
 				};
 			}
@@ -196,7 +185,7 @@ export function createDescriber(input: DescriberInput): DiagramDescriber {
 				title: data.header ?? '',
 				lines,
 				iconKey,
-				data: containerFields(source.id, data, input.topology),
+				data: shapeData(containerTypes.getName(containerType), data, input.topology, lookup),
 				style: {
 					fill: isSubcontainer ? palette.subgroup : palette.node,
 					stroke: palette.border,
@@ -249,7 +238,7 @@ export function createDescriber(input: DescriberInput): DiagramDescriber {
 					isOverlay
 				}),
 				dash: !isDependencyEdge && isOverlay ? (isDotted ? 'dotted' : 'dashed') : 'solid',
-				data: fields([[common_type(), data ? edgeTypes.getName(data.edge_type) : null]])
+				data: data ? edgeData(data, lookup) : []
 			};
 		}
 	};

@@ -8,14 +8,14 @@
 	import { ServiceDisplay } from '$lib/shared/components/forms/selection/display/ServiceDisplay.svelte';
 	import { InterfaceDisplay } from '$lib/shared/components/forms/selection/display/InterfaceDisplay.svelte';
 	import { HostDisplay } from '$lib/shared/components/forms/selection/display/HostDisplay.svelte';
-	import type { RenderableTopology, TopologyNode } from '$lib/features/topology/types/base';
+	import type { RenderableTopology } from '$lib/features/topology/types/base';
 	import type { TopologyEditState } from '$lib/features/topology/state';
 	import type {
 		ElementRenderContext,
 		ContainerRenderContext
 	} from '$lib/features/topology/resolvers';
 	import { inspector_thisEntity, topology_focusNode } from '$lib/paraglide/messages';
-	import { containerTypes, entities } from '$lib/shared/stores/metadata';
+	import { containerTypes, entities, views } from '$lib/shared/stores/metadata';
 	import { activeView } from '$lib/features/topology/queries';
 	import InspectorSection from '../shared/InspectorSection.svelte';
 	import { useSitesQuery } from '$lib/features/sites/queries';
@@ -68,10 +68,12 @@
 			? elementContext.services[0]
 			: null
 	);
-	let isApplicationView = $derived($activeView === 'Application');
+	let showNetworkDetail = $derived(
+		views.getMetadata($activeView).inspector_config?.show_service_network_detail ?? true
+	);
 	let serviceDisplayContext = $derived({
-		ipAddressId: isApplicationView ? null : (elementContext?.ipAddressId ?? null),
-		ports: isApplicationView ? [] : topology.ports,
+		ipAddressId: showNetworkDetail ? (elementContext?.ipAddressId ?? null) : null,
+		ports: showNetworkDetail ? topology.ports : [],
 		showEntityTagPicker: !editState.isReadonly,
 		tagPickerDisabled: !editState.isEditable,
 		entityTags: topology.entity_tags,
@@ -79,12 +81,7 @@
 	});
 
 	// For Interface (SNMP) elements: show the Interface
-	let thisInterface = $derived.by(() => {
-		if (elementContext?.elementType !== 'Interface') return null;
-		const nodeData = node.data as TopologyNode;
-		const interfaceId = 'interface_id' in nodeData ? (nodeData.interface_id as string) : undefined;
-		return interfaceId ? (topology.interfaces.find((e) => e.id === interfaceId) ?? null) : null;
-	});
+	let thisInterface = $derived(elementContext?.snmpInterface ?? null);
 
 	// For Host containers: resolve via entity_id on the container node
 	let thisHost = $derived.by(() => {

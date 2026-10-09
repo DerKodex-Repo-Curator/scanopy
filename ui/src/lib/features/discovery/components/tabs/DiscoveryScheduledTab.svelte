@@ -16,7 +16,9 @@
 	import DiscoveryEstimation from '../DiscoveryEstimation.svelte';
 	import DiscoveryEditModal from '../DiscoveryModal/DiscoveryEditModal.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
-	import { defineFields, type DisplayConfig } from '$lib/shared/components/data/types';
+	import type { DisplayConfig } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { Plus, Play, Power, Edit, Trash2, Ban } from 'lucide-svelte';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { useTagsQuery } from '$lib/features/tags/queries';
@@ -345,8 +347,13 @@
 		sort: { field: 'name', direction: 'asc' }
 	};
 
+	// Related entities the registry's discovery fields read: the daemon, the site.
+	let lookup = $derived(collectionLookup({ Daemon: daemonsData, Site: sitesData }));
+
 	let fields = $derived(
-		defineFields<Discovery, DiscoveryConfigOrderField>(
+		defineRegistryFields<Discovery, DiscoveryConfigOrderField>(
+			'Discovery',
+			() => lookup,
 			withSharedDisplay(discoveryFields(daemonsData, sitesData)),
 			[
 				{
@@ -395,12 +402,10 @@
 				{
 					key: 'run_type',
 					label: discovery_runType(),
-					type: 'string',
 					searchable: true,
 					filterable: true,
 					groupable: true,
 					sortable: true,
-					getValue: (item) => item.run_type.type,
 					display: { order: 1 }
 				},
 				{

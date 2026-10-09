@@ -230,7 +230,8 @@ fn compute_virtualizer_placements(rule: &ElementRule, ctx: &PlacementContext) ->
                 node_type: NodeType::Container {
                     container_type,
                     parent_container_id: Some(*parent_id),
-                    entity_id: None,
+                    // The virtualizer service this container groups the workloads of.
+                    entity_id: Some(vid),
                     icon: None,
                     color: None,
                     associated_service_definition: ctx
@@ -714,6 +715,10 @@ fn compute_vlan_placements(ctx: &PlacementContext) -> RulePlacement {
                 .first()
                 .and_then(|id| ctx.match_data.get(id))
                 .and_then(|d| d.vlan_name.as_deref());
+            let vlan_id = ids
+                .first()
+                .and_then(|id| ctx.match_data.get(id))
+                .and_then(|d| d.native_vlan_id);
 
             let header = match vlan_name {
                 Some(name) => format!("VLAN {} ({})", vlan_number, name),
@@ -725,7 +730,7 @@ fn compute_vlan_placements(ctx: &PlacementContext) -> RulePlacement {
                 node_type: NodeType::Container {
                     container_type: ContainerType::VLAN,
                     parent_container_id: Some(*parent_id),
-                    entity_id: None,
+                    entity_id: vlan_id,
                     icon: None,
                     color: None,
                     associated_service_definition: None,

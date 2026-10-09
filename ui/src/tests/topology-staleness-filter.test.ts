@@ -69,16 +69,30 @@ function buildTopology(): RenderableTopology {
 				id: 'svc-on-stale-host',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'stale-host'
+				host_id: 'stale-host',
+				entity_id: 'svc-on-stale-host'
 			},
 			{
 				id: 'svc-itself-stale',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'fresh-host'
+				host_id: 'fresh-host',
+				entity_id: 'svc-itself-stale'
 			},
-			{ id: 'stale-host', node_type: 'Element', element_type: 'Host', host_id: 'stale-host' },
-			{ id: 'fresh-host', node_type: 'Element', element_type: 'Host', host_id: 'fresh-host' }
+			{
+				id: 'stale-host',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'stale-host',
+				entity_id: 'stale-host'
+			},
+			{
+				id: 'fresh-host',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'fresh-host',
+				entity_id: 'fresh-host'
+			}
 		],
 		edges: [],
 		subnets: [],
@@ -250,14 +264,16 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'IPAddress',
 				host_id: 'stale-host',
-				ip_address_id: 'ip-stale'
+				ip_address_id: 'ip-stale',
+				entity_id: 'ip-stale'
 			},
 			{
 				id: 'n-ip-fresh',
 				node_type: 'Element',
 				element_type: 'IPAddress',
 				host_id: 'fresh-host',
-				ip_address_id: 'ip-fresh'
+				ip_address_id: 'ip-fresh',
+				entity_id: 'ip-fresh'
 			},
 			{
 				id: 'c-stale-host',
@@ -276,6 +292,7 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'stale-host',
+				entity_id: 'svc-on-stale-host',
 				container_id: 'c-stale-host'
 			},
 			{
@@ -283,6 +300,7 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'fresh-host',
+				entity_id: 'svc-itself-stale',
 				container_id: 'c-fresh-host'
 			}
 		]
@@ -339,10 +357,8 @@ describe('staleness filter on addresses and containers', () => {
  */
 describe('hidden values stay offerable once the server stops sending them', () => {
 	it('keeps a hidden value represented even when no entity carries it', () => {
-		// One interface, linked via its own resolved-adjacency row (GH #701: a port's neighbour is
-		// a `Vec` on the topology bundle, not a scalar field on the interface). `Unlinked` is
-		// hidden, so the server sent none — exactly the state after a server-side LinkState filter
-		// runs.
+		// One interface, stamped linked by the backend. `Unlinked` is hidden, so the server sent
+		// none — exactly the state after a server-side LinkState filter runs.
 		const topology = {
 			id: 'topo-1',
 			nodes: [],
@@ -351,10 +367,8 @@ describe('hidden values stay offerable once the server stops sending them', () =
 			services: [],
 			ip_addresses: [],
 			subnets: [],
-			interfaces: [{ id: 'if-1' }],
-			neighbours: [
-				{ id: 'row-1', interface_id: 'if-1', neighbor: { type: 'Interface', id: 'if-2' } }
-			]
+			interfaces: [{ id: 'if-1', filter_values: { LinkState: 'Linked' } }],
+			neighbours: []
 		} as unknown as RenderableTopology;
 
 		updateTagFilter(topology, undefined, 'L2Physical', {

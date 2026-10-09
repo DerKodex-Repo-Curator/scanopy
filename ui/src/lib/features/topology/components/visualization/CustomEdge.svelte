@@ -15,6 +15,7 @@
 	import type { TopologyEdge, RenderableTopology } from '../../types/base';
 	import { isExporting, detailSimplified, hoveredEdgeType } from '../../interactions';
 	import {
+		getEndpointLabels,
 		getLinkEvidenceTag,
 		isDottedEdge,
 		isEdgeHidden,
@@ -64,18 +65,14 @@
 	const ENDPOINT_MAX_WIDTH_PX = ELEMENT_TEXT_WIDTH_PX / 2;
 
 	/**
-	 * The two endpoint names in a `a ↔ b` label, or `null` for any other shape.
+	 * The two endpoint names, for edges whose label names two things (`PhysicalLink` from two
+	 * interface names, `NeighborLink` from two host names), or `null` for any other edge.
 	 *
-	 * Both endpoint-naming edge types build their label this way — `PhysicalLink` from two
-	 * interface names, `NeighborLink` from two host names — and either half can be long on its own.
-	 * Splitting lets each side truncate independently, so the separator survives even when both
-	 * ends are cut; a single truncation across the whole string loses it and with it the only clue
-	 * that the label names two things.
+	 * Either name can be long on its own. Drawing them separately lets each side truncate
+	 * independently, so the separator survives even when both ends are cut; a single truncation
+	 * across the whole string loses it and with it the only clue that the label names two things.
 	 */
-	let labelEndpoints = $derived.by((): [string, string] | null => {
-		const parts = label?.split(' ↔ ');
-		return parts?.length === 2 ? [parts[0], parts[1]] : null;
-	});
+	let labelEndpoints = $derived(getEndpointLabels(edgeData, label));
 
 	// Bundle detection
 	const anyEdgeData = $derived(data as Record<string, unknown> | undefined);

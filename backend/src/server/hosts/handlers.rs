@@ -24,7 +24,10 @@ use crate::server::shared::handlers::query::{
 use crate::server::shared::handlers::traits::{
     BulkDeleteResponse, bulk_delete_handler, delete_handler,
 };
-use crate::server::shared::services::{csv::build_csv, traits::CrudService};
+use crate::server::shared::services::{
+    entity_fields::{ServiceSource, entities_csv},
+    traits::CrudService,
+};
 use crate::server::shared::storage::traits::Entity;
 use crate::server::shared::storage::{filter::StorableFilter, traits::Storable};
 use crate::server::shared::types::api::ApiJson;
@@ -1466,39 +1469,66 @@ async fn export_hosts_zip(
     let ip_addresses = state
         .services
         .ip_address_service
-        .get_all(StorableFilter::<IPAddress>::new_from_host_ids(&host_ids).site_ids(&site_ids))
+        .get_all(
+            StorableFilter::<IPAddress>::new_from_host_ids(&host_ids)
+                .site_ids(&site_ids)
+                .live_or_as_of(query.at),
+        )
         .await?;
 
     let ports = state
         .services
         .port_service
-        .get_all(StorableFilter::<Port>::new_from_host_ids(&host_ids).site_ids(&site_ids))
+        .get_all(
+            StorableFilter::<Port>::new_from_host_ids(&host_ids)
+                .site_ids(&site_ids)
+                .live_or_as_of(query.at),
+        )
         .await?;
 
     let services = state
         .services
         .service_service
-        .get_all(StorableFilter::<Service>::new_from_host_ids(&host_ids).site_ids(&site_ids))
+        .get_all(
+            StorableFilter::<Service>::new_from_host_ids(&host_ids)
+                .site_ids(&site_ids)
+                .live_or_as_of(query.at),
+        )
         .await?;
 
     let interfaces = state
         .services
         .interface_service
-        .get_all(StorableFilter::<Interface>::new_from_host_ids(&host_ids).site_ids(&site_ids))
+        .get_all(
+            StorableFilter::<Interface>::new_from_host_ids(&host_ids)
+                .site_ids(&site_ids)
+                .live_or_as_of(query.at),
+        )
         .await?;
 
-    // Build CSVs
-    let hosts_csv = build_csv(&hosts)
-        .map_err(|e| ApiError::internal_error(&format!("Failed to build hosts CSV: {}", e)))?;
-    let ip_addresses_csv = build_csv(&ip_addresses).map_err(|e| {
-        ApiError::internal_error(&format!("Failed to build ip_addresses CSV: {}", e))
-    })?;
-    let ports_csv = build_csv(&ports)
-        .map_err(|e| ApiError::internal_error(&format!("Failed to build ports CSV: {}", e)))?;
-    let services_csv = build_csv(&services)
-        .map_err(|e| ApiError::internal_error(&format!("Failed to build services CSV: {}", e)))?;
-    let interfaces_csv = build_csv(&interfaces)
-        .map_err(|e| ApiError::internal_error(&format!("Failed to build interfaces CSV: {}", e)))?;
+    // Build CSVs from the field registry, related entities read through their services.
+    let source = ServiceSource {
+        services: &state.services,
+        site_ids: &site_ids,
+        organization_id,
+    };
+    let csv_error =
+        |e: anyhow::Error| ApiError::internal_error(&format!("Failed to build CSV: {e}"));
+    let hosts_csv = entities_csv(&source, EntityDiscriminants::Host, &hosts)
+        .await
+        .map_err(csv_error)?;
+    let ip_addresses_csv = entities_csv(&source, EntityDiscriminants::IPAddress, &ip_addresses)
+        .await
+        .map_err(csv_error)?;
+    let ports_csv = entities_csv(&source, EntityDiscriminants::Port, &ports)
+        .await
+        .map_err(csv_error)?;
+    let services_csv = entities_csv(&source, EntityDiscriminants::Service, &services)
+        .await
+        .map_err(csv_error)?;
+    let interfaces_csv = entities_csv(&source, EntityDiscriminants::Interface, &interfaces)
+        .await
+        .map_err(csv_error)?;
 
     // Build zip archive
     let mut buffer = Cursor::new(Vec::new());

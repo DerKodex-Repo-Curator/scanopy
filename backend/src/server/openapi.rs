@@ -41,6 +41,7 @@ use crate::server::services::r#impl::base::Service;
 use crate::server::shared::handlers::query::{OrderDirection, PaginationParams};
 use crate::server::shared::storage::traits::Entity;
 use crate::server::shared::types::entities::{EntityFreshness, EntitySourceDiscriminants};
+use crate::server::shared::types::entity_field::{EntityField, FieldFormat, Hop, MetadataFixture};
 use crate::server::shared::types::field_definition::{
     FieldDefinition, FieldType, InlineFormat, SelectOption,
 };
@@ -53,7 +54,10 @@ use crate::server::subnets::r#impl::nesting::SubnetResponse;
 use crate::server::tags::handlers::TagOrderField;
 use crate::server::tags::r#impl::base::Tag;
 use crate::server::topology::types::base::Topology;
-use crate::server::topology::types::views::ViewElementConfig;
+use crate::server::topology::types::views::{
+    DependencyMemberType, InspectorSection, ViewElementConfig, ViewElementOrder,
+    ViewHandleStrategy, ViewInspectorConfig, ViewLayoutAlgorithm, ViewLayoutConfig, ViewRootOrder,
+};
 use crate::server::user_api_keys::r#impl::base::UserApiKey;
 use crate::server::users::r#impl::base::User;
 use crate::server::vlans::handlers::VlanOrderField;
@@ -120,6 +124,18 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         // untyped `TypeMetadata.metadata`, so nothing else pulls it into the schema; the topology
         // types its colour marks and filters from here.
         ViewElementConfig,
+        // A view's inspector sections and dependency creation mode, from the same fixture; the
+        // inspector types its section registry from here rather than keeping its own union.
+        ViewInspectorConfig,
+        InspectorSection,
+        DependencyMemberType,
+        // A view's layout choices, from the same fixture; the topology layout pipeline reads
+        // these instead of branching on view ids.
+        ViewLayoutConfig,
+        ViewLayoutAlgorithm,
+        ViewHandleStrategy,
+        ViewElementOrder,
+        ViewRootOrder,
         // The filter state a host virtualization type files under. Travels inside
         // `host-virtualizations.json`'s untyped `TypeMetadata.metadata`.
         HostVirtualizationState,
@@ -152,6 +168,12 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         // blob and the scan-settings fixture, so nothing else pulls it into the schema — but the
         // frontend must derive its `field_type` union from here rather than hand-maintaining one.
         // Hand-maintaining it is what let the credential form guess "is this a port?" from a label.
+        // The entity field registry, carried in the entities and edge-types fixtures for the same
+        // reason.
+        EntityField,
+        Hop,
+        FieldFormat,
+        MetadataFixture,
         FieldDefinition,
         FieldType,
         SelectOption,

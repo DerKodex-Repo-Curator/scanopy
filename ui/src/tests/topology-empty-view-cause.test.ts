@@ -22,10 +22,10 @@ function l2Topology(filteredOut: Record<string, Record<string, number>>): Render
 		ip_addresses: [],
 		ports: [],
 		bindings: [],
-		interfaces: [{ id: 'if-linked', host_id: 'h1', site_id: 'net-1' }],
-		neighbours: [
-			{ id: 'row-1', interface_id: 'if-linked', neighbor: { type: 'Interface', id: 'if-far' } }
+		interfaces: [
+			{ id: 'if-linked', host_id: 'h1', site_id: 'net-1', filter_values: { LinkState: 'Linked' } }
 		],
+		neighbours: [],
 		candidates: [],
 		filtered_out: filteredOut,
 		dependencies: [],
@@ -35,11 +35,7 @@ function l2Topology(filteredOut: Record<string, Record<string, number>>): Render
 	} as unknown as RenderableTopology;
 }
 
-const NO_TAGS = {
-	hidden_host_tag_ids: [],
-	hidden_service_tag_ids: [],
-	hidden_subnet_tag_ids: []
-};
+const NO_TAGS = { hidden_tag_ids: {} };
 
 describe('what emptied a topology view', () => {
 	it('names the filter and counts the entities the server never sent', () => {
@@ -60,7 +56,7 @@ describe('what emptied a topology view', () => {
 	});
 
 	it('adds the entities the browser is hiding to the ones the server dropped', () => {
-		// `if-linked` has a resolved neighbour of its own, so it classifies Linked and this
+		// `if-linked` is stamped Linked by the backend, so this
 		// hide-set catches it client-side on top of the 103 already gone.
 		const causes = activeViewFilters(
 			'L2Physical',

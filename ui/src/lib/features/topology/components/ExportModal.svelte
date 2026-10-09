@@ -15,7 +15,7 @@
 		Moon
 	} from 'lucide-svelte';
 	import { pushError, pushSuccess } from '$lib/shared/stores/feedback';
-	import { activeView, topologyOptions, type TopologyView } from '../queries';
+	import { activeView, topologyOptions } from '../queries';
 	import type { RenderableTopology } from '../types/base';
 	import { escapeXml } from '../diagram-export/xml';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -99,15 +99,6 @@
 	const { getNodes, getEdges, getInternalNode, getNodesBounds, getViewport, setViewport } =
 		useSvelteFlow();
 
-	// Short canonical filename token per perspective. Keyed by the generated
-	// TopologyView enum so adding a backend view fails the build until mapped.
-	const VIEW_FILENAME_TOKENS: Record<TopologyView, string> = {
-		L2Physical: 'l2',
-		L3Logical: 'l3',
-		Workloads: 'infra',
-		Application: 'app'
-	};
-
 	/** Lowercase a site name and reduce non-alphanumerics to single hyphens for safe filenames. */
 	function sanitizeForFilename(name: string): string {
 		const slug = name
@@ -120,7 +111,7 @@
 
 	/** Build the canonical export filename: scanopy-<view>-<site>-<date>.<ext>. */
 	function buildExportFilename(ext: string): string {
-		const viewToken = VIEW_FILENAME_TOKENS[$activeView];
+		const viewToken = views.getMetadata($activeView).slug ?? $activeView;
 		const siteSlug = sanitizeForFilename(topologyName);
 		const date = new Date().toISOString().split('T')[0];
 		return `scanopy-${viewToken}-${siteSlug}-${date}.${ext}`;

@@ -8,7 +8,7 @@ import type { RenderableTopology, TopologyNode } from '$lib/features/topology/ty
 import { buildElementRender } from '$lib/features/topology/element-render-data';
 import { type MarkChannel } from '$lib/features/topology/element-marks';
 import { viewElementConfig } from '$lib/features/topology/view-filters';
-import { cardEntityForFilter, resolveElementNode } from '$lib/features/topology/resolvers';
+import { cardEntityForFilter } from '$lib/features/topology/resolvers';
 import { matchesHoveredMetadata } from '$lib/features/topology/interactions';
 
 /**
@@ -43,9 +43,17 @@ const virtualizations: Array<string | null> = [
 ];
 const operStatuses: Array<string | null> = [null, ...ifOperStatusesJson.map((s) => s.id as string)];
 
+/** The Virtualization filter value the backend stamps on a host of `virt` type. */
+const virtualizationState = (virt: string | null): string =>
+	virt
+		? (hostVirtualizationsJson.find((v) => v.id === virt)?.metadata.virtualization_state ??
+			'BareMetal')
+		: 'BareMetal';
+
 /**
  * One host per virtualization type and age, each with an address, a service and a port per
- * status, so every element type a view draws has a card for every classification.
+ * status, so every element type a view draws has a card for every classification. Each entity
+ * carries the `filter_values` the backend would stamp on it.
  */
 function buildTopology(): RenderableTopology {
 	const hosts: Record<string, unknown>[] = [];
@@ -63,7 +71,8 @@ function buildTopology(): RenderableTopology {
 				name: hostId,
 				last_seen_at: seen,
 				virtualization_metadata: virt ? { type: virt, details: {} } : null,
-				virtualization_service_id: virt ? 'manager' : null
+				virtualization_service_id: virt ? 'manager' : null,
+				filter_values: { Virtualization: virtualizationState(virt) }
 			});
 			ipAddresses.push({
 				...base,
@@ -81,7 +90,8 @@ function buildTopology(): RenderableTopology {
 				service_definition: 'SSH',
 				bindings: [],
 				last_seen_at: seen,
-				virtualization_service_id: virt ? 'manager' : null
+				virtualization_service_id: virt ? 'manager' : null,
+				filter_values: { Category: 'RemoteAccess' }
 			});
 			for (const status of operStatuses) {
 				interfaces.push({
@@ -89,7 +99,10 @@ function buildTopology(): RenderableTopology {
 					id: `${hostId}-if-${status ?? 'none'}`,
 					host_id: hostId,
 					oper_status: status,
-					last_seen_at: seen
+					last_seen_at: seen,
+					filter_values: status
+						? { LinkState: 'Linked', OperStatus: status }
+						: { LinkState: 'Linked' }
 				});
 			}
 		}
@@ -117,27 +130,33 @@ function buildTopology(): RenderableTopology {
 
 /** An element node of `elementType` for every matching entity in the topology. */
 function cardNodes(topology: RenderableTopology, elementType: string): TopologyNode[] {
-	const element = (id: string, hostId: string, extra: Record<string, unknown> = {}) =>
+	const element = (
+		id: string,
+		hostId: string,
+		entityId: string,
+		extra: Record<string, unknown> = {}
+	) =>
 		({
 			id,
 			node_type: 'Element',
 			element_type: elementType,
 			host_id: hostId,
+			entity_id: entityId,
 			header: hostId,
 			...extra
 		}) as unknown as TopologyNode;
 	switch (elementType) {
 		case 'Host':
-			return topology.hosts.map((h) => element(`${h.id}-card`, h.id));
+			return topology.hosts.map((h) => element(`${h.id}-card`, h.id, h.id));
 		case 'Service':
-			return topology.services.map((s) => element(s.id, s.host_id));
+			return topology.services.map((s) => element(s.id, s.host_id, s.id));
 		case 'IPAddress':
 			return topology.ip_addresses.map((ip) =>
-				element(`${ip.id}-card`, ip.host_id, { ip_address_id: ip.id, subnet_id: 'subnet' })
+				element(`${ip.id}-card`, ip.host_id, ip.id, { ip_address_id: ip.id, subnet_id: 'subnet' })
 			);
 		case 'Interface':
 			return topology.interfaces.map((i) =>
-				element(`${i.id}-card`, i.host_id, { interface_id: i.id })
+				element(`${i.id}-card`, i.host_id, i.id, { interface_id: i.id })
 			);
 		default:
 			throw new Error(`no card builder for ${elementType}`);
@@ -147,7 +166,7 @@ function cardNodes(topology: RenderableTopology, elementType: string): TopologyN
 /** The chips in `config` whose colour is `color` and whose hover rings this card. */
 function decodingChips(
 	config: ViewElementConfig,
-	resolved: ReturnType<typeof resolveElementNode>,
+	node: TopologyNode,
 	topology: RenderableTopology,
 	color: Color
 ): string[] {
@@ -162,8 +181,8 @@ function decodingChips(
 				color: value.color
 			};
 			for (const entityType of filter.entities) {
-				const entity = cardEntityForFilter(resolved, entityType);
-				if (entity && matchesHoveredMetadata(entity, entityType, hovered, SITE, topology)) {
+				const entity = cardEntityForFilter(node, topology, entityType);
+				if (entity && matchesHoveredMetadata(entity, entityType, hovered, SITE)) {
 					chips.push(`${filter.entities.join('+')}/${filter.filter_type}/${value.id}`);
 				}
 			}
@@ -197,11 +216,10 @@ describe('topology card colours are decodable in their view', () => {
 						expandedInlineGroups: new Set(),
 						sites: [SITE]
 					});
-					const resolved = resolveElementNode(node.id, node, topology);
 					for (const [channel, color] of Object.entries(result.marks) as [MarkChannel, Color][]) {
 						painted.add(channel);
 						expect(
-							decodingChips(config, resolved, topology, color),
+							decodingChips(config, node, topology, color),
 							`${view} paints ${channel} ${color} on ${node.id} with no chip to decode it`
 						).not.toHaveLength(0);
 					}

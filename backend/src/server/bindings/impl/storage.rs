@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::{Row, postgres::PgRow};
 use uuid::Uuid;
 
@@ -14,19 +13,6 @@ use crate::server::{
         },
     },
 };
-
-/// CSV row representation for Binding export
-#[derive(Serialize)]
-pub struct BindingCsvRow {
-    pub id: Uuid,
-    pub service_id: Uuid,
-    pub binding_type: String,
-    pub ip_address_id: Option<Uuid>,
-    pub port_id: Option<Uuid>,
-    pub site_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Binding {
     type BaseData = BindingBase;
@@ -244,28 +230,6 @@ impl Entity for Binding {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = BindingCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        let (binding_type, ip_address_id, port_id) = match self.base.binding_type {
-            BindingType::IPAddress { ip_address_id } => ("IPAddress", Some(ip_address_id), None),
-            BindingType::Port {
-                port_id,
-                ip_address_id,
-            } => ("Port", ip_address_id, Some(port_id)),
-        };
-        BindingCsvRow {
-            id: self.id,
-            service_id: self.base.service_id,
-            binding_type: binding_type.to_string(),
-            ip_address_id,
-            port_id,
-            site_id: self.base.site_id,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

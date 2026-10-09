@@ -593,7 +593,7 @@ async fn run_populate_demo(
         .update(&mut org, entity.clone())
         .await?;
 
-    seed_demo_data(&state.services, id, user_id, entity).await
+    seed_demo_data(&state.services, id, user_id, org.base.use_case, entity).await
 }
 
 /// Internal function to reset organization data (reused by populate_demo_data).

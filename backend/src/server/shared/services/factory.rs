@@ -327,6 +327,7 @@ impl ServiceFactory {
             tag_service.clone(),
             vlan_service.clone(),
             site_service.clone(),
+            organization_service.clone(),
             storage.topologies.clone(),
             event_bus.clone(),
         ));

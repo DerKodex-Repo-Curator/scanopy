@@ -244,6 +244,8 @@ export interface EdgeTypeMetadata {
 	is_host_edge: boolean;
 	is_physical_edge: boolean;
 	selection_scope: EdgeSelectionScope;
+	/** What an edge of this type is described by, read from its own data. */
+	fields: components['schemas']['EntityField'][];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -293,6 +295,8 @@ export interface ContainerTypeMetadata {
 	fill_icon: boolean;
 	padding: { top: number; left: number; bottom: number; right: number };
 	collapsed_size: { width: number; height: number };
+	/** The entity type a container of this type stands for, named by its `entity_id`; null for groupings. */
+	entity_type: components['schemas']['EntityDiscriminants'] | null;
 }
 
 export const metadata = writable<MetadataRegistry>({
@@ -509,6 +513,10 @@ interface EntityTypeMetadata {
 	is_taggable?: boolean;
 	entity_name_singular?: string;
 	entity_name_plural?: string;
+	/** What this entity type is described by; see `shared/entity-fields`. */
+	fields: components['schemas']['EntityField'][];
+	/** Fields that name one entity in text, tried in order. */
+	display_fields: string[];
 }
 export const entities = createTypeMetadataHelpers<'entities', EntityTypeMetadata>('entities');
 /** The parts of the product entities belong to, in display order: the sidebar's sections. */
@@ -603,7 +611,19 @@ export const credentialIntegrations = createTypeMetadataHelpers<
 export const containerTypes = createTypeMetadataHelpers<'container_types', ContainerTypeMetadata>(
 	'container_types'
 );
-export const views = createTypeMetadataHelpers<'views', object>('views');
+/** A topology view's metadata, as `TopologyView::metadata()` writes it into the views fixture. */
+export interface ViewMetadata {
+	/** Short token naming the view in export filenames. */
+	slug: string;
+	element_config: components['schemas']['ViewElementConfig'];
+	edge_view_configs: Record<
+		components['schemas']['EdgeTypeDiscriminants'],
+		components['schemas']['EdgeViewConfig']
+	>;
+	inspector_config: components['schemas']['ViewInspectorConfig'];
+	layout: components['schemas']['ViewLayoutConfig'];
+}
+export const views = createTypeMetadataHelpers<'views', Partial<ViewMetadata>>('views');
 
 export interface ServiceCategoryMetadata {
 	application_relevant_use_cases: string[];
@@ -675,4 +695,16 @@ export function createStaticHelpers<M>(fixtureKey: string, items: StaticMetadata
 			return createColorHelper((item?.color as Color) ?? null);
 		}
 	};
+}
+
+/**
+ * The display name of `id` in any type-metadata fixture, chosen at runtime: the entity field
+ * registry names the fixture that names an enum-valued field (`MetadataFixture`).
+ */
+export function metadataName(category: TypeMetadataKeys, id: string): string {
+	const $registry = get(metadata);
+	const fallback =
+		($registry?.[category] as TypeMetadata[] | undefined)?.find((item) => item.id === id)?.name ||
+		id;
+	return metaName(category, id, fallback);
 }

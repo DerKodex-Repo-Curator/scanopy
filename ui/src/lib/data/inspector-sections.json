@@ -9,6 +9,15 @@
     "metadata": null
   },
   {
+    "id": "Details",
+    "name": "Details",
+    "description": "What Scanopy has recorded about it",
+    "category": null,
+    "icon": "list",
+    "color": "Gray",
+    "metadata": null
+  },
+  {
     "id": "InterfaceData",
     "name": "Interface data",
     "description": "Status and counters the device reports for this port",

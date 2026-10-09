@@ -5,14 +5,14 @@
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { defineFields, entityRef } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { siteItems } from '$lib/features/sites/columns';
-	import { entities, entitySources } from '$lib/shared/stores/metadata';
+	import { entitySources } from '$lib/shared/stores/metadata';
 	import { entitySourceItems } from '$lib/shared/utils/entity-source';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { isUserManagedSubnet, useSubnetsQuery } from '$lib/features/subnets/queries';
-	import type { Subnet } from '$lib/features/subnets/types/base';
 	import { useUpdateVlanMutation, useVlansQuery } from '../queries';
 	import VlanEditModal from './VlanEditModal.svelte';
 	import { Edit } from 'lucide-svelte';
@@ -28,16 +28,13 @@
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import {
 		common_created,
-		common_description,
 		common_edit,
 		common_firstFoundBy,
 		common_lastFoundBy,
 		common_lastSeen,
-		common_name,
 		common_site,
 		common_noEntityYet,
 		common_source,
-		common_subnets,
 		common_tags,
 		common_unknownSite,
 		common_updated,
@@ -120,14 +117,6 @@
 		editingVlan = null;
 	}
 
-	function getSubnets(vlan: Vlan): Subnet[] {
-		return (vlan.subnet_ids ?? []).map((id) => subnetsById.get(id)).filter((s) => s !== undefined);
-	}
-
-	function getSubnetNames(vlan: Vlan): string[] {
-		return getSubnets(vlan).map((s) => s.name);
-	}
-
 	function getVlanTags(vlan: Vlan): string[] {
 		return vlan.tags;
 	}
@@ -141,21 +130,23 @@
 		sort: { field: 'vlan_number', direction: 'asc' }
 	};
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all VlanOrderField values are covered
+	// Related entities the registry's VLAN fields read: the subnets a VLAN carries, the site.
+	let lookup = $derived(collectionLookup({ Subnet: [...subnetsById.values()], Site: sitesData }));
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every VlanOrderField value must be listed.
 	let vlanFields = $derived(
-		defineFields<Vlan, VlanOrderField>(
+		defineRegistryFields<Vlan, VlanOrderField>(
+			'Vlan',
+			() => lookup,
 			{
 				// Identity fields: grouping by one would render a header per VLAN.
 				vlan_number: {
 					label: vlans_vlanNumber(),
-					type: 'string',
 					searchable: true,
 					groupable: false
 				},
 				name: {
-					label: common_name(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					display: { primary: true, width: 220 }
@@ -164,7 +155,7 @@
 				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
 			},
 			[
-				{ key: 'description', label: common_description(), type: 'string', searchable: true },
+				{ key: 'description', searchable: true },
 				{
 					key: 'source',
 					label: common_source(),
@@ -192,23 +183,7 @@
 						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
 					display: { getItems: (item) => siteItems(item.site_id, sitesData) }
 				},
-				{
-					key: 'subnet_ids',
-					label: common_subnets(),
-					type: 'array',
-					searchable: true,
-					filterable: true,
-					getValue: getSubnetNames,
-					display: {
-						getItems: (vlan) =>
-							getSubnets(vlan).map((subnet) => ({
-								id: subnet.id,
-								label: subnet.name,
-								color: entities.getColorHelper('Subnet').color,
-								entityRef: entityRef('Subnet', subnet.id, subnet)
-							}))
-					}
-				},
+				{ key: 'subnet_ids', searchable: true, filterable: true },
 				{
 					// Not in VlanOrderField, so display-only with client-side sorting.
 					key: 'last_seen_at',

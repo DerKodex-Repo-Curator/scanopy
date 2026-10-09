@@ -261,8 +261,20 @@ async fn get_all_topologies(
     // entry for it, so without this every existing topology would keep rendering as though the
     // filter had been switched off — which for L2's link-state filter means every ifTable row.
     // Only absent keys are filled; see `merge_missing_hide_defaults`.
+    //
+    // The infrastructure rule the grouping-rules migration wrote has no categories; it takes the
+    // organization's set here, so the rule editor shows what the rule is meant to hold.
+    let use_case = Topology::get_service(&state)
+        .organization_use_case(organization_id)
+        .await
+        .map_err(|e| ApiError::internal_error(&e.to_string()))?;
     for topology in &mut result.items {
         topology.base.options.request.merge_missing_hide_defaults();
+        topology
+            .base
+            .options
+            .request
+            .populate_empty_infra_rule(use_case);
     }
 
     let limit = pagination.effective_limit().unwrap_or(0);

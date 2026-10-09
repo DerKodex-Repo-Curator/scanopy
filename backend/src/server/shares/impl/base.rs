@@ -28,21 +28,6 @@ fn redact_optional_password<S: Serializer>(
     }
 }
 
-/// CSV row representation for Share export (excludes password_hash)
-#[derive(Serialize)]
-pub struct ShareCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub topology_id: Uuid,
-    pub site_id: Uuid,
-    pub created_by: Uuid,
-    pub is_enabled: bool,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub has_password: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 /// Share display options
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, ToSchema)]
 pub struct ShareOptions {
@@ -343,23 +328,6 @@ impl Entity for Share {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = ShareCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        ShareCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            topology_id: self.base.topology_id,
-            site_id: self.base.site_id,
-            created_by: self.base.created_by,
-            is_enabled: self.base.is_enabled,
-            expires_at: self.base.expires_at,
-            has_password: self.requires_password(),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

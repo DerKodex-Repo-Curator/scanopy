@@ -451,8 +451,13 @@ pub struct FilterValueContext {
 
 /// Entities that can surface metadata filter values. Returns the stable
 /// `FilterValue::id` (per `MetadataFilterType`) for each filter the entity
-/// participates in. Serialized alongside the entity so the frontend
-/// doesn't need any extractor logic.
+/// participates in.
+///
+/// The server-side filter (`metadata_filter::retain_visible`) calls this directly. The topology
+/// bundle also stamps the result on each wrapped host, service and interface as `filter_values`
+/// (`TopologyData::stamp_filter_values`), which is what the frontend filters, hovers and colours
+/// on. Staleness is the one filter absent here: it depends on the clock and the site window, so
+/// the frontend computes it.
 pub trait HasFilterValues {
     fn filter_values(&self, ctx: &FilterValueContext) -> BTreeMap<MetadataFilterType, String>;
 }
@@ -496,6 +501,8 @@ pub enum DependencyMemberType {
 )]
 pub enum InspectorSection {
     Identity,
+    /// The selected entity's registry fields (`shared/entity_fields.rs`).
+    Details,
     InterfaceData,
     Services,
     Dependencies,
@@ -520,7 +527,9 @@ impl HasId for InspectorSection {
 impl EntityMetadataProvider for InspectorSection {
     fn color(&self) -> Color {
         match self {
-            InspectorSection::Identity | InspectorSection::ElementSummary => Color::Gray,
+            InspectorSection::Identity
+            | InspectorSection::Details
+            | InspectorSection::ElementSummary => Color::Gray,
             InspectorSection::InterfaceData => EntityDiscriminants::Interface.color(),
             InspectorSection::Services => EntityDiscriminants::Service.color(),
             InspectorSection::Dependencies | InspectorSection::DependencySummary => {
@@ -538,6 +547,7 @@ impl EntityMetadataProvider for InspectorSection {
     fn icon(&self) -> Icon {
         match self {
             InspectorSection::Identity => Icon::Crosshair,
+            InspectorSection::Details => Icon::List,
             InspectorSection::ElementSummary => Icon::PackageOpen,
             InspectorSection::InterfaceData => EntityDiscriminants::Interface.icon(),
             InspectorSection::Services => EntityDiscriminants::Service.icon(),
@@ -558,6 +568,7 @@ impl TypeMetadataProvider for InspectorSection {
     fn name(&self) -> &'static str {
         match self {
             InspectorSection::Identity => "Selected",
+            InspectorSection::Details => "Details",
             InspectorSection::InterfaceData => "Interface data",
             InspectorSection::Services => "Services",
             InspectorSection::Dependencies => "Dependencies",
@@ -576,6 +587,7 @@ impl TypeMetadataProvider for InspectorSection {
     fn description(&self) -> &'static str {
         match self {
             InspectorSection::Identity => "The entity you selected",
+            InspectorSection::Details => "What Scanopy has recorded about it",
             InspectorSection::InterfaceData => {
                 "Status and counters the device reports for this port"
             }
@@ -611,6 +623,79 @@ pub struct ViewInspectorConfig {
     pub dependency_creation: Option<DependencyMemberType>,
     /// Whether the inspector offers the application picker.
     pub show_application_picker: bool,
+    /// Whether a service card shows the IP address and ports it is reached on. Application
+    /// groups services by what they do, not where they listen, so it leaves these out.
+    pub show_service_network_detail: bool,
+}
+
+// ---------------------------------------------------------------------------
+// ViewLayoutConfig — how the UI lays out a view
+// ---------------------------------------------------------------------------
+
+/// Root-level layout algorithm for a view.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewLayoutAlgorithm {
+    /// Layered left to right, with port-to-port edges between columns of containers and
+    /// layered (rather than box-packed) children.
+    LayeredRight,
+    /// Layered top to bottom in model order, so the root order decides placement.
+    Workloads,
+    /// Rectangle packing: tiles mostly independent containers into a compact rectangle.
+    RectPacking,
+    /// Layered top to bottom with box-packed children.
+    Default,
+}
+
+/// How edge endpoints pick the side of a node they attach to.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewHandleStrategy {
+    /// Left or right side, facing the other endpoint.
+    Horizontal,
+    /// Shortest side pair that avoids crossing other nodes.
+    Optimal,
+}
+
+/// How elements inside a container are ordered before layout.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewElementOrder {
+    /// Grouped by the containers they connect to.
+    Automatic,
+    /// Up ports first, then down, then the rest; subcontainers ranked by how many up ports
+    /// they hold.
+    OperStatus,
+}
+
+/// How root containers are ordered before layout.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewRootOrder {
+    /// The order the layout receives them in.
+    Input,
+    /// Hosts with the most application-relevant services and guest VMs first.
+    WorkloadCount,
+}
+
+/// How the UI lays out a view. Read by the topology layout pipeline in place of branching on
+/// the view id.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+pub struct ViewLayoutConfig {
+    pub algorithm: ViewLayoutAlgorithm,
+    pub handle_strategy: ViewHandleStrategy,
+    pub element_order: ViewElementOrder,
+    pub root_order: ViewRootOrder,
+    /// Whether edges between root containers are passed to the root layout.
+    pub root_edges: bool,
+    /// Whether root containers with no cross-container edges are moved beside the connected
+    /// ones after layout.
+    pub repack_disconnected: bool,
+    /// Whether each column of root containers is aligned to the same top edge after layout.
+    pub align_layers_top: bool,
+    /// Whether the view switches to a force-directed overview when every root container is
+    /// collapsed.
+    pub force_overview: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -668,9 +753,11 @@ impl TypeMetadataProvider for TopologyView {
                 .collect();
 
         serde_json::json!({
+            "slug": self.slug(),
             "element_config": self.element_config(),
             "edge_view_configs": edge_view_configs,
-            "inspector_config": self.inspector_config()
+            "inspector_config": self.inspector_config(),
+            "layout": self.layout_config()
         })
     }
 }
@@ -964,6 +1051,7 @@ impl TopologyView {
             Self::L3Logical => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::HostDetail,
                     InspectorSection::InterfaceData,
                     InspectorSection::Services,
@@ -971,28 +1059,34 @@ impl TopologyView {
                 ],
                 container_sections: vec![
                     InspectorSection::SubnetDetail,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: Some(DependencyMemberType::Bindings),
                 show_application_picker: false,
+                show_service_network_detail: true,
             },
             Self::Application => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::Dependencies,
                     InspectorSection::Application,
                 ],
                 container_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                     InspectorSection::DependencySummary,
                 ],
                 dependency_creation: Some(DependencyMemberType::Services),
                 show_application_picker: true,
+                show_service_network_detail: false,
             },
             Self::Workloads => ViewInspectorConfig {
                 element_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::HostDetail,
                     InspectorSection::Virtualization,
                     InspectorSection::Services,
@@ -1000,19 +1094,91 @@ impl TopologyView {
                 ],
                 container_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: Some(DependencyMemberType::Services),
                 show_application_picker: false,
+                show_service_network_detail: true,
             },
             Self::L2Physical => ViewInspectorConfig {
-                element_sections: vec![InspectorSection::Identity, InspectorSection::InterfaceData],
+                element_sections: vec![
+                    InspectorSection::Identity,
+                    InspectorSection::Details,
+                    InspectorSection::InterfaceData,
+                ],
                 container_sections: vec![
                     InspectorSection::Identity,
+                    InspectorSection::Details,
                     InspectorSection::ElementSummary,
                 ],
                 dependency_creation: None,
                 show_application_picker: false,
+                show_service_network_detail: true,
+            },
+        }
+    }
+
+    /// Short token naming this view in export filenames (`scanopy-<slug>-<site>-<date>`).
+    pub fn slug(&self) -> &'static str {
+        match self {
+            Self::L2Physical => "l2",
+            Self::L3Logical => "l3",
+            Self::Workloads => "infra",
+            Self::Application => "app",
+        }
+    }
+
+    /// How the UI lays out this view.
+    ///
+    /// L2 runs left to right so port-to-port links read across columns of switches and hosts,
+    /// and keeps its column structure when fully collapsed. Workloads puts the busiest hosts
+    /// first and also keeps its layout when collapsed. Application tiles its mostly unconnected
+    /// groups, so root edges and the disconnected repack would only pull them apart.
+    pub fn layout_config(&self) -> ViewLayoutConfig {
+        use ViewElementOrder::*;
+        use ViewHandleStrategy::*;
+        use ViewRootOrder::*;
+        match self {
+            Self::L2Physical => ViewLayoutConfig {
+                algorithm: ViewLayoutAlgorithm::LayeredRight,
+                handle_strategy: Horizontal,
+                element_order: OperStatus,
+                root_order: Input,
+                root_edges: true,
+                repack_disconnected: false,
+                align_layers_top: true,
+                force_overview: false,
+            },
+            Self::L3Logical => ViewLayoutConfig {
+                algorithm: ViewLayoutAlgorithm::Default,
+                handle_strategy: Optimal,
+                element_order: Automatic,
+                root_order: Input,
+                root_edges: true,
+                repack_disconnected: true,
+                align_layers_top: false,
+                force_overview: true,
+            },
+            Self::Workloads => ViewLayoutConfig {
+                algorithm: ViewLayoutAlgorithm::Workloads,
+                handle_strategy: Optimal,
+                element_order: Automatic,
+                root_order: WorkloadCount,
+                root_edges: true,
+                repack_disconnected: false,
+                align_layers_top: false,
+                force_overview: false,
+            },
+            Self::Application => ViewLayoutConfig {
+                algorithm: ViewLayoutAlgorithm::RectPacking,
+                handle_strategy: Optimal,
+                element_order: Automatic,
+                root_order: Input,
+                root_edges: false,
+                repack_disconnected: false,
+                align_layers_top: false,
+                force_overview: true,
             },
         }
     }
@@ -1175,6 +1341,18 @@ mod tests {
                 "{:?} has no container sections",
                 view
             );
+        }
+    }
+
+    /// Export filenames are keyed by slug, so two views sharing one would overwrite each other's
+    /// downloads.
+    #[test]
+    fn every_view_has_a_unique_slug() {
+        let mut seen = HashSet::new();
+        for view in TopologyView::iter() {
+            let slug = view.slug();
+            assert!(!slug.is_empty(), "{view:?} has no slug");
+            assert!(seen.insert(slug), "{view:?} reuses slug {slug}");
         }
     }
 

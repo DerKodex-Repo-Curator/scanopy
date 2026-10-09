@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -15,20 +14,6 @@ use crate::server::{
     },
     vlans::r#impl::base::{Vlan, VlanBase},
 };
-
-/// CSV row representation for Vlan export
-#[derive(Serialize)]
-pub struct VlanCsvRow {
-    pub id: Uuid,
-    pub vlan_number: u16,
-    pub name: String,
-    pub description: Option<String>,
-    pub site_id: Uuid,
-    pub organization_id: Uuid,
-    pub source: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Vlan {
     type BaseData = VlanBase;
@@ -245,22 +230,6 @@ impl Entity for Vlan {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = VlanCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        VlanCsvRow {
-            id: self.id,
-            vlan_number: self.base.vlan_number,
-            name: self.base.name.clone(),
-            description: self.base.description.clone(),
-            site_id: self.base.site_id,
-            organization_id: self.base.organization_id,
-            source: serde_json::to_string(&self.base.source).unwrap_or_default(),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

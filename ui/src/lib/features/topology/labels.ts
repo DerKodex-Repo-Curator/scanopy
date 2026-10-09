@@ -94,7 +94,7 @@ function tallyByEntityType(nodes: Iterable<TopologyNode>): Map<Entity, number> {
  *  (direct + subcontainer children), plus services rendered inside those
  *  elements via inline relationships (L3 services bound to IP elements;
  *  Workloads services on host elements). Delegates traversal to
- *  `getContainerContents` and entity-relationship resolution to
+ *  the topology index's `containerContents` and entity-relationship resolution to
  *  `resolveInlineServiceIds`.
  *
  *  `excludeRuleId` names a service-category rule (callers pass the

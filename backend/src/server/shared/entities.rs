@@ -46,6 +46,8 @@ pub trait ChangeTriggersTopologyStaleness<T> {
     Display,
     AsRefStr,
     Hash,
+    PartialOrd,
+    Ord,
     EnumIter,
     IntoStaticStr,
     Serialize,
@@ -406,6 +408,11 @@ impl TypeMetadataProvider for EntityDiscriminants {
         m.insert(
             "entity_name_plural".to_string(),
             serde_json::json!(self.entity_name_plural()),
+        );
+        m.insert("fields".to_string(), serde_json::json!(self.fields()));
+        m.insert(
+            "display_fields".to_string(),
+            serde_json::json!(self.display_fields()),
         );
         serde_json::Value::Object(m)
     }

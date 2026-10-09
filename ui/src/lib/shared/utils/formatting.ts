@@ -102,3 +102,18 @@ export function formatRelativeTime(timestamp: string | Date): string {
 export function formatPort(port: Port): string {
 	return `${port.number}${port.protocol == 'Tcp' ? '/tcp' : '/udp'}`;
 }
+
+/** An interface's link speed as cards draw it: 1G, 100M, or bps below a megabit. */
+export function formatInterfaceSpeed(bps: number): string {
+	if (bps >= 1_000_000_000) return `${(bps / 1_000_000_000).toFixed(0)}G`;
+	if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(0)}M`;
+	return `${bps} bps`;
+}
+
+/** A link speed written out for reading: 1.0 Gbps, 100.0 Mbps. */
+export function formatBitsPerSecond(bps: number): string {
+	if (bps >= 1_000_000_000) return `${(bps / 1_000_000_000).toFixed(1)} Gbps`;
+	if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
+	if (bps >= 1_000) return `${(bps / 1_000).toFixed(1)} Kbps`;
+	return `${bps} bps`;
+}

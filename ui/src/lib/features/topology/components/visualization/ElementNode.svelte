@@ -14,7 +14,7 @@
 
 	const sitesQuery = useSitesQuery();
 	import type { TopologyNode, ElementRenderData, RenderableTopology } from '../../types/base';
-	import { cardEntityForFilter, resolveElementNode } from '../../resolvers';
+	import { cardEntityForFilter, resolveTagTarget } from '../../resolvers';
 	import { buildElementRender } from '../../element-render-data';
 	import { getTopologyIndex } from '../../entity-index';
 	import type { Writable } from 'svelte/store';
@@ -105,9 +105,7 @@
 		selectedEdgeContext ? $selectedEdgeContext : $globalSelectedEdge
 	) as Edge | null;
 
-	let resolved = $derived(topology ? resolveElementNode(id, data as TopologyNode, topology) : null);
-
-	// Sites are still needed locally for the metadata-filter extractors below.
+	// Sites are still needed locally: the Staleness filter value reads the site window.
 	let sitesData = $derived(sitesQuery.data ?? []);
 	const siteFor = (entity: { site_id?: string } | undefined | null) =>
 		sitesData.find((n) => n.id === entity?.site_id);
@@ -213,32 +211,18 @@
 		return null;
 	});
 
-	// Tags carried by this card's source entity (for tag-scoped ring).
-	// IPAddress and Interface don't carry tags today — they fall back to
-	// the host's tags so per-host tag hover still highlights IP / interface
-	// element cards, matching the old Host-specific behaviour.
+	// Tags carried by this card's taggable entity (for tag-scoped ring): its own,
+	// or its host's for the untaggable IPAddress and Interface cards.
 	function cardEntityTags(): string[] {
-		if (!resolved) return [];
-		switch (resolved.elementType) {
-			case 'Host':
-				return resolved.host?.tags ?? [];
-			case 'Service':
-				return resolved.services[0]?.tags ?? [];
-			case 'IPAddress':
-			case 'Interface':
-				return resolved.host?.tags ?? [];
-		}
-		return [];
+		if (!topology) return [];
+		const target = resolveTagTarget(data as TopologyNode);
+		if (!target) return [];
+		return getTopologyIndex(topology).entityTags.get(target.entityId) ?? [];
 	}
 
 	// Member hosts in this card's manager boxes that carry the hovered Host filter value.
 	let matchingInlineHosts = $derived(
-		inlineHostsMatching(
-			nodeRenderData?.inlineGroups ?? [],
-			currentHoveredMetadata,
-			siteFor,
-			topology
-		)
+		inlineHostsMatching(nodeRenderData?.inlineGroups ?? [], currentHoveredMetadata, siteFor)
 	);
 	// Pulse colour for a matching member host row.
 	let inlineHostPulseStyle = $derived.by(() => {
@@ -251,7 +235,7 @@
 
 	// Metadata hover context — mirrors `hoveredRelationship` + tag ring/pulse
 	// but driven by `hoveredMetadata`. Element-mode when this card's own
-	// entity matches the extractor, inline-mode when an inline row matches.
+	// entity carries the hovered value, inline-mode when an inline row matches.
 	// Host metadata also bubbles up to IPAddress/Interface cards (same
 	// fallback as cardEntityTags).
 	let metadataHoverContext = $derived.by(
@@ -259,17 +243,17 @@
 			mode: 'element' | 'inline';
 			color: string;
 		} | null => {
-			if (!currentHoveredMetadata || !resolved) return null;
+			if (!currentHoveredMetadata || !topology) return null;
 			const hovered = currentHoveredMetadata;
 			const { color } = hovered;
 
 			// The card's own entity for each entity the hovered filter covers — any element type,
-			// through the same `elementEntity` its stale pill reads, and the view's element marks.
+			// through the same `cardEntityForFilter` the view's element marks read.
 			for (const entityType of hovered.entityTypes) {
-				const cardEntity = cardEntityForFilter(resolved, entityType);
+				const cardEntity = cardEntityForFilter(data as TopologyNode, topology, entityType);
 				if (
 					cardEntity &&
-					matchesHoveredMetadata(cardEntity, entityType, hovered, siteFor(cardEntity), topology)
+					matchesHoveredMetadata(cardEntity, entityType, hovered, siteFor(cardEntity))
 				) {
 					return { mode: 'element', color };
 				}
@@ -278,7 +262,7 @@
 			if (matchingInlineHosts.size > 0) return { mode: 'inline', color };
 
 			for (const service of nodeRenderData?.services ?? []) {
-				if (matchesHoveredMetadata(service, 'Service', hovered, siteFor(service), topology))
+				if (matchesHoveredMetadata(service, 'Service', hovered, siteFor(service)))
 					return { mode: 'inline', color };
 			}
 			return null;
@@ -468,8 +452,7 @@
 									service,
 									'Service',
 									currentHoveredMetadata,
-									siteFor(service),
-									topology
+									siteFor(service)
 								)
 							)
 								return '';

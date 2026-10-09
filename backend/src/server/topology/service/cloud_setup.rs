@@ -182,8 +182,16 @@ impl TopologyService {
         }
 
         if gaps.topology {
-            self.create(Topology::new(TopologyBase::new(site_id)), authentication)
+            let site = self
+                .site_service
+                .get_by_id(&site_id)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Site {site_id} not found"))?;
+            let mut base = TopologyBase::new(site_id);
+            base.options.request = self
+                .default_request_options(site.base.organization_id)
                 .await?;
+            self.create(Topology::new(base), authentication).await?;
         }
 
         Ok(())

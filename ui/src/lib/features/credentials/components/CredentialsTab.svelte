@@ -14,11 +14,12 @@
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import {
-		defineFields,
 		entityRef,
 		type CardAction,
 		type CardFieldItem
 	} from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import type { Site } from '$lib/features/sites/types';
 	import { Plus, Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
@@ -49,14 +50,11 @@
 		common_create,
 		common_created,
 		common_delete,
-		common_description,
 		common_edit,
-		common_name,
 		common_type,
 		common_updated,
 		credentials_bulkDeleteConfirm,
 		credentials_bulkDeleteImpact,
-		credentials_daemonOs,
 		credentials_deleteImpact,
 		credentials_emptySubtitle,
 		credentials_subtitle,
@@ -283,13 +281,17 @@
 		sort: { field: 'name', direction: 'asc' }
 	};
 
-	// Define field configuration for the DataTableControls
-	const credentialFields = defineFields<Credential, CredentialOrderField>(
+	// The registry's credential fields are all the credential's own, so the lookup holds nothing.
+	const lookup = collectionLookup({});
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every CredentialOrderField value must be listed.
+	const credentialFields = defineRegistryFields<Credential, CredentialOrderField>(
+		'Credential',
+		() => lookup,
 		{
 			// Identity field: grouping by it would render a header per credential.
 			name: {
-				label: common_name(),
-				type: 'string',
 				searchable: true,
 				groupable: false,
 				display: { primary: true, width: 220 }
@@ -301,8 +303,6 @@
 			{
 				// Set only on credentials that read files or sockets on the daemon; empty otherwise.
 				key: 'daemon_os',
-				label: credentials_daemonOs(),
-				type: 'string',
 				filterable: true,
 				groupable: true,
 				sortable: true,
@@ -377,7 +377,7 @@
 					}
 				}
 			},
-			{ key: 'description', label: common_description(), type: 'string', searchable: true },
+			{ key: 'description', searchable: true },
 			{
 				key: 'assigned_sites',
 				label: common_sites(),

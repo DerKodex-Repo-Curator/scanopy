@@ -15,24 +15,23 @@ const SITE_ID = 'net-1';
  *
  * The shape that matters, taken from the live database: of the interfaces that survive, some own a
  * resolved row (`p-own-*`) and some are only ever another port's `neighbor_interface_id`
- * (`p-far-*`) — 50 and 18 respectively on the network this was traced against. The far ends are
- * the fragile half: nothing points *from* them, so any pass that judges link state on the outbound
- * direction alone marks them Unlinked and the filter then deletes one end of every link.
- *
- * `neighbours` is not filtered by the server, so it still carries every resolved row.
+ * (`p-far-*`). The backend judges link state in both directions and stamps it on each interface
+ * (`filter_values`), so every survivor arrives `Linked`, the far ends included.
  */
 function filteredL2Bundle(): RenderableTopology {
 	const iface = (id: string, host: string) => ({
 		id,
 		host_id: host,
 		site_id: SITE_ID,
-		tags: []
+		tags: [],
+		filter_values: { LinkState: 'Linked' }
 	});
 	const node = (id: string, host: string) => ({
 		id,
 		node_type: 'Element',
 		element_type: 'Interface',
 		interface_id: id,
+		entity_id: id,
 		host_id: host
 	});
 
@@ -109,29 +108,13 @@ describe('hiding unlinked interfaces in L2', () => {
 		expect([...get(hiddenEntityIds)]).toEqual([]);
 	});
 
-	/** The far ends specifically — the half a one-directional judgement deletes. */
-	it('keeps a port that is only ever named as another port’s neighbour', () => {
-		updateTagFilter(
-			filteredL2Bundle(),
-			undefined,
-			'L2Physical',
-			{ Interface: { LinkState: ['Unlinked'] } },
-			[],
-			undefined
-		);
-
-		expect(get(tagHiddenNodeIds).has('p-far-1')).toBe(false);
-		expect(get(tagHiddenNodeIds).has('p-far-2')).toBe(false);
-	});
-
 	/**
-	 * The reported bug, end to end from the API response rather than from a hand-built topology.
+	 * End to end from the API response rather than from a hand-built topology.
 	 *
-	 * The topology tab mapped the `TopologyData` response into its entity bundle field by field and
-	 * left `neighbours` out. With no neighbour rows every interface classified `Unlinked`, the hide
-	 * pass removed all of them, their subcontainers were pruned as empty, and L2 showed host boxes
-	 * with nothing inside. The tests above build the topology directly and so could never see a
-	 * field lost in that mapping — this one goes through it.
+	 * The topology tab once mapped the `TopologyData` response into its entity bundle field by
+	 * field and dropped one, which emptied every host container in L2. A port that loses its
+	 * stamped `filter_values` in that mapping carries no link state and the filter misjudges it;
+	 * the tests above build the topology directly and so could never see a field lost there.
 	 */
 	it('keeps linked ports when the topology is built from the API response', () => {
 		const built = filteredL2Bundle();
@@ -169,8 +152,17 @@ describe('hiding unlinked interfaces in L2', () => {
 			undefined
 		);
 
-		expect(topology.neighbours).toHaveLength(2);
 		expect([...get(tagHiddenNodeIds)]).toEqual([]);
+
+		updateTagFilter(
+			topology,
+			undefined,
+			'L2Physical',
+			{ Interface: { LinkState: ['Linked'] } },
+			[],
+			undefined
+		);
+		expect(get(tagHiddenNodeIds).size).toBe(4);
 	});
 
 	/**

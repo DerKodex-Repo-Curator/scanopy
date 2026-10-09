@@ -12,7 +12,9 @@
 	import type { Subnet, SubnetResponse } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { defineFields, entityRef, type CardAction } from '$lib/shared/components/data/types';
+	import { entityRef, type CardAction } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { tagNames } from '$lib/features/tags/columns';
 	import { siteItems } from '$lib/features/sites/columns';
 	import { Plus, Trash2, Edit, CloudAlert } from 'lucide-svelte';
@@ -37,15 +39,12 @@
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import {
-		common_cidr,
 		common_confirmDeleteName,
 		common_create,
 		common_nested,
 		common_confirmBulkDelete,
 		common_created,
-		common_description,
 		common_lastSeen,
-		common_name,
 		common_site,
 		common_noEntityYet,
 		common_delete,
@@ -322,22 +321,23 @@
 		sort: { field: 'cidr', direction: 'asc' }
 	};
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all SubnetOrderField values are covered
+	// Related entities the registry's subnet fields read: the managing runtime, the site.
+	let lookup = $derived(collectionLookup({ Service: runtimesData, Site: sitesData }));
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every SubnetOrderField value must be listed.
 	let subnetFields = $derived(
-		defineFields<SubnetResponse, SubnetOrderField>(
+		defineRegistryFields<SubnetResponse, SubnetOrderField>(
+			'Subnet',
+			() => lookup,
 			{
 				// Identity fields: grouping by one would render a header per subnet.
 				name: {
-					label: common_name(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					display: { order: 0, primary: true, width: 220 }
 				},
 				cidr: {
-					label: common_cidr(),
-					type: 'string',
 					searchable: true,
 					// Groups each range with every range nested inside it, as nested sections. A subnet
 					// that nests with nothing falls in the ungrouped bucket rather than heading a
@@ -355,12 +355,10 @@
 				},
 				subnet_type: {
 					label: subnets_subnetType(),
-					type: 'string',
 					searchable: true,
 					filterable: true,
 					// Every type the backend defines, named the way the chip renders them.
 					filterOptions: subnetTypes.getItems().map((type) => subnetTypes.getName(type.id)),
-					getValue: (subnet) => subnetTypes.getName(subnet.subnet_type),
 					display: {
 						order: 4,
 						getItems: (subnet) => [
@@ -407,8 +405,6 @@
 				},
 				{
 					key: 'description',
-					label: common_description(),
-					type: 'string',
 					searchable: true,
 					display: { hiddenByDefault: true }
 				},

@@ -40,6 +40,9 @@ export const MESSAGES_FILE = join(PROJECT_ROOT, 'messages/en.json');
  * - 'fieldDefinitions': entries are flat field definitions {id, label, placeholder, help_text}
  * - 'credentialTypes': typeMetadata plus nested metadata.fields[] field definitions and
  *   metadata.transport_note (as meta_<fixtureKey>_<id>_transportNote)
+ * - 'registryFields': only the entity field registry labels in metadata.fields[], as
+ *   meta_<fixtureKey>_<id>_field_<fieldId>_label (names and descriptions of these fixtures are
+ *   translated elsewhere)
  */
 export const COVERED_FIXTURES = [
 	{ file: 'credential-types.json', key: 'credential_types', kind: 'credentialTypes' },
@@ -114,7 +117,9 @@ export const COVERED_FIXTURES = [
 		file: 'malformed-neighbour-consequences.json',
 		key: 'malformed_neighbour_consequences',
 		kind: 'typeMetadata'
-	}
+	},
+	{ file: 'entities.json', key: 'entities', kind: 'registryFields' },
+	{ file: 'edge-types.json', key: 'edge_types', kind: 'registryFields' }
 ];
 
 /**
@@ -173,6 +178,12 @@ export function buildMetaMessages(dataDir = DATA_DIR) {
 			const prefix = `meta_${key}_${item.id}`;
 			if (kind === 'fieldDefinitions') {
 				Object.assign(messages, fieldMessages(`meta_${key}`, item));
+				continue;
+			}
+			if (kind === 'registryFields') {
+				for (const field of item.metadata?.fields ?? []) {
+					messages[`${prefix}_field_${field.id}_label`] = field.label;
+				}
 				continue;
 			}
 			if (item.name) messages[`${prefix}_name`] = item.name;

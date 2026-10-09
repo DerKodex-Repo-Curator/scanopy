@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use std::str::FromStr;
@@ -22,21 +21,6 @@ use crate::server::{
         types::SubnetType,
     },
 };
-
-/// CSV row representation for Subnet export
-#[derive(Serialize)]
-pub struct SubnetCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub cidr: String,
-    pub subnet_type: String,
-    pub cidr_source: String,
-    pub description: Option<String>,
-    pub site_id: Uuid,
-    pub source: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Subnet {
     type BaseData = SubnetBase;
@@ -272,23 +256,6 @@ impl Entity for Subnet {
 
     fn set_created_at(&mut self, time: DateTime<Utc>) {
         self.created_at = time;
-    }
-
-    type CsvRow = SubnetCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        SubnetCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            cidr: self.base.cidr.value().to_string(),
-            subnet_type: self.base.subnet_type.id().to_string(),
-            cidr_source: self.base.cidr.source().to_string(),
-            description: self.base.description.clone(),
-            site_id: self.base.site_id,
-            source: format!("{:?}", self.base.source),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
     }
 
     fn entity_type() -> EntityDiscriminants {

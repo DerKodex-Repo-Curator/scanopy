@@ -82,7 +82,13 @@
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { waitForOrgUpdate } from '$lib/shared/billing/wait-for-org-update';
 	import type { components } from '$lib/api/schema';
-	import { billingPlans, entities, permissions, views } from '$lib/shared/stores/metadata';
+	import {
+		billingPlans,
+		edgeTypes,
+		entities,
+		permissions,
+		views
+	} from '$lib/shared/stores/metadata';
 	import { getInspectorConfig } from './panel/inspectors/view-config';
 	import type { TabProps } from '$lib/shared/types';
 	import {
@@ -291,10 +297,18 @@
 	//
 	// A data signal rather than `isFetching`: nothing is fetching during the debounce, so a timing
 	// gate let the prompt flash for most of a second on every clear. Measured live, not assumed.
+	//
+	// The prompt is for a view whose data the site lacks (`available_views` leaves it out). A view
+	// with the application picker has its own setup prompt, the application wizard, so L2 Physical
+	// is the one view this overlay covers.
+	let viewLacksData = $derived(
+		!(topologyDataQuery.data?.available_views ?? []).includes($activeView) &&
+			!currentInspectorConfig.show_application_picker
+	);
 	let showL2EmptyState = $derived(
 		viewIsEmpty &&
 			emptyingFilters.length === 0 &&
-			$activeView === 'L2Physical' &&
+			viewLacksData &&
 			Object.keys(currentTopology?.filtered_out ?? {}).length === 0
 	);
 
@@ -831,7 +845,7 @@
 								local: {
 									...opts.local,
 									hide_edge_types: opts.local.hide_edge_types.filter(
-										(e) => e !== 'RequestPath' && e !== 'HubAndSpoke'
+										(e) => !edgeTypes.getMetadata(e).is_dependency_edge
 									)
 								}
 							}));
