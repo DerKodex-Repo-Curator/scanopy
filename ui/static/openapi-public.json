@@ -34919,7 +34919,7 @@
           {
             "type": "object",
             "title": "Application",
-            "description": "The built-in group of application tags.",
+            "description": "The system group of application tags.",
             "required": [
               "type"
             ],
@@ -34928,6 +34928,22 @@
                 "type": "string",
                 "enum": [
                   "Application"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "Status",
+            "description": "The system group of an asset's lifecycle status.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Status"
                 ]
               }
             }
@@ -34954,7 +34970,7 @@
             }
           }
         ],
-        "description": "A group of tags of which an entity may hold at most one.\n\nAssigning a tag from a group replaces whichever tag of the same group the entity already holds.\n`Application` is the built-in group: its tags drive the application view, which can place an\nentity in one application only. `Named` groups are named by the organization (a status, an\nenvironment, a tier) and exist for as long as a tag carries the name."
+        "description": "A group of tags of which an entity may hold at most one.\n\nAssigning a tag from a group replaces whichever tag of the same group the entity already holds.\n`Application` and `Status` are system groups: every organization has them, and no\norganization can name a group of its own after them. Application tags drive the application\nview, which can place an entity in one application only. Status tags track where an asset is\non its way from planned to decommissioned. `Named` groups are named by the organization (an\nenvironment, a tier) and exist for as long as a tag carries the name."
       },
       "TagIcon": {
         "type": "string",

@@ -8,6 +8,8 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use strum::IntoEnumIterator;
+use strum_macros::{EnumDiscriminants, EnumIter};
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
@@ -15,35 +17,86 @@ use validator::Validate;
 /// A group of tags of which an entity may hold at most one.
 ///
 /// Assigning a tag from a group replaces whichever tag of the same group the entity already holds.
-/// `Application` is the built-in group: its tags drive the application view, which can place an
-/// entity in one application only. `Named` groups are named by the organization (a status, an
+/// `Application` and `Status` are system groups: every organization has them, and no
+/// organization can name a group of its own after them. Application tags drive the application
+/// view, which can place an entity in one application only. Status tags track where an asset is
+/// on its way from planned to decommissioned. `Named` groups are named by the organization (an
 /// environment, a tier) and exist for as long as a tag carries the name.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ToSchema)]
-#[serde(tag = "type")]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ToSchema, EnumDiscriminants,
+)]
+#[strum_discriminants(derive(EnumIter))]
+#[serde(tag = "type", from = "TagGroupInput")]
 pub enum TagGroup {
-    /// The built-in group of application tags.
+    /// The system group of application tags.
     #[schema(title = "Application")]
     Application,
+    /// The system group of an asset's lifecycle status.
+    #[schema(title = "Status")]
+    Status,
     /// A group the organization named.
     #[schema(title = "Named")]
     Named {
         /// The group's name, shared by every tag in it.
-        #[serde(deserialize_with = "deserialize_trimmed")]
         name: String,
     },
+}
+
+impl TagGroup {
+    /// Every system group, in the order the enum declares them.
+    pub fn system_groups() -> impl Iterator<Item = TagGroup> {
+        TagGroupDiscriminants::iter().filter_map(|group| match group {
+            TagGroupDiscriminants::Application => Some(TagGroup::Application),
+            TagGroupDiscriminants::Status => Some(TagGroup::Status),
+            TagGroupDiscriminants::Named => None,
+        })
+    }
+
+    /// The system group a name refers to, ignoring case.
+    pub fn system_group_named(name: &str) -> Option<TagGroup> {
+        Self::system_groups().find(|group| group.to_string().eq_ignore_ascii_case(name))
+    }
+
+    /// The group stored as `name` in `tags.tag_group`. A system group is stored as its own name,
+    /// which no named group may take.
+    pub fn from_stored_name(name: String) -> TagGroup {
+        Self::system_groups()
+            .find(|group| group.to_string() == name)
+            .unwrap_or(TagGroup::Named { name })
+    }
 }
 
 impl Display for TagGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Application => write!(f, "Application"),
+            Self::Status => write!(f, "Status"),
             Self::Named { name } => write!(f, "{name}"),
         }
     }
 }
 
-fn deserialize_trimmed<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
-    Ok(String::deserialize(d)?.trim().to_string())
+/// The wire shape of [`TagGroup`]. A named group given a system group's name, in any case, reads
+/// as that system group, so clients written before the group became a system one keep working.
+#[derive(Deserialize)]
+#[serde(tag = "type")]
+enum TagGroupInput {
+    Application,
+    Status,
+    Named { name: String },
+}
+
+impl From<TagGroupInput> for TagGroup {
+    fn from(input: TagGroupInput) -> Self {
+        match input {
+            TagGroupInput::Application => TagGroup::Application,
+            TagGroupInput::Status => TagGroup::Status,
+            TagGroupInput::Named { name } => {
+                let name = name.trim().to_string();
+                TagGroup::system_group_named(&name).unwrap_or(TagGroup::Named { name })
+            }
+        }
+    }
 }
 
 fn validate_tag_group(group: &TagGroup) -> Result<(), validator::ValidationError> {
@@ -51,6 +104,10 @@ fn validate_tag_group(group: &TagGroup) -> Result<(), validator::ValidationError
         TagGroup::Named { name } if name.is_empty() || name.chars().count() > 100 => {
             Err(validator::ValidationError::new("tag_group_name")
                 .with_message("Tag group name must be between 1 and 100 characters".into()))
+        }
+        TagGroup::Named { name } if TagGroup::system_group_named(name).is_some() => {
+            Err(validator::ValidationError::new("tag_group_reserved")
+                .with_message(format!("\"{name}\" is a system tag group name").into()))
         }
         _ => Ok(()),
     }
@@ -244,26 +301,31 @@ mod tests {
                 .is_err()
         );
         assert!(base(Some(TagGroup::Application), None).validate().is_ok());
-        let status = Some(TagGroup::Named {
-            name: "Status".to_string(),
-        });
-        assert!(base(status, Some(Icon::Rocket)).validate().is_ok());
+        assert!(
+            base(Some(TagGroup::Status), Some(Icon::Rocket))
+                .validate()
+                .is_ok()
+        );
     }
 
-    #[test]
-    fn a_group_name_is_trimmed_and_a_blank_one_refused() {
-        let tag: TagBase = serde_json::from_value(serde_json::json!({
+    fn group_from_json(group: serde_json::Value) -> Option<TagGroup> {
+        serde_json::from_value::<TagBase>(serde_json::json!({
             "name": "Old printer",
             "description": null,
             "color": "Gray",
             "organization_id": Uuid::nil(),
-            "tag_group": { "type": "Named", "name": "  Status " },
+            "tag_group": group,
         }))
-        .unwrap();
+        .unwrap()
+        .tag_group
+    }
+
+    #[test]
+    fn a_group_name_is_trimmed_and_a_blank_one_refused() {
         assert_eq!(
-            tag.tag_group,
+            group_from_json(serde_json::json!({ "type": "Named", "name": "  Lifecycle " })),
             Some(TagGroup::Named {
-                name: "Status".to_string()
+                name: "Lifecycle".to_string()
             })
         );
 
@@ -274,6 +336,41 @@ mod tests {
             None,
         );
         assert!(blank.validate().is_err());
+    }
+
+    /// Clients that predate the system Status group send it as a named group.
+    #[test]
+    fn a_named_group_with_a_system_name_reads_as_the_system_group() {
+        assert_eq!(
+            group_from_json(serde_json::json!({ "type": "Named", "name": " status" })),
+            Some(TagGroup::Status)
+        );
+        assert_eq!(
+            group_from_json(serde_json::json!({ "type": "Named", "name": "APPLICATION" })),
+            Some(TagGroup::Application)
+        );
+        assert_eq!(
+            group_from_json(serde_json::json!({ "type": "Status" })),
+            Some(TagGroup::Status)
+        );
+    }
+
+    #[test]
+    fn a_named_group_cannot_take_a_system_name() {
+        for name in ["Status", "application"] {
+            let group = Some(TagGroup::Named {
+                name: name.to_string(),
+            });
+            assert!(base(group, None).validate().is_err());
+        }
+    }
+
+    /// `tags.tag_group` stores a system group as its name, so each must read back as itself.
+    #[test]
+    fn every_system_group_reads_back_from_its_stored_name() {
+        for group in TagGroup::system_groups() {
+            assert_eq!(TagGroup::from_stored_name(group.to_string()), group);
+        }
     }
 
     #[test]

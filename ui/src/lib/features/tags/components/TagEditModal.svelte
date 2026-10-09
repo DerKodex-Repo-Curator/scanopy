@@ -16,7 +16,7 @@
 	import IconPicker from '$lib/shared/components/forms/IconPicker.svelte';
 	import TagGroupSelect from './TagGroupSelect.svelte';
 	import { useTagsQuery } from '../queries';
-	import { groupNames, type TagGroup } from '../groups';
+	import { groupNames, tagGroupHelp, type TagGroup } from '../groups';
 	import tagIconsFixture from '$lib/data/tag-icons.json';
 	import {
 		common_cancel,
@@ -31,7 +31,6 @@
 		common_name,
 		common_saving,
 		common_update,
-		tags_applicationHelp,
 		tags_createTag,
 		tags_descriptionPlaceholder,
 		tags_tagGroup,
@@ -235,9 +234,7 @@
 								onChange={handleGroupChange}
 							/>
 							<p class="text-tertiary text-xs">
-								{selectedGroup?.type === 'Application'
-									? tags_applicationHelp()
-									: tags_tagGroupHelp()}
+								{tagGroupHelp(selectedGroup) ?? tags_tagGroupHelp()}
 							</p>
 						</div>
 					</form.Field>

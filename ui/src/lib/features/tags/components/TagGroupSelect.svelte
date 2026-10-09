@@ -3,12 +3,17 @@
 	import CreatableOptionList, {
 		type CreatableOption
 	} from '$lib/shared/components/forms/selection/CreatableOptionList.svelte';
-	import { concepts } from '$lib/shared/stores/metadata';
-	import { tagGroupLabel, type TagGroup } from '../groups';
-	import { common_application, common_none, tags_createTagQuoted } from '$lib/paraglide/messages';
+	import {
+		isSystemGroupName,
+		systemGroupIcon,
+		systemTagGroups,
+		tagGroupLabel,
+		type TagGroup
+	} from '../groups';
+	import { common_none, tags_createTagQuoted } from '$lib/paraglide/messages';
 
 	/**
-	 * Choose the tag group a tag belongs to: the built-in Application group, a group another tag
+	 * Choose the tag group a tag belongs to: a system group (Application, Status), a group another tag
 	 * already names, a new group typed here, or none. A tag sits in at most one group, so this is a
 	 * single value rather than a list.
 	 */
@@ -30,7 +35,7 @@
 	} = $props();
 
 	const NONE = 'none';
-	const APPLICATION = 'application';
+	const SYSTEM_PREFIX = 'system:';
 	const GROUP_PREFIX = 'group:';
 
 	let open = $state(false);
@@ -42,12 +47,10 @@
 	let options = $derived.by<CreatableOption[]>(() => {
 		const result: CreatableOption[] = [];
 		if (value && !needle) result.push({ id: NONE, label: common_none() });
-		if (common_application().toLowerCase().includes(needle)) {
-			result.push({
-				id: APPLICATION,
-				label: common_application(),
-				icon: concepts.getIconComponent('Application')
-			});
+		for (const group of systemTagGroups) {
+			const label = tagGroupLabel(group) ?? group.type;
+			if (!label.toLowerCase().includes(needle)) continue;
+			result.push({ id: SYSTEM_PREFIX + group.type, label, icon: systemGroupIcon(group) });
 		}
 		for (const name of matchingGroups) result.push({ id: GROUP_PREFIX + name, label: name });
 		return result;
@@ -57,13 +60,15 @@
 	let canCreate = $derived(
 		needle.length > 0 &&
 			!groups.some((name) => name.toLowerCase() === needle) &&
-			common_application().toLowerCase() !== needle
+			!isSystemGroupName(needle)
 	);
 
 	function select(optionId: string) {
 		if (optionId === NONE) onChange(null);
-		else if (optionId === APPLICATION) onChange({ type: 'Application' });
-		else onChange({ type: 'Named', name: optionId.slice(GROUP_PREFIX.length) });
+		else if (optionId.startsWith(SYSTEM_PREFIX)) {
+			const type = optionId.slice(SYSTEM_PREFIX.length);
+			onChange(systemTagGroups.find((group) => group.type === type) ?? null);
+		} else onChange({ type: 'Named', name: optionId.slice(GROUP_PREFIX.length) });
 		close();
 	}
 

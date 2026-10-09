@@ -62,6 +62,10 @@ DOWNTIME_FILES=(
     # columns on `interfaces` in the same migration that creates their
     # replacement tables. No expand/contract -- ships as a downtime deploy.
     "$MIGRATIONS_DIR/20260903120001_interface_neighbor_tables.sql"
+    # Drops tags.is_application after 20261009120100 copies it into tags.tag_group.
+    # Containers from the previous release read and write the column, so the
+    # release ships as a downtime deploy.
+    "$MIGRATIONS_DIR/20261009120101_drop_tags_is_application.sql"
 )
 FK_BACKFILL_FILES=("$MIGRATIONS_DIR/20260502120001_add_snapshot_id_fks.sql")
 # Columns dropped that have NO live code readers at the currently-deployed release,

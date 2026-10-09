@@ -2,10 +2,55 @@ import type { components } from '$lib/api/schema';
 import type { IconComponent } from '$lib/shared/utils/types';
 import { concepts } from '$lib/shared/stores/metadata';
 import { createIconComponent } from '$lib/shared/utils/styling';
-import { common_application, tags_tagGroupTooltip } from '$lib/paraglide/messages';
+import {
+	common_application,
+	common_status,
+	tags_applicationHelp,
+	tags_statusHelp,
+	tags_tagGroupTooltip
+} from '$lib/paraglide/messages';
 import type { Tag } from './types/base';
 
 export type TagGroup = components['schemas']['TagGroup'];
+
+/** A group Scanopy defines, as opposed to one an organization names. */
+export type SystemTagGroup = Exclude<TagGroup, { type: 'Named' }>;
+
+/**
+ * How each system group reads in the UI. Keyed by every system group type, so a system group the
+ * backend adds fails the type check until it is described here. Its icon is the concept of the same
+ * name.
+ */
+const SYSTEM_GROUPS: Record<SystemTagGroup['type'], { label: () => string; help: () => string }> = {
+	Application: { label: () => common_application(), help: () => tags_applicationHelp() },
+	Status: { label: () => common_status(), help: () => tags_statusHelp() }
+};
+
+/** Every system group, in the order the picker offers them. */
+export const systemTagGroups: SystemTagGroup[] = (
+	Object.keys(SYSTEM_GROUPS) as SystemTagGroup['type'][]
+).map((type) => ({ type }));
+
+/** The icon a system group is drawn with in the group picker. */
+export function systemGroupIcon(group: SystemTagGroup) {
+	return concepts.getIconComponent(group.type);
+}
+
+/** The help text for a tag group. */
+export function tagGroupHelp(group: TagGroup | null | undefined): string | null {
+	return group && group.type !== 'Named' ? SYSTEM_GROUPS[group.type].help() : null;
+}
+
+/**
+ * Whether `name` belongs to a system group, ignoring case. The server reads a named group given
+ * such a name as the system group itself, so the picker never offers to create one.
+ */
+export function isSystemGroupName(name: string): boolean {
+	const needle = name.trim().toLowerCase();
+	return systemTagGroups.some(
+		(group) => group.type.toLowerCase() === needle || tagGroupLabel(group)?.toLowerCase() === needle
+	);
+}
 
 /** Whether this tag drives the application view. */
 export function isApplicationTag(tag: Pick<Tag, 'tag_group'> | null | undefined): boolean {
@@ -15,13 +60,13 @@ export function isApplicationTag(tag: Pick<Tag, 'tag_group'> | null | undefined)
 /** Whether two tag groups are the same group. `null` is no group, which is never shared. */
 export function sameGroup(a: TagGroup | null | undefined, b: TagGroup | null | undefined) {
 	if (!a || !b || a.type !== b.type) return false;
-	return a.type === 'Application' || (b.type === 'Named' && a.name === b.name);
+	return a.type !== 'Named' || (b.type === 'Named' && a.name === b.name);
 }
 
 /** How a tag group is named in the UI. */
 export function tagGroupLabel(group: TagGroup | null | undefined): string | null {
 	if (!group) return null;
-	return group.type === 'Application' ? common_application() : group.name;
+	return group.type === 'Named' ? group.name : SYSTEM_GROUPS[group.type].label();
 }
 
 /**

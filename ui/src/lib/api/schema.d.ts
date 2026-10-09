@@ -13422,13 +13422,18 @@ export interface components {
          * @description A group of tags of which an entity may hold at most one.
          *
          *     Assigning a tag from a group replaces whichever tag of the same group the entity already holds.
-         *     `Application` is the built-in group: its tags drive the application view, which can place an
-         *     entity in one application only. `Named` groups are named by the organization (a status, an
+         *     `Application` and `Status` are system groups: every organization has them, and no
+         *     organization can name a group of its own after them. Application tags drive the application
+         *     view, which can place an entity in one application only. Status tags track where an asset is
+         *     on its way from planned to decommissioned. `Named` groups are named by the organization (an
          *     environment, a tier) and exist for as long as a tag carries the name.
          */
         TagGroup: {
             /** @enum {string} */
             type: "Application";
+        } | {
+            /** @enum {string} */
+            type: "Status";
         } | {
             /** @description The group's name, shared by every tag in it. */
             name: string;
