@@ -14,11 +14,12 @@ import {
 	DIAGRAM_SIDES,
 	sideAnchor,
 	type DiagramConnector,
+	type DiagramField,
 	type DiagramModel,
 	type DiagramShape,
 	type DiagramSide
 } from './model';
-import { escapeXml, hexColor } from './xml';
+import { escapeXml, fieldKeys, hexColor } from './xml';
 
 /** Diagram units per inch: one flow pixel is one screen pixel at 96 DPI. */
 const UNITS_PER_INCH = 96;
@@ -106,6 +107,19 @@ function connectionSection(width: number, height: number): string {
 	return `<Section N="Connection">${rows}</Section>`;
 }
 
+/** Shape Data rows: Visio lists them in the Shape Data pane, and reports and data graphics read them. */
+function propertySection(fields: DiagramField[]): string {
+	if (fields.length === 0) return '';
+	const keys = fieldKeys(fields.map((f) => f.label));
+	const rows = fields
+		.map(
+			(f, i) =>
+				`<Row N="${keys[i]}">${cell('Label', f.label)}${cell('Type', 0)}<Cell N="Value" V="${escapeXml(f.value)}" U="STR"/></Row>`
+		)
+		.join('');
+	return `<Section N="Property">${rows}</Section>`;
+}
+
 /** Bold first line, regular after: two character rows, switched with `cp` markers. */
 function textBlock(
 	title: string,
@@ -186,7 +200,8 @@ function boxShapeXml(
 		rectangleGeometry(false, false) +
 		connectionSection(shape.width, shape.height) +
 		character +
-		paragraph;
+		paragraph +
+		propertySection(shape.data);
 
 	const childFrame: Frame = shape;
 	const childXml = kids.map((kid) => boxShapeXml(kid, childFrame, model, children, ids, media));
@@ -273,7 +288,7 @@ function connectorXml(
 	const name = `Dynamic connector.${id}`;
 
 	return {
-		shape: `<Shape ID="${id}" NameU="${name}" Name="${name}" Type="Shape" LineStyle="0" FillStyle="0" TextStyle="0">${cells}${geometry}${character}${text}</Shape>`,
+		shape: `<Shape ID="${id}" NameU="${name}" Name="${name}" Type="Shape" LineStyle="0" FillStyle="0" TextStyle="0">${cells}${geometry}${character}${propertySection(connector.data)}${text}</Shape>`,
 		connects:
 			`<Connect FromSheet="${id}" FromCell="BeginX" FromPart="9" ToSheet="${sourceSheet}" ToCell="Connections.X${beginRow}" ToPart="${100 + beginRow - 1}"/>` +
 			`<Connect FromSheet="${id}" FromCell="EndX" FromPart="12" ToSheet="${targetSheet}" ToCell="Connections.X${endRow}" ToPart="${100 + endRow - 1}"/>`

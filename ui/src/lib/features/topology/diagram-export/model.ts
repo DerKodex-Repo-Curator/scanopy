@@ -45,12 +45,19 @@ export interface DiagramShapeStyle {
 	accent?: string;
 }
 
+/** A named fact about the entity a shape stands for, written as Visio Shape Data and draw.io properties. */
+export interface DiagramField {
+	label: string;
+	value: string;
+}
+
 export interface DiagramNodeDescription {
 	title: string;
 	lines: string[];
 	style: DiagramShapeStyle;
 	/** Key into `DiagramModel.icons`. */
 	iconKey?: string;
+	data?: DiagramField[];
 }
 
 export interface DiagramEdgeDescription {
@@ -58,6 +65,7 @@ export interface DiagramEdgeDescription {
 	color: string;
 	width: number;
 	dash: 'solid' | 'dashed' | 'dotted';
+	data?: DiagramField[];
 }
 
 export interface DiagramDescriber {
@@ -86,6 +94,7 @@ export interface DiagramShape {
 	lines: string[];
 	style: DiagramShapeStyle;
 	iconKey?: string;
+	data: DiagramField[];
 }
 
 export interface DiagramConnector {
@@ -98,6 +107,7 @@ export interface DiagramConnector {
 	color: string;
 	width: number;
 	dash: 'solid' | 'dashed' | 'dotted';
+	data: DiagramField[];
 }
 
 export interface DiagramHeader {
@@ -184,7 +194,8 @@ export function buildDiagramModel(input: DiagramModelInput): DiagramModel {
 			title: description.title,
 			lines: description.lines,
 			style: description.style,
-			iconKey: description.iconKey
+			iconKey: description.iconKey,
+			data: description.data ?? []
 		};
 	});
 
@@ -203,7 +214,8 @@ export function buildDiagramModel(input: DiagramModelInput): DiagramModel {
 			label: description.label || undefined,
 			color: description.color,
 			width: description.width,
-			dash: description.dash
+			dash: description.dash,
+			data: description.data ?? []
 		});
 	}
 

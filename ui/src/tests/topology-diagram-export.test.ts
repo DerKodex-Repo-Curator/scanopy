@@ -8,7 +8,8 @@ import {
 	type DiagramSourceEdge,
 	type DiagramSourceNode
 } from '$lib/features/topology/diagram-export/model';
-import { toDrawioCells } from '$lib/features/topology/diagram-export/drawio';
+import { serializeDrawio, toDrawioCells } from '$lib/features/topology/diagram-export/drawio';
+import { fieldKeys } from '$lib/features/topology/diagram-export/xml';
 import { buildVsdxParts, zipVsdx } from '$lib/features/topology/diagram-export/vsdx';
 import { createDescriber } from '$lib/features/topology/diagram-export/describe';
 import type { RenderableTopology } from '$lib/features/topology/types/base';
@@ -40,7 +41,16 @@ const plainDescriber = (hiddenEdgeIds: Set<string> = new Set(['e-hidden'])): Dia
 		title: n.id,
 		lines: n.type === 'Element' ? ['10.0.0.1'] : [],
 		style: { fill: '#ffffff', stroke: '#94a3b8', text: '#1f2937' },
-		iconKey: n.id === 'web' ? 'icon-web' : undefined
+		iconKey: n.id === 'web' ? 'icon-web' : undefined,
+		// Two labels that reduce to the same key, and one that collides with a draw.io attribute.
+		data:
+			n.type === 'Element'
+				? [
+						{ label: 'IP Address', value: '10.0.0.1' },
+						{ label: 'IP-Address', value: '10.0.0.2' },
+						{ label: 'label', value: 'x & <y>' }
+					]
+				: []
 	}),
 	edge: (e) => (hiddenEdgeIds.has(e.id) ? null : { color: '#3b82f6', width: 2, dash: 'solid' })
 });
@@ -157,6 +167,8 @@ describe('diagram describer', () => {
 			describer.edge({ id: e.id, source: e.source, target: e.target })
 		);
 		expect(drawn.map((e) => e.id)).toEqual(['shown']);
+		const shown = describer.edge({ id: 'shown', source: 'a', target: 'b' });
+		expect(shown?.data?.map((d) => d.value)).toEqual([expect.any(String)]);
 	});
 });
 
@@ -266,6 +278,47 @@ describe('VSDX package', () => {
 		for (const [, , , toSheet] of connects) {
 			expect(shapeIds.has(toSheet)).toBe(true);
 			expect(connectorIds).not.toContain(toSheet);
+		}
+	});
+});
+
+describe('shape data', () => {
+	const XML_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+	it('gives every field a distinct key that is a valid XML name, whatever the label', () => {
+		const labels = ['IP Address', 'IP-Address', 'label', 'id', '1st hop', '', 'Ünïcode'];
+		const keys = fieldKeys(labels);
+		expect(new Set(keys).size).toBe(labels.length);
+		for (const key of keys) expect(key).toMatch(XML_NAME);
+		expect(keys).not.toContain('label');
+		expect(keys).not.toContain('id');
+	});
+
+	it('carries each shape’s fields into its draw.io cell, and keeps cell ids unique in the file', () => {
+		const model = sampleModel();
+		const cells = toDrawioCells(model);
+		for (const shape of model.shapes) {
+			const cell = cells.find((c) => c.id === `n-${shape.id}`)!;
+			expect(cell.data?.map((d) => d.value) ?? []).toEqual(shape.data.map((f) => f.value));
+		}
+		const xml = serializeDrawio(model);
+		for (const cell of cells) {
+			const occurrences = xml.split(` id="${cell.id}"`).length - 1;
+			expect(occurrences).toBe(1);
+		}
+	});
+
+	it('writes one Visio Shape Data row per field, with unique row names', () => {
+		const model = sampleModel();
+		const page = strFromU8(unzipSync(zipVsdx(buildVsdxParts(model)))['visio/pages/page1.xml']);
+		const sections = [...page.matchAll(/<Section N="Property">(.*?)<\/Section>/g)].map((m) => m[1]);
+		const shapesWithData = model.shapes.filter((s) => s.data.length > 0);
+		expect(sections).toHaveLength(shapesWithData.length);
+		for (const [i, section] of sections.entries()) {
+			const names = [...section.matchAll(/<Row N="([^"]+)">/g)].map((m) => m[1]);
+			expect(names).toHaveLength(shapesWithData[i].data.length);
+			expect(new Set(names).size).toBe(names.length);
+			for (const name of names) expect(name).toMatch(XML_NAME);
 		}
 	});
 });

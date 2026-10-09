@@ -1,10 +1,23 @@
 /**
  * Text and colours for each node and edge of a diagram export, read from the same sources the
- * canvas components use (`ElementNode`, `ContainerNode`, `CustomEdge`).
+ * canvas components use (`ElementNode`, `ContainerNode`, `CustomEdge`), plus the entity fields each
+ * shape carries as data.
  */
 
 import type { Edge } from '@xyflow/svelte';
-import { containerTypes, edgeTypes } from '$lib/shared/stores/metadata';
+import { containerTypes, edgeTypes, entities } from '$lib/shared/stores/metadata';
+import { hostDisplayName } from '$lib/features/hosts/host-display-name';
+import {
+	common_cidr,
+	common_host,
+	common_id,
+	common_interface,
+	common_ipAddress,
+	common_macAddress,
+	common_services,
+	common_type
+} from '$lib/paraglide/messages';
+import { elementEntity, resolveElementNode } from '../resolvers';
 import { createColorHelper, type Color } from '$lib/shared/utils/styling';
 import { buildElementRender, currentElementRenderContext } from '../element-render-data';
 import { formatElementSummary, tallyContainerElements } from '../labels';
@@ -19,6 +32,7 @@ import type { RenderableTopology, TopologyEdge, TopologyNode } from '../types/ba
 import type {
 	DiagramDescriber,
 	DiagramEdgeDescription,
+	DiagramField,
 	DiagramHeader,
 	DiagramNodeDescription,
 	DiagramSourceNode
@@ -101,6 +115,48 @@ function elementDescription(
 	return { title, lines };
 }
 
+/** Keep only fields with a value, so a shape's data lists what is known about it. */
+function fields(entries: [string, string | null | undefined][]): DiagramField[] {
+	return entries
+		.filter((entry): entry is [string, string] => !!entry[1]?.trim())
+		.map(([label, value]) => ({ label, value }));
+}
+
+function elementFields(
+	id: string,
+	node: TopologyNode,
+	topology: RenderableTopology
+): DiagramField[] {
+	const resolved = resolveElementNode(id, node, topology);
+	const iface = resolved.snmpInterface;
+	const subnet = topology.subnets.find((s) => s.id === resolved.subnetId);
+	return fields([
+		[common_host(), resolved.host ? hostDisplayName(resolved.host) : null],
+		[common_ipAddress(), resolved.ipAddress?.ip_address],
+		[common_macAddress(), resolved.ipAddress?.mac_address ?? iface?.mac_address],
+		[common_interface(), iface?.if_name ?? iface?.if_descr],
+		[entities.getName('Subnet'), subnet?.cidr],
+		[common_services(), resolved.services.map((s) => s.name).join(', ')],
+		[common_id(), elementEntity(resolved)?.id]
+	]);
+}
+
+function containerFields(
+	id: string,
+	node: TopologyNode & { node_type: 'Container' },
+	topology: RenderableTopology
+): DiagramField[] {
+	const containerType = node.container_type ?? 'Subnet';
+	const entityId = node.entity_id ?? id;
+	const subnet =
+		containerType === 'Subnet' ? topology.subnets.find((s) => s.id === entityId) : undefined;
+	return fields([
+		[common_type(), containerTypes.getName(containerType)],
+		[common_cidr(), subnet?.cidr],
+		[common_id(), node.entity_id]
+	]);
+}
+
 export function createDescriber(input: DescriberInput): DiagramDescriber {
 	const palette = DIAGRAM_PALETTE[input.theme];
 	const infraRuleId = getInfrastructureRuleIdForTopology(input.topology);
@@ -118,6 +174,7 @@ export function createDescriber(input: DescriberInput): DiagramDescriber {
 					title,
 					lines,
 					iconKey,
+					data: data ? elementFields(source.id, data, input.topology) : [],
 					style: { fill: palette.node, stroke: palette.border, text: palette.text }
 				};
 			}
@@ -139,6 +196,7 @@ export function createDescriber(input: DescriberInput): DiagramDescriber {
 				title: data.header ?? '',
 				lines,
 				iconKey,
+				data: containerFields(source.id, data, input.topology),
 				style: {
 					fill: isSubcontainer ? palette.subgroup : palette.node,
 					stroke: palette.border,
@@ -190,7 +248,8 @@ export function createDescriber(input: DescriberInput): DiagramDescriber {
 					bundleStrokeWidth: (data?.bundleStrokeWidth as number) ?? 2,
 					isOverlay
 				}),
-				dash: !isDependencyEdge && isOverlay ? (isDotted ? 'dotted' : 'dashed') : 'solid'
+				dash: !isDependencyEdge && isOverlay ? (isDotted ? 'dotted' : 'dashed') : 'solid',
+				data: fields([[common_type(), data ? edgeTypes.getName(data.edge_type) : null]])
 			};
 		}
 	};

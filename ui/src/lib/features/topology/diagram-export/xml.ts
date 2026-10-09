@@ -6,7 +6,7 @@ export function escapeXml(value: string): string {
 	return (
 		value
 			// eslint-disable-next-line no-control-regex
-			.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
+			.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '')
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;')
@@ -37,4 +37,23 @@ export function hexColor(css: string): string {
 			.toUpperCase()}`;
 	}
 	return '#000000';
+}
+
+/**
+ * Turn field labels into keys both formats accept: XML attribute names in draw.io, Shape Data row
+ * names in Visio. Keys are unique within the list, so two labels that reduce to the same key both
+ * survive.
+ */
+export function fieldKeys(labels: string[]): string[] {
+	const used = new Set<string>();
+	return labels.map((label) => {
+		let key = label.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'Field';
+		if (!/^[A-Za-z_]/.test(key)) key = `_${key}`;
+		// draw.io keeps these on the cell itself.
+		if (['id', 'label', 'placeholders', 'tooltip', 'link'].includes(key)) key = `${key}_`;
+		let unique = key;
+		for (let n = 2; used.has(unique); n++) unique = `${key}_${n}`;
+		used.add(unique);
+		return unique;
+	});
 }

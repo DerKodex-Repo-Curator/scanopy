@@ -9,10 +9,11 @@ import {
 	DIAGRAM_PADDING,
 	sideAnchor,
 	type DiagramConnector,
+	type DiagramField,
 	type DiagramModel,
 	type DiagramShape
 } from './model';
-import { escapeXml, hexColor, num } from './xml';
+import { escapeXml, fieldKeys, hexColor, num } from './xml';
 
 const ROOT_ID = '0';
 const LAYER_ID = '1';
@@ -28,6 +29,8 @@ export interface DrawioCell {
 	target?: string;
 	/** Relative to the parent cell for vertices; unused for edges. */
 	geometry?: { x: number; y: number; width: number; height: number };
+	/** Custom properties, shown in draw.io's Edit Data dialog. */
+	data?: { key: string; value: string }[];
 }
 
 const shapeCellId = (id: string) => `n-${id}`;
@@ -43,6 +46,12 @@ function style(entries: Record<string, string | number | undefined>): string {
 /** draw.io styles use `;` as a separator, so embedded images drop the `;base64` marker. */
 function styleImage(dataUri: string): string {
 	return dataUri.replace(';base64,', ',');
+}
+
+function cellData(fields: DiagramField[]): DrawioCell['data'] {
+	if (fields.length === 0) return undefined;
+	const keys = fieldKeys(fields.map((f) => f.label));
+	return fields.map((f, i) => ({ key: keys[i], value: f.value }));
 }
 
 /** HTML label: bold title, then one line per entry. */
@@ -68,6 +77,7 @@ function shapeCell(
 		parent: parent ? shapeCellId(parent.id) : LAYER_ID,
 		value: htmlLabel(shape.title, shape.lines),
 		vertex: true,
+		data: cellData(shape.data),
 		style: style({
 			shape: icon ? 'label' : undefined,
 			image: icon ? styleImage(icon.dataUri) : undefined,
@@ -110,6 +120,7 @@ function connectorCell(connector: DiagramConnector, background: string): DrawioC
 		parent: LAYER_ID,
 		value: connector.label ? escapeXml(connector.label) : '',
 		edge: true,
+		data: cellData(connector.data),
 		source: shapeCellId(connector.sourceId),
 		target: shapeCellId(connector.targetId),
 		style: style({
@@ -187,10 +198,13 @@ export function toDrawioCells(model: DiagramModel): DrawioCell[] {
 }
 
 function serializeCell(cell: DrawioCell): string {
-	const attrs = [`id="${escapeXml(cell.id)}"`];
+	// A cell with properties is wrapped in <object>, which then owns the id and the label.
+	const wrapped = !!cell.data?.length;
+	const attrs = wrapped ? [] : [`id="${escapeXml(cell.id)}"`];
 	if (cell.parent) attrs.push(`parent="${escapeXml(cell.parent)}"`);
 	if (cell.id === ROOT_ID || cell.id === LAYER_ID) return `<mxCell ${attrs.join(' ')}/>`;
-	attrs.push(`value="${escapeXml(cell.value)}"`, `style="${escapeXml(cell.style)}"`);
+	if (!wrapped) attrs.push(`value="${escapeXml(cell.value)}"`);
+	attrs.push(`style="${escapeXml(cell.style)}"`);
 	if (cell.vertex) attrs.push('vertex="1"');
 	if (cell.edge) {
 		attrs.push('edge="1"');
@@ -200,7 +214,10 @@ function serializeCell(cell: DrawioCell): string {
 	const geometry = cell.geometry
 		? `<mxGeometry x="${num(cell.geometry.x)}" y="${num(cell.geometry.y)}" width="${num(cell.geometry.width)}" height="${num(cell.geometry.height)}" as="geometry"/>`
 		: '<mxGeometry relative="1" as="geometry"/>';
-	return `<mxCell ${attrs.join(' ')}>${geometry}</mxCell>`;
+	const mxCell = `<mxCell ${attrs.join(' ')}>${geometry}</mxCell>`;
+	if (!wrapped) return mxCell;
+	const properties = cell.data!.map((d) => `${d.key}="${escapeXml(d.value)}"`).join(' ');
+	return `<object id="${escapeXml(cell.id)}" label="${escapeXml(cell.value)}" ${properties}>${mxCell}</object>`;
 }
 
 export function serializeDrawio(model: DiagramModel): string {
