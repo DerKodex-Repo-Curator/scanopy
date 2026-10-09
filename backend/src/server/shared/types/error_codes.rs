@@ -35,6 +35,10 @@ pub enum ErrorCode {
     ValidationInvalidEmail,
     /// Email domain cannot receive mail (no MX/A/AAAA DNS records)
     ValidationEmailDomainUndeliverable,
+    /// Email validation rated the address unlikely to receive mail, or randomly generated
+    ValidationEmailUndeliverable,
+    /// Email validation identified the address as a disposable inbox
+    ValidationEmailDisposable,
     /// IP address format is invalid
     ValidationInvalidIp,
     /// Field value is too short
@@ -255,6 +259,12 @@ impl ErrorCode {
             Self::ValidationEmailDomainUndeliverable => {
                 "This email domain can't receive mail. Please use a valid email address."
             }
+            Self::ValidationEmailUndeliverable => {
+                "We couldn't confirm this address can receive mail. Check it for typos or use a different address."
+            }
+            Self::ValidationEmailDisposable => {
+                "Temporary email addresses can't be used. Please sign up with a permanent address."
+            }
             Self::ValidationInvalidIp => "Invalid IP address format",
             Self::ValidationMinLength { .. } => "Field '{field}' must be at least {min} characters",
             Self::ValidationMaxLength { .. } => "Field '{field}' must be at most {max} characters",
@@ -411,6 +421,8 @@ impl ErrorCode {
             // No params
             Self::ValidationInvalidEmail
             | Self::ValidationEmailDomainUndeliverable
+            | Self::ValidationEmailUndeliverable
+            | Self::ValidationEmailDisposable
             | Self::ValidationInvalidIp
             | Self::ValidationBulkEmpty
             | Self::AuthInvalidCredentials

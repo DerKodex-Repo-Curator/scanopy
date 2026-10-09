@@ -121,6 +121,18 @@ pub struct ServerCli {
     #[arg(long)]
     email_feedback_sns_topic_arn: Option<String>,
 
+    /// AWS region of the SES v2 API used to validate signup email addresses.
+    #[arg(long, hide = true)]
+    email_validation_aws_region: Option<String>,
+
+    /// IAM access key id allowed `ses:GetEmailAddressInsights`. Not the SES SMTP username.
+    #[arg(long, hide = true)]
+    email_validation_aws_access_key_id: Option<String>,
+
+    /// IAM secret access key for `email_validation_aws_access_key_id`. Not the SES SMTP password.
+    #[arg(long, hide = true)]
+    email_validation_aws_secret_access_key: Option<String>,
+
     /// URL users reach the server at. Used in password reset links, invite links and webhooks.
     #[arg(long)]
     public_url: Option<String>,
@@ -201,6 +213,15 @@ pub struct ServerConfig {
     /// endpoint answers 404. Messages from any other topic are rejected.
     #[serde(default)]
     pub email_feedback_sns_topic_arn: Option<String>,
+    /// SES v2 API access used to validate addresses at signup with `GetEmailAddressInsights`
+    /// (`SCANOPY_EMAIL_VALIDATION_AWS_*`). These are IAM API keys, distinct from the SES SMTP
+    /// credentials. Validation runs only when all three are set.
+    #[serde(default)]
+    pub email_validation_aws_region: Option<String>,
+    #[serde(default)]
+    pub email_validation_aws_access_key_id: Option<String>,
+    #[serde(default)]
+    pub email_validation_aws_secret_access_key: Option<String>,
     #[serde(default)]
     pub oidc_providers: Option<Vec<OidcProviderConfig>>,
 
@@ -385,6 +406,9 @@ impl Default for ServerConfig {
             smtp_port: Some(465),
             email_log_dir: None,
             email_feedback_sns_topic_arn: None,
+            email_validation_aws_region: None,
+            email_validation_aws_access_key_id: None,
+            email_validation_aws_secret_access_key: None,
             client_ip_source: None,
             oidc_providers: None,
             posthog_key: None,
@@ -455,6 +479,15 @@ impl ServerConfig {
         }
         if let Some(topic_arn) = cli_args.email_feedback_sns_topic_arn {
             figment = figment.merge(("email_feedback_sns_topic_arn", topic_arn));
+        }
+        if let Some(region) = cli_args.email_validation_aws_region {
+            figment = figment.merge(("email_validation_aws_region", region));
+        }
+        if let Some(key_id) = cli_args.email_validation_aws_access_key_id {
+            figment = figment.merge(("email_validation_aws_access_key_id", key_id));
+        }
+        if let Some(secret) = cli_args.email_validation_aws_secret_access_key {
+            figment = figment.merge(("email_validation_aws_secret_access_key", secret));
         }
         if let Some(public_url) = cli_args.public_url {
             figment = figment.merge(("public_url", public_url));

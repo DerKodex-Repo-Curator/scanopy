@@ -88,7 +88,7 @@ pub(crate) async fn register(
     {
         tracing::warn!(
             ip = %ip,
-            email = %request.email,
+            email_domain = %request.email.domain(),
             honeypot_value = %request.website.as_ref().unwrap(),
             "Bot registration blocked by honeypot"
         );
@@ -130,6 +130,14 @@ pub(crate) async fn register(
             StatusCode::CONFLICT,
             ErrorCode::ValidationEmailDomainUndeliverable,
         ));
+    }
+
+    // SES address validation (when configured): rejects low-validity, disposable and
+    // random-looking addresses. Any SES failure lets the signup through.
+    if let Some(validator) = &state.services.email_validator
+        && let Some(code) = validator.check(&request.email).await
+    {
+        return Err(ApiError::validation(code));
     }
 
     // Check if email is already in use
