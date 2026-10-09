@@ -1,6 +1,7 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
-const INSTALL_DOCS_URL: &str = "https://scanopy.net/docs/self-hosted-server/server-installation/";
+const COMMERCIAL_DOCS_URL: &str =
+    "https://scanopy.net/docs/self-hosted-server/commercial-deployment/";
 const BOOK_DEMO_URL: &str = "https://cal.com/mferrandiz/scanopy-demo";
 
 /// Sent when an organization moves onto a self-hosted plan: says where the
@@ -21,13 +22,9 @@ impl Email for SelfHostedWelcome<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        // Carries the license key location and the install guide: without it
+        // Carries the license key location and the deployment guide: without it
         // the customer cannot run the software they just signed up for.
-        EmailPreference::Required
+        EmailCategory::Billing
     }
 
     fn campaign(&self) -> &'static str {
@@ -42,8 +39,11 @@ impl Email for SelfHostedWelcome<'_> {
                 "Your license is ready. Open Settings and then License in Scanopy Cloud to copy your license key, and set it as <strong>SCANOPY_LICENSE_KEY</strong> on your own server.",
             )
             .paragraph(&format!(
-                r#"The <a href="{INSTALL_DOCS_URL}?{{utm}}">self-hosted install guide</a> walks through running the server and pointing a daemon at it."#
-            ));
+                r#"The <a href="{COMMERCIAL_DOCS_URL}?{{utm}}">commercial edition guide</a> walks through running the server with your license key."#
+            ))
+            .paragraph(
+                "Your server has its own accounts, so create one there the first time you open it. Your Scanopy Cloud login works only on Scanopy Cloud.",
+            );
 
         content = match self.trial_days {
             Some(days) => content.paragraph(&format!(

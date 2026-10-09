@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{Email, EmailCategory, EmailPreference, PausableCategory, links};
+use super::{Email, EmailCategory, links};
 use crate::server::{
     digest::payload::{
         AffectedHostCard, DiscoveryDigestPayload, EntityFreshness, InterfaceSummary,
@@ -27,11 +27,7 @@ impl Email for DiscoveryDigest<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Digest
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::DiscoveryDigest)
+        EmailCategory::DiscoveryDigest
     }
 
     fn campaign(&self) -> &'static str {

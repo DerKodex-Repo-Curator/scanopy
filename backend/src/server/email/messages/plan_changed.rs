@@ -1,12 +1,13 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
+use crate::server::license::types::LicenseKeyType;
 
 /// Sent when an organization's plan changes: confirms the new plan and that the
 /// change is effective immediately.
 pub struct PlanChanged<'a> {
     pub plan_name: &'a str,
-    /// The organization moved off a self-hosted plan, so the license key on
-    /// its own server is refused from the next check-in.
-    pub license_key_stops: bool,
+    /// The type of key the organization held when it moved off a self-hosted
+    /// plan, which ends its license. `None` when it was not on one.
+    pub ended_license: Option<LicenseKeyType>,
 }
 
 impl Email for PlanChanged<'_> {
@@ -16,10 +17,6 @@ impl Email for PlanChanged<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {
@@ -35,10 +32,20 @@ impl Email for PlanChanged<'_> {
                 self.plan_name
             ));
 
-        if self.license_key_stops {
-            content = content.paragraph(
-                "Your self-hosted license ended with this change. Your own server stops accepting its license key at the next check-in, within a few hours, and goes read-only.",
-            );
+        // An online key is refused at its next check-in. An air-gapped key
+        // never checks in, so it runs to the expiry it was minted with.
+        match self.ended_license {
+            Some(LicenseKeyType::Online) => {
+                content = content.paragraph(
+                    "Your self-hosted license ended with this change. Your own server stops accepting its license key at the next check-in, within a few hours, and goes read-only.",
+                );
+            }
+            Some(LicenseKeyType::Offline) => {
+                content = content.paragraph(
+                    "Your self-hosted license ended with this change. Your air-gapped key keeps working until the expiry date it carries, and then your server goes read-only.",
+                );
+            }
+            None => {}
         }
 
         Body::new()

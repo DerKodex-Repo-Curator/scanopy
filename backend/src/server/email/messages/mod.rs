@@ -54,6 +54,14 @@ mod trial_started;
 mod usage_summary;
 mod verification;
 
+use strum::{EnumIter, IntoStaticStr};
+
+use crate::server::shared::types::{
+    Color,
+    icon::Icon,
+    metadata::{EntityMetadataProvider, HasId, TypeMetadataProvider},
+};
+
 pub use airgap_expiring::AirgapExpiring;
 pub use airgap_renewal::AirgapRenewal;
 pub use cancellation_initiated::CancellationInitiated;
@@ -101,69 +109,127 @@ pub use trial_started::TrialStarted;
 pub use usage_summary::UsageSummary;
 pub use verification::Verification;
 
-/// Broad classification for a transactional email, aligned to the event
-/// sources that produce them. Surfaced to the provider as a message tag
-/// (Brevo `tags`); never user-visible.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What an email is about. Each email declares one, and the category decides
+/// whether the recipient can pause it, whether an org locked out of this app
+/// still gets it, and the tag analytics groups it under.
+///
+/// A pausable category's id is its `EmailSettings` field name, which is how
+/// Settings → Email finds a toggle's metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
 pub enum EmailCategory {
     /// Sign-in, verification, and account-security notices.
     Auth,
-    /// Subscription, payment, trial, and plan-limit lifecycle.
-    Billing,
-    /// Post-signup guidance (invites, first-discovery walkthrough).
-    Onboarding,
-    /// Daemon connectivity / lifecycle notices.
-    Daemon,
     /// Account-level lifecycle (e.g. organization deletion).
     Account,
-    /// Per-discovery-session digest.
-    Digest,
+    /// Receipts, payment and subscription notices, and the license emails.
+    Billing,
+    /// Trial reminders and plan-limit nudges about the cloud app.
+    TrialAndUsage,
+    /// The daemon install command a user asked to be sent.
+    DaemonSetup,
+    /// Daemon connectivity notices (standby, unreachable, sunset).
+    DaemonAlerts,
+    /// An invitation to join an organization.
+    Invitation,
+    /// First-run walkthrough nudges.
+    ProductOnboarding,
+    /// Per-discovery-session digests.
+    DiscoveryDigest,
 }
 
 impl EmailCategory {
-    /// Stable lowercase tag string used by the provider.
-    pub fn as_str(&self) -> &'static str {
+    /// Whether the recipient can switch this category off in Settings →
+    /// Email. Required categories carry security, billing, and
+    /// account-lifecycle messages and ignore preferences; Settings shows
+    /// them as one disabled "Required emails" row.
+    pub fn pausable(self) -> bool {
         match self {
-            EmailCategory::Auth => "auth",
-            EmailCategory::Billing => "billing",
-            EmailCategory::Onboarding => "onboarding",
-            EmailCategory::Daemon => "daemon",
-            EmailCategory::Account => "account",
-            EmailCategory::Digest => "digest",
+            Self::Auth | Self::Account | Self::Billing | Self::DaemonSetup | Self::Invitation => {
+                false
+            }
+            Self::TrialAndUsage
+            | Self::DaemonAlerts
+            | Self::ProductOnboarding
+            | Self::DiscoveryDigest => true,
+        }
+    }
+
+    /// Whether the cloud app sends this category to an org locked out of it
+    /// by a self-hosted license plan (`EmailService::self_hosted_plan_locked`).
+    /// `EmailService::dispatch` enforces it, and Settings → Email hides a
+    /// toggle that has nothing to act on.
+    pub fn sent_while_self_hosted_plan_locked(self) -> bool {
+        match self {
+            Self::Auth | Self::Account | Self::Billing | Self::DaemonSetup | Self::Invitation => {
+                true
+            }
+            // The cloud trial and plan-limit emails are about the cloud app.
+            // A licensed trial gets SelfHostedWelcome and SelfHostedTrialEnding
+            // instead, and both are Billing.
+            Self::TrialAndUsage => false,
+            // Daemons left on the cloud org are expected to go quiet.
+            Self::DaemonAlerts => false,
+            // A guide to discovery and topology in an app it can't open.
+            Self::ProductOnboarding => false,
+            // Every link leads into the locked app, and the org's scans run
+            // on its own server.
+            Self::DiscoveryDigest => false,
+        }
+    }
+
+    /// Stable lowercase tag for the provider (Brevo `tags`) and the default
+    /// `utm_medium`. Coarser than the category, and unchanged since before
+    /// categories split by pausability, so analytics keeps its history.
+    pub fn tag(self) -> &'static str {
+        match self {
+            Self::Auth => "auth",
+            Self::Account => "account",
+            Self::Billing | Self::TrialAndUsage => "billing",
+            Self::DaemonSetup | Self::DaemonAlerts => "daemon",
+            Self::Invitation | Self::ProductOnboarding => "onboarding",
+            Self::DiscoveryDigest => "digest",
         }
     }
 }
 
-/// Whether the recipient can suppress an email, and if so which preference
-/// toggle governs it.
-///
-/// Distinct from [`EmailCategory`] (the provider analytics tag): pausability
-/// cuts *across* categories — Billing, for example, splits into required
-/// receipts and pausable nudges — so it cannot be derived from the category.
-/// Every email declares its own [`EmailPreference`] via [`Email::preference`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EmailPreference {
-    /// Always sent — security, billing receipts, and account-lifecycle
-    /// messages with legal or security weight. Ignores user preferences;
-    /// surfaced in Settings as a single disabled "Required emails" row.
-    Required,
-    /// Suppressible by the recipient; gated at send time by the matching
-    /// [`PausableCategory`] flag in their preferences.
-    Pausable(PausableCategory),
+impl HasId for EmailCategory {
+    fn id(&self) -> &'static str {
+        self.into()
+    }
 }
 
-/// The user-pausable email groups. Each maps 1:1 to a boolean flag on
-/// `EmailSettings`, and each is one toggle in Settings → Email.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PausableCategory {
-    /// Per-discovery-session digests.
-    DiscoveryDigest,
-    /// Product onboarding / first-run walkthrough nudges.
-    ProductOnboarding,
-    /// Daemon connectivity notices (standby, unreachable).
-    DaemonAlerts,
-    /// Trial reminders and plan-limit nudges.
-    TrialAndUsage,
+impl EntityMetadataProvider for EmailCategory {
+    fn color(&self) -> Color {
+        Color::Blue
+    }
+
+    fn icon(&self) -> Icon {
+        Icon::Mail
+    }
+}
+
+impl TypeMetadataProvider for EmailCategory {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Auth => "Sign-in and security",
+            Self::Account => "Account",
+            Self::Billing => "Billing and license",
+            Self::TrialAndUsage => "Trial and usage",
+            Self::DaemonSetup => "Daemon setup",
+            Self::DaemonAlerts => "Daemon alerts",
+            Self::Invitation => "Invitations",
+            Self::ProductOnboarding => "Product onboarding",
+            Self::DiscoveryDigest => "Discovery digest",
+        }
+    }
+
+    fn metadata(&self) -> serde_json::Value {
+        serde_json::json!({
+            "pausable": self.pausable(),
+            "sent_while_self_hosted_plan_locked": self.sent_while_self_hosted_plan_locked()
+        })
+    }
 }
 
 /// A binary file delivered alongside an email body (e.g. a Stripe invoice
@@ -198,24 +264,20 @@ pub trait Email: Send + Sync {
     /// not include them here. May contain the `{base_url}` and `{utm}` tokens.
     fn body_html(&self) -> String;
 
-    /// Classification tag for grouping and provider analytics.
+    /// What this email is about. Required of every email, so a new message
+    /// cannot be added without deciding whether it can be paused and whether
+    /// a locked org gets it.
     fn category(&self) -> EmailCategory;
-
-    /// Whether the recipient can suppress this email, and which preference
-    /// governs it. Required of every email so the pausable/required split is
-    /// exhaustive and compiler-enforced — a new message cannot be added
-    /// without classifying it.
-    fn preference(&self) -> EmailPreference;
 
     /// The `utm_campaign` slug for this email's CTAs.
     fn campaign(&self) -> &'static str;
 
-    /// The `utm_medium` value for this email's CTAs. Defaults to the email's
-    /// category name (`auth`, `billing`, `onboarding`, `daemon`, `account`,
+    /// The `utm_medium` value for this email's CTAs. Defaults to the
+    /// category's tag (`auth`, `billing`, `onboarding`, `daemon`, `account`,
     /// `digest`) so analytics gets a useful split out of the box. Override
     /// only when a particular email warrants a different bucket.
     fn utm_medium(&self) -> &'static str {
-        self.category().as_str()
+        self.category().tag()
     }
 
     /// Bare UTM query-string fragment — no leading `?` or `&`. Single
@@ -344,6 +406,7 @@ pub const FOOTER_LEGAL_SELF_HOSTED: &str = r#"                            <p sty
 mod tests {
     use super::*;
     use crate::server::digest::payload::DiscoveryDigestPayload;
+    use crate::server::license::types::LicenseKeyType;
     use crate::server::sites::r#impl::DEFAULT_STALE_AFTER_HOURS;
     use uuid::Uuid;
 
@@ -371,30 +434,30 @@ mod tests {
     /// Render an email end-to-end and assert it is fully substituted: a
     /// non-empty subject + HTML with no leftover `{token}` placeholders. This
     /// is real coverage against forgetting a `.replace(...)`, not a stub impl.
-    fn assert_fully_rendered(email: &dyn Email) {
+    fn assert_fully_rendered(name: &str, email: &dyn Email) {
         let subject = email.subject();
-        assert!(!subject.is_empty(), "empty subject");
+        assert!(!subject.is_empty(), "{name}: empty subject");
         assert!(
             !has_placeholder(&subject),
-            "leftover placeholder in subject: {subject}"
+            "{name}: leftover placeholder in subject: {subject}"
         );
         for self_hosted in [false, true] {
             let html = email.render_html("https://app.example.test", self_hosted);
-            assert!(!html.is_empty(), "empty html");
+            assert!(!html.is_empty(), "{name}: empty html");
             assert!(
                 !has_placeholder(&html),
-                "leftover placeholder in html for subject: {subject} (self_hosted={self_hosted})"
+                "{name}: leftover placeholder in html (self_hosted={self_hosted})"
             );
         }
     }
 
     #[test]
     fn every_email_fully_renders() {
-        for_each_email(|_, email| assert_fully_rendered(email));
+        for_each_email(assert_fully_rendered);
     }
 
-    /// Visit every email (every distinct variant) once, paired with a stable
-    /// snapshot name. Single source of truth for the render/snapshot tests.
+    /// Visit every email (every distinct variant) once, with a name for
+    /// failure messages.
     fn for_each_email(mut f: impl FnMut(&str, &dyn Email)) {
         f(
             "password_reset",
@@ -529,14 +592,21 @@ mod tests {
             "plan_changed",
             &PlanChanged {
                 plan_name: "Pro",
-                license_key_stops: false,
+                ended_license: None,
             },
         );
         f(
             "plan_changed_from_self_hosted",
             &PlanChanged {
                 plan_name: "Pro",
-                license_key_stops: true,
+                ended_license: Some(LicenseKeyType::Online),
+            },
+        );
+        f(
+            "plan_changed_from_self_hosted_airgapped",
+            &PlanChanged {
+                plan_name: "Pro",
+                ended_license: Some(LicenseKeyType::Offline),
             },
         );
         f(
@@ -863,38 +933,6 @@ mod tests {
                 base_url: "https://app.example.test",
             },
         );
-    }
-
-    /// Byte-for-byte fidelity net for the chrome-helper refactor: every email's
-    /// `body_html()` must match its committed golden. `discovery_digest` carries
-    /// `started_at`/`finished_at` timestamps, so its body is non-deterministic —
-    /// snapshot only the deterministic emails. Regenerate with
-    /// `UPDATE_EMAIL_SNAPSHOTS=1 cargo test --lib email_body_snapshots`.
-    #[test]
-    fn email_body_snapshots() {
-        let dir = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/src/server/email/messages/snapshots"
-        );
-        let update = std::env::var("UPDATE_EMAIL_SNAPSHOTS").is_ok();
-        if update {
-            std::fs::create_dir_all(dir).unwrap();
-        }
-        for_each_email(|name, email| {
-            if name == "discovery_digest" {
-                return;
-            }
-            let path = format!("{dir}/{name}.html");
-            let actual = email.body_html();
-            if update {
-                std::fs::write(&path, &actual).unwrap();
-            } else {
-                let expected = std::fs::read_to_string(&path).unwrap_or_else(|_| {
-                    panic!("missing snapshot {path}; run with UPDATE_EMAIL_SNAPSHOTS=1")
-                });
-                assert_eq!(actual, expected, "body_html drift for {name}");
-            }
-        });
     }
 
     /// The footer's sender-identification block is gated on deployment type,

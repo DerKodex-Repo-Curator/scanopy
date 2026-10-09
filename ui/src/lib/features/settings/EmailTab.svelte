@@ -6,8 +6,13 @@
 	import InfoCard from '$lib/shared/components/data/InfoCard.svelte';
 	import { pushSuccess } from '$lib/shared/stores/feedback';
 	import type { components } from '$lib/api/schema';
+	import { useOrganizationQuery } from '$lib/features/organizations/queries';
+	import { isSelfHostedPlanLocked } from '$lib/features/organizations/types';
+	import { useConfigQuery } from '$lib/shared/stores/config-query';
+	import { emailCategories } from '$lib/shared/stores/metadata';
 	import {
 		settings_email_intro,
+		settings_email_introLocked,
 		settings_email_digestLabel,
 		settings_email_digestDescription,
 		settings_email_onboardingLabel,
@@ -36,6 +41,21 @@
 		daemon_alerts: true,
 		trial_and_usage: true
 	};
+
+	const organizationQuery = useOrganizationQuery();
+	const configQuery = useConfigQuery();
+	let locked = $derived(
+		isSelfHostedPlanLocked(organizationQuery.data, configQuery.data?.billing_enabled ?? false)
+	);
+
+	// A toggle shows when the cloud app can send its category to this org. Its
+	// field name is the category id in the backend's email-category metadata.
+	function categoryApplies(field: keyof EmailSettings): boolean {
+		return !locked || emailCategories.getMetadata(field).sent_while_self_hosted_plan_locked;
+	}
+	let anyToggleApplies = $derived(
+		!locked || (Object.keys(DEFAULTS) as (keyof EmailSettings)[]).some(categoryApplies)
+	);
 
 	// Stable literal defaults — do NOT read reactive state inside the createForm
 	// options getter (see TanStack + Svelte 5 reactivity notes). `required_emails`
@@ -99,53 +119,63 @@
 <div class="flex flex-1 flex-col">
 	<div class="flex-1 overflow-y-auto p-6">
 		<div class="space-y-6">
-			<p class="text-sm text-gray-600">{settings_email_intro()}</p>
+			<p class="text-sm text-gray-600">
+				{anyToggleApplies ? settings_email_intro() : settings_email_introLocked()}
+			</p>
 
 			<InfoCard>
 				<div class="space-y-4">
-					<form.Field name="discovery_digest" listeners={{ onChange: scheduleSave }}>
-						{#snippet children(field)}
-							<Checkbox
-								id="email-discovery-digest"
-								label={settings_email_digestLabel()}
-								helpText={settings_email_digestDescription()}
-								{field}
-							/>
-						{/snippet}
-					</form.Field>
+					{#if categoryApplies('discovery_digest')}
+						<form.Field name="discovery_digest" listeners={{ onChange: scheduleSave }}>
+							{#snippet children(field)}
+								<Checkbox
+									id="email-discovery-digest"
+									label={settings_email_digestLabel()}
+									helpText={settings_email_digestDescription()}
+									{field}
+								/>
+							{/snippet}
+						</form.Field>
+					{/if}
 
-					<form.Field name="product_onboarding" listeners={{ onChange: scheduleSave }}>
-						{#snippet children(field)}
-							<Checkbox
-								id="email-product-onboarding"
-								label={settings_email_onboardingLabel()}
-								helpText={settings_email_onboardingDescription()}
-								{field}
-							/>
-						{/snippet}
-					</form.Field>
+					{#if categoryApplies('product_onboarding')}
+						<form.Field name="product_onboarding" listeners={{ onChange: scheduleSave }}>
+							{#snippet children(field)}
+								<Checkbox
+									id="email-product-onboarding"
+									label={settings_email_onboardingLabel()}
+									helpText={settings_email_onboardingDescription()}
+									{field}
+								/>
+							{/snippet}
+						</form.Field>
+					{/if}
 
-					<form.Field name="daemon_alerts" listeners={{ onChange: scheduleSave }}>
-						{#snippet children(field)}
-							<Checkbox
-								id="email-daemon-alerts"
-								label={settings_email_daemonAlertsLabel()}
-								helpText={settings_email_daemonAlertsDescription()}
-								{field}
-							/>
-						{/snippet}
-					</form.Field>
+					{#if categoryApplies('daemon_alerts')}
+						<form.Field name="daemon_alerts" listeners={{ onChange: scheduleSave }}>
+							{#snippet children(field)}
+								<Checkbox
+									id="email-daemon-alerts"
+									label={settings_email_daemonAlertsLabel()}
+									helpText={settings_email_daemonAlertsDescription()}
+									{field}
+								/>
+							{/snippet}
+						</form.Field>
+					{/if}
 
-					<form.Field name="trial_and_usage" listeners={{ onChange: scheduleSave }}>
-						{#snippet children(field)}
-							<Checkbox
-								id="email-trial-and-usage"
-								label={settings_email_trialLabel()}
-								helpText={settings_email_trialDescription()}
-								{field}
-							/>
-						{/snippet}
-					</form.Field>
+					{#if categoryApplies('trial_and_usage')}
+						<form.Field name="trial_and_usage" listeners={{ onChange: scheduleSave }}>
+							{#snippet children(field)}
+								<Checkbox
+									id="email-trial-and-usage"
+									label={settings_email_trialLabel()}
+									helpText={settings_email_trialDescription()}
+									{field}
+								/>
+							{/snippet}
+						</form.Field>
+					{/if}
 
 					<form.Field name="required_emails">
 						{#snippet children(field)}

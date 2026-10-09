@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, PausableCategory, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Notifies that a daemon was put on standby after 30 days without a discovery.
 pub struct DaemonStandby<'a> {
@@ -12,11 +12,7 @@ impl Email for DaemonStandby<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Daemon
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::DaemonAlerts)
+        EmailCategory::DaemonAlerts
     }
 
     fn campaign(&self) -> &'static str {

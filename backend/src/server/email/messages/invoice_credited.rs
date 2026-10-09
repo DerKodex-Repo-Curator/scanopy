@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent when a plan change leaves the customer owing nothing: Stripe credits
 /// the unused part of what they already paid, and the credit comes off their
@@ -16,12 +16,8 @@ impl Email for InvoiceCredited<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
         // Money owed to the customer: never suppressed.
-        EmailPreference::Required
+        EmailCategory::Billing
     }
 
     fn campaign(&self) -> &'static str {

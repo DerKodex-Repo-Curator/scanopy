@@ -1,7 +1,4 @@
-use super::{
-    BILLING_DETAILS_TAGLINE, Body, Content, Email, EmailCategory, EmailPreference,
-    PausableCategory, links,
-};
+use super::{BILLING_DETAILS_TAGLINE, Body, Content, Email, EmailCategory, links};
 
 /// Sent 3 days before a trial ends: recaps trial value and prompts the user to
 /// add a payment method (or confirms upcoming billing if one is on file).
@@ -22,11 +19,7 @@ impl Email for TrialEnding<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::TrialAndUsage)
+        EmailCategory::TrialAndUsage
     }
 
     fn campaign(&self) -> &'static str {

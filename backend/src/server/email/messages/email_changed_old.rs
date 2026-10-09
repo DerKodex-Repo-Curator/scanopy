@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Sent to a user's previous email address as a security notice when the
 /// account email is changed.
@@ -13,10 +13,6 @@ impl Email for EmailChangedOld<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Auth
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

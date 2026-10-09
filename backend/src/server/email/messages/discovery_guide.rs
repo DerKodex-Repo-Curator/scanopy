@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, PausableCategory, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Post-daemon-registration walkthrough; the free/paid variant differs in
 /// copy and CTA based on whether the org is on the Free plan.
@@ -13,11 +13,7 @@ impl Email for DiscoveryGuide<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Onboarding
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::ProductOnboarding)
+        EmailCategory::ProductOnboarding
     }
 
     fn campaign(&self) -> &'static str {

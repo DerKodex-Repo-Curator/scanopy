@@ -16,6 +16,7 @@ use crate::server::credentials::r#impl::types::{
 use crate::server::dependencies::r#impl::types::DependencyType;
 use crate::server::discovery::r#impl::scan_settings::ScanSettings;
 use crate::server::discovery::r#impl::types::DiscoveryType;
+use crate::server::email::messages::EmailCategory;
 use crate::server::ports::r#impl::base::PortType;
 use crate::server::services::definitions::ServiceDefinitionRegistry;
 use crate::server::services::r#impl::categories::ServiceCategory;
@@ -350,6 +351,10 @@ pub fn generate_ui_data_fixtures(output_dir: &Path) {
 
     let plan_statuses: Vec<TypeMetadata> = PlanStatus::iter().map(|s| s.to_metadata()).collect();
     write_fixture(&plan_statuses, output_dir, "plan-statuses.json");
+
+    let email_categories: Vec<TypeMetadata> =
+        EmailCategory::iter().map(|c| c.to_metadata()).collect();
+    write_fixture(&email_categories, output_dir, "email-categories.json");
 
     // How much a discovered value is worth, and which sources sit at each tier. The tier is what
     // an operator reads ("assumed", "read from the device"); the source list under it is the

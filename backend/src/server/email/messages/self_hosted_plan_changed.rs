@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent instead of the cloud plan-changed email when an organization moves
 /// between two self-hosted plans. The cloud email's "Open Scanopy" button
@@ -19,10 +19,6 @@ impl Email for SelfHostedPlanChanged<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

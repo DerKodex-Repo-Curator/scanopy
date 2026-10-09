@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent when a cancelled subscription reaches its period end: the org keeps
 /// its plan and is read-only until it chooses a paid plan, with a resubscribe
@@ -14,10 +14,6 @@ impl Email for SubscriptionCancelled<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

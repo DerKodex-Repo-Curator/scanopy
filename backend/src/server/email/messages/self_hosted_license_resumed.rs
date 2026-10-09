@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Tells a self-hosted buyer their licence is back after they settled the
 /// invoice we had written off. Fired by the email subscriber on
@@ -19,10 +19,6 @@ impl Email for SelfHostedLicenseResumed<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

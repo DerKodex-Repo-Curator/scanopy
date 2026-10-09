@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Sent to invite a recipient to join an existing Scanopy organization.
 pub struct Invite<'a> {
@@ -12,11 +12,7 @@ impl Email for Invite<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Onboarding
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
+        EmailCategory::Invitation
     }
 
     fn campaign(&self) -> &'static str {

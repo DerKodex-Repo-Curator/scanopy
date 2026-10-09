@@ -13,6 +13,7 @@ import discoveryPhasesJson from '$lib/data/discovery-phases.json';
 import discoveryTerminalReasonsJson from '$lib/data/discovery-terminal-reasons.json';
 import billingPlansJson from '$lib/data/billing-plans-all.json';
 import planStatusesJson from '$lib/data/plan-statuses.json';
+import emailCategoriesJson from '$lib/data/email-categories.json';
 import featuresJson from '$lib/data/features.json';
 import permissionsJson from '$lib/data/permissions.json';
 import credentialTypesJson from '$lib/data/credential-types.json';
@@ -118,6 +119,7 @@ export interface MetadataRegistry {
 	discovery_terminal_reasons: TypeMetadata[];
 	billing_plans: TypeMetadata[];
 	plan_statuses: TypeMetadata[];
+	email_categories: TypeMetadata[];
 	features: TypeMetadata[];
 	permissions: TypeMetadata[];
 	concepts: EntityMetadata[];
@@ -265,6 +267,13 @@ export interface DiscoveryTypeMetadata {
 	is_legacy: boolean;
 }
 
+export interface EmailCategoryMetadata {
+	/** The recipient can switch this category off in Settings → Email. */
+	pausable: boolean;
+	/** The cloud app still sends it to an org locked out by a self-hosted license plan. */
+	sent_while_self_hosted_plan_locked: boolean;
+}
+
 export interface DiscoveryPhaseMetadata {
 	/** A run ends in this phase: complete, failed or cancelled. */
 	is_terminal: boolean;
@@ -300,6 +309,7 @@ export const metadata = writable<MetadataRegistry>({
 	discovery_terminal_reasons: discoveryTerminalReasonsJson,
 	billing_plans: billingPlansJson,
 	plan_statuses: planStatusesJson,
+	email_categories: emailCategoriesJson,
 	features: featuresJson,
 	permissions: permissionsJson,
 	concepts: conceptsJson,
@@ -565,6 +575,9 @@ export const billingPlans = createTypeMetadataHelpers<'billing_plans', BillingPl
 	'billing_plans'
 );
 export const planStatuses = createTypeMetadataHelpers<'plan_statuses', object>('plan_statuses');
+export const emailCategories = createTypeMetadataHelpers<'email_categories', EmailCategoryMetadata>(
+	'email_categories'
+);
 export const features = createTypeMetadataHelpers<'features', FeatureMetadata>('features');
 export const permissions = createTypeMetadataHelpers<'permissions', PermissionsMetadata>(
 	'permissions'

@@ -8,6 +8,7 @@ import type { Organization } from '$lib/features/organizations/types';
 import { pushError } from '$lib/shared/stores/feedback';
 import { formatDate } from '$lib/shared/utils/formatting';
 import { errors_billing_air_gapped_plan_change_blocked } from '$lib/paraglide/messages';
+import type { PlanPickerHosting } from '$lib/features/billing/types';
 
 const PRICING_URL_BASE = 'https://scanopy.net/pricing';
 
@@ -50,6 +51,8 @@ export interface TriggerUpgradeOptions {
 	reopenSettings?: boolean;
 	/** Callback to run before opening the billing modal (e.g., close another modal). */
 	beforeModal?: () => void;
+	/** Hosting tab the plan picker opens on, overriding the org's current plan's. */
+	hosting?: PlanPickerHosting;
 }
 
 /**
@@ -102,5 +105,8 @@ export function triggerUpgrade(options: TriggerUpgradeOptions): void {
 		reopenSettingsAfterBilling.set(true);
 	}
 
-	openModal('billing-plan');
+	openModal(
+		'billing-plan',
+		options.hosting ? { entityData: { hosting: options.hosting } } : undefined
+	);
 }
