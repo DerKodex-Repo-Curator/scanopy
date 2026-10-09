@@ -140,6 +140,9 @@ jobs:
           cp ui/src/lib/data/scan-settings.json website/src/lib/fixtures/
           cp ui/src/lib/data/ssh-script-fields.json website/src/lib/fixtures/
           cp ui/src/lib/data/element-rule-types.json website/src/lib/fixtures/
+          cp ui/src/lib/data/container-rule-types.json website/src/lib/fixtures/
+          cp ui/src/lib/data/server-config.json website/src/lib/fixtures/
+          cp ui/src/lib/data/snmp.json website/src/lib/fixtures/
           cp ui/src/lib/data/views.json website/src/lib/fixtures/
           cp ui/src/lib/data/warning-codes.json website/src/lib/fixtures/
           cp ui/src/lib/data/warning-remedies.json website/src/lib/fixtures/
