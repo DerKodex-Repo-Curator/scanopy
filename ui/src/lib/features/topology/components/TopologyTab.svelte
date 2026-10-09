@@ -211,6 +211,13 @@
 		return topologiesData.find((t) => t.site_id === siteId) ?? null;
 	});
 
+	// Site name for export headers and filenames, live or snapshot.
+	let currentSiteName = $derived(
+		currentTopologyRow
+			? (sitesData.find((n) => n.id === currentTopologyRow.site_id)?.name ?? '')
+			: ''
+	);
+
 	// Display name for the currently selected topology — site name for
 	// live, formatted snapshot timestamp otherwise.
 	let currentTopologyName = $derived.by(() => {
@@ -218,8 +225,7 @@
 		if (selectedSnapshot) {
 			return formatTimestamp(selectedSnapshot.taken_at);
 		}
-		const site = sitesData.find((n) => n.id === currentTopologyRow.site_id);
-		return site?.name ?? '';
+		return currentSiteName;
 	});
 
 	// Enriched topology: graph row + entity bundle for the selected view.
@@ -871,6 +877,9 @@
 			<ExportModal
 				name="topology-export"
 				topologyId={currentTopology.id}
+				topology={currentTopology}
+				topologyName={currentSiteName}
+				snapshotTakenAt={selectedSnapshot?.taken_at ?? null}
 				isOpen={isExportModalOpen}
 			/>
 		{/if}

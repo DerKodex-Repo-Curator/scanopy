@@ -206,6 +206,7 @@
 	{#if showExport}
 		<ExportModal
 			topologyId={topology.id}
+			{topology}
 			topologyName={topology.name}
 			bind:isOpen={isExportModalOpen}
 			isShareView={true}

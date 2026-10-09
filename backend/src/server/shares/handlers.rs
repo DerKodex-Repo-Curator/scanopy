@@ -493,6 +493,8 @@ async fn get_share_topology(
         confluence_export: plan_features.confluence_export,
         pdf_export: plan_features.pdf_export,
         html_export: plan_features.html_export,
+        drawio_export: plan_features.drawio_export,
+        vsdx_export: plan_features.vsdx_export,
         remove_created_with: plan_features.remove_created_with,
     };
 

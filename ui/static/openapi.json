@@ -28766,12 +28766,18 @@
           "confluence_export",
           "pdf_export",
           "html_export",
+          "drawio_export",
+          "vsdx_export",
           "remove_created_with"
         ],
         "properties": {
           "confluence_export": {
             "type": "boolean",
             "description": "Viewer may export the diagram for Confluence."
+          },
+          "drawio_export": {
+            "type": "boolean",
+            "description": "Viewer may export the diagram as an editable draw.io file."
           },
           "html_export": {
             "type": "boolean",
@@ -28796,6 +28802,10 @@
           "svg_export": {
             "type": "boolean",
             "description": "Viewer may export the diagram as SVG."
+          },
+          "vsdx_export": {
+            "type": "boolean",
+            "description": "Viewer may export the diagram as an editable Visio (VSDX) file."
           }
         }
       },

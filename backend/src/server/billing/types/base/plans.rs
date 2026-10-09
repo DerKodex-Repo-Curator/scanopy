@@ -266,6 +266,8 @@ pub struct BillingPlanFeatures {
     pub confluence_export: bool,
     pub pdf_export: bool,
     pub html_export: bool,
+    pub drawio_export: bool,
+    pub vsdx_export: bool,
     pub scheduled_discovery: bool,
     pub discovery_integrations: bool,
     pub csv_export: bool,
@@ -649,6 +651,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -681,6 +685,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: false,
                 html_export: false,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: false,
                 discovery_integrations: true,
                 csv_export: true,
@@ -713,6 +719,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: false,
                 html_export: false,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -745,6 +753,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -777,6 +787,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -809,6 +821,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -841,6 +855,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -873,6 +889,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -905,6 +923,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -937,6 +957,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -969,6 +991,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -1010,6 +1034,8 @@ impl Into<Vec<Feature>> for BillingPlanFeatures {
             confluence_export,
             pdf_export,
             html_export,
+            drawio_export,
+            vsdx_export,
             scheduled_discovery,
             discovery_integrations,
             csv_export,
@@ -1122,6 +1148,14 @@ impl Into<Vec<Feature>> for BillingPlanFeatures {
 
         if html_export {
             features.push(Feature::HtmlExport)
+        }
+
+        if drawio_export {
+            features.push(Feature::DrawioExport)
+        }
+
+        if vsdx_export {
+            features.push(Feature::VsdxExport)
         }
 
         if scheduled_discovery {

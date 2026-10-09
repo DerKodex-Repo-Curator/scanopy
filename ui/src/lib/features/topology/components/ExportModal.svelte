@@ -9,13 +9,17 @@
 		FileOutput,
 		AppWindow,
 		Image,
+		Workflow,
+		Network,
 		Sun,
 		Moon
 	} from 'lucide-svelte';
 	import { pushError, pushSuccess } from '$lib/shared/stores/feedback';
-	import { activeView, type TopologyView } from '../queries';
+	import { activeView, topologyOptions, type TopologyView } from '../queries';
+	import type { RenderableTopology } from '../types/base';
+	import { escapeXml } from '../diagram-export/xml';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { billingPlans } from '$lib/shared/stores/metadata';
+	import { billingPlans, views } from '$lib/shared/stores/metadata';
 	import { isExporting } from '../interactions';
 	import {
 		topology_createdUsing,
@@ -34,13 +38,24 @@
 		topology_exportPdfDesc,
 		topology_exportHtml,
 		topology_exportHtmlDesc,
+		topology_exportDrawio,
+		topology_exportDrawioDesc,
+		topology_exportVsdx,
+		topology_exportVsdxDesc,
+		topology_exportHeaderTitle,
+		topology_exportHeaderSnapshot,
 		topology_exportTheme,
 		topology_exportIncludeHeader,
 		topology_flowNotFound,
 		topology_noNodesToExport
 	} from '$lib/paraglide/messages';
 	import { getResolvedTheme } from '$lib/shared/stores/theme.svelte';
-	import { common_light, common_dark, common_export } from '$lib/paraglide/messages';
+	import {
+		common_light,
+		common_dark,
+		common_export,
+		common_upgrade
+	} from '$lib/paraglide/messages';
 	import { trackEvent } from '$lib/shared/utils/analytics';
 	import { downloadTopologyExport } from '$lib/shared/utils/csvExport';
 	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
@@ -59,14 +74,21 @@
 
 	let {
 		topologyId,
+		topology,
 		topologyName = '',
+		snapshotTakenAt = null,
 		isOpen = $bindable(false),
 		isShareView = false,
 		exportFeatures = undefined,
 		name = undefined
 	}: {
 		topologyId: string;
+		/** The topology as drawn, for the editable diagram exports' text and colours. */
+		topology: RenderableTopology;
+		/** Site name in the app, share name in a share view. Leads the header and the filename. */
 		topologyName?: string;
+		/** When a snapshot is shown, its capture time, which dates the header instead of now. */
+		snapshotTakenAt?: string | null;
 		isOpen: boolean;
 		isShareView?: boolean;
 		exportFeatures?: ExportFeatures;
@@ -74,7 +96,8 @@
 		name?: string;
 	} = $props();
 
-	const { getNodes, getNodesBounds, getViewport, setViewport } = useSvelteFlow();
+	const { getNodes, getEdges, getInternalNode, getNodesBounds, getViewport, setViewport } =
+		useSvelteFlow();
 
 	// Short canonical filename token per perspective. Keyed by the generated
 	// TopologyView enum so adding a backend view fails the build until mapped.
@@ -102,6 +125,26 @@
 		const date = new Date().toISOString().split('T')[0];
 		return `scanopy-${viewToken}-${siteSlug}-${date}.${ext}`;
 	}
+
+	/**
+	 * The header every format draws when "Include title and date" is on: site and view, then the
+	 * snapshot's capture time when a snapshot is shown, otherwise the export time.
+	 */
+	function exportHeader(now: Date): { title: string; subtitle: string } {
+		const view = views.getName($activeView) || $activeView;
+		return {
+			title: topologyName ? topology_exportHeaderTitle({ site: topologyName, view }) : view,
+			subtitle: snapshotTakenAt
+				? topology_exportHeaderSnapshot({ date: formatTimestamp(snapshotTakenAt) })
+				: formatTimestamp(now)
+		};
+	}
+
+	// Recomputed on open, so the preview's time is the time the modal was opened.
+	let headerPreview = $derived.by(() => {
+		void isOpen;
+		return exportHeader(new Date());
+	});
 
 	const organizationQuery = useOrganizationQuery();
 	let organization = $derived(organizationQuery.data);
@@ -131,10 +174,12 @@
 	let hasConfluenceExport = $derived(hasFeature('confluence_export'));
 	let hasPdfExport = $derived(hasFeature('pdf_export'));
 	let hasHtmlExport = $derived(hasFeature('html_export'));
+	let hasDrawioExport = $derived(hasFeature('drawio_export'));
+	let hasVsdxExport = $derived(hasFeature('vsdx_export'));
 
 	let exportTheme = $state<'light' | 'dark'>(getResolvedTheme());
 	let selectedFormat = $state<string>('png');
-	let includeHeader = $state(true);
+	let includeHeader = $state(false);
 
 	// Format definitions
 	const allFormats: {
@@ -182,6 +227,24 @@
 			supportsHeader: true
 		},
 		{
+			value: 'drawio',
+			label: topology_exportDrawio(),
+			description: topology_exportDrawioDesc(),
+			icon: Workflow,
+			featureKey: 'drawio_export',
+			supportsTheme: true,
+			supportsHeader: true
+		},
+		{
+			value: 'vsdx',
+			label: topology_exportVsdx(),
+			description: topology_exportVsdxDesc(),
+			icon: Network,
+			featureKey: 'vsdx_export',
+			supportsTheme: true,
+			supportsHeader: true
+		},
+		{
 			value: 'mermaid',
 			label: topology_exportMermaid(),
 			description: topology_exportMermaidDesc(),
@@ -207,11 +270,13 @@
 		mermaid_export: () => hasMermaidExport,
 		confluence_export: () => hasConfluenceExport,
 		pdf_export: () => hasPdfExport,
-		html_export: () => hasHtmlExport
+		html_export: () => hasHtmlExport,
+		drawio_export: () => hasDrawioExport,
+		vsdx_export: () => hasVsdxExport
 	};
 
 	let formatOptions = $derived.by(() => {
-		const upgradeTags = [{ label: 'Upgrade', color: 'Yellow' as const }];
+		const upgradeTags = [{ label: common_upgrade(), color: 'Yellow' as const }];
 		return allFormats
 			.filter((f) => {
 				// In share view, hide formats the plan doesn't support
@@ -261,6 +326,10 @@
 			case 'confluence':
 				handleConfluenceExport();
 				break;
+			case 'drawio':
+			case 'vsdx':
+				handleDiagramExport(selectedFormat);
+				break;
 		}
 	}
 
@@ -306,8 +375,14 @@
 		imageHeight: number;
 	}
 
+	/**
+	 * Fit the flow to the content, apply the export theme and `.hide-for-export`, and run the
+	 * callback. `decorate` adds the header and watermark to the DOM, for the picture formats that
+	 * capture it; the diagram formats draw their own header and leave it off.
+	 */
 	async function withExportCapture(
-		callback: (ctx: ExportCaptureContext) => Promise<void>
+		callback: (ctx: ExportCaptureContext) => Promise<void>,
+		{ decorate = true }: { decorate?: boolean } = {}
 	): Promise<void> {
 		isOpen = false;
 
@@ -338,9 +413,8 @@
 
 		// Inject header with title and date
 		let header = document.createElement('div');
-		if (includeHeader) {
-			const exportName = topologyName || 'Site Topology';
-			const exportDate = formatTimestamp(new Date());
+		if (decorate && includeHeader) {
+			const { title: exportName, subtitle: exportDate } = exportHeader(new Date());
 			const textColor = exportTheme === 'dark' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)';
 			const dateColor = exportTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)';
 			header.style.cssText = `
@@ -367,7 +441,7 @@
 		const watermarkColor =
 			exportTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.3)';
 
-		if (!hideCreatedWith) {
+		if (decorate && !hideCreatedWith) {
 			watermark = document.createElement('div');
 			watermark.style.cssText = `
 				position: absolute;
@@ -617,7 +691,7 @@
 				'<head>',
 				'<meta charset="UTF-8">',
 				'<meta name="viewport" content="width=device-width, initial-scale=1.0">',
-				`<title>${topologyName || 'Site Topology'}</title>`,
+				`<title>${escapeXml(exportHeader(new Date()).title)}</title>`,
 				`<${styleTag}>${css}</${styleTag}>`,
 				'</head>',
 				'<body>',
@@ -631,6 +705,34 @@
 			pushSuccess(topology_exportComplete());
 			trackEvent('topology_exported', { format: 'html' });
 		});
+	}
+
+	async function handleDiagramExport(format: 'drawio' | 'vsdx') {
+		await withExportCapture(
+			async ({ flowElement }) => {
+				try {
+					const { buildDiagramExport } = await import('../diagram-export');
+					const blob = await buildDiagramExport({
+						format,
+						name: exportHeader(new Date()).title,
+						nodes: getNodes(),
+						edges: getEdges(),
+						getInternalNode,
+						flowElement,
+						topology,
+						hiddenEdgeTypes: $topologyOptions.local.hide_edge_types,
+						theme: exportTheme,
+						header: includeHeader ? exportHeader(new Date()) : null
+					});
+					triggerDownload(blob, buildExportFilename(format));
+					pushSuccess(topology_exportComplete());
+					trackEvent('topology_exported', { format });
+				} catch {
+					pushError(topology_exportFailed());
+				}
+			},
+			{ decorate: false }
+		);
 	}
 
 	async function handleMermaidExport() {
@@ -710,6 +812,10 @@
 					<input type="checkbox" class="checkbox-card h-4 w-4" bind:checked={includeHeader} />
 					<span class="text-secondary text-sm">{topology_exportIncludeHeader()}</span>
 				</label>
+				<div class="text-tertiary -mt-2 pl-6 text-xs">
+					<div class="font-medium">{headerPreview.title}</div>
+					<div>{headerPreview.subtitle}</div>
+				</div>
 			{/if}
 
 			<button class="btn-primary w-full" onclick={handleExport}>
