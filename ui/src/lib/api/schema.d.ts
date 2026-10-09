@@ -5994,8 +5994,8 @@ export interface components {
                 };
                 /** @description Hosts included in this topology, each carrying the title the map and the host list share. */
                 hosts: components["schemas"]["TopologyHost"][];
-                /** @description Interfaces included in this topology. */
-                interfaces: components["schemas"]["Interface"][];
+                /** @description Interfaces included in this topology, each carrying its metadata filter values. */
+                interfaces: components["schemas"]["TopologyInterface"][];
                 /** @description IP addresses included in this topology. */
                 ip_addresses: components["schemas"]["IPAddress"][];
                 /**
@@ -6014,8 +6014,8 @@ export interface components {
                 };
                 /** @description Ports included in this topology. */
                 ports: components["schemas"]["Port"][];
-                /** @description Services included in this topology. */
-                services: components["schemas"]["Service"][];
+                /** @description Services included in this topology, each carrying its metadata filter values. */
+                services: components["schemas"]["TopologyService"][];
                 /** @description Subnets included in this topology. */
                 subnets: components["schemas"]["Subnet"][];
                 /** @description Tags assigned to this entity. */
@@ -13651,8 +13651,8 @@ export interface components {
             };
             /** @description Hosts included in this topology, each carrying the title the map and the host list share. */
             hosts: components["schemas"]["TopologyHost"][];
-            /** @description Interfaces included in this topology. */
-            interfaces: components["schemas"]["Interface"][];
+            /** @description Interfaces included in this topology, each carrying its metadata filter values. */
+            interfaces: components["schemas"]["TopologyInterface"][];
             /** @description IP addresses included in this topology. */
             ip_addresses: components["schemas"]["IPAddress"][];
             /**
@@ -13671,8 +13671,8 @@ export interface components {
             };
             /** @description Ports included in this topology. */
             ports: components["schemas"]["Port"][];
-            /** @description Services included in this topology. */
-            services: components["schemas"]["Service"][];
+            /** @description Services included in this topology, each carrying its metadata filter values. */
+            services: components["schemas"]["TopologyService"][];
             /** @description Subnets included in this topology. */
             subnets: components["schemas"]["Subnet"][];
             /** @description Tags assigned to this entity. */
@@ -13704,6 +13704,30 @@ export interface components {
              *     list.
              */
             readonly display_name?: string | null;
+            /**
+             * @description This host's value for each metadata filter it takes part in, keyed by filter. See
+             *     [`TopologyData::stamp_filter_values`].
+             */
+            filter_values?: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * @description An [`Interface`] as the topology bundle ships it: the domain row plus its metadata filter
+         *     values.
+         *
+         *     A wrapper rather than a field on [`Interface`] itself, for the same reason as
+         *     [`TopologyService`]: the shared row is serialized by every interface endpoint, where a
+         *     topology-only value would always be absent.
+         */
+        TopologyInterface: components["schemas"]["Interface"] & {
+            /**
+             * @description This interface's value for each metadata filter it takes part in, keyed by filter. See
+             *     [`TopologyData::stamp_filter_values`].
+             */
+            filter_values?: {
+                [key: string]: string;
+            };
         };
         TopologyLocalOptions: {
             /**
@@ -13910,6 +13934,21 @@ export interface components {
                         [key: string]: string[];
                     };
                 };
+            };
+        };
+        /**
+         * @description A [`Service`] as the topology bundle ships it: the domain row plus its metadata filter values.
+         *
+         *     A wrapper rather than a field on [`Service`] itself: `Service` is the row every other endpoint
+         *     and the daemon protocol serialize, where a topology-only value would always be absent.
+         */
+        TopologyService: components["schemas"]["Service"] & {
+            /**
+             * @description This service's value for each metadata filter it takes part in, keyed by filter. See
+             *     [`TopologyData::stamp_filter_values`].
+             */
+            filter_values?: {
+                [key: string]: string;
             };
         };
         /** @description Filter settings for hiding entities by tag in topology visualization. */

@@ -43,9 +43,17 @@ const virtualizations: Array<string | null> = [
 ];
 const operStatuses: Array<string | null> = [null, ...ifOperStatusesJson.map((s) => s.id as string)];
 
+/** The Virtualization filter value the backend stamps on a host of `virt` type. */
+const virtualizationState = (virt: string | null): string =>
+	virt
+		? (hostVirtualizationsJson.find((v) => v.id === virt)?.metadata.virtualization_state ??
+			'BareMetal')
+		: 'BareMetal';
+
 /**
  * One host per virtualization type and age, each with an address, a service and a port per
- * status, so every element type a view draws has a card for every classification.
+ * status, so every element type a view draws has a card for every classification. Each entity
+ * carries the `filter_values` the backend would stamp on it.
  */
 function buildTopology(): RenderableTopology {
 	const hosts: Record<string, unknown>[] = [];
@@ -63,7 +71,8 @@ function buildTopology(): RenderableTopology {
 				name: hostId,
 				last_seen_at: seen,
 				virtualization_metadata: virt ? { type: virt, details: {} } : null,
-				virtualization_service_id: virt ? 'manager' : null
+				virtualization_service_id: virt ? 'manager' : null,
+				filter_values: { Virtualization: virtualizationState(virt) }
 			});
 			ipAddresses.push({
 				...base,
@@ -81,7 +90,8 @@ function buildTopology(): RenderableTopology {
 				service_definition: 'SSH',
 				bindings: [],
 				last_seen_at: seen,
-				virtualization_service_id: virt ? 'manager' : null
+				virtualization_service_id: virt ? 'manager' : null,
+				filter_values: { Category: 'RemoteAccess' }
 			});
 			for (const status of operStatuses) {
 				interfaces.push({
@@ -89,7 +99,10 @@ function buildTopology(): RenderableTopology {
 					id: `${hostId}-if-${status ?? 'none'}`,
 					host_id: hostId,
 					oper_status: status,
-					last_seen_at: seen
+					last_seen_at: seen,
+					filter_values: status
+						? { LinkState: 'Linked', OperStatus: status }
+						: { LinkState: 'Linked' }
 				});
 			}
 		}
@@ -169,7 +182,7 @@ function decodingChips(
 			};
 			for (const entityType of filter.entities) {
 				const entity = cardEntityForFilter(node, topology, entityType);
-				if (entity && matchesHoveredMetadata(entity, entityType, hovered, SITE, topology)) {
+				if (entity && matchesHoveredMetadata(entity, entityType, hovered, SITE)) {
 					chips.push(`${filter.entities.join('+')}/${filter.filter_type}/${value.id}`);
 				}
 			}

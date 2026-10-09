@@ -1,13 +1,7 @@
 import { writable, get } from 'svelte/store';
 import type { Edge } from '@xyflow/svelte';
 import type { Node } from '@xyflow/svelte';
-import {
-	edgeTypes,
-	entities,
-	hostVirtualizations,
-	views,
-	serviceDefinitions
-} from '$lib/shared/stores/metadata';
+import { edgeTypes, entities, views } from '$lib/shared/stores/metadata';
 import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 import type {
 	ElementInlineGroup,
@@ -310,142 +304,39 @@ function hideContainersAndDescendants(
 	}
 }
 
-/**
- * Per-(entity, filter) extractor registry. For each declared metadata filter
- * on an entity, returns the filter value id (matching `FilterValue.id` on the
- * backend) for a given entity instance. The updateTagFilter pass below
- * matches these values against the user's hide set to decide whether to
- * hide each entity. Adding a new filter = one line here + a backend impl.
- */
-/**
- * Context for extractors whose value isn't intrinsic to the entity. Staleness
- * is the first such filter: it depends on the entity's site staleness
- * window and the current time, so the site has to be threaded in.
- */
-export interface FilterValueContext {
-	site?: Site;
-	/** The graph being filtered, for values that depend on other entities rather than just this one. */
-	topology?: RenderableTopology;
-}
+const STALENESS: components['schemas']['MetadataFilterType'] = 'Staleness';
 
 /**
- * Which interfaces are "linked", per topology: those with a resolved adjacency row of their own
- * (`own`), and those some other interface's row names as its `Interface`-type target (`referenced`)
- * — GH #701 replaced the old single-valued `Interface.neighbor` with a `Vec` of rows on the
- * topology bundle (`neighbours`), so both halves now come from iterating that array rather than a
- * per-interface field.
+ * The value `entity` carries for the metadata filter `filterType` (matching `FilterValue.id` on
+ * the backend), or null when it carries none.
  *
- * A link is recorded on one side. In the seeded reproduction 728 interfaces carry a neighbour and
- * 721 are the *target* of one, but only 12 have it set both ways — so judging "linked" from an
- * interface's own resolution alone marks the far end of nearly every link as unlinked. With the
- * link-state filter hiding unlinked ports that silently deleted one endpoint of almost every
- * physical link, and `buildFlowEdges` drops an edge whose endpoint is not in the node set: 11 edges
- * drew where there were ~704, which is exactly the count of the 12 bidirectional pairs.
- *
- * Cached per topology object so the pass over `neighbours` runs once rather than per interface.
+ * Every value but Staleness is stamped on the entity by the backend (`filter_values`, from
+ * `HasFilterValues`): the same values its server-side filter drops by. Staleness depends on the
+ * clock and the site's staleness window, so it is computed here, by the same helper the card
+ * badge and the node tag use, and cannot disagree with what the user sees marked as stale.
  */
-interface NeighbourIndex {
-	/** Interfaces with at least one resolved adjacency row of their own. */
-	own: ReadonlySet<string>;
-	/** Interfaces some other row names as its `Interface`-type target — see doc above. */
-	referenced: ReadonlySet<string>;
+export function filterValueOf(
+	entity: unknown,
+	filterType: string,
+	site: Site | undefined
+): string | null {
+	if (filterType === STALENESS) return entityFreshness(entity as FreshnessSubject, site);
+	return (entity as { filter_values?: Record<string, string> }).filter_values?.[filterType] ?? null;
 }
-
-const neighbourIndexByTopology = new WeakMap<RenderableTopology, NeighbourIndex>();
-
-/** Shared empty index for the no-topology-in-context case, so the extractor allocates nothing. */
-const EMPTY_NEIGHBOUR_INDEX: NeighbourIndex = { own: new Set(), referenced: new Set() };
-
-function neighbourIndex(topology: RenderableTopology): NeighbourIndex {
-	const cached = neighbourIndexByTopology.get(topology);
-	if (cached) return cached;
-
-	const own = new Set<string>();
-	const referenced = new Set<string>();
-	for (const row of topology.neighbours ?? []) {
-		if (row.interface_id) own.add(row.interface_id);
-		// Only a port-level resolution makes a specific port linked; `Host` names a device, not a port.
-		if (row.neighbor?.type === 'Interface' && row.neighbor.id) referenced.add(row.neighbor.id);
-	}
-	const index: NeighbourIndex = { own, referenced };
-	neighbourIndexByTopology.set(topology, index);
-	return index;
-}
-
-const CONTAINERIZED: components['schemas']['HostVirtualizationState'] = 'Containerized';
-
-export type FilterValueExtractor = (entity: unknown, ctx: FilterValueContext) => string | null;
-export const FILTER_VALUE_EXTRACTORS: Record<string, Record<string, FilterValueExtractor>> = {
-	Service: {
-		Category: (s) =>
-			serviceDefinitions.getCategory((s as { service_definition: string }).service_definition) ??
-			null,
-		// Delegates to the same helper the card badge and the node tag use, so
-		// the filter cannot disagree with what the user sees marked as stale.
-		Staleness: (s, ctx) => entityFreshness(s as FreshnessSubject, ctx.site),
-		// Every service virtualization is a container runtime, as on the backend's `HasFilterValues`;
-		// a service with none carries no value rather than Bare metal, which describes hosts.
-		Virtualization: (s) =>
-			(s as { virtualization_metadata?: unknown | null }).virtualization_metadata != null
-				? CONTAINERIZED
-				: null
-	},
-	Host: {
-		// The type-to-state mapping is the backend's, read from the host-virtualizations fixture.
-		Virtualization: (h) => {
-			const type = (h as { virtualization_metadata?: { type: string } | null })
-				.virtualization_metadata?.type;
-			return type
-				? (hostVirtualizations.getMetadata(type).virtualization_state ?? null)
-				: 'BareMetal';
-		},
-		Staleness: (h, ctx) => entityFreshness(h as FreshnessSubject, ctx.site)
-	},
-	IPAddress: {
-		Staleness: (ip, ctx) => entityFreshness(ip as FreshnessSubject, ctx.site)
-	},
-	Subnet: {
-		Staleness: (s, ctx) => entityFreshness(s as FreshnessSubject, ctx.site)
-	},
-	Interface: {
-		Staleness: (i, ctx) => entityFreshness(i as FreshnessSubject, ctx.site),
-		// A status never read has no value; the MIB's own `Unknown` is a reading.
-		OperStatus: (i) => (i as { oper_status?: string | null }).oper_status ?? null,
-		// Ids match `InterfaceLinkState` on the backend, which is what supplies the filter's
-		// values. A partial resolution (`Neighbor::Host` — the remote device known but not the
-		// port) counts as linked: it still draws an edge, so hiding it would break the diagram.
-		//
-		// Linked in *either* direction: a port with a resolved row of its own (`own`), or one no
-		// row names but that some other interface's row targets (`referenced`) — a link is
-		// recorded on one side, so an interface with no neighbour of its own is still linked if
-		// another interface names it. See `neighbourIndex`.
-		LinkState: (i, ctx) => {
-			const iface = i as { id: string };
-			const { own, referenced } = ctx.topology
-				? neighbourIndex(ctx.topology)
-				: EMPTY_NEIGHBOUR_INDEX;
-			return own.has(iface.id) || referenced.has(iface.id) ? 'Linked' : 'Unlinked';
-		}
-	}
-};
 
 /**
  * Whether `entity`, an `entityType`, carries the filter value being hovered in the options panel,
- * judged by the same extractor the hide pass uses. False when the hovered filter does not cover
- * `entityType`. `topology` is passed through because some values depend on other entities
- * (LinkState reads the topology's neighbour rows).
+ * judged by the same accessor the hide pass uses. False when the hovered filter does not cover
+ * `entityType`.
  */
 export function matchesHoveredMetadata(
 	entity: unknown,
 	entityType: string,
 	hovered: HoveredMetadata,
-	site: Site | undefined,
-	topology: RenderableTopology | null | undefined
+	site: Site | undefined
 ): boolean {
 	if (!entity || !(hovered.entityTypes as string[]).includes(entityType)) return false;
-	const extract = FILTER_VALUE_EXTRACTORS[entityType]?.[hovered.filterType];
-	if (!extract) return false;
-	return extract(entity, { site, topology: topology ?? undefined }) === hovered.valueId;
+	return filterValueOf(entity, hovered.filterType, site) === hovered.valueId;
 }
 
 /**
@@ -472,19 +363,20 @@ export const presentFilterValues = writable<Record<string, Record<string, string
 
 function computePresentFilterValues(
 	topology: RenderableTopology,
+	view: string | undefined,
 	site: Site | undefined
 ): Record<string, Record<string, string[]>> {
 	const out: Record<string, Record<string, string[]>> = {};
-	for (const [entityType, extractors] of Object.entries(FILTER_VALUE_EXTRACTORS)) {
-		const collection = entityCollection(topology, entityType);
-		if (!collection) continue;
-		for (const [filterType, extract] of Object.entries(extractors)) {
+	for (const filter of view ? declaredMetadataFilters(view) : []) {
+		for (const entityType of filter.entities) {
+			const collection = entityCollection(topology, entityType);
+			if (!collection) continue;
 			const seen = new Set<string>();
 			for (const entity of collection) {
-				const value = extract(entity, { site, topology });
+				const value = filterValueOf(entity, filter.filter_type, site);
 				if (value) seen.add(value);
 			}
-			(out[entityType] ??= {})[filterType] = [...seen];
+			(out[entityType] ??= {})[filter.filter_type] = [...seen];
 		}
 	}
 	return out;
@@ -522,7 +414,7 @@ export function updateTagFilter(
 	/** hide_metadata_values[activeView] — a nested map keyed by entity type, then filter type, to hidden value ids. */
 	hiddenMetadataValues?: Record<string, Record<string, string[]>>,
 	hiddenEntityTypes?: string[],
-	/** The topology's site — supplies the staleness window to extractors. */
+	/** The topology's site — supplies the staleness window to `filterValueOf`. */
 	site?: Site
 ) {
 	if (!topology) {
@@ -542,7 +434,7 @@ export function updateTagFilter(
 	// group is judged to offer no choice, the panel drops it — and the user has no way to bring
 	// 16,000 ports back. They are hidden *because* they exist.
 	presentFilterValues.set(
-		withHiddenValues(computePresentFilterValues(topology, site), hiddenMetadataValues)
+		withHiddenValues(computePresentFilterValues(topology, view, site), hiddenMetadataValues)
 	);
 
 	const hasTagFilter = tagFilter && !isTagFilterEmpty(tagFilter);
@@ -639,21 +531,17 @@ export function updateTagFilter(
 	}
 
 	// Generic metadata-filter hide: for each (entity, filter) in the user's
-	// hide-set, look up the extractor, iterate the entity's collection, and
-	// add matching IDs to the hidden sets. Orphaned hide entries (value ids
-	// no longer declared by the current filter) silently match nothing.
+	// hide-set, iterate the entity's collection and add the ids whose value is
+	// hidden. Orphaned hide entries (value ids no longer declared by the current
+	// filter) silently match nothing.
 	if (hasMetadataFilter && hiddenMetadataValues) {
 		for (const [entityType, byFilter] of Object.entries(hiddenMetadataValues)) {
-			const extractors = FILTER_VALUE_EXTRACTORS[entityType];
-			if (!extractors) continue;
 			const collection = entityCollection(topology, entityType);
 			if (!collection) continue;
 			for (const entity of collection) {
 				for (const [filterType, hiddenValues] of Object.entries(byFilter)) {
 					if (!hiddenValues.length) continue;
-					const extract = extractors[filterType];
-					if (!extract) continue;
-					const value = extract(entity, { site, topology });
+					const value = filterValueOf(entity, filterType, site);
 					if (value && hiddenValues.includes(value)) {
 						noteHidden(entityType, entity.id);
 					}
@@ -774,17 +662,15 @@ export function activeViewFilters(
 
 		// Entities this filter removed: those dropped before the response was built, plus those
 		// still in the bundle that the browser is hiding. Counted per filter with the same
-		// extractor the hide pass uses, so two filters on one entity type each report their own
+		// accessor the hide pass uses, so two filters on one entity type each report their own
 		// share rather than both claiming the total.
 		let count = 0;
 		for (const entityType of filter.entities) {
 			const hiddenHere = hiddenMetadataValues?.[entityType]?.[filter.filter_type] ?? [];
 			if (!hiddenHere.length) continue;
 			count += serverDropped[entityType]?.[filter.filter_type] ?? 0;
-			const extract = FILTER_VALUE_EXTRACTORS[entityType]?.[filter.filter_type];
-			if (!extract) continue;
 			for (const entity of entityCollection(topology, entityType) ?? []) {
-				const value = extract(entity, { site, topology });
+				const value = filterValueOf(entity, filter.filter_type, site);
 				if (value && hiddenHere.includes(value)) count++;
 			}
 		}
@@ -1445,13 +1331,12 @@ export function clearSearch() {
 export function inlineHostsMatching(
 	groups: ElementInlineGroup[],
 	hovered: HoveredMetadata | null,
-	siteFor: (entity: { site_id?: string }) => Site | undefined,
-	topology: RenderableTopology | null | undefined
+	siteFor: (entity: { site_id?: string }) => Site | undefined
 ): Set<string> {
 	const out = new Set<string>();
 	if (!hovered) return out;
 	for (const { host } of groups.flatMap((g) => g.hosts)) {
-		if (matchesHoveredMetadata(host, 'Host', hovered, siteFor(host), topology)) out.add(host.id);
+		if (matchesHoveredMetadata(host, 'Host', hovered, siteFor(host))) out.add(host.id);
 	}
 	return out;
 }

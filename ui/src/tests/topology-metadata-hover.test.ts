@@ -23,7 +23,7 @@ function hover(
 
 /**
  * One stale and one fresh host, drawn as Workloads host boxes, with an L3 subnet box, an IP card
- * and an L2 port card whose link is recorded only on the far side.
+ * and an L2 port card the backend has stamped as linked.
  */
 function buildTopology(): RenderableTopology {
 	return {
@@ -63,11 +63,15 @@ function buildTopology(): RenderableTopology {
 			}
 		],
 		interfaces: [
-			{ id: 'if-1', host_id: 'fresh-host', site_id: SITE_ID, last_seen_at: seenHoursAgo(1) }
+			{
+				id: 'if-1',
+				host_id: 'fresh-host',
+				site_id: SITE_ID,
+				last_seen_at: seenHoursAgo(1),
+				filter_values: { LinkState: 'Linked' }
+			}
 		],
-		neighbours: [
-			{ id: 'row-1', interface_id: 'if-2', neighbor: { type: 'Interface', id: 'if-1' } }
-		],
+		neighbours: [],
 		services: [
 			{
 				id: 'svc-proxmox',
@@ -175,8 +179,8 @@ describe('filter-value hover matching', () => {
 		const stale = hover('Host', 'Staleness', 'stale');
 		const staleBox = containerEntity(node(topo, 'c-stale-host'), topo);
 		const freshBox = containerEntity(node(topo, 'c-fresh-host'), topo);
-		expect(matchesHoveredMetadata(staleBox?.entity, 'Host', stale, site, topo)).toBe(true);
-		expect(matchesHoveredMetadata(freshBox?.entity, 'Host', stale, site, topo)).toBe(false);
+		expect(matchesHoveredMetadata(staleBox?.entity, 'Host', stale, site)).toBe(true);
+		expect(matchesHoveredMetadata(freshBox?.entity, 'Host', stale, site)).toBe(false);
 	});
 
 	it('rings a Hypervisor box on its hypervisor service', () => {
@@ -184,43 +188,32 @@ describe('filter-value hover matching', () => {
 		const box = containerEntity(node(topo, 'c-hypervisor'), topo);
 		expect(box?.entityType).toBe('Service');
 		const stale = hover('Service', 'Staleness', 'stale');
-		expect(matchesHoveredMetadata(box?.entity, box!.entityType, stale, site, topo)).toBe(true);
+		expect(matchesHoveredMetadata(box?.entity, box!.entityType, stale, site)).toBe(true);
 	});
 
 	it('matches an IP card on its own staleness', () => {
 		const topo = buildTopology();
 		const ipCard = elementEntity(node(topo, 'n-ip'), topo);
 		expect(
-			matchesHoveredMetadata(
-				ipCard,
-				'IPAddress',
-				hover('IPAddress', 'Staleness', 'stale'),
-				site,
-				topo
-			)
+			matchesHoveredMetadata(ipCard, 'IPAddress', hover('IPAddress', 'Staleness', 'stale'), site)
 		).toBe(true);
 	});
 
-	// LinkState reads the topology's neighbour rows; this port is linked only from the far side.
-	it('matches a linked port only when the topology is supplied', () => {
+	// LinkState comes stamped on the interface by the backend, which judges both directions.
+	it('matches a port card on the link state stamped on it', () => {
 		const topo = buildTopology();
 		const port = elementEntity(node(topo, 'n-if'), topo);
 		const linked = hover('Interface', 'LinkState', 'Linked');
-		expect(matchesHoveredMetadata(port, 'Interface', linked, site, topo)).toBe(true);
-		expect(matchesHoveredMetadata(port, 'Interface', linked, site, undefined)).toBe(false);
+		const unlinked = hover('Interface', 'LinkState', 'Unlinked');
+		expect(matchesHoveredMetadata(port, 'Interface', linked, site)).toBe(true);
+		expect(matchesHoveredMetadata(port, 'Interface', unlinked, site)).toBe(false);
 	});
 
 	it('matches nothing for a grouping box', () => {
 		const topo = buildTopology();
 		const grouping = containerEntity(node(topo, 'c-category'), topo);
 		expect(
-			matchesHoveredMetadata(
-				grouping?.entity,
-				'Host',
-				hover('Host', 'Staleness', 'stale'),
-				site,
-				topo
-			)
+			matchesHoveredMetadata(grouping?.entity, 'Host', hover('Host', 'Staleness', 'stale'), site)
 		).toBe(false);
 	});
 });

@@ -3,7 +3,6 @@ import type { Service } from '$lib/features/services/types/base';
 import type {
 	Host,
 	IPAddress,
-	Interface,
 	Port,
 	InterfaceNeighborRow,
 	InterfaceNeighborCandidate
@@ -23,6 +22,14 @@ export type TopologyNode = components['schemas']['Node'];
 export type EdgeHandle = components['schemas']['EdgeHandle'];
 export type Binding = components['schemas']['Binding'];
 export type Vlan = components['schemas']['Vlan'];
+
+/**
+ * Bundle entities carrying the metadata filter values the backend stamps on them
+ * (`filter_values`, read through `filterValueOf`).
+ */
+export type TopologyHost = Host & Pick<components['schemas']['TopologyHost'], 'filter_values'>;
+export type TopologyService = components['schemas']['TopologyService'];
+export type TopologyInterface = components['schemas']['TopologyInterface'];
 
 /** `entity type → filter type → entities the server-side filter dropped`. */
 export type FilteredOutCounts = Record<string, Record<string, number>>;
@@ -49,13 +56,13 @@ export type FilteredOutCounts = Record<string, Record<string, number>>;
 export interface RenderableTopology extends Topology {
 	nodes: TopologyNode[];
 	edges: TopologyEdge[];
-	hosts: Host[];
-	services: Service[];
+	hosts: TopologyHost[];
+	services: TopologyService[];
 	subnets: Subnet[];
 	ip_addresses: IPAddress[];
 	ports: Port[];
 	bindings: Binding[];
-	interfaces: Interface[];
+	interfaces: TopologyInterface[];
 	/** GH #701: resolved adjacencies for `interfaces` above — see `InterfaceNeighborRow`. */
 	neighbours: InterfaceNeighborRow[];
 	/** Raw LLDP/CDP evidence behind `neighbours` — see `InterfaceNeighborCandidate`. */

@@ -21188,9 +21188,9 @@
               "interfaces": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Interface"
+                  "$ref": "#/components/schemas/TopologyInterface"
                 },
-                "description": "Interfaces included in this topology."
+                "description": "Interfaces included in this topology, each carrying its metadata filter values."
               },
               "ip_addresses": {
                 "type": "array",
@@ -21236,9 +21236,9 @@
               "services": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Service"
+                  "$ref": "#/components/schemas/TopologyService"
                 },
-                "description": "Services included in this topology."
+                "description": "Services included in this topology, each carrying its metadata filter values."
               },
               "subnets": {
                 "type": "array",
@@ -38556,9 +38556,9 @@
           "interfaces": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Interface"
+              "$ref": "#/components/schemas/TopologyInterface"
             },
-            "description": "Interfaces included in this topology."
+            "description": "Interfaces included in this topology, each carrying its metadata filter values."
           },
           "ip_addresses": {
             "type": "array",
@@ -38604,9 +38604,9 @@
           "services": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Service"
+              "$ref": "#/components/schemas/TopologyService"
             },
-            "description": "Services included in this topology."
+            "description": "Services included in this topology, each carrying its metadata filter values."
           },
           "subnets": {
             "type": "array",
@@ -38646,11 +38646,62 @@
                 ],
                 "description": "What to call this host when `name` is empty: its hostname, sysName, chassis id or first\naddress, whichever it has. `None` when nothing identifies it.\n\nThe same ladder, and the same value, as `HostResponse.display_name` and the host\ncontainer's `header` — a host cannot be called one thing on the map and another in the\nlist.",
                 "readOnly": true
+              },
+              "filter_values": {
+                "type": "object",
+                "description": "This host's value for each metadata filter it takes part in, keyed by filter. See\n[`TopologyData::stamp_filter_values`].",
+                "additionalProperties": {
+                  "type": "string",
+                  "readOnly": true
+                },
+                "propertyNames": {
+                  "type": "string",
+                  "description": "The type of metadata filter. One variant per conceptually-distinct filter\nacross the app — Category (on Service), Virtualization (on Host), and so\non. Kept narrow on purpose: adding a new filter means adding a variant\nhere + a `HasFilterValues` impl on the relevant entity.",
+                  "enum": [
+                    "Category",
+                    "Virtualization",
+                    "LinkState",
+                    "Staleness",
+                    "OperStatus"
+                  ]
+                }
               }
             }
           }
         ],
         "description": "A [`Host`] as the topology bundle ships it: the domain row plus the title every surface has to\nagree on.\n\nThe ladder itself stays on [`Host::display_name`] — this only carries its result. The bundle\nhas to carry it per host because the frontend looks a host up *by id* at sites where no node\nfor that host is guaranteed to be in the current view (a service card naming its parent, a\n`hostA ↔ hostB` edge label, a dependency target), so [`Node::header`] cannot be the only place\nthe name exists.\n\nA wrapper rather than a field on [`Host`] itself: `Host` is the row every other endpoint and\nthe daemon protocol serialize, where a computed title would always be absent and read as \"this\nhost has no name\"."
+      },
+      "TopologyInterface": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Interface"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "filter_values": {
+                "type": "object",
+                "description": "This interface's value for each metadata filter it takes part in, keyed by filter. See\n[`TopologyData::stamp_filter_values`].",
+                "additionalProperties": {
+                  "type": "string",
+                  "readOnly": true
+                },
+                "propertyNames": {
+                  "type": "string",
+                  "description": "The type of metadata filter. One variant per conceptually-distinct filter\nacross the app — Category (on Service), Virtualization (on Host), and so\non. Kept narrow on purpose: adding a new filter means adding a variant\nhere + a `HasFilterValues` impl on the relevant entity.",
+                  "enum": [
+                    "Category",
+                    "Virtualization",
+                    "LinkState",
+                    "Staleness",
+                    "OperStatus"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "description": "An [`Interface`] as the topology bundle ships it: the domain row plus its metadata filter\nvalues.\n\nA wrapper rather than a field on [`Interface`] itself, for the same reason as\n[`TopologyService`]: the shared row is serialized by every interface endpoint, where a\ntopology-only value would always be absent."
       },
       "TopologyLocalOptions": {
         "type": "object",
@@ -38969,6 +39020,38 @@
             }
           }
         }
+      },
+      "TopologyService": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Service"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "filter_values": {
+                "type": "object",
+                "description": "This service's value for each metadata filter it takes part in, keyed by filter. See\n[`TopologyData::stamp_filter_values`].",
+                "additionalProperties": {
+                  "type": "string",
+                  "readOnly": true
+                },
+                "propertyNames": {
+                  "type": "string",
+                  "description": "The type of metadata filter. One variant per conceptually-distinct filter\nacross the app — Category (on Service), Virtualization (on Host), and so\non. Kept narrow on purpose: adding a new filter means adding a variant\nhere + a `HasFilterValues` impl on the relevant entity.",
+                  "enum": [
+                    "Category",
+                    "Virtualization",
+                    "LinkState",
+                    "Staleness",
+                    "OperStatus"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "description": "A [`Service`] as the topology bundle ships it: the domain row plus its metadata filter values.\n\nA wrapper rather than a field on [`Service`] itself: `Service` is the row every other endpoint\nand the daemon protocol serialize, where a topology-only value would always be absent."
       },
       "TopologyTagFilter": {
         "type": "object",
