@@ -1,28 +1,20 @@
 <script lang="ts">
 	import { Bug, AlertTriangle, Lightbulb, BookOpen, Mail, CalendarCheck } from 'lucide-svelte';
-	import { VERSION } from '$lib/version';
 	import { createColorHelper, type Color } from '$lib/shared/utils/styling';
 	import type { IconComponent } from '$lib/shared/utils/types';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { billingPlans } from '$lib/shared/stores/metadata';
-	import { useCurrentUserQuery } from '$lib/features/auth/queries';
-	import InfoCard from '$lib/shared/components/data/InfoCard.svelte';
-	import InfoRow from '$lib/shared/components/data/InfoRow.svelte';
 	import { BOOK_CALL_URL, supportEmailAddress } from '$lib/features/support/support';
 	import {
 		common_close,
 		common_email,
-		common_userId,
-		common_version,
 		support_description,
 		support_discordDesc,
 		support_emailDesc,
 		support_incorrectDetection,
 		support_incorrectDetectionDesc,
-		support_info,
 		support_onboardingCall,
 		support_onboardingCallDesc,
-		support_orgId,
 		support_priorityEmailDesc,
 		support_reportBug,
 		support_reportBugDesc,
@@ -47,10 +39,6 @@
 		onClose: () => void;
 		dismissible?: boolean;
 	} = $props();
-
-	// TanStack Query for current user and organization
-	const currentUserQuery = useCurrentUserQuery();
-	let currentUser = $derived(currentUserQuery.data);
 
 	const organizationQuery = useOrganizationQuery();
 	let organization = $derived(organizationQuery.data);
@@ -157,13 +145,6 @@
 				</button>
 			{/each}
 		</div>
-		<InfoCard title={support_info()}>
-			<InfoRow label={common_version()}>{VERSION}</InfoRow>
-			<InfoRow label={support_orgId()} mono={true}>
-				{organization?.id ?? '—'}
-			</InfoRow>
-			<InfoRow label={common_userId()} mono={true}>{currentUser?.id ?? '—'}</InfoRow>
-		</InfoCard>
 	</div>
 
 	{#if dismissible}

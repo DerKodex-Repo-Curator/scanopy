@@ -14,11 +14,7 @@
 	import { trackEvent } from '$lib/shared/utils/analytics';
 	import { waitForOrgUpdate } from '$lib/shared/billing/wait-for-org-update';
 	import type { PaymentFormSource } from '$lib/shared/billing/setup-payment';
-	import {
-		hasLicensedPlan,
-		isPlanLapsed,
-		isBillingPlanActive
-	} from '$lib/features/organizations/types';
+	import { isPlanLapsed, isBillingPlanActive } from '$lib/features/organizations/types';
 	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
 	import { isLicenseSigningAvailable, useConfigQuery } from '$lib/shared/stores/config-query';
 	import { modalState, openModal } from '$lib/shared/stores/modal-registry';
@@ -26,7 +22,6 @@
 	import InlineInfo from '$lib/shared/components/feedback/InlineInfo.svelte';
 	import { formatDate } from '$lib/shared/utils/formatting';
 	import {
-		billing_licensedToCloudNotice,
 		errors_billing_air_gapped_plan_change_blocked,
 		settings_billing_changePlan
 	} from '$lib/paraglide/messages';
@@ -263,9 +258,6 @@
 				{isCurrentlyTrialing}
 				currentPlanType={organization?.plan?.type ?? null}
 				currentPlanLapsed={organization != null && isPlanLapsed(organization)}
-				cloudNotice={organization != null && hasLicensedPlan(organization)
-					? billing_licensedToCloudNotice()
-					: null}
 			/>
 		{/if}
 	</div>
