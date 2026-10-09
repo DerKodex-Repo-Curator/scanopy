@@ -251,8 +251,20 @@
           "Details",
           "InterfaceData"
         ],
-        "show_application_picker": false
-      }
+        "show_application_picker": false,
+        "show_service_network_detail": true
+      },
+      "layout": {
+        "algorithm": "layered_right",
+        "align_layers_top": true,
+        "element_order": "oper_status",
+        "force_overview": false,
+        "handle_strategy": "horizontal",
+        "repack_disconnected": false,
+        "root_edges": true,
+        "root_order": "input"
+      },
+      "slug": "l2"
     }
   },
   {
@@ -694,8 +706,20 @@
           "Services",
           "OtherInterfaces"
         ],
-        "show_application_picker": false
-      }
+        "show_application_picker": false,
+        "show_service_network_detail": true
+      },
+      "layout": {
+        "algorithm": "default",
+        "align_layers_top": false,
+        "element_order": "automatic",
+        "force_overview": true,
+        "handle_strategy": "optimal",
+        "repack_disconnected": true,
+        "root_edges": true,
+        "root_order": "input"
+      },
+      "slug": "l3"
     }
   },
   {
@@ -1160,8 +1184,20 @@
           "Services",
           "OtherInterfaces"
         ],
-        "show_application_picker": false
-      }
+        "show_application_picker": false,
+        "show_service_network_detail": true
+      },
+      "layout": {
+        "algorithm": "workloads",
+        "align_layers_top": false,
+        "element_order": "automatic",
+        "force_overview": false,
+        "handle_strategy": "optimal",
+        "repack_disconnected": false,
+        "root_edges": true,
+        "root_order": "workload_count"
+      },
+      "slug": "infra"
     }
   },
   {
@@ -1531,8 +1567,20 @@
           "Dependencies",
           "Application"
         ],
-        "show_application_picker": true
-      }
+        "show_application_picker": true,
+        "show_service_network_detail": false
+      },
+      "layout": {
+        "algorithm": "rect_packing",
+        "align_layers_top": false,
+        "element_order": "automatic",
+        "force_overview": true,
+        "handle_strategy": "optimal",
+        "repack_disconnected": false,
+        "root_edges": false,
+        "root_order": "input"
+      },
+      "slug": "app"
     }
   }
 ]

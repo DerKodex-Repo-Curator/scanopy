@@ -15,7 +15,7 @@
 		ContainerRenderContext
 	} from '$lib/features/topology/resolvers';
 	import { inspector_thisEntity, topology_focusNode } from '$lib/paraglide/messages';
-	import { containerTypes, entities } from '$lib/shared/stores/metadata';
+	import { containerTypes, entities, views } from '$lib/shared/stores/metadata';
 	import { activeView } from '$lib/features/topology/queries';
 	import InspectorSection from '../shared/InspectorSection.svelte';
 	import { useSitesQuery } from '$lib/features/sites/queries';
@@ -68,10 +68,12 @@
 			? elementContext.services[0]
 			: null
 	);
-	let isApplicationView = $derived($activeView === 'Application');
+	let showNetworkDetail = $derived(
+		views.getMetadata($activeView).inspector_config?.show_service_network_detail ?? true
+	);
 	let serviceDisplayContext = $derived({
-		ipAddressId: isApplicationView ? null : (elementContext?.ipAddressId ?? null),
-		ports: isApplicationView ? [] : topology.ports,
+		ipAddressId: showNetworkDetail ? (elementContext?.ipAddressId ?? null) : null,
+		ports: showNetworkDetail ? topology.ports : [],
 		showEntityTagPicker: !editState.isReadonly,
 		tagPickerDisabled: !editState.isEditable,
 		entityTags: topology.entity_tags,

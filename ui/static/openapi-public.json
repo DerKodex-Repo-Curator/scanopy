@@ -36739,13 +36739,30 @@
           }
         }
       },
+      "ViewElementOrder": {
+        "type": "string",
+        "description": "How elements inside a container are ordered before layout.",
+        "enum": [
+          "automatic",
+          "oper_status"
+        ]
+      },
+      "ViewHandleStrategy": {
+        "type": "string",
+        "description": "How edge endpoints pick the side of a node they attach to.",
+        "enum": [
+          "horizontal",
+          "optimal"
+        ]
+      },
       "ViewInspectorConfig": {
         "type": "object",
         "description": "View-specific inspector panel configuration.\nDetermines which sections appear and in what order for each view.",
         "required": [
           "element_sections",
           "container_sections",
-          "show_application_picker"
+          "show_application_picker",
+          "show_service_network_detail"
         ],
         "properties": {
           "container_sections": {
@@ -36776,8 +36793,74 @@
           "show_application_picker": {
             "type": "boolean",
             "description": "Whether the inspector offers the application picker."
+          },
+          "show_service_network_detail": {
+            "type": "boolean",
+            "description": "Whether a service card shows the IP address and ports it is reached on. Application\ngroups services by what they do, not where they listen, so it leaves these out."
           }
         }
+      },
+      "ViewLayoutAlgorithm": {
+        "type": "string",
+        "description": "Root-level layout algorithm for a view.",
+        "enum": [
+          "layered_right",
+          "workloads",
+          "rect_packing",
+          "default"
+        ]
+      },
+      "ViewLayoutConfig": {
+        "type": "object",
+        "description": "How the UI lays out a view. Read by the topology layout pipeline in place of branching on\nthe view id.",
+        "required": [
+          "algorithm",
+          "handle_strategy",
+          "element_order",
+          "root_order",
+          "root_edges",
+          "repack_disconnected",
+          "align_layers_top",
+          "force_overview"
+        ],
+        "properties": {
+          "algorithm": {
+            "$ref": "#/components/schemas/ViewLayoutAlgorithm"
+          },
+          "align_layers_top": {
+            "type": "boolean",
+            "description": "Whether each column of root containers is aligned to the same top edge after layout."
+          },
+          "element_order": {
+            "$ref": "#/components/schemas/ViewElementOrder"
+          },
+          "force_overview": {
+            "type": "boolean",
+            "description": "Whether the view switches to a force-directed overview when every root container is\ncollapsed."
+          },
+          "handle_strategy": {
+            "$ref": "#/components/schemas/ViewHandleStrategy"
+          },
+          "repack_disconnected": {
+            "type": "boolean",
+            "description": "Whether root containers with no cross-container edges are moved beside the connected\nones after layout."
+          },
+          "root_edges": {
+            "type": "boolean",
+            "description": "Whether edges between root containers are passed to the root layout."
+          },
+          "root_order": {
+            "$ref": "#/components/schemas/ViewRootOrder"
+          }
+        }
+      },
+      "ViewRootOrder": {
+        "type": "string",
+        "description": "How root containers are ordered before layout.",
+        "enum": [
+          "input",
+          "workload_count"
+        ]
       },
       "Vlan": {
         "allOf": [
