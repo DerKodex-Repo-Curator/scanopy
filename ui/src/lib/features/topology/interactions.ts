@@ -22,12 +22,8 @@ import {
 	showDirectionality
 } from './layout/edge-classification';
 import { elevateEdgesToContainers } from './layout/edge-elevation';
-import {
-	getContainerContents,
-	buildEntityNodeIndex,
-	entityCollection,
-	type EntityNodeIndex
-} from './resolvers';
+import { buildEntityNodeIndex, entityCollection, type EntityNodeIndex } from './resolvers';
+import { getTopologyIndex } from './entity-index';
 import type { Site } from '$lib/features/sites/types';
 import { entityFreshness, type FreshnessSubject } from '$lib/shared/utils/freshness';
 import { buildFullParentMap, resolveCollapsedAncestor } from './collapse';
@@ -619,10 +615,8 @@ export function updateTagFilter(
 		// When Host is the container (L2, Workloads): hide container nodes + descendants
 		if (hostIsContainer && hiddenHostIds.size > 0) {
 			const hiddenContainerIds = new Set<string>();
-			for (const [hostId, containerIds] of index.hostIdToContainerIds) {
-				if (hiddenHostIds.has(hostId)) {
-					containerIds.forEach((cid) => hiddenContainerIds.add(cid));
-				}
+			for (const hostId of hiddenHostIds) {
+				index.entityIdToContainerIds.get(hostId)?.forEach((cid) => hiddenContainerIds.add(cid));
 			}
 			hideContainersAndDescendants(hiddenContainerIds, topology.nodes, hiddenNodeIds);
 		}
@@ -703,9 +697,9 @@ export function updateTagFilter(
 	}
 
 	// Entity-space -> node-space, once, generically. A node stands for a hidden entity in one of
-	// two ways: it *is* that entity, so its own id matches; or it is an element of that type
-	// related to it, for the types whose node id is some other entity's. Every pass above records
-	// entity ids and leaves this to decide what that means for the graph.
+	// two ways: it *is* that entity, so its own id matches; or it is an element of that type whose
+	// `entity_id` is that entity, for the types whose node id is some other entity's. Every pass
+	// above records entity ids and leaves this to decide what that means for the graph.
 	//
 	// A container stands for a hidden entity when its `container_type` names that entity's type
 	// and its `entity_id` is that entity (a Workloads/L2 host box, an L3 subnet box). Hiding it
@@ -725,8 +719,7 @@ export function updateTagFilter(
 			continue;
 		}
 		if (node.node_type !== 'Element') continue;
-		const relatedId = relatedEntityId(node, node.element_type);
-		if (relatedId && hiddenByType.get(node.element_type)?.has(relatedId)) {
+		if (node.entity_id && hiddenByType.get(node.element_type)?.has(node.entity_id)) {
 			hiddenNodeIds.add(node.id);
 		}
 	}
@@ -851,32 +844,6 @@ export function activeViewFilters(
 	return summaries;
 }
 
-/** For non-Service metadata filters: check that an Element node represents
- *  the same entity instance as the filter target. Keeps the filter match
- *  narrowly scoped instead of leaking to unrelated elements sharing a host_id. */
-/**
- * The id of the `entityType` entity this node hangs off, when that is something other than the
- * node itself. `undefined` for a node that simply *is* its entity — those are matched by id, so
- * they need no mapping.
- *
- * Returns the id rather than testing one, so a caller can resolve in a single pass over the
- * nodes instead of once per (node, hidden entity) pair.
- */
-function relatedEntityId(node: TopologyNode, entityType: string): string | undefined {
-	if (node.node_type !== 'Element') return undefined;
-	const data = node as unknown as Record<string, string | undefined>;
-	switch (entityType) {
-		case 'Host':
-			return data.host_id;
-		case 'IPAddress':
-			return data.ip_address_id;
-		case 'Interface':
-			return data.interface_id;
-		default:
-			return undefined;
-	}
-}
-
 /**
  * Node ids a click on an edge should light up.
  *
@@ -914,17 +881,13 @@ export function nodesConnectedByEdge(
  * When a container has connected elements inside it, highlight that container.
  * Uses topology data to find elements hidden by collapsed containers.
  */
-function addContainerHighlights(
-	connected: Set<string>,
-	allNodes: Node[],
-	topology?: RenderableTopology
-) {
-	const topoNodes = topology?.nodes ?? allNodes.map((n) => n.data as TopologyNode);
+function addContainerHighlights(connected: Set<string>, topology: RenderableTopology) {
+	const { containerContents } = getTopologyIndex(topology);
 
-	for (const nd of topoNodes) {
+	for (const nd of topology.nodes) {
 		if (nd.node_type !== 'Container') continue;
 
-		const contents = getContainerContents(nd.id, topoNodes);
+		const contents = containerContents(nd.id);
 
 		if (connected.has(nd.id)) {
 			// Container is connected — include its elements and subcontainers
@@ -944,24 +907,24 @@ function addContainerHighlights(
 
 /**
  * Update connected nodes when a node or edge is selected
- * @param topology - Optional topology data for direct lookups (used in share views where cache is empty)
+ * @param topology - Topology data for direct lookups (share views have no query cache)
  * @param multiSelectedNodes - Optional array of multi-selected nodes
  */
 export function updateConnectedNodes(
 	selectedNode: Node | null,
 	selectedEdge: Edge | null,
 	allEdges: Edge[],
-	allNodes: Node[],
-	topology?: RenderableTopology,
+	topology: RenderableTopology,
 	multiSelectedNodes?: Node[],
 	hiddenEdgeTypes?: string[]
 ) {
 	const connected = new Set<string>();
+	const { containerContents } = getTopologyIndex(topology);
 
 	// If multiple nodes are selected
 	if (multiSelectedNodes && multiSelectedNodes.length >= 2) {
-		const rawEdges = topology?.edges ?? [];
-		const topologyNodes = topology?.nodes ?? [];
+		const rawEdges = topology.edges ?? [];
+		const topologyNodes = topology.nodes ?? [];
 		const elevatedEdges = elevateEdgesToContainers(rawEdges, topologyNodes);
 		for (const node of multiSelectedNodes) {
 			connected.add(node.id);
@@ -980,10 +943,9 @@ export function updateConnectedNodes(
 			}
 		}
 		// Expand connected containers to include their element contents
-		const topoNodes = topology?.nodes ?? allNodes.map((n) => n.data as TopologyNode);
-		for (const nd of topoNodes) {
+		for (const nd of topology.nodes) {
 			if (nd.node_type !== 'Container' || !connected.has(nd.id)) continue;
-			const contents = getContainerContents(nd.id, topoNodes);
+			const contents = containerContents(nd.id);
 			for (const id of contents.elementNodeIds) connected.add(id);
 			for (const id of contents.subcontainerIds) connected.add(id);
 		}
@@ -997,8 +959,7 @@ export function updateConnectedNodes(
 		const nodeData = selectedNode.data as TopologyNode;
 
 		if (nodeData.node_type == 'Container') {
-			const topoNodes2 = topology?.nodes ?? allNodes.map((n) => n.data as TopologyNode);
-			const contents = getContainerContents(nodeData.id, topoNodes2);
+			const contents = containerContents(nodeData.id);
 			for (const id of contents.elementNodeIds) connected.add(id);
 			for (const id of contents.subcontainerIds) connected.add(id);
 		}
@@ -1006,8 +967,8 @@ export function updateConnectedNodes(
 		// Use elevated edges so absorbing containers appear in the connected set.
 		// Elevation rewrites edge endpoints from elements to their outermost
 		// absorbing container, which is exactly what highlighting needs.
-		const rawEdges = topology?.edges ?? [];
-		const topologyNodes = topology?.nodes ?? [];
+		const rawEdges = topology.edges ?? [];
+		const topologyNodes = topology.nodes ?? [];
 		const elevatedEdges = elevateEdgesToContainers(rawEdges, topologyNodes);
 
 		for (const edge of elevatedEdges) {
@@ -1030,7 +991,7 @@ export function updateConnectedNodes(
 			}
 		}
 
-		addContainerHighlights(connected, allNodes, topology);
+		addContainerHighlights(connected, topology);
 
 		connectedNodeIds.set(connected);
 		return;
@@ -1054,9 +1015,9 @@ export function updateConnectedNodes(
 
 		// Elevated topology edges, matching the endpoints the selected edge itself carries —
 		// and unlike the rendered flow edges, they still include every member of a bundle.
-		const rawEdges = topology?.edges ?? [];
+		const rawEdges = topology.edges ?? [];
 		const candidateEdges = rawEdges.length
-			? elevateEdgesToContainers(rawEdges, topology?.nodes ?? [])
+			? elevateEdgesToContainers(rawEdges, topology.nodes ?? [])
 			: allEdges
 					.map((e) => e.data as TopologyEdge | undefined)
 					.filter((e): e is TopologyEdge => !!e);
@@ -1065,7 +1026,7 @@ export function updateConnectedNodes(
 			for (const id of nodesConnectedByEdge(clicked, candidateEdges)) connected.add(id);
 		}
 
-		addContainerHighlights(connected, allNodes, topology);
+		addContainerHighlights(connected, topology);
 		connectedNodeIds.set(connected);
 		return;
 	}
@@ -1254,14 +1215,6 @@ interface EntityResolution {
 	containerNodeIds: string[];
 }
 
-/** Index map for looking up element nodes by entity type */
-const ENTITY_ELEMENT_INDEX: Record<string, (idx: EntityNodeIndex) => Map<string, string[]>> = {
-	Host: (idx) => idx.hostIdToNodes,
-	IPAddress: (idx) => idx.ipAddressIdToNodes,
-	Service: (idx) => idx.serviceIdToNodes,
-	Interface: (idx) => idx.interfaceIdToNodes
-};
-
 /**
  * Resolve an entity to topology node IDs based on the current view's element config.
  * Returns element and container node IDs separately so callers can decide behavior
@@ -1279,24 +1232,18 @@ function resolveEntityToNodes(
 
 	const isDirectElement = config.element_entities.some((e) => e.entity_type === entityType);
 
-	// 1. Direct element: entity type is an element in this view
+	// 1. Direct element: entity type is an element in this view. A host matches every card on it
+	// (the services drawn beside its Host card), not only the card that stands for it.
 	if (isDirectElement) {
-		const getIndex = ENTITY_ELEMENT_INDEX[entityType];
-		if (getIndex) {
-			const nodeIds = getIndex(index).get(entityId);
-			if (nodeIds) elementNodeIds.push(...nodeIds);
-		}
+		const byEntity = entityType === 'Host' ? index.hostIdToNodes : index.entityIdToNodes;
+		const nodeIds = byEntity.get(entityId);
+		if (nodeIds) elementNodeIds.push(...nodeIds);
 	}
 
 	// 2. Container: entity type is the container in this view
 	if (entityType === config.container_entity) {
-		if (entityType === 'Host') {
-			const cids = index.hostIdToContainerIds.get(entityId);
-			if (cids) containerNodeIds.push(...cids);
-		} else {
-			// Subnet containers: entity ID is the container node ID
-			containerNodeIds.push(entityId);
-		}
+		const cids = index.entityIdToContainerIds.get(entityId);
+		if (cids) containerNodeIds.push(...cids);
 	}
 
 	// 3. Parent propagation: entity type is parent_taggable_entity of an element entity
@@ -1318,7 +1265,7 @@ function resolveEntityToNodes(
 		if (service) {
 			for (const binding of service.bindings) {
 				if (binding.ip_address_id) {
-					const nodeIds = index.ipAddressIdToNodes.get(binding.ip_address_id);
+					const nodeIds = index.entityIdToNodes.get(binding.ip_address_id);
 					if (nodeIds) elementNodeIds.push(...nodeIds);
 				}
 			}

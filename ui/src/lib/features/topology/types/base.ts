@@ -94,7 +94,8 @@ export interface ElementRenderData {
 	showServices: boolean;
 	services: Service[];
 	hiddenOpenPorts: Service[];
-	ip_address_id: string;
+	/** The card's selection key: the node id, or an IP card's address id (null with no address). */
+	ip_address_id: string | null;
 	isCategoryHidden?: boolean;
 	portStatus?: PortStatus;
 	/**

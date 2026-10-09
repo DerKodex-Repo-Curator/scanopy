@@ -171,8 +171,8 @@
 		for (const node of nodes) {
 			const data = node.data as TopologyNode | undefined;
 			if (!data) continue;
-			const target = resolveTagTarget(node.id, data);
-			if (!target) continue;
+			const target = resolveTagTarget(data);
+			if (target?.entityType !== 'Host' && target?.entityType !== 'Service') continue;
 			let set = byType.get(target.entityType);
 			if (!set) {
 				set = new SvelteSet();

@@ -33,6 +33,7 @@ function filteredL2Bundle(): RenderableTopology {
 		node_type: 'Element',
 		element_type: 'Interface',
 		interface_id: id,
+		entity_id: id,
 		host_id: host
 	});
 

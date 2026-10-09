@@ -1,30 +1,18 @@
 <script lang="ts">
-	import type { Node } from '@xyflow/svelte';
-	import type { RenderableTopology, TopologyNode } from '$lib/features/topology/types/base';
+	import type { RenderableTopology } from '$lib/features/topology/types/base';
 	import type { ElementRenderContext } from '$lib/features/topology/resolvers';
 	import InterfaceDetailsCard from '$lib/features/hosts/components/InterfaceDetailsCard.svelte';
 	import InspectorSection from '../shared/InspectorSection.svelte';
 
 	let {
-		node,
 		topology,
 		elementContext
 	}: {
-		node: Node;
 		topology: RenderableTopology;
 		elementContext?: ElementRenderContext;
 	} = $props();
 
-	// Find the SNMP Interface: from node data or element context
-	let iface = $derived.by(() => {
-		const nodeData = node.data as TopologyNode;
-		const interfaceId = 'interface_id' in nodeData ? (nodeData.interface_id as string) : undefined;
-		if (interfaceId) {
-			return topology.interfaces.find((e) => e.id === interfaceId) ?? null;
-		}
-		if (!elementContext?.interfaceId) return null;
-		return topology.interfaces.find((e) => e.id === elementContext.interfaceId) ?? null;
-	});
+	let iface = $derived(elementContext?.snmpInterface ?? null);
 
 	// Resolve linked IPAddress from the SNMP interface's ip_address_id FK
 	let linkedIpAddress = $derived.by(() => {

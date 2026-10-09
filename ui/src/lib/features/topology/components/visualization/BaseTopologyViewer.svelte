@@ -828,14 +828,12 @@
 
 		if (topology && (topology.edges || topology.nodes)) {
 			const currentBaseEdges = get(baseFlowEdges);
-			const currentNodes = get(nodes);
 			const opts = get(topologyOptions);
 
 			updateConnectedNodes(
 				curSelectedNode,
 				curSelectedEdge,
 				currentBaseEdges,
-				currentNodes,
 				topology,
 				multiSelected,
 				opts.local.hide_edge_types ?? []

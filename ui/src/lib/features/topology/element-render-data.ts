@@ -139,10 +139,12 @@ export function elementInlineFlags(
  * metadata fixture so they stay localized and in step with the backend.
  */
 function resolveStaleTag(
+	node: TopologyNode,
+	topology: RenderableTopology,
 	resolved: ReturnType<typeof resolveElementNode>,
 	sites: Site[]
 ): ReturnType<typeof getFreshnessTag> {
-	const subject = elementEntity(resolved);
+	const subject = elementEntity(node, topology);
 	if (!subject) return null;
 	return getFreshnessTag(
 		subject,
@@ -155,7 +157,7 @@ export function buildElementRender(inputs: ElementRenderInputs): ElementRenderRe
 	const resolved = resolveElementNode(inputs.nodeId, inputs.node, inputs.topology);
 	return {
 		...buildElementContent(inputs, resolved),
-		marks: elementMarks(inputs.activeView, resolved, inputs.sites, inputs.topology)
+		marks: elementMarks(inputs.activeView, inputs.node, inputs.sites, inputs.topology)
 	};
 }
 
@@ -169,7 +171,7 @@ function buildElementContent(
 
 	const elementType = resolved.elementType ?? 'Interface';
 	const host = resolved.host;
-	const staleTag = resolveStaleTag(resolved, inputs.sites);
+	const staleTag = resolveStaleTag(node, topology, resolved, inputs.sites);
 	const ipAddress = resolved.ipAddress ?? null;
 	const servicesForHost = resolved.services ?? [];
 
@@ -266,12 +268,7 @@ function buildElementContent(
 
 	// Port elements: show port name + status/MAC info
 	if (elementType === 'Interface') {
-		const ifEntryId =
-			'interface_id' in (node as Record<string, unknown>)
-				? ((node as Record<string, unknown>).interface_id as string)
-				: undefined;
-		const iface = ifEntryId ? getTopologyIndex(topology).interfacesById.get(ifEntryId) : undefined;
-
+		const iface = resolved.snmpInterface;
 		const speed = iface?.speed_bps ? formatInterfaceSpeed(iface.speed_bps) : null;
 
 		return {
@@ -353,7 +350,7 @@ function buildElementContent(
 			headerText,
 			bodyText: showServices ? null : hostDisplayName(host),
 			showServices,
-			ip_address_id: resolved.ipAddressId ?? '',
+			ip_address_id: resolved.ipAddressId ?? null,
 			inlineGroups: []
 		} as ElementRenderData
 	};

@@ -24,7 +24,6 @@ import type { Subnet } from '$lib/features/subnets/types/base';
 export interface ContainerContents {
 	hostIds: Set<string>;
 	serviceIds: Set<string>;
-	interfaceIds: Set<string>;
 	elementNodeIds: Set<string>;
 	subcontainerIds: Set<string>;
 }
@@ -51,7 +50,7 @@ export interface TopologyIndex {
 	 */
 	entityTags: Map<string, string[]>;
 
-	/** Memoized `getContainerContents`, keyed by container id. */
+	/** Entities inside a container and its subcontainers, memoized by container id. */
 	containerContents(containerId: string): ContainerContents;
 }
 
@@ -68,7 +67,6 @@ function buildContainerContents(
 ): ContainerContents {
 	const hostIds = new Set<string>();
 	const serviceIds = new Set<string>();
-	const interfaceIds = new Set<string>();
 	const elementNodeIds = new Set<string>();
 	const subcontainerIds = new Set<string>();
 
@@ -86,17 +84,11 @@ function buildContainerContents(
 			const hostId = (nd as Record<string, unknown>).host_id as string | undefined;
 			if (hostId) hostIds.add(hostId);
 
-			if (nd.element_type === 'Service') {
-				serviceIds.add(nd.id);
-			} else if (nd.element_type === 'Interface') {
-				const ifaceId = (nd as Record<string, unknown>).interface_id as string | undefined;
-				if (ifaceId) interfaceIds.add(ifaceId);
-			}
-			// Host elements contribute only their hostId, added above.
+			if (nd.element_type === 'Service') serviceIds.add(nd.id);
 		}
 	}
 
-	return { hostIds, serviceIds, interfaceIds, elementNodeIds, subcontainerIds };
+	return { hostIds, serviceIds, elementNodeIds, subcontainerIds };
 }
 
 export function buildTopologyIndex(topology: RenderableTopology): TopologyIndex {

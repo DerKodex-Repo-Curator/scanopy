@@ -1,9 +1,9 @@
 import type { components } from '$lib/api/schema';
-import type { RenderableTopology, TopologyEdge, TopologyNode } from './types/base';
+import type { ElementNode, RenderableTopology, TopologyEdge, TopologyNode } from './types/base';
 import { containerTypes, entities } from '$lib/shared/stores/metadata';
 import { collectionLookup, type EntityLookup, type EntityType } from '$lib/shared/entity-fields';
 import { hostDisplayName } from '$lib/features/hosts/host-display-name';
-import { getTopologyIndex, type ContainerContents } from './entity-index';
+import { getTopologyIndex } from './entity-index';
 import type { FreshnessSubject } from '$lib/shared/utils/freshness';
 
 /**
@@ -54,7 +54,6 @@ export interface ElementRenderContext {
 	ipAddressId: string | undefined;
 	interfaceId: string | undefined;
 	subnetId: string;
-	isInfra: boolean;
 }
 
 export interface ContainerRenderContext {
@@ -63,25 +62,22 @@ export interface ContainerRenderContext {
 	containerType: string;
 }
 
-// Exhaustive resolver maps — TypeScript errors if a variant is missing
+// Exhaustive resolver maps — TypeScript errors if a variant is missing. An element's own entity
+// comes from its `entity_id`, its host from `host_id`.
 const elementResolvers: Record<
 	ElementEntityTypeDiscriminant,
-	(nodeId: string, node: TopologyNode, topology: RenderableTopology) => ElementRenderContext
+	(nodeId: string, node: ElementNode, topology: RenderableTopology) => ElementRenderContext
 > = {
 	IPAddress: (_nodeId, node, topology) => {
 		const index = getTopologyIndex(topology);
-		const hostId = 'host_id' in node ? (node.host_id as string) : undefined;
-		const ipAddressId =
-			'ip_address_id' in node ? (node.ip_address_id as string | undefined) : undefined;
-		const subnetId = 'subnet_id' in node ? (node.subnet_id as string) : '';
-		const isInfra = 'is_infra' in node ? (node.is_infra as boolean) : false;
+		const hostId = node.host_id;
+		const ipAddressId = node.entity_id ?? undefined;
+		const subnetId = 'subnet_id' in node ? node.subnet_id : '';
 
-		const host = hostId ? index.hostsById.get(hostId) : undefined;
+		const host = index.hostsById.get(hostId);
 		const ipAddress = ipAddressId ? index.ipAddressesById.get(ipAddressId) : undefined;
-		// Narrowed to this host's services first, then the same binding predicate
-		// as before — so ordering and semantics are unchanged, but the scan is
-		// over one host's services rather than every service in the topology.
-		const services = (hostId ? (index.servicesByHostId.get(hostId) ?? []) : []).filter((s) =>
+		// The host's services bound to this address or to every address.
+		const services = (index.servicesByHostId.get(hostId) ?? []).filter((s) =>
 			s.bindings.some((b) => b.ip_address_id === ipAddressId || b.ip_address_id === null)
 		);
 
@@ -92,68 +88,59 @@ const elementResolvers: Record<
 			snmpInterface: undefined,
 			services,
 			hostId,
-			ipAddressId: ipAddressId,
+			ipAddressId,
 			interfaceId: undefined,
-			subnetId,
-			isInfra
+			subnetId
 		};
 	},
-	Service: (nodeId, node, topology) => {
+	Service: (_nodeId, node, topology) => {
 		const index = getTopologyIndex(topology);
-		const hostId = 'host_id' in node ? (node.host_id as string) : undefined;
-		const host = hostId ? index.hostsById.get(hostId) : undefined;
-		const service = index.servicesById.get(nodeId);
-		const services = service ? [service] : [];
+		const hostId = node.host_id;
+		const service = node.entity_id ? index.servicesById.get(node.entity_id) : undefined;
 
 		return {
-			elementType: 'Service' as ElementEntityTypeDiscriminant,
-			host,
+			elementType: 'Service',
+			host: index.hostsById.get(hostId),
 			ipAddress: undefined,
 			snmpInterface: undefined,
-			services,
+			services: service ? [service] : [],
 			hostId,
 			ipAddressId: undefined,
 			interfaceId: undefined,
-			subnetId: '',
-			isInfra: false
+			subnetId: ''
 		};
 	},
 	Host: (_nodeId, node, topology) => {
 		const index = getTopologyIndex(topology);
-		const hostId = 'host_id' in node ? (node.host_id as string) : undefined;
-		const host = hostId ? index.hostsById.get(hostId) : undefined;
-		const services = hostId ? (index.servicesByHostId.get(hostId) ?? []) : [];
+		const hostId = node.host_id;
 
 		return {
-			elementType: 'Host' as ElementEntityTypeDiscriminant,
-			host,
+			elementType: 'Host',
+			host: index.hostsById.get(hostId),
 			ipAddress: undefined,
 			snmpInterface: undefined,
-			services,
+			services: index.servicesByHostId.get(hostId) ?? [],
 			hostId,
 			ipAddressId: undefined,
 			interfaceId: undefined,
-			subnetId: '',
-			isInfra: false
+			subnetId: ''
 		};
 	},
 	Interface: (_nodeId, node, topology) => {
 		const index = getTopologyIndex(topology);
-		const hostId = 'host_id' in node ? (node.host_id as string) : undefined;
-		const interfaceId = 'interface_id' in node ? (node.interface_id as string) : undefined;
-		const host = hostId ? index.hostsById.get(hostId) : undefined;
-		const snmpInterface = interfaceId ? index.interfacesById.get(interfaceId) : undefined;
+		const hostId = node.host_id;
+		const interfaceId = node.entity_id ?? undefined;
+
 		return {
-			elementType: 'Interface' as ElementEntityTypeDiscriminant,
-			host,
+			elementType: 'Interface',
+			host: index.hostsById.get(hostId),
 			ipAddress: undefined,
-			snmpInterface,
+			snmpInterface: interfaceId ? index.interfacesById.get(interfaceId) : undefined,
 			services: [],
 			hostId,
 			ipAddressId: undefined,
-			interfaceId: interfaceId,
-			subnetId: '',
-			isInfra: false
+			interfaceId,
+			subnetId: ''
 		};
 	}
 };
@@ -174,7 +161,7 @@ function resolveContainer(
  * Resolve tags for any container entity, regardless of container type.
  * Uses entity_id (the entity this container represents) for direct lookup,
  * falling back to node ID match (for Subnet containers where ID === entity ID)
- * and then to getContainerContents for legacy/indirect resolution.
+ * and then to the container's contents for legacy/indirect resolution.
  */
 function resolveContainerTags(
 	nodeId: string,
@@ -378,27 +365,29 @@ export function resolveEditDependencyTargets(
 	return [...memberTargets, ...addedTargets];
 }
 
-// Resolve the taggable entity behind an element node. Walks the element_type's
-// parent_taggable_entity chain (per entity metadata) until a taggable entity is reached.
-// Returns null for containers, unknown elements, or chains with no taggable ancestor.
+// Resolve the taggable entity behind an element node: the element's own entity when its type is
+// taggable, otherwise the first taggable entity up its parent_taggable_entity chain (per entity
+// metadata). An element names one ancestor, its host, so only a Host ancestor resolves. Returns
+// null for containers, unknown elements, or chains with no taggable ancestor.
 export interface TagTarget {
-	entityType: 'Host' | 'Service';
+	entityType: EntityType;
 	entityId: string;
 }
 
-export function resolveTagTarget(nodeId: string, node: TopologyNode): TagTarget | null {
-	if (node.node_type !== 'Element') return null;
-	const elementType = node.element_type;
-	if (!elementType) return null;
-	const hostId = 'host_id' in node ? (node.host_id as string | undefined) : undefined;
+export function resolveTagTarget(node: TopologyNode): TagTarget | null {
+	if (node.node_type !== 'Element' || !node.element_type) return null;
+	const elementType = node.element_type as EntityType;
+	if (entities.getMetadata(elementType).is_taggable) {
+		return node.entity_id ? { entityType: elementType, entityId: node.entity_id } : null;
+	}
 
-	let type: string | undefined = elementType;
+	let type = entities.getMetadata(elementType).parent_taggable_entity;
 	while (type) {
 		const meta = entities.getMetadata(type);
 		if (meta.is_taggable) {
-			if (type === 'Host') return hostId ? { entityType: 'Host', entityId: hostId } : null;
-			if (type === 'Service') return { entityType: 'Service', entityId: nodeId };
-			return null;
+			return type === 'Host' && node.host_id
+				? { entityType: 'Host', entityId: node.host_id }
+				: null;
 		}
 		type = meta.parent_taggable_entity;
 	}
@@ -440,62 +429,6 @@ export function getNodeSelectionIds(
 		)
 		.map((s) => s.id);
 	return { hostIds, serviceIds };
-}
-
-// Container contents — shared utility for fading, hiding, counting
-export type { ContainerContents };
-
-/**
- * Walk topology nodes and return all entities inside a container,
- * including entities in nested subcontainers. Works generically across
- * views — uses container_id/subnet_id for elements and
- * parent_container_id for subcontainers.
- */
-export function getContainerContents(
-	containerId: string,
-	topologyNodes: TopologyNode[]
-): ContainerContents {
-	const hostIds = new Set<string>();
-	const serviceIds = new Set<string>();
-	const interfaceIds = new Set<string>();
-	const elementNodeIds = new Set<string>();
-	const subcontainerIds = new Set<string>();
-
-	// Collect subcontainer IDs (direct children of this container)
-	for (const nd of topologyNodes) {
-		if (nd.node_type === 'Container') {
-			const parentContainerId = (nd as Record<string, unknown>).parent_container_id as
-				string | undefined;
-			if (parentContainerId === containerId) {
-				subcontainerIds.add(nd.id);
-			}
-		}
-	}
-
-	// Collect element nodes whose parent is this container or a subcontainer
-	const containerSet = new Set([containerId, ...subcontainerIds]);
-	for (const nd of topologyNodes) {
-		if (nd.node_type !== 'Element') continue;
-
-		const parentId = (nd as Record<string, unknown>).container_id as string | undefined;
-		if (!parentId || !containerSet.has(parentId)) continue;
-
-		elementNodeIds.add(nd.id);
-
-		const hostId = (nd as Record<string, unknown>).host_id as string | undefined;
-		if (hostId) hostIds.add(hostId);
-
-		if (nd.element_type === 'Service') {
-			serviceIds.add(nd.id);
-		} else if (nd.element_type === 'Interface') {
-			const ifaceId = (nd as Record<string, unknown>).interface_id as string | undefined;
-			if (ifaceId) interfaceIds.add(ifaceId);
-		} else if (nd.element_type === 'Host') {
-			// Host elements: no additional IDs needed beyond hostId (already added above)
-		}
-	}
-
-	return { hostIds, serviceIds, interfaceIds, elementNodeIds, subcontainerIds };
 }
 
 /**
@@ -595,13 +528,20 @@ export function identityHostsOfEdge(
 
 // Entity→Node index — canonical resolver for mapping entity IDs to topology node IDs
 export interface EntityNodeIndex {
+	/** Every element node on a host, whatever its type: a host's fan-out. */
 	hostIdToNodes: Map<string, string[]>;
-	hostIdToContainerIds: Map<string, Set<string>>;
-	ipAddressIdToNodes: Map<string, string[]>;
-	serviceIdToNodes: Map<string, string[]>;
-	interfaceIdToNodes: Map<string, string[]>;
+	/** Element nodes keyed by the entity they stand for (`entity_id`). */
+	entityIdToNodes: Map<string, string[]>;
+	/** Container nodes keyed by the entity they stand for (`entity_id`). */
+	entityIdToContainerIds: Map<string, Set<string>>;
 	allElementNodeIds: Set<string>;
 	allContainerNodeIds: Set<string>;
+}
+
+function pushNode(map: Map<string, string[]>, key: string, nodeId: string): void {
+	const existing = map.get(key);
+	if (existing) existing.push(nodeId);
+	else map.set(key, [nodeId]);
 }
 
 /**
@@ -610,63 +550,32 @@ export interface EntityNodeIndex {
  */
 export function buildEntityNodeIndex(nodes: TopologyNode[]): EntityNodeIndex {
 	const hostIdToNodes = new Map<string, string[]>();
-	const hostIdToContainerIds = new Map<string, Set<string>>();
-	const ipAddressIdToNodes = new Map<string, string[]>();
-	const serviceIdToNodes = new Map<string, string[]>();
-	const interfaceIdToNodes = new Map<string, string[]>();
+	const entityIdToNodes = new Map<string, string[]>();
+	const entityIdToContainerIds = new Map<string, Set<string>>();
 	const allElementNodeIds = new Set<string>();
 	const allContainerNodeIds = new Set<string>();
 
 	for (const nd of nodes) {
 		if (nd.node_type === 'Container') {
 			allContainerNodeIds.add(nd.id);
-			// Map entity_id → container node for ownership tracking
-			const entityId = 'entity_id' in nd ? (nd.entity_id as string | undefined) : undefined;
-			if (entityId) {
-				const containerSet = hostIdToContainerIds.get(entityId);
+			if (nd.entity_id) {
+				const containerSet = entityIdToContainerIds.get(nd.entity_id);
 				if (containerSet) containerSet.add(nd.id);
-				else hostIdToContainerIds.set(entityId, new Set([nd.id]));
+				else entityIdToContainerIds.set(nd.entity_id, new Set([nd.id]));
 			}
 			continue;
 		}
 		if (nd.node_type !== 'Element') continue;
 
 		allElementNodeIds.add(nd.id);
-
-		const hostId = 'host_id' in nd ? (nd.host_id as string | undefined) : undefined;
-		if (hostId) {
-			const existing = hostIdToNodes.get(hostId);
-			if (existing) existing.push(nd.id);
-			else hostIdToNodes.set(hostId, [nd.id]);
-		}
-
-		if (nd.element_type === 'IPAddress') {
-			const ipAddrId = 'ip_address_id' in nd ? (nd.ip_address_id as string | undefined) : undefined;
-			if (ipAddrId) {
-				const existing = ipAddressIdToNodes.get(ipAddrId);
-				if (existing) existing.push(nd.id);
-				else ipAddressIdToNodes.set(ipAddrId, [nd.id]);
-			}
-		} else if (nd.element_type === 'Interface') {
-			const ifaceId = 'interface_id' in nd ? (nd.interface_id as string | undefined) : undefined;
-			if (ifaceId) {
-				const existing = interfaceIdToNodes.get(ifaceId);
-				if (existing) existing.push(nd.id);
-				else interfaceIdToNodes.set(ifaceId, [nd.id]);
-			}
-		} else if (nd.element_type === 'Service') {
-			const existing = serviceIdToNodes.get(nd.id);
-			if (existing) existing.push(nd.id);
-			else serviceIdToNodes.set(nd.id, [nd.id]);
-		}
+		if (nd.host_id) pushNode(hostIdToNodes, nd.host_id, nd.id);
+		if (nd.entity_id) pushNode(entityIdToNodes, nd.entity_id, nd.id);
 	}
 
 	return {
 		hostIdToNodes,
-		hostIdToContainerIds,
-		ipAddressIdToNodes,
-		serviceIdToNodes,
-		interfaceIdToNodes,
+		entityIdToNodes,
+		entityIdToContainerIds,
 		allElementNodeIds,
 		allContainerNodeIds
 	};
@@ -691,8 +600,7 @@ export function resolveElementNode(
 			hostId: undefined,
 			ipAddressId: undefined,
 			interfaceId: undefined,
-			subnetId: '',
-			isInfra: false
+			subnetId: ''
 		};
 	}
 	return elementResolvers[elementType](nodeId, node, topology);
@@ -710,56 +618,70 @@ export function resolveContainerNode(
 /** An entity a topology node stands for, as the filter extractors and freshness helpers read it. */
 export type NodeEntity = FreshnessSubject & { id: string; site_id?: string };
 
+/** The host an element card sits on, from its `host_id`. */
+function elementHost(node: TopologyNode, topology: RenderableTopology): NodeEntity | undefined {
+	if (node.node_type !== 'Element' || !node.host_id) return undefined;
+	return getTopologyIndex(topology).hostsById.get(node.host_id);
+}
+
 /**
- * The entity an element card depicts: its service, address or interface, and otherwise its host.
+ * The entity an element card depicts: its own entity, and otherwise its host.
  * One owner for the card's stale pill and its filter-hover match, so the two cannot disagree.
  */
-export function elementEntity(resolved: ElementRenderContext): NodeEntity | undefined {
-	switch (resolved.elementType) {
-		case 'Service':
-			return resolved.services[0] ?? resolved.host;
-		case 'IPAddress':
-			return resolved.ipAddress ?? resolved.host;
-		case 'Interface':
-			return resolved.snmpInterface ?? resolved.host;
-		default:
-			return resolved.host;
-	}
+export function elementEntity(
+	node: TopologyNode,
+	topology: RenderableTopology
+): NodeEntity | undefined {
+	return nodeEntity(node, topology)?.entity ?? elementHost(node, topology);
 }
 
 /**
  * The entity a card is judged by for a filter on `entityType`: its own when the filter is on its
- * type, its host when a Host filter meets an IPAddress or Interface card. The filter-value hover
- * ring and the view's element marks both read it, so a coloured card is always one the matching
- * chip rings.
+ * type, its host when the filter is on its type's parent taggable entity (a Host filter meeting an
+ * IPAddress or Interface card). The filter-value hover ring and the view's element marks both read
+ * it, so a coloured card is always one the matching chip rings.
  */
 export function cardEntityForFilter(
-	resolved: ElementRenderContext,
+	node: TopologyNode,
+	topology: RenderableTopology,
 	entityType: string
 ): NodeEntity | undefined {
-	if (resolved.elementType === entityType) return elementEntity(resolved);
-	if (
-		entityType === 'Host' &&
-		(resolved.elementType === 'IPAddress' || resolved.elementType === 'Interface')
-	) {
-		return resolved.host;
+	if (node.node_type !== 'Element') return undefined;
+	if (node.element_type === entityType) return elementEntity(node, topology);
+	if (entities.getMetadata(node.element_type).parent_taggable_entity === entityType) {
+		return elementHost(node, topology);
 	}
 	return undefined;
 }
 
 /**
- * The entity a container stands for (a host box, a subnet box), found by its `container_type`
- * and `entity_id`. Grouping containers (categories, tags, stacks) have no entity collection and
- * resolve to `undefined`.
+ * The entity a container stands for (a host box, a subnet box, a VLAN box, a hypervisor's
+ * service), with its type. Grouping containers (categories, tags, stacks) resolve to `null`.
  */
 export function containerEntity(
 	node: TopologyNode,
 	topology: RenderableTopology
-): NodeEntity | undefined {
-	if (node.node_type !== 'Container' || !node.container_type) return undefined;
-	const entityId = node.entity_id ?? node.id;
-	return entityCollection(topology, node.container_type)?.find((e) => e.id === entityId) as
-		NodeEntity | undefined;
+): { entityType: EntityType; entity: NodeEntity } | null {
+	if (node.node_type !== 'Container') return null;
+	return nodeEntity(node, topology);
+}
+
+/** Id-keyed views of entity collections, memoized on the collection array's identity. */
+const collectionsById = new WeakMap<object, Map<string, { id: string }>>();
+
+function entityById(
+	topology: RenderableTopology,
+	entityType: string,
+	id: string
+): { id: string } | undefined {
+	const collection = entityCollection(topology, entityType);
+	if (!collection) return undefined;
+	let byId = collectionsById.get(collection);
+	if (!byId) {
+		byId = new Map(collection.map((e) => [e.id, e]));
+		collectionsById.set(collection, byId);
+	}
+	return byId.get(id);
 }
 
 /**
@@ -779,7 +701,7 @@ export function nodeEntity(
 			? (node.element_type as EntityType)
 			: containerTypes.getMetadata(node.container_type ?? null).entity_type;
 	if (!entityType || !node.entity_id) return null;
-	const entity = entityCollection(topology, entityType)?.find((e) => e.id === node.entity_id);
+	const entity = entityById(topology, entityType, node.entity_id);
 	return entity ? { entityType, entity: entity as NodeEntity } : null;
 }
 
