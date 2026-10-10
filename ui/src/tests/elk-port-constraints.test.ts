@@ -123,7 +123,7 @@ function mixedCollapseInput(): ElkLayoutInput {
 			bindings: [],
 			tags: [],
 			options: {
-				local: { hide_edge_types: [], no_fade_edges: false, hide_resize_handles: false },
+				local: { hide_edge_types: {}, no_fade_edges: false, hide_resize_handles: false },
 				request: {
 					hide_ports: false,
 					hide_service_categories: [],

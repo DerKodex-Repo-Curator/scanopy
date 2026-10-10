@@ -13,7 +13,12 @@
 	import { useTopology } from '../../../context';
 	import { getTopologyEditState, getOptionDisabledTooltip } from '../../../state';
 	import { edgeTypes, views } from '$lib/shared/stores/metadata';
-	import { activeView, clearedViewHideSet } from '../../../queries';
+	import {
+		activeView,
+		clearedViewHideSet,
+		hiddenEdgeTypes,
+		updateHiddenEdgeTypes
+	} from '../../../queries';
 	import {
 		coversSeveralEntities,
 		declaredMetadataFilters,
@@ -434,38 +439,24 @@
 	}
 
 	function toggleEdgeType(edgeType: string) {
-		updateTopologyOptions((opts) => {
-			const hidden = opts.local.hide_edge_types ?? [];
-
+		updateHiddenEdgeTypes((hidden) => {
 			if (edgeType === DEPENDENCIES_GROUP) {
 				// Toggle all dependency edge types together
 				const allHidden = dependencyEdgeTypeIds.every((id) =>
 					hidden.includes(id as (typeof hidden)[number])
 				);
-				const newHidden = allHidden
+				return allHidden
 					? hidden.filter((e) => !dependencyEdgeTypeIds.includes(e))
 					: [
 							...hidden.filter((e) => !dependencyEdgeTypeIds.includes(e)),
 							...(dependencyEdgeTypeIds as (typeof hidden)[number][])
 						];
-				return {
-					...opts,
-					local: { ...opts.local, hide_edge_types: newHidden }
-				};
 			}
 
 			const idx = hidden.indexOf(edgeType as (typeof hidden)[number]);
-			const newHidden =
-				idx === -1
-					? [...hidden, edgeType as (typeof hidden)[number]]
-					: hidden.filter((e) => e !== edgeType);
-			return {
-				...opts,
-				local: {
-					...opts.local,
-					hide_edge_types: newHidden
-				}
-			};
+			return idx === -1
+				? [...hidden, edgeType as (typeof hidden)[number]]
+				: hidden.filter((e) => e !== edgeType);
 		});
 	}
 
@@ -539,7 +530,7 @@
 	// Map hide_edge_types to filter-group selected values, replacing individual
 	// dependency type IDs with the unified DEPENDENCIES_GROUP sentinel
 	let edgeFilterSelectedValues = $derived.by(() => {
-		const hidden = $topologyOptions.local.hide_edge_types ?? [];
+		const hidden = $hiddenEdgeTypes;
 		const nonDep = hidden.filter((e) => !dependencyEdgeTypeIds.includes(e));
 		const allDepHidden =
 			dependencyEdgeTypeIds.length > 0 &&
@@ -621,16 +612,11 @@
 	function updateValue(def: TopologyFieldDef, newValue: boolean | string | string[]) {
 		values = { ...values, [def.id]: newValue };
 
-		updateTopologyOptions((opts) => {
-			if (def.path === 'local') {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				(opts.local as any)[def.key] = newValue;
-			} else {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				(opts.request as any)[def.key] = newValue;
-			}
-			return opts;
-		});
+		updateTopologyOptions((opts) =>
+			def.path === 'local'
+				? { ...opts, local: { ...opts.local, [def.key]: newValue } }
+				: { ...opts, request: { ...opts.request, [def.key]: newValue } }
+		);
 	}
 </script>
 

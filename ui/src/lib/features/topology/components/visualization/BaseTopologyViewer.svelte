@@ -51,7 +51,8 @@
 		getInfrastructureRuleIdForTopology,
 		topologyReadOnly,
 		topologyOptionsHydrated,
-		activeView
+		activeView,
+		hiddenEdgeTypes
 	} from '../../queries';
 	import {
 		isExporting,
@@ -584,9 +585,7 @@
 
 	// Trigger loadTopologyData on topology or store changes
 	const bundleEdgesStore = derived(topologyOptions, (o) => o.local.bundle_edges ?? false);
-	const hideEdgeTypesStore = derived(topologyOptions, (o) =>
-		(o.local.hide_edge_types ?? []).join(',')
-	);
+	const hideEdgeTypesStore = derived(hiddenEdgeTypes, (hidden) => hidden.join(','));
 	// Metadata-value filters (e.g. hiding the OpenPorts service category) are read at render
 	// time straight from the options, so no hidden-id store ever fires for them. Without this
 	// the cards resize under a layout that never re-runs, and they overlap.
@@ -640,7 +639,7 @@
 			expandedPorts: get(expandedPortNodeIds),
 			expandedInlineGroups: get(expandedInlineGroups),
 			bundleEdges: get(topologyOptions).local.bundle_edges ?? false,
-			hiddenEdgeTypes: (get(topologyOptions).local.hide_edge_types ?? []).join(','),
+			hiddenEdgeTypes: get(hiddenEdgeTypes).join(','),
 			tagHidden: get(tagHiddenNodeIds),
 			hiddenEntities: get(hiddenEntityIds),
 			hiddenMetadata: hiddenMetadataKey(get(activeView)),
@@ -828,7 +827,6 @@
 
 		if (topology && (topology.edges || topology.nodes)) {
 			const currentBaseEdges = get(baseFlowEdges);
-			const opts = get(topologyOptions);
 
 			updateConnectedNodes(
 				curSelectedNode,
@@ -836,7 +834,7 @@
 				currentBaseEdges,
 				topology,
 				multiSelected,
-				opts.local.hide_edge_types ?? []
+				get(hiddenEdgeTypes)
 			);
 			const updatedEdges = computeEdgeDisplayUpdates(
 				currentBaseEdges,

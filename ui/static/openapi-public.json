@@ -14169,19 +14169,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-09T22:16:33.440039Z",
+              "created_at": "2026-10-10T15:37:23.792773Z",
               "first_discovery_id": null,
-              "id": "d5394df2-149b-414d-8933-5d4bce3e9802",
+              "id": "c08e807c-149c-4bc6-8e38-8bd1aae5704f",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-09T22:16:33.440039Z",
+              "last_seen_at": "2026-10-10T15:37:23.792773Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-09T22:16:33.440039Z",
-              "valid_from": "2026-10-09T22:16:33.440039Z",
+              "updated_at": "2026-10-10T15:37:23.792773Z",
+              "valid_from": "2026-10-10T15:37:23.792773Z",
               "valid_to": null
             }
           },
@@ -15887,19 +15887,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-09T22:16:33.418732Z",
+                      "created_at": "2026-10-10T15:37:23.722755Z",
                       "first_discovery_id": null,
-                      "id": "97cdeedb-c522-47bc-bd30-38e40e8321a1",
+                      "id": "512a7f69-1a30-4138-be4c-61ee25416e09",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-09T22:16:33.418732Z",
+                      "last_seen_at": "2026-10-10T15:37:23.722755Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-09T22:16:33.418732Z",
-                      "valid_from": "2026-10-09T22:16:33.418732Z",
+                      "updated_at": "2026-10-10T15:37:23.722755Z",
+                      "valid_from": "2026-10-10T15:37:23.722755Z",
                       "valid_to": null
                     }
                   ],
@@ -15912,7 +15912,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Plex Media Server",
+                  "service_definition": "EtherNet/IP",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -17233,19 +17233,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-09T22:16:33.435983Z",
+                  "created_at": "2026-10-10T15:37:23.780233Z",
                   "first_discovery_id": null,
-                  "id": "06707ee1-4146-4835-94fc-abd60f6f85d2",
+                  "id": "5b88bb6b-2909-40f4-a5b9-b2e887849fd4",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-09T22:16:33.435983Z",
+                  "last_seen_at": "2026-10-10T15:37:23.780233Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-09T22:16:33.435983Z",
-                  "valid_from": "2026-10-09T22:16:33.435983Z",
+                  "updated_at": "2026-10-10T15:37:23.780233Z",
+                  "valid_from": "2026-10-10T15:37:23.780233Z",
                   "valid_to": null
                 }
               ],
@@ -17258,7 +17258,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Plex Media Server",
+              "service_definition": "EtherNet/IP",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -19964,19 +19964,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-09T22:16:33.419179Z",
+          "created_at": "2026-10-10T15:37:23.724335Z",
           "first_discovery_id": null,
-          "id": "3cfb5a4e-aa30-4c75-a347-8069a38ea589",
+          "id": "df02c501-cb1a-4b66-bfc1-39d373773a0b",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-09T22:16:33.419179Z",
+          "last_seen_at": "2026-10-10T15:37:23.724335Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-09T22:16:33.419179Z",
-          "valid_from": "2026-10-09T22:16:33.419179Z",
+          "updated_at": "2026-10-10T15:37:23.724335Z",
+          "valid_from": "2026-10-10T15:37:23.724335Z",
           "valid_to": null
         }
       },
@@ -20742,7 +20742,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Plex Media Server",
+              "service_definition": "EtherNet/IP",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -27581,19 +27581,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-09T22:16:33.418238Z",
+                  "created_at": "2026-10-10T15:37:23.720361Z",
                   "first_discovery_id": null,
-                  "id": "2a2ec595-5cde-4221-8c09-3e9d209c05a7",
+                  "id": "a24ec965-b678-44f3-a319-7d851219cfb4",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-09T22:16:33.418238Z",
+                  "last_seen_at": "2026-10-10T15:37:23.720361Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-09T22:16:33.418238Z",
-                  "valid_from": "2026-10-09T22:16:33.418238Z",
+                  "updated_at": "2026-10-10T15:37:23.720361Z",
+                  "valid_from": "2026-10-10T15:37:23.720361Z",
                   "valid_to": null
                 }
               ],
@@ -27606,7 +27606,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Plex Media Server",
+              "service_definition": "EtherNet/IP",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -31404,19 +31404,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-09T22:16:33.410738Z",
+                        "created_at": "2026-10-10T15:37:23.695954Z",
                         "first_discovery_id": null,
-                        "id": "147d4618-257f-4f75-b340-023eee281bc2",
+                        "id": "a74992db-120c-43ad-bd53-dc1e63807039",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-09T22:16:33.410738Z",
+                        "last_seen_at": "2026-10-10T15:37:23.695954Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-09T22:16:33.410738Z",
-                        "valid_from": "2026-10-09T22:16:33.410738Z",
+                        "updated_at": "2026-10-10T15:37:23.695954Z",
+                        "valid_from": "2026-10-10T15:37:23.695954Z",
                         "valid_to": null
                       }
                     ],
@@ -31429,7 +31429,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Plex Media Server",
+                    "service_definition": "EtherNet/IP",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -31578,19 +31578,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-09T22:16:33.435292Z",
+                    "created_at": "2026-10-10T15:37:23.777772Z",
                     "first_discovery_id": null,
-                    "id": "12e981fe-0843-4f09-9daa-f4d73c437bc8",
+                    "id": "ed22bb5c-be64-4075-a165-b48b0c2a813a",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-09T22:16:33.435292Z",
+                    "last_seen_at": "2026-10-10T15:37:23.777772Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-09T22:16:33.435292Z",
-                    "valid_from": "2026-10-09T22:16:33.435292Z",
+                    "updated_at": "2026-10-10T15:37:23.777772Z",
+                    "valid_from": "2026-10-10T15:37:23.777772Z",
                     "valid_to": null
                   }
                 ],
@@ -31603,7 +31603,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Plex Media Server",
+                "service_definition": "EtherNet/IP",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -34027,19 +34027,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-09T22:16:33.419049Z",
+              "created_at": "2026-10-10T15:37:23.724033Z",
               "first_discovery_id": null,
-              "id": "5c76bf7b-a985-438a-a041-75c59485cb5a",
+              "id": "d988187b-9425-4212-a88a-2935d4f3dd22",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-09T22:16:33.419049Z",
+              "last_seen_at": "2026-10-10T15:37:23.724033Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-09T22:16:33.419049Z",
-              "valid_from": "2026-10-09T22:16:33.419049Z",
+              "updated_at": "2026-10-10T15:37:23.724033Z",
+              "valid_from": "2026-10-10T15:37:23.724033Z",
               "valid_to": null
             }
           ],
@@ -34052,7 +34052,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Plex Media Server",
+          "service_definition": "EtherNet/IP",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -35762,6 +35762,7 @@
       },
       "TopologyLocalOptions": {
         "type": "object",
+        "description": "Viewer settings. All but `hide_edge_types` apply to every view.",
         "properties": {
           "bundle_edges": {
             "type": "boolean",
@@ -35769,14 +35770,42 @@
             "default": true
           },
           "hide_edge_types": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EdgeTypeDiscriminants"
+            "type": "object",
+            "description": "Edge types to leave out of the drawing, per view. A view with no entry hides the edge\ntypes that view hides by default. Unknown edge types and views are dropped on read rather\nthan failing the topology.",
+            "default": {
+              "Application": [
+                "ContainerRuntime"
+              ],
+              "L2Physical": [
+                "SameHost"
+              ],
+              "L3Logical": [
+                "Hypervisor",
+                "SameContainer"
+              ],
+              "Workloads": [
+                "RequestPath",
+                "HubAndSpoke",
+                "PhysicalLink",
+                "NeighborLink"
+              ]
             },
-            "description": "Edge types to leave out of the drawing. Unknown values are dropped on read rather than\nfailing the topology — see [`deserialize_known_edge_types`](crate::server::topology::types::edges::deserialize_known_edge_types).",
-            "default": [
-              "Hypervisor"
-            ]
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/EdgeTypeDiscriminants"
+              }
+            },
+            "propertyNames": {
+              "type": "string",
+              "description": "Which topology view is being rendered",
+              "enum": [
+                "L2Physical",
+                "L3Logical",
+                "Workloads",
+                "Application"
+              ]
+            }
           },
           "no_fade_edges": {
             "type": "boolean",
@@ -35827,7 +35856,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "f084b5f1-6a52-4325-b075-b5e4c7837547",
+                  "id": "49ac6c72-e19b-4ae6-8347-cd2e4cac78b7",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -35837,23 +35866,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "ea48a15b-1ad5-49a4-b0d3-a53ecadff743",
+                  "id": "f032a64e-91d4-4d3d-8117-9cc90d30e3d3",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "f8223735-c3ca-438e-8381-1176d88e989f",
+                  "id": "e337c06b-ecb5-4359-beb2-ab6277264c66",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "ee5227a4-e21c-49b0-93b4-aaddf5a1fe88",
+                  "id": "e988852d-d498-4619-9120-1e66a3f124d6",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "ea48a15b-1ad5-49a4-b0d3-a53ecadff743",
+                  "id": "f032a64e-91d4-4d3d-8117-9cc90d30e3d3",
                   "rule": "ByHost"
                 }
               ]
@@ -35883,19 +35912,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "c4a24dfb-c78d-4ac8-b448-f3245493b809",
+                "id": "8e56cb9d-59f6-4f7d-9769-6db93c050742",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "510d208b-1e6b-4fd7-9132-24534cf87cca",
+                "id": "bd6348e6-f2f4-412f-9362-41d0542882ca",
                 "rule": "ByVLAN"
               },
               {
-                "id": "2dc2e0f0-590a-4948-ab38-e109288b4864",
+                "id": "c26eea5b-7fc2-479b-ab3d-a06a517f4037",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "275b999c-6523-4042-9289-38638f644682",
+                "id": "5e12c90d-010c-4fdc-8d44-45f0efd5fc29",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -35916,7 +35945,7 @@
                 }
               },
               {
-                "id": "91a15c9d-3733-4a53-a050-63a599cd0c42",
+                "id": "a995731b-ddf8-4d31-9fbb-b568fc10fee4",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -35925,15 +35954,15 @@
                 }
               },
               {
-                "id": "effdd14e-bbc9-41e9-be00-9f5e091867a1",
+                "id": "a412d532-a803-471e-8567-bd9de8942773",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "16964f8c-e22f-4949-bd84-3e160d2b79eb",
+                "id": "07ab5312-ca0f-4716-8b41-e1c84ebe4188",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "0bf2bf7b-fd37-48e9-ade7-fe29ebb80e3a",
+                "id": "4ad3c4b7-6dd2-4ac2-8a77-e42453a709a8",
                 "rule": "ByStack"
               }
             ]

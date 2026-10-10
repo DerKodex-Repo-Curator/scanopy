@@ -34,6 +34,7 @@
 		topologyOptions,
 		updateTopologyOptions,
 		hydrateStoresFromTopology,
+		updateHiddenEdgeTypes,
 		getTopologyParamsFromUrl,
 		pushTopologyParams,
 		showViewSwitcherHint,
@@ -840,15 +841,9 @@
 							: clearMultiSelect}
 						onGroupCreated={() => {
 							clearMultiSelect();
-							updateTopologyOptions((opts) => ({
-								...opts,
-								local: {
-									...opts.local,
-									hide_edge_types: opts.local.hide_edge_types.filter(
-										(e) => !edgeTypes.getMetadata(e).is_dependency_edge
-									)
-								}
-							}));
+							updateHiddenEdgeTypes((hidden) =>
+								hidden.filter((e) => !edgeTypes.getMetadata(e).is_dependency_edge)
+							);
 						}}
 						onDependencyTypeChange={$showDependencyTutorial
 							? () => (tutorialTypeToggled = true)
