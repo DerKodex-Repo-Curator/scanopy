@@ -61,7 +61,6 @@ function filteredL2Bundle(): RenderableTopology {
 				neighbor: { type: 'Interface', id: 'p-far-2' }
 			}
 		],
-		candidates: [],
 		filtered_out: { Interface: { LinkState: 103 } },
 		nodes: [
 			node('p-own-1', 'switch-a'),
@@ -144,7 +143,6 @@ describe('hiding unlinked interfaces in L2', () => {
 			bindings: built.bindings,
 			interfaces: built.interfaces,
 			neighbours: built.neighbours,
-			candidates: built.candidates,
 			filtered_out: built.filtered_out,
 			dependencies: built.dependencies,
 			vlans: built.vlans,

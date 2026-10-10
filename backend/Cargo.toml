@@ -71,7 +71,9 @@ debug = false
 # === Web Server Framework ===
 axum = "0.8.6"
 tower = "0.4.13" 
-tower-http = { version = "0.5", features = ["fs", "cors", "trace", "set-header"] }
+# `compression-gzip` goes through flate2's default pure-Rust `miniz_oxide` backend, so it adds no
+# C zlib (see the libz-sys note below).
+tower-http = { version = "0.5", features = ["fs", "cors", "trace", "set-header", "compression-gzip"] }
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "net", "time", "fs", "signal", "process"] }
 
 # === Database ===

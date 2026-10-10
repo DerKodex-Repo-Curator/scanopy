@@ -38,3 +38,23 @@ export function useInterfacesByIds(idsGetter: () => string[]) {
 		};
 	});
 }
+
+export type InterfaceNeighbours = components['schemas']['InterfaceNeighbours'];
+
+/**
+ * One interface's resolved adjacencies and the raw LLDP/CDP evidence behind them.
+ *
+ * @param interfaceId - Getter for the interface to read
+ */
+export function useInterfaceNeighboursQuery(interfaceId: () => string) {
+	return createQuery(() => {
+		const id = interfaceId();
+		return {
+			queryKey: [...queryKeys.interfaces.all, 'neighbours', id],
+			queryFn: async (): Promise<InterfaceNeighbours> =>
+				unwrapData(
+					await apiClient.GET('/api/v1/interfaces/{id}/neighbours', { params: { path: { id } } })
+				)
+		};
+	});
+}

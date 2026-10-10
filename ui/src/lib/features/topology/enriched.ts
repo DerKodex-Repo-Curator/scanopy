@@ -29,8 +29,7 @@ import type {
 	IPAddress,
 	Interface,
 	Port,
-	InterfaceNeighborRow,
-	InterfaceNeighborCandidate
+	InterfaceNeighborRow
 } from '$lib/features/hosts/types/base';
 import type { Service } from '$lib/features/services/types/base';
 import type { Subnet } from '$lib/features/subnets/types/base';
@@ -48,8 +47,8 @@ export interface EntityBundle {
 	bindings: Binding[];
 	interfaces: Interface[];
 	/**
-	 * GH #701: resolved adjacencies + their raw evidence, built on request alongside `nodes`/`edges`
-	 * — see `TopologyData.neighbours`/`.candidates`.
+	 * GH #701: resolved adjacencies, built on request alongside `nodes`/`edges` — see
+	 * `TopologyData.neighbours`.
 	 *
 	 * Required, not optional. These were optional "for a caller that never asked for them", and
 	 * that is exactly how the topology tab came to build its bundle without them: the literal
@@ -58,7 +57,6 @@ export interface EntityBundle {
 	 * `entityBundleFrom` rather than by hand.
 	 */
 	neighbours: InterfaceNeighborRow[];
-	candidates: InterfaceNeighborCandidate[];
 	/** Server-side filter drop tally — see `RenderableTopology.filtered_out`. */
 	filtered_out: FilteredOutCounts;
 	dependencies: Dependency[];
@@ -78,7 +76,6 @@ export const EMPTY_ENTITY_BUNDLE: EntityBundle = {
 	bindings: [],
 	interfaces: [],
 	neighbours: [],
-	candidates: [],
 	filtered_out: {},
 	dependencies: [],
 	vlans: [],
@@ -94,13 +91,12 @@ export const EMPTY_ENTITY_BUNDLE: EntityBundle = {
  * real translation is `tags` → `entity_tags`.
  */
 export function entityBundleFrom(data: TopologyData): EntityBundle {
-	const { tags, neighbours, candidates, filtered_out, ...rest } = data;
+	const { tags, neighbours, filtered_out, ...rest } = data;
 	return {
 		...rest,
 		// Absent only on a response from a backend older than the field — `#[serde(default)]`
 		// makes them optional in the generated schema, not in what a current server sends.
 		neighbours: neighbours ?? [],
-		candidates: candidates ?? [],
 		filtered_out: filtered_out ?? {},
 		entity_tags: tags
 	};
@@ -139,12 +135,11 @@ export function toRenderableTopology(
 	const ipAddresses = bundle.ip_addresses.filter((i) => hostIds.has(i.host_id));
 	const ports = bundle.ports.filter((p) => hostIds.has(p.host_id));
 	const interfaces = bundle.interfaces.filter((i) => hostIds.has(i.host_id));
-	// Resolved adjacencies + raw evidence are scoped through the interfaces they belong to, the
-	// same way ports/ip_addresses are scoped through hosts above — neither row carries its own
-	// host or interface array to filter against directly.
+	// Resolved adjacencies are scoped through the interfaces they belong to, the
+	// same way ports/ip_addresses are scoped through hosts above — the row carries
+	// no host id to filter against directly.
 	const interfaceIds = new Set(interfaces.map((i) => i.id));
 	const neighbours = (bundle.neighbours ?? []).filter((n) => interfaceIds.has(n.interface_id));
-	const candidates = (bundle.candidates ?? []).filter((c) => interfaceIds.has(c.base.interface_id));
 	const bindings = bundle.bindings.filter((b) => b.site_id === siteId);
 	// Tags are org-scoped; keep the ones referenced by entities here, plus tags
 	// referenced by grouping rules (ByTag / ByApplication) — those may apply to no
@@ -178,7 +173,6 @@ export function toRenderableTopology(
 		bindings,
 		interfaces,
 		neighbours,
-		candidates,
 		// Site-scoped already: the bundle is fetched per site, so its tally needs no
 		// filtering the way the entity arrays above do.
 		filtered_out: bundle.filtered_out ?? {},

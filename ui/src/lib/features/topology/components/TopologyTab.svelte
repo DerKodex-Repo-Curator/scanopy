@@ -23,6 +23,7 @@
 		useTopologiesQuery,
 		useTopologyDataQuery,
 		markTopologyViewed,
+		loadTopologyData,
 		selectedTopologyId,
 		selectedSiteId,
 		selectedSnapshotId,
@@ -138,6 +139,7 @@
 	const topologyDataQuery = useTopologyDataQuery(
 		() => $selectedSiteId ?? undefined,
 		() => $selectedSnapshotId ?? undefined,
+		() => $activeView,
 		() => isActive
 	);
 
@@ -377,7 +379,7 @@
 			firstTopologyMilestoneTracked = true;
 			const siteId = $selectedSiteId;
 			void (async () => {
-				await markTopologyViewed(siteId);
+				await markTopologyViewed(siteId, get(activeView));
 				void waitForOrgUpdate((o) => o.onboarding.includes('FirstTopologyRebuild'));
 			})();
 		}
@@ -560,9 +562,22 @@
 		clearSelection();
 	}
 
-	// Handle view selection (user-initiated)
-	function handleViewChange(value: string) {
+	// Handle view selection (user-initiated). Each view's bundle is fetched on its own, so load the
+	// next one before switching: the current graph stays on screen in the meantime instead of the
+	// viewer unmounting behind a loading screen. A failed load leaves the current view in place
+	// (the API client has already shown the error).
+	let viewSwitchRequest = 0;
+	async function handleViewChange(value: string) {
 		const view = value as TopologyView;
+		const siteId = $selectedSiteId;
+		const request = ++viewSwitchRequest;
+		try {
+			if (siteId) await loadTopologyData(siteId, $selectedSnapshotId ?? undefined, view);
+		} catch {
+			return;
+		}
+		// A later pick superseded this one while it loaded.
+		if (request !== viewSwitchRequest) return;
 		pushTopologyParams(get(selectedTopologyId), view);
 		activeView.set(view);
 		clearSelection();

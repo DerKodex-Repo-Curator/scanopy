@@ -5,8 +5,7 @@ import type {
 	IPAddress,
 	Interface,
 	Port,
-	InterfaceNeighborRow,
-	InterfaceNeighborCandidate
+	InterfaceNeighborRow
 } from '$lib/features/hosts/types/base';
 import type { Subnet } from '$lib/features/subnets/types/base';
 import type { Dependency } from '$lib/features/dependencies/types/base';
@@ -58,8 +57,6 @@ export interface RenderableTopology extends Topology {
 	interfaces: Interface[];
 	/** GH #701: resolved adjacencies for `interfaces` above — see `InterfaceNeighborRow`. */
 	neighbours: InterfaceNeighborRow[];
-	/** Raw LLDP/CDP evidence behind `neighbours` — see `InterfaceNeighborCandidate`. */
-	candidates: InterfaceNeighborCandidate[];
 	/**
 	 * What the server-side metadata filters removed, by entity type and filter — see
 	 * `TopologyData.filtered_out`. These entities are absent from the arrays above, so this is the

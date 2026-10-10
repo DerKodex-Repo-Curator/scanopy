@@ -2051,6 +2051,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/interfaces/{id}/neighbours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an Interface's neighbours
+         * @description Returns the adjacencies resolved for the interface and the raw LLDP/CDP evidence behind them,
+         *     including records that resolved to nothing.
+         */
+        get: operations["get_interface_neighbours"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invites": {
         parameters: {
             query?: never;
@@ -4860,6 +4881,32 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_InterfaceNeighbours: {
+            /**
+             * @description One interface's resolved adjacencies plus the raw LLDP/CDP evidence behind them, for the
+             *     host editor's per-interface panel. Read on its own so that panel does not load the site's
+             *     whole topology bundle to show one port.
+             */
+            data?: {
+                /** @description Every distinct LLDP/CDP record heard on this interface, resolved or not. */
+                candidates: components["schemas"]["InterfaceNeighborCandidate"][];
+                /** @description Adjacencies resolved for this interface. */
+                neighbours: components["schemas"]["InterfaceNeighborRow"][];
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_Invite: {
             /** @description The result payload. Omitted on failure. */
             data?: components["schemas"]["InviteBase"] & {
@@ -5962,13 +6009,6 @@ export interface components {
                 available_views?: components["schemas"]["TopologyView"][];
                 /** @description Service bindings included in this topology. */
                 bindings: components["schemas"]["Binding"][];
-                /**
-                 * @description Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701) — for the admin/debug
-                 *     unresolved-evidence display and per-adjacency protocol derivation
-                 *     (`TopologyContext::interface_has_lldp_evidence`), neither of which the resolved rows alone
-                 *     can answer (they carry no raw evidence, by design — see `interface_neighbors`).
-                 */
-                candidates?: components["schemas"]["InterfaceNeighborCandidate"][];
                 /** @description Dependencies included in this topology. */
                 dependencies: components["schemas"]["Dependency"][];
                 /** @description Connections between the nodes of the built graph. */
@@ -10496,6 +10536,17 @@ export interface components {
              */
             neighbor_seen_at?: string | null;
         };
+        /**
+         * @description One interface's resolved adjacencies plus the raw LLDP/CDP evidence behind them, for the
+         *     host editor's per-interface panel. Read on its own so that panel does not load the site's
+         *     whole topology bundle to show one port.
+         */
+        InterfaceNeighbours: {
+            /** @description Every distinct LLDP/CDP record heard on this interface, resolved or not. */
+            candidates: components["schemas"]["InterfaceNeighborCandidate"][];
+            /** @description Adjacencies resolved for this interface. */
+            neighbours: components["schemas"]["InterfaceNeighborRow"][];
+        };
         Invite: components["schemas"]["InviteBase"] & {
             /**
              * Format: date-time
@@ -13514,13 +13565,6 @@ export interface components {
             available_views?: components["schemas"]["TopologyView"][];
             /** @description Service bindings included in this topology. */
             bindings: components["schemas"]["Binding"][];
-            /**
-             * @description Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701) — for the admin/debug
-             *     unresolved-evidence display and per-adjacency protocol derivation
-             *     (`TopologyContext::interface_has_lldp_evidence`), neither of which the resolved rows alone
-             *     can answer (they carry no raw evidence, by design — see `interface_neighbors`).
-             */
-            candidates?: components["schemas"]["InterfaceNeighborCandidate"][];
             /** @description Dependencies included in this topology. */
             dependencies: components["schemas"]["Dependency"][];
             /** @description Connections between the nodes of the built graph. */
@@ -19086,6 +19130,47 @@ export interface operations {
             };
         };
     };
+    get_interface_neighbours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description If entry ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved neighbours and raw evidence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_InterfaceNeighbours"];
+                };
+            };
+            /** @description Access denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description If entry not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     get_invites: {
         parameters: {
             query?: never;
@@ -22176,6 +22261,11 @@ export interface operations {
                  *     tabs. One-time per org (guarded below + subscriber dedup).
                  */
                 mark_viewed?: boolean | null;
+                /**
+                 * @description The view to build the graph for. When omitted, the graph of every view is built and
+                 *     returned. The topology tab always sends the view it draws.
+                 */
+                view?: null | components["schemas"]["TopologyView"];
             };
             header?: never;
             path?: never;

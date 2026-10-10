@@ -100,7 +100,7 @@ impl CrudService<Topology> for TopologyService {
     /// Create a topology row.
     ///
     /// The row holds only the user's grouping `options`; the per-view graph is
-    /// built on request from entities + options (see `build_all_view_graphs`),
+    /// built on request from entities + options (see `build_view_graphs`),
     /// so there's nothing to seed here. One live row per site.
     async fn create(
         &self,
@@ -515,15 +515,20 @@ impl TopologyService {
         })
     }
 
-    /// Load the entity set for `(site_id, snapshot_id)` and build the
-    /// per-view graph on request from it + the site's grouping options.
+    /// Load the entity set for `(site_id, snapshot_id)` and build the graph of each of `views`
+    /// on request from it + the site's grouping options.
     /// Single source for the render, export, and share paths now that the graph
     /// is no longer persisted. Snapshots use the site's (live) options —
     /// the same behaviour the former `build_snapshot_topology` had.
+    ///
+    /// Callers that draw or export one view pass only that view: each build costs a full pass
+    /// over the site's entities, and on a large site the graphs of the views nobody looks at
+    /// are most of the response.
     pub async fn get_topology_render_data(
         &self,
         site_id: Uuid,
         snapshot_id: Option<Uuid>,
+        views: &[TopologyView],
     ) -> Result<TopologyData, Error> {
         let options = self.site_topology_options(site_id).await?;
         let mut data = self.get_topology_data(site_id, snapshot_id).await?;
@@ -532,7 +537,7 @@ impl TopologyService {
         // frontend needs its name/color to label the group, so ship it too.
         self.augment_grouping_rule_tags(&mut data, &options).await?;
         Self::apply_server_metadata_filters(&mut data, &options);
-        let (nodes, edges) = self.build_all_view_graphs(&data, &options);
+        let (nodes, edges) = self.build_view_graphs(&data, &options, views);
         data.nodes = nodes;
         data.edges = edges;
         Ok(data)
@@ -659,16 +664,16 @@ impl TopologyService {
             .unwrap_or_default())
     }
 
-    /// Build a node/edge set for every view from a single entity snapshot.
+    /// Build a node/edge set for each of `views` from a single entity snapshot.
     ///
     /// Pure function of `data` + `options` — called on request by the read,
     /// export, and share paths (the graph is no longer persisted). Returns one
-    /// node/edge slice per view so the client can switch views without a
-    /// refetch.
-    pub fn build_all_view_graphs(
+    /// node/edge slice per requested view.
+    pub fn build_view_graphs(
         &self,
         data: &TopologyData,
         options: &TopologyOptions,
+        views: &[TopologyView],
     ) -> (
         HashMap<TopologyView, Vec<Node>>,
         HashMap<TopologyView, Vec<Edge>>,
@@ -681,7 +686,7 @@ impl TopologyService {
         // `TopologyContext` and every builder — and once for all views, not once each.
         let hosts: Vec<Host> = data.hosts.iter().map(|h| h.host.clone()).collect();
 
-        for view in TopologyView::iter() {
+        for &view in views {
             let (nodes, edges) = self.build_graph(BuildGraphParams {
                 hosts: &hosts,
                 ip_addresses: &data.ip_addresses,
@@ -784,7 +789,7 @@ impl TopologyService {
         // so there's no prior graph to carry handles forward from. The
         // handle-preservation pass below is DISABLED — kept (commented) for
         // revival if override persistence is reintroduced. `old_nodes` /
-        // `old_edges` / `old_view` are fed empty by `build_all_view_graphs`.
+        // `old_edges` / `old_view` are fed empty by `build_view_graphs`.
         let _ = (old_nodes, old_edges, old_view);
         /*
         // Skip handle preservation when view has changed — old handles are not meaningful

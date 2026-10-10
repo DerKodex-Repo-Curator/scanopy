@@ -44,7 +44,6 @@ export const TUTORIAL_TOPOLOGY: RenderableTopology = {
 	ip_addresses: [],
 	interfaces: [],
 	neighbours: [],
-	candidates: [],
 	vlans: [],
 	options: {
 		request: { element_rules: [], container_rules: [] },

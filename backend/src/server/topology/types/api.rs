@@ -123,11 +123,13 @@ pub struct TopologyData {
     /// `Interface.neighbor` scalar now that a port can anchor several links.
     #[serde(default)]
     pub neighbours: Vec<InterfaceNeighborRow>,
-    /// Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701) — for the admin/debug
-    /// unresolved-evidence display and per-adjacency protocol derivation
-    /// (`TopologyContext::interface_has_lldp_evidence`), neither of which the resolved rows alone
-    /// can answer (they carry no raw evidence, by design — see `interface_neighbors`).
-    #[serde(default)]
+    /// Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701), for per-adjacency protocol
+    /// derivation (`TopologyContext::interface_has_lldp_evidence`), which the resolved rows alone
+    /// cannot answer (they carry no raw evidence, by design — see `interface_neighbors`).
+    ///
+    /// Server-side only: no topology view reads it, so it never goes over the wire. The host
+    /// editor reads one interface's evidence from `GET /interfaces/{id}/neighbours`.
+    #[serde(skip)]
     pub candidates: Vec<InterfaceNeighborCandidate>,
     /// Services included in this topology.
     pub services: Vec<Service>,

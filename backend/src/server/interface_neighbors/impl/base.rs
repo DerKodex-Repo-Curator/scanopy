@@ -526,3 +526,14 @@ impl From<&InterfaceNeighborHost> for InterfaceNeighborRow {
         }
     }
 }
+
+/// One interface's resolved adjacencies plus the raw LLDP/CDP evidence behind them, for the
+/// host editor's per-interface panel. Read on its own so that panel does not load the site's
+/// whole topology bundle to show one port.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct InterfaceNeighbours {
+    /// Adjacencies resolved for this interface.
+    pub neighbours: Vec<InterfaceNeighborRow>,
+    /// Every distinct LLDP/CDP record heard on this interface, resolved or not.
+    pub candidates: Vec<InterfaceNeighborCandidate>,
+}

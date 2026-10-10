@@ -6,6 +6,7 @@
 
 import { QueryClient } from '@tanstack/svelte-query';
 import { ApiError, RequestTimeoutError } from './client';
+import type { components } from './schema';
 
 /**
  * Create a QueryClient with application-specific defaults
@@ -165,8 +166,11 @@ export const queryKeys = {
 	topology: {
 		all: ['topology'] as const,
 		detail: (id: string) => [...queryKeys.topology.all, 'detail', id] as const,
-		data: (siteId: string, snapshotId: string | undefined) =>
-			[...queryKeys.topology.all, 'data', siteId, snapshotId ?? null] as const
+		data: (
+			siteId: string,
+			snapshotId: string | undefined,
+			view: components['schemas']['TopologyView']
+		) => [...queryKeys.topology.all, 'data', siteId, snapshotId ?? null, view] as const
 	},
 	snapshots: {
 		all: ['snapshots'] as const,

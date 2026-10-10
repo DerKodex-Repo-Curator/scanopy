@@ -7131,6 +7131,68 @@
         ]
       }
     },
+    "/api/v1/interfaces/{id}/neighbours": {
+      "get": {
+        "tags": [
+          "Interfaces"
+        ],
+        "summary": "Get an Interface's neighbours",
+        "description": "Returns the adjacencies resolved for the interface and the raw LLDP/CDP evidence behind them,\nincluding records that resolved to nothing.",
+        "operationId": "get_interface_neighbours",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "If entry ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved neighbours and raw evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_InterfaceNeighbours"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "If entry not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v1/invites": {
       "get": {
         "tags": [
@@ -16219,6 +16281,55 @@
           }
         }
       },
+      "ApiResponse_InterfaceNeighbours": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "One interface's resolved adjacencies plus the raw LLDP/CDP evidence behind them, for the\nhost editor's per-interface panel. Read on its own so that panel does not load the site's\nwhole topology bundle to show one port.",
+            "required": [
+              "neighbours",
+              "candidates"
+            ],
+            "properties": {
+              "candidates": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InterfaceNeighborCandidate"
+                },
+                "description": "Every distinct LLDP/CDP record heard on this interface, resolved or not."
+              },
+              "neighbours": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InterfaceNeighborRow"
+                },
+                "description": "Adjacencies resolved for this interface."
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
       "ApiResponse_Invite": {
         "type": "object",
         "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
@@ -18089,13 +18200,6 @@
                   "$ref": "#/components/schemas/Binding"
                 },
                 "description": "Service bindings included in this topology."
-              },
-              "candidates": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/InterfaceNeighborCandidate"
-                },
-                "description": "Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701) — for the admin/debug\nunresolved-evidence display and per-adjacency protocol derivation\n(`TopologyContext::interface_has_lldp_evidence`), neither of which the resolved rows alone\ncan answer (they carry no raw evidence, by design — see `interface_neighbors`)."
               },
               "dependencies": {
                 "type": "array",
@@ -28581,6 +28685,30 @@
           }
         }
       },
+      "InterfaceNeighbours": {
+        "type": "object",
+        "description": "One interface's resolved adjacencies plus the raw LLDP/CDP evidence behind them, for the\nhost editor's per-interface panel. Read on its own so that panel does not load the site's\nwhole topology bundle to show one port.",
+        "required": [
+          "neighbours",
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterfaceNeighborCandidate"
+            },
+            "description": "Every distinct LLDP/CDP record heard on this interface, resolved or not."
+          },
+          "neighbours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterfaceNeighborRow"
+            },
+            "description": "Adjacencies resolved for this interface."
+          }
+        }
+      },
       "Invite": {
         "allOf": [
           {
@@ -35108,13 +35236,6 @@
               "$ref": "#/components/schemas/Binding"
             },
             "description": "Service bindings included in this topology."
-          },
-          "candidates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/InterfaceNeighborCandidate"
-            },
-            "description": "Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701) — for the admin/debug\nunresolved-evidence display and per-adjacency protocol derivation\n(`TopologyContext::interface_has_lldp_evidence`), neither of which the resolved rows alone\ncan answer (they carry no raw evidence, by design — see `interface_neighbors`)."
           },
           "dependencies": {
             "type": "array",

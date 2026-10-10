@@ -482,7 +482,7 @@ async fn get_share_topology(
     // Build the per-view graph on request from current entities + the site's
     // grouping options (the graph is no longer persisted).
     let data = service
-        .get_topology_render_data(site_id, None)
+        .get_topology_render_data(site_id, None, &[body.view])
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 

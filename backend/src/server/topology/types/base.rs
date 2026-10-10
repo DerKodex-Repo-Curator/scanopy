@@ -73,7 +73,7 @@ pub struct TopologyBase {
     pub options: TopologyOptions,
     // The per-view node/edge graph is no longer persisted — it's a pure
     // function of entities + `options` and is built on request by the read
-    // path (`build_all_view_graphs`). The row holds only the user's grouping
+    // path (`build_view_graphs`). The row holds only the user's grouping
     // `options`; snapshots build their graph on request from closed copies, so
     // there are no snapshot-pinned topology rows (and no `snapshot_id`).
 }

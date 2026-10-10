@@ -4,7 +4,7 @@
 	import type { Interface, IPAddress } from '$lib/features/hosts/types/base';
 	import { getHostByIdFromCache } from '$lib/features/hosts/queries';
 	import { getSubnetByIdFromCache } from '$lib/features/subnets/queries';
-	import { useTopologyDataQuery } from '$lib/features/topology/queries';
+	import { useInterfaceNeighboursQuery } from '$lib/features/interfaces/queries';
 	import ConfigHeader from '$lib/shared/components/forms/config/ConfigHeader.svelte';
 	import CollapsibleCard from '$lib/shared/components/data/CollapsibleCard.svelte';
 	import InfoRow from '$lib/shared/components/data/InfoRow.svelte';
@@ -47,27 +47,18 @@
 		return getSubnetByIdFromCache(queryClient, linkedIpAddress.subnet_id);
 	});
 
-	// GH #701: neighbour resolution and raw LLDP/CDP evidence both moved off `Interface` onto the
-	// topology bundle (`neighbours`/`candidates` — see `InterfaceNeighborRow`/
-	// `InterfaceNeighborCandidate`). The plain host/interface CRUD responses this modal otherwise
-	// reads from cache no longer carry either, so this admin/debug panel fetches the interface's
-	// site's topology bundle directly. Usually a cache hit: opening this modal from the
-	// Topology tab's own host editor means the same query is already populated.
-	const topologyDataQuery = useTopologyDataQuery(
-		() => iface.site_id,
-		() => undefined
-	);
+	// GH #701: neighbour resolution and raw LLDP/CDP evidence both moved off `Interface` (see
+	// `InterfaceNeighborRow`/`InterfaceNeighborCandidate`). The plain host/interface CRUD responses
+	// this modal otherwise reads from cache carry neither, so this admin/debug panel reads them for
+	// this one interface.
+	const neighboursQuery = useInterfaceNeighboursQuery(() => iface.id);
 
-	let candidates = $derived(
-		(topologyDataQuery.data?.candidates ?? []).filter((c) => c.base.interface_id === iface.id)
-	);
+	let candidates = $derived(neighboursQuery.data?.candidates ?? []);
 
 	// Neighbor resolution — a port can resolve to several adjacencies now, so this is a list rather
 	// than a single optional pair.
 	let neighbours = $derived.by(() => {
-		const rows = (topologyDataQuery.data?.neighbours ?? []).filter(
-			(n) => n.interface_id === iface.id
-		);
+		const rows = neighboursQuery.data?.neighbours ?? [];
 		const allInterfaces = queryClient.getQueryData<Interface[]>(queryKeys.interfaces.all) ?? [];
 		return rows.map((row) => {
 			if (row.neighbor.type === 'Host') {

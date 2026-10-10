@@ -5,9 +5,10 @@ use std::sync::Arc;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
-use crate::server::auth::middleware::permissions::{Authorized, Member};
+use crate::server::auth::middleware::permissions::{Authorized, Member, Viewer};
 use crate::server::config::AppState;
 use crate::server::hosts::r#impl::base::Host;
+use crate::server::interface_neighbors::r#impl::base::InterfaceNeighbours;
 use crate::server::interfaces::r#impl::base::Interface;
 use crate::server::interfaces::service::InterfaceService;
 use crate::server::shared::handlers::query::HostChildQuery;
@@ -46,6 +47,7 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
             generated::delete
         ))
         .routes(routes!(generated::bulk_delete))
+        .routes(routes!(get_interface_neighbours))
 }
 
 /// Validate that if entry's host is on the same site as the entry
@@ -124,4 +126,45 @@ async fn update_interface(
         .await
         .map_err(|e| ApiError::bad_request(&e.to_string()))?;
     update_handler::<Interface>(State(state), auth, path, ApiJson(interface)).await
+}
+
+/// Get an Interface's neighbours
+///
+/// Returns the adjacencies resolved for the interface and the raw LLDP/CDP evidence behind them,
+/// including records that resolved to nothing.
+#[utoipa::path(
+    get,
+    path = "/{id}/neighbours",
+    tag = Interface::ENTITY_NAME_PLURAL,
+    params(("id" = Uuid, Path, description = "If entry ID")),
+    responses(
+        (status = 200, description = "Resolved neighbours and raw evidence", body = ApiResponse<InterfaceNeighbours>),
+        (status = 403, description = "Access denied", body = ApiErrorResponse),
+        (status = 404, description = "If entry not found", body = ApiErrorResponse),
+    ),
+    security(("user_api_key" = []), ("session" = []))
+)]
+async fn get_interface_neighbours(
+    State(state): State<Arc<AppState>>,
+    auth: Authorized<Viewer>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<ApiResponse<InterfaceNeighbours>>> {
+    let interface = state
+        .services
+        .interface_service
+        .get_by_id(&id)
+        .await?
+        .ok_or_else(|| ApiError::entity_not_found::<Interface>(id))?;
+    if !auth.site_ids().contains(&interface.base.site_id) {
+        return Err(ApiError::forbidden("You don't have access to this site"));
+    }
+
+    let neighbour_service = &state.services.interface_neighbor_service;
+    let neighbours = neighbour_service.resolved_for_interface(&id).await?;
+    let candidates = neighbour_service.candidates_for_interface(&id).await?;
+
+    Ok(Json(ApiResponse::success(InterfaceNeighbours {
+        neighbours,
+        candidates,
+    })))
 }

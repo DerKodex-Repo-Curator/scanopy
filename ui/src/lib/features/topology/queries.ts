@@ -273,7 +273,8 @@ export function useTopologiesQuery(enabled?: () => boolean) {
  * `snapshot_id = <id>`      → entity set as-of that snapshot's `taken_at`.
  *
  * Single endpoint, single code path. The cache key includes the snapshot id
- * so live vs snapshot data don't collide. The SSE `live_topology_updates_stream`
+ * so live vs snapshot data don't collide, and the view, since the server
+ * builds only the requested view's graph. The SSE `live_topology_updates_stream`
  * consumer invalidates this query on live-view site updates.
  *
  * `enabled` exists so the caller can hold the fetch while the topology tab is
@@ -288,24 +289,59 @@ export function useTopologiesQuery(enabled?: () => boolean) {
 export function useTopologyDataQuery(
 	siteId: () => string | undefined,
 	snapshotId: () => string | undefined,
+	view: () => TopologyView,
 	enabled?: () => boolean
 ) {
 	return createQuery(() => ({
-		queryKey: queryKeys.topology.data(siteId() ?? '', snapshotId()),
+		...topologyDataQueryOptions(siteId() ?? '', snapshotId(), view()),
+		enabled: () => !!siteId() && (enabled?.() ?? true)
+	}));
+}
+
+/**
+ * How long a view's bundle stays cached once nothing reads it.
+ *
+ * Each view's bundle carries the site's whole entity set, so a cached view the user has left
+ * costs as much memory as the one on screen. A minute covers switching back and forth without a
+ * refetch, then lets the copy go.
+ */
+const TOPOLOGY_DATA_GC_MS = 60_000;
+
+/**
+ * The bundle for one view of a site. The server builds only that view's graph, so each view is
+ * its own cache entry.
+ */
+function topologyDataQueryOptions(
+	siteId: string,
+	snapshotId: string | undefined,
+	view: TopologyView
+) {
+	return {
+		queryKey: queryKeys.topology.data(siteId, snapshotId, view),
 		queryFn: async () => {
-			const site_id = siteId();
-			if (!site_id) {
+			if (!siteId) {
 				throw new Error('No site ID provided');
 			}
-			const snapshot_id = snapshotId();
 			return unwrapData(
 				await apiClient.GET('/api/v1/topology/data', {
-					params: { query: { site_id, snapshot_id } }
+					params: { query: { site_id: siteId, snapshot_id: snapshotId, view } }
 				})
 			);
 		},
-		enabled: () => !!siteId() && (enabled?.() ?? true)
-	}));
+		gcTime: TOPOLOGY_DATA_GC_MS
+	};
+}
+
+/**
+ * Load a view's bundle before switching to it, so the current graph stays on screen until the
+ * next one can replace it. Resolves at once when the bundle is already cached and fresh.
+ */
+export function loadTopologyData(
+	siteId: string,
+	snapshotId: string | undefined,
+	view: TopologyView
+) {
+	return queryClient.ensureQueryData(topologyDataQueryOptions(siteId, snapshotId, view));
 }
 
 /**
@@ -315,9 +351,9 @@ export function useTopologyDataQuery(
  * `useTopologyDataQuery` (which never sets the flag) so the milestone only fires from an
  * explicit on-tab view, never from background fetches on other tabs.
  */
-export async function markTopologyViewed(siteId: string): Promise<void> {
+export async function markTopologyViewed(siteId: string, view: TopologyView): Promise<void> {
 	await apiClient.GET('/api/v1/topology/data', {
-		params: { query: { site_id: siteId, mark_viewed: true } }
+		params: { query: { site_id: siteId, mark_viewed: true, view } }
 	});
 }
 
@@ -998,7 +1034,7 @@ class TopologySSEManager extends BaseSSEManager<LiveTopologyUpdate> {
 				const key = query.queryKey as readonly unknown[];
 				if (key[0] !== 'topology') return false;
 				if (key[1] === 'data') {
-					// key shape: ['topology', 'data', siteId, snapshotId | null]
+					// key shape: ['topology', 'data', siteId, snapshotId | null, view]
 					return typeof key[2] === 'string' && siteIds.has(key[2]) && key[3] == null;
 				}
 				return true;
