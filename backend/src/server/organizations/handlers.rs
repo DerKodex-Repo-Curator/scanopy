@@ -611,6 +611,7 @@ async fn reset_organization_data(
 ) -> Result<(), ApiError> {
     use crate::server::credentials::r#impl::base::Credential;
     use crate::server::invites::r#impl::base::Invite;
+    use crate::server::tags::groups::base::TagGroup;
     use crate::server::tags::r#impl::base::Tag;
     use crate::server::user_api_keys::r#impl::base::UserApiKey;
 
@@ -626,6 +627,13 @@ async fn reset_organization_data(
         .tag_service
         .storage()
         .delete_by_filter(StorableFilter::<Tag>::new_from_org_id(organization_id))
+        .await?;
+    // Then the groups those tags were in, system groups included: the caller recreates them.
+    state
+        .services
+        .tag_group_service
+        .storage()
+        .delete_by_filter(StorableFilter::<TagGroup>::new_from_org_id(organization_id))
         .await?;
 
     // 2. Delete sites — CASCADE handles all site-scoped entities

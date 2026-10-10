@@ -76,6 +76,8 @@ export interface RenderableTopology extends Topology {
 	dependencies: Dependency[];
 	vlans: Vlan[];
 	entity_tags: Tag[];
+	/** The organization's Application tag group: its tags place entities in applications. */
+	application_group_id: string | null;
 	name: string;
 }
 

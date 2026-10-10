@@ -44,6 +44,7 @@ export function sanitizeOptionsForApi(options: TopologyOptions): TopologyOptions
 }
 
 type TopologyLocalOptions = components['schemas']['TopologyLocalOptions'];
+type EdgeTypeDiscriminants = components['schemas']['EdgeTypeDiscriminants'];
 
 /** Get the org's use case from the query cache, defaulting to 'other' */
 export function getOrgUseCase(): string {
@@ -139,23 +140,21 @@ export function clearedViewHideSet(
 	return cleared;
 }
 
-/** Default local options for a given view (UI-only, not sent to backend as rules) */
-function getDefaultLocalOptions(view: TopologyView): TopologyLocalOptions {
+/**
+ * Local options for a viewer with no saved preferences: share/embed viewers, and the store
+ * before the first topology hydrates it. Mirrors `TopologyLocalOptions::default` on the backend,
+ * with each view's hidden edge types read from the same view fixture.
+ */
+function defaultLocalOptions(): TopologyLocalOptions {
 	return {
-		hide_edge_types: getDefaultHiddenEdgeTypes(view),
+		hide_edge_types: Object.fromEntries(
+			ALL_VIEWS.map((view) => [view, getDefaultHiddenEdgeTypes(view)])
+		),
 		no_fade_edges: false,
 		bundle_edges: true,
 		tag_filter: { hidden_tag_ids: {} },
 		show_minimap: true
 	};
-}
-
-/** Build default per-view local options */
-function initDefaultLocalOptions(): Record<TopologyView, TopologyLocalOptions> {
-	return Object.fromEntries(ALL_VIEWS.map((p) => [p, getDefaultLocalOptions(p)])) as Record<
-		TopologyView,
-		TopologyLocalOptions
-	>;
 }
 
 /**
@@ -478,15 +477,12 @@ export function pushTopologyParams(topologyId: string | null, view: TopologyView
 	window.history.pushState({}, '', url.toString());
 }
 
-// Single source of truth for topology options.
-// request: backend state (container_rules/hide_service_categories are per-view HashMaps)
-// perViewLocal: UI-only local options per view
-const topologyOptionsStore = writable<{
-	request: components['schemas']['TopologyRequestOptions'];
-	perViewLocal: Record<TopologyView, TopologyLocalOptions>;
-}>({
+// Single source of truth for topology options, saved as one value for every view.
+// Per-view settings are maps keyed by view inside it (request.container_rules,
+// local.hide_edge_types, ...); everything else applies to every view.
+const topologyOptionsStore = writable<TopologyOptions>({
 	request: emptyRequestOptions(),
-	perViewLocal: initDefaultLocalOptions()
+	local: defaultLocalOptions()
 });
 
 // Derived: element rules from the single store (for GroupingRuleEditor)
@@ -494,33 +490,43 @@ export const sharedElementRules = derived(topologyOptionsStore, ($store) => {
 	return ($store.request.element_rules ?? []) as ElementGraphRule[];
 });
 
-// Public derived store: projects the active view's slice of topology options
-export const topologyOptions = derived([topologyOptionsStore, activeView], ([$store, $view]) => ({
-	local: $store.perViewLocal[$view],
+export const topologyOptions = derived(topologyOptionsStore, ($store) => ({
+	local: $store.local,
 	request: {
 		...$store.request
 	}
 }));
 
-// Helper to update the active view's local options or request scalars
+/** Edge types hidden in the active view. */
+export const hiddenEdgeTypes = derived(
+	[topologyOptionsStore, activeView],
+	([$store, $view]) => $store.local.hide_edge_types[$view] ?? []
+);
+
 export function updateTopologyOptions(
 	updater: (current: TopologyOptions) => TopologyOptions
 ): void {
-	const view = get(activeView);
 	topologyOptionsStore.update((store) => {
-		const currentOpts: TopologyOptions = {
-			local: store.perViewLocal[view],
-			request: { ...store.request }
-		};
-		const updated = updater(currentOpts);
-		return {
-			request: { ...updated.request },
-			perViewLocal: {
-				...store.perViewLocal,
-				[view]: updated.local
-			}
-		};
+		const updated = updater({ local: store.local, request: { ...store.request } });
+		return { request: { ...updated.request }, local: updated.local };
 	});
+}
+
+/** Replace the active view's hidden edge types, leaving other views' entries as they are. */
+export function updateHiddenEdgeTypes(
+	updater: (current: EdgeTypeDiscriminants[]) => EdgeTypeDiscriminants[]
+): void {
+	const view = get(activeView);
+	updateTopologyOptions((opts) => ({
+		...opts,
+		local: {
+			...opts.local,
+			hide_edge_types: {
+				...opts.local.hide_edge_types,
+				[view]: updater(opts.local.hide_edge_types[view] ?? [])
+			}
+		}
+	}));
 }
 
 /**
@@ -581,9 +587,8 @@ export function updateSharedElementRules(
  */
 function buildOptionsForApi(): TopologyOptions {
 	const store = get(topologyOptionsStore);
-	const view = get(activeView);
 	return sanitizeOptionsForApi({
-		local: store.perViewLocal[view],
+		local: store.local,
 		request: {
 			...store.request
 		}
@@ -593,7 +598,7 @@ function buildOptionsForApi(): TopologyOptions {
 /**
  * Hydrate stores from a topology's backend-stored options.
  * Called on initial topology selection and SSE updates.
- * SSE updates preserve the user's view and local options for other views.
+ * SSE updates preserve the user's local options.
  */
 let hydrating = false;
 /**
@@ -610,22 +615,15 @@ export function hydrateStoresFromTopology(
 	try {
 		const opts = topology.options;
 
-		// The active view is no longer persisted on the row — it's driven by the
-		// URL (`?view=`) with an L3Logical default (see TopologyTab) for the app,
-		// and by the explicit view prop for shares. Hydration only restores the
-		// view-agnostic request options + the active view's local options.
+		// The active view is not persisted on the row: the URL (`?view=`) drives it in the app,
+		// and the view prop does for shares. Options cover every view, so hydration does not
+		// depend on which view is active and may run before the URL view is applied.
 		if (isInitial) {
-			const request = { ...opts.request };
-
-			// Full hydration: use backend request options + default local options.
-			// When useDefaultLocal is true (share/embed), always use view defaults —
-			// the viewer has no stored preferences and the creator's shouldn't leak.
+			// When useDefaultLocal is true (share/embed), use defaults: the viewer has no
+			// stored preferences and the creator's must not leak.
 			topologyOptionsStore.set({
-				request,
-				perViewLocal: {
-					...initDefaultLocalOptions(),
-					...(useDefaultLocal ? {} : { [get(activeView)]: opts.local })
-				}
+				request: { ...opts.request },
+				local: useDefaultLocal ? defaultLocalOptions() : opts.local
 			});
 		} else {
 			// SSE update or topology switch: update request options, preserve
@@ -634,7 +632,7 @@ export function hydrateStoresFromTopology(
 			// whatever was last sent, which may be stale.
 			topologyOptionsStore.update((current) => ({
 				request: opts.request,
-				perViewLocal: current.perViewLocal
+				local: current.local
 			}));
 		}
 	} finally {
@@ -708,7 +706,7 @@ export function consumePreferredSite(): string | null {
 export function resetTopologyOptions(): void {
 	topologyOptionsStore.set({
 		request: emptyRequestOptions(),
-		perViewLocal: initDefaultLocalOptions()
+		local: defaultLocalOptions()
 	});
 	if (browser) {
 		localStorage.removeItem(EXPANDED_STORAGE_KEY);

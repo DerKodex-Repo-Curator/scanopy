@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { isApplicationTag } from '$lib/features/tags/groups';
+	import { applicationGroupId, isApplicationTag } from '$lib/features/tags/groups';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import { hasDaemon } from '$lib/shared/onboarding/checklist';
@@ -34,6 +34,7 @@
 		topologyOptions,
 		updateTopologyOptions,
 		hydrateStoresFromTopology,
+		updateHiddenEdgeTypes,
 		getTopologyParamsFromUrl,
 		pushTopologyParams,
 		showViewSwitcherHint,
@@ -66,7 +67,7 @@
 		type SimpleOption
 	} from '$lib/shared/components/forms/selection/display/SimpleOptionDisplay';
 	import { trackEvent } from '$lib/shared/utils/analytics';
-	import { useTagsQuery } from '$lib/features/tags/queries';
+	import { useTagGroupsQuery, useTagsQuery } from '$lib/features/tags/queries';
 	import { useActiveSessionsQuery } from '$lib/features/discovery/queries';
 	import { entityBundleFrom, toRenderableTopology } from '$lib/features/topology/enriched';
 	import type { RenderableTopology } from '$lib/features/topology/types/base';
@@ -127,6 +128,7 @@
 	);
 	// Queries - TanStack Query handles deduplication
 	const tagsQuery = useTagsQuery();
+	const tagGroupsQuery = useTagGroupsQuery();
 	useUsersQuery({ enabled: () => canViewUsers });
 	const topologiesQuery = useTopologiesQuery();
 	const sitesQuery = useSitesQuery();
@@ -168,7 +170,10 @@
 	let snapshotsEnabled = $derived(snapshotRetentionDays > 0);
 
 	// Application wizard gate
-	let appTags = $derived((tagsQuery.data ?? []).filter((t) => isApplicationTag(t)));
+	let appTags = $derived.by(() => {
+		const application = applicationGroupId(tagGroupsQuery.data ?? []);
+		return (tagsQuery.data ?? []).filter((t) => isApplicationTag(t, application));
+	});
 	let wizardOpen = $state(false);
 
 	let currentInspectorConfig = $derived(getInspectorConfig($activeView));
@@ -840,15 +845,9 @@
 							: clearMultiSelect}
 						onGroupCreated={() => {
 							clearMultiSelect();
-							updateTopologyOptions((opts) => ({
-								...opts,
-								local: {
-									...opts.local,
-									hide_edge_types: opts.local.hide_edge_types.filter(
-										(e) => !edgeTypes.getMetadata(e).is_dependency_edge
-									)
-								}
-							}));
+							updateHiddenEdgeTypes((hidden) =>
+								hidden.filter((e) => !edgeTypes.getMetadata(e).is_dependency_edge)
+							);
 						}}
 						onDependencyTypeChange={$showDependencyTutorial
 							? () => (tutorialTypeToggled = true)

@@ -10,7 +10,9 @@ use crate::server::snapshots::types::base::Snapshot;
 use crate::server::subnets::r#impl::base::Subnet;
 use crate::server::topology::types::base::Topology;
 use crate::server::vlans::r#impl::base::Vlan;
-use crate::server::{dependencies::r#impl::base::Dependency, tags::r#impl::base::Tag};
+use crate::server::{
+    dependencies::r#impl::base::Dependency, tags::groups::base::TagGroup, tags::r#impl::base::Tag,
+};
 use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter, IntoStaticStr, VariantNames};
 use utoipa::ToSchema;
@@ -85,6 +87,7 @@ pub enum Entity {
 
     // EntityCategory::Platform
     Tag(Tag),
+    TagGroup(TagGroup),
     User(User),
     UserApiKey(UserApiKey),
     Credential(Credential),
@@ -142,6 +145,10 @@ impl Entity {
             Entity::Tag(_) => (
                 <Tag as EntityTrait>::ENTITY_NAME_SINGULAR,
                 <Tag as EntityTrait>::ENTITY_NAME_PLURAL,
+            ),
+            Entity::TagGroup(_) => (
+                <TagGroup as EntityTrait>::ENTITY_NAME_SINGULAR,
+                <TagGroup as EntityTrait>::ENTITY_NAME_PLURAL,
             ),
             Entity::Discovery(_) => (
                 <Discovery as EntityTrait>::ENTITY_NAME_SINGULAR,
@@ -220,6 +227,7 @@ impl Entity {
             Entity::Daemon(_) => <Daemon as EntityTrait>::entity_category(),
             Entity::DaemonApiKey(_) => <DaemonApiKey as EntityTrait>::entity_category(),
             Entity::Tag(_) => <Tag as EntityTrait>::entity_category(),
+            Entity::TagGroup(_) => <TagGroup as EntityTrait>::entity_category(),
             Entity::User(_) => <User as EntityTrait>::entity_category(),
             Entity::UserApiKey(_) => <UserApiKey as EntityTrait>::entity_category(),
             Entity::Credential(_) => <Credential as EntityTrait>::entity_category(),
@@ -272,6 +280,7 @@ impl EntityDiscriminants {
             | EntityDiscriminants::Share
             | EntityDiscriminants::User
             | EntityDiscriminants::Tag
+            | EntityDiscriminants::TagGroup
             | EntityDiscriminants::Port
             | EntityDiscriminants::Binding
             | EntityDiscriminants::IPAddress
@@ -301,6 +310,7 @@ impl EntityDiscriminants {
             | EntityDiscriminants::Invite
             | EntityDiscriminants::Share
             | EntityDiscriminants::Tag
+            | EntityDiscriminants::TagGroup
             | EntityDiscriminants::DaemonApiKey
             | EntityDiscriminants::UserApiKey
             | EntityDiscriminants::Daemon
@@ -325,6 +335,7 @@ impl EntityMetadataProvider for EntityDiscriminants {
             EntityDiscriminants::Invite => Color::Sky,
 
             EntityDiscriminants::Tag => Color::Yellow,
+            EntityDiscriminants::TagGroup => Color::Yellow,
 
             EntityDiscriminants::Daemon => Color::Green,
             EntityDiscriminants::Discovery => Color::Green,
@@ -358,6 +369,7 @@ impl EntityMetadataProvider for EntityDiscriminants {
             EntityDiscriminants::Site => Icon::LandPlot,
             EntityDiscriminants::User => Icon::User,
             EntityDiscriminants::Tag => Icon::Tag,
+            EntityDiscriminants::TagGroup => Icon::Tags,
             EntityDiscriminants::Invite => Icon::UserPlus,
             EntityDiscriminants::Share => Icon::Share2,
             EntityDiscriminants::DaemonApiKey => Icon::Key,
@@ -430,6 +442,7 @@ impl Entity {
             Self::UserApiKey(e) => e.id(),
             Self::User(e) => e.id(),
             Self::Tag(e) => e.id(),
+            Self::TagGroup(e) => e.id(),
             Self::Discovery(e) => e.id(),
             Self::Daemon(e) => e.id(),
             Self::Host(e) => e.id(),
@@ -568,6 +581,12 @@ impl From<Tag> for Entity {
     }
 }
 
+impl From<TagGroup> for Entity {
+    fn from(value: TagGroup) -> Self {
+        Self::TagGroup(value)
+    }
+}
+
 impl From<Credential> for Entity {
     fn from(value: Credential) -> Self {
         Self::Credential(value)
@@ -593,6 +612,7 @@ impl From<EntityDiscriminants> for Entity {
             EntityDiscriminants::Binding => Entity::Binding(Binding::default()),
             EntityDiscriminants::Interface => Entity::Interface(Interface::default()),
             EntityDiscriminants::Tag => Entity::Tag(Tag::default()),
+            EntityDiscriminants::TagGroup => Entity::TagGroup(TagGroup::default()),
             EntityDiscriminants::Site => Entity::Site(Site::default()),
             EntityDiscriminants::Organization => Entity::Organization(Organization::default()),
             EntityDiscriminants::User => Entity::User(User::default()),

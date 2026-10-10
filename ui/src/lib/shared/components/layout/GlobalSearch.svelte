@@ -19,8 +19,13 @@
 	import { navigateToEntity } from '$lib/shared/stores/modal-registry';
 	import { entities } from '$lib/shared/stores/metadata';
 	import type { EntityDiscriminants } from '$lib/api/entities';
-	import { useTagsQuery } from '$lib/features/tags/queries';
-	import { isApplicationTag, tagIcon, tagTooltip } from '$lib/features/tags/groups';
+	import { useTagsQuery, useTagGroupsQuery } from '$lib/features/tags/queries';
+	import {
+		applicationGroupId,
+		isApplicationTag,
+		tagIcon,
+		tagTooltip
+	} from '$lib/features/tags/groups';
 	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
 	import { keyLabel } from '$lib/shared/utils/shortcuts';
 	import {
@@ -86,6 +91,9 @@
 
 	const searchQuery = useGlobalSearch(() => search);
 	const tagsQuery = useTagsQuery();
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+	let applicationGroup = $derived(applicationGroupId(tagGroups));
 
 	let tags = $derived(tagsQuery.data ?? []);
 	let tagsById = $derived(new Map(tags.map((tag) => [tag.id, tag])));
@@ -305,9 +313,9 @@
 								<Tag
 									label={tag.name}
 									color={tag.color}
-									icon={tagIcon(tag)}
-									title={tagTooltip(tag)}
-									isShiny={isApplicationTag(tag)}
+									icon={tagIcon(tag, applicationGroup)}
+									title={tagTooltip(tag, tagGroups)}
+									isShiny={isApplicationTag(tag, applicationGroup)}
 									removable
 									onRemove={() => {
 										applySearch(removeChip({ text: query, tagIds }, tag.id));
@@ -335,8 +343,8 @@
 							<Tag
 								label={tag.name}
 								color={tag.color}
-								icon={tagIcon(tag)}
-								isShiny={isApplicationTag(tag)}
+								icon={tagIcon(tag, applicationGroup)}
+								isShiny={isApplicationTag(tag, applicationGroup)}
 							/>
 							<KbdKey key={keyLabel('Tab')} size="sm" />
 						</button>
@@ -424,9 +432,9 @@
 												<Tag
 													label={tag.name}
 													color={tag.color}
-													icon={tagIcon(tag)}
-													title={tagTooltip(tag)}
-													isShiny={isApplicationTag(tag)}
+													icon={tagIcon(tag, applicationGroup)}
+													title={tagTooltip(tag, tagGroups)}
+													isShiny={isApplicationTag(tag, applicationGroup)}
 													onclick={(event) => {
 														event.stopPropagation();
 														applySearch(addChip({ text: query, tagIds }, tag.id));

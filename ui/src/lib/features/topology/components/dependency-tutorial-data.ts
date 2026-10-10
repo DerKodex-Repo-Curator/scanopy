@@ -39,6 +39,7 @@ export const TUTORIAL_TOPOLOGY: RenderableTopology = {
 	edges: [],
 	dependencies: [],
 	entity_tags: [],
+	application_group_id: null,
 	bindings: [],
 	ports: [],
 	ip_addresses: [],
@@ -49,7 +50,7 @@ export const TUTORIAL_TOPOLOGY: RenderableTopology = {
 	options: {
 		request: { element_rules: [], container_rules: [] },
 		local: {
-			hide_edge_types: [],
+			hide_edge_types: {},
 			edge_color_mode: 'ByType',
 			hide_ports: false,
 			expand_level: 'ContainersExpanded'

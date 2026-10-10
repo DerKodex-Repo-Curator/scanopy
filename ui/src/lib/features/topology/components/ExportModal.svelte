@@ -15,7 +15,7 @@
 		Moon
 	} from 'lucide-svelte';
 	import { pushError, pushSuccess } from '$lib/shared/stores/feedback';
-	import { activeView, topologyOptions } from '../queries';
+	import { activeView, hiddenEdgeTypes } from '../queries';
 	import type { RenderableTopology } from '../types/base';
 	import { escapeXml } from '../diagram-export/xml';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -742,7 +742,7 @@
 						getInternalNode,
 						flowElement,
 						topology,
-						hiddenEdgeTypes: $topologyOptions.local.hide_edge_types,
+						hiddenEdgeTypes: $hiddenEdgeTypes,
 						theme: exportTheme,
 						header: includeHeader ? exportHeader(new Date()) : null
 					});

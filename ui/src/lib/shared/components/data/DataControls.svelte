@@ -65,6 +65,7 @@
 	import ColumnVisibilityMenu from './table/ColumnVisibilityMenu.svelte';
 	import TagCell from './TagCell.svelte';
 	import { tagItems } from '$lib/features/tags/columns';
+	import { tagGroupFields } from '$lib/features/tags/groupFields';
 	import {
 		fieldsToColumns,
 		reconcileColumnState,
@@ -93,6 +94,7 @@
 	import { SearchX, Trash2 } from 'lucide-svelte';
 	import {
 		useTagsQuery,
+		useTagGroupsQuery,
 		useBulkAddTagMutation,
 		useBulkRemoveTagMutation,
 		type EntityDiscriminants
@@ -110,11 +112,12 @@
 
 	let {
 		items = $bindable([]),
-		fields = $bindable([]),
+		fields: tabFields = $bindable([]),
 		storageKey = null,
 		onBulkDelete = null,
 		allowBulkDelete = true,
 		entityType = null,
+		canEditTags = true,
 		getItemTags = null,
 		getItemId,
 		// Server-side pagination (optional)
@@ -159,6 +162,9 @@
 		onBulkDelete?: ((ids: string[]) => Promise<void>) | null;
 		allowBulkDelete?: boolean;
 		entityType?: EntityDiscriminants | null;
+		// Whether the user may add and remove tags here. `entityType` names what the rows are; this
+		// gates editing them.
+		canEditTags?: boolean;
 		getItemTags?: ((item: T) => string[]) | null;
 		getItemId: (item: T) => string;
 		// Server-side pagination: when provided, pagination is server-controlled
@@ -204,6 +210,26 @@
 	// Tags query for filter display
 	const tagsQuery = useTagsQuery();
 	let allTags = $derived(tagsQuery.data ?? []);
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+
+	/**
+	 * The tab's fields, then one per tag group that applies to the rows, built here so every
+	 * taggable table gets them: hidden until shown, and sorted, filtered and grouped like any other
+	 * column.
+	 */
+	let fields = $derived<FieldConfig<T>[]>([
+		...tabFields,
+		...(entityType && getItemTags
+			? tagGroupFields<T>({
+					groups: tagGroups,
+					tags: allTags,
+					entityType,
+					getItemTags,
+					serverPaginated: serverPagination !== null && onPageChange !== null
+				})
+			: [])
+	]);
 
 	// Bulk tag mutations
 	const bulkAddTagMutation = useBulkAddTagMutation();
@@ -380,7 +406,7 @@
 	 * Every taggable entity gets the same editable column in the same place —
 	 * last, next to the actions — instead of each tab remembering to add one, so
 	 * a tab cannot silently end up without it. It is editable only when the
-	 * parent supplied an `entityType`, which is also how it gates permission.
+	 * parent supplied an `entityType` and allows `canEditTags`.
 	 */
 	let tagColumn = $derived(
 		getItemTags ? buildTagColumn<T>(common_tags(), getItemTags, tagsCell) : null
@@ -636,7 +662,7 @@
 
 	function bulkTagAction(description: string, mutate: typeof bulkAddTagMutation) {
 		return (tagId: string) =>
-			runBulkAction(description, selectedIds, entityType !== null, (ids) =>
+			runBulkAction(description, selectedIds, canEditTags && entityType !== null, (ids) =>
 				mutate.mutateAsync({ entity_ids: ids, entity_type: entityType!, tag_id: tagId })
 			);
 	}
@@ -654,7 +680,7 @@
 		return computeCommonTags(selectedItems.map((item) => ({ tags: getItemTags!(item) })));
 	});
 
-	let hasBulkTagging = $derived(entityType !== null && getItemTags !== null);
+	let hasBulkTagging = $derived(canEditTags && entityType !== null && getItemTags !== null);
 
 	let hasActiveFilters = $derived(hasActiveFiltersOf(fields, filterState, staleOnly));
 	let activeFilterCount = $derived(activeFilterCountOf(fields, filterState, staleOnly));
@@ -950,6 +976,7 @@
 				>
 				<TagPickerInline
 					selectedTagIds={commonTags}
+					entityType={entityType ?? undefined}
 					onAdd={handleBulkTagAdd}
 					onRemove={handleBulkTagRemove}
 				/>
@@ -964,11 +991,11 @@
 {#snippet tagsCell(item: T)}
 	{@const ids = getItemTags ? getItemTags(item) : []}
 	<TagCell
-		items={tagItems(ids, allTags)}
+		items={tagItems(ids, allTags, tagGroups)}
 		tagIds={ids}
 		entityId={getItemId(item)}
 		entityType={entityType ?? undefined}
-		editable={Boolean(entityType)}
+		editable={canEditTags && Boolean(entityType)}
 	/>
 {/snippet}
 
@@ -1007,6 +1034,7 @@
 			{staleOnly}
 			{activeGroupField}
 			{allTags}
+			{tagGroups}
 			{getUniqueValues}
 			{filters}
 			onToggleGroup={toggleGroup}

@@ -24,6 +24,7 @@ export const entityToExportPath: Record<EntityDiscriminants, string | null> = {
 	Binding: 'bindings',
 	Dependency: 'dependencies',
 	Tag: 'tags',
+	TagGroup: null,
 	Daemon: 'daemons',
 	Site: 'sites',
 	Share: 'shares',

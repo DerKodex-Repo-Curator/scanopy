@@ -38,7 +38,7 @@ use crate::server::{
     sites::service::SiteService,
     snapshots::service::SnapshotService,
     subnets::service::SubnetService,
-    tags::{entity_tags::EntityTagService, service::TagService},
+    tags::{entity_tags::EntityTagService, groups::service::TagGroupService, service::TagService},
     topology::service::main::TopologyService,
     user_api_keys::service::UserApiKeyService,
     users::service::UserService,
@@ -81,6 +81,7 @@ pub struct ServiceFactory {
     pub logging_service: Arc<LoggingService>,
     pub metrics_service: Arc<MetricsService>,
     pub tag_service: Arc<TagService>,
+    pub tag_group_service: Arc<TagGroupService>,
     pub entity_tag_service: Arc<EntityTagService>,
     pub port_service: Arc<PortService>,
     pub binding_service: Arc<BindingService>,
@@ -133,9 +134,16 @@ impl ServiceFactory {
             .clone();
         let metrics_service = Arc::new(MetricsService::new(prometheus_handle));
 
+        let tag_group_service = Arc::new(TagGroupService::new(
+            storage.tag_groups.clone(),
+            storage.tags.clone(),
+            storage.entity_tags.clone(),
+            event_bus.clone(),
+        ));
         let tag_service = Arc::new(TagService::new(
             storage.tags.clone(),
             storage.entity_tags.clone(),
+            tag_group_service.clone(),
             event_bus.clone(),
         ));
         let entity_tag_service = Arc::new(EntityTagService::new(
@@ -213,13 +221,6 @@ impl ServiceFactory {
             ip_address_service.clone(),
         ));
 
-        let vlan_service = Arc::new(VlanService::new(
-            storage.vlans.clone(),
-            event_bus.clone(),
-            entity_tag_service.clone(),
-            storage.subnet_vlan.clone(),
-        ));
-
         let site_service = Arc::new(SiteService::new(
             storage.sites.clone(),
             subnet_service.clone(),
@@ -254,6 +255,15 @@ impl ServiceFactory {
             event_bus.clone(),
             ip_address_service.clone(),
             interface_neighbor_service.clone(),
+        ));
+
+        // VlanService reads each VLAN's serving interfaces through InterfaceService.
+        let vlan_service = Arc::new(VlanService::new(
+            storage.vlans.clone(),
+            event_bus.clone(),
+            entity_tag_service.clone(),
+            storage.subnet_vlan.clone(),
+            interface_service.clone(),
         ));
 
         let credential_service = Arc::new(CredentialService::new(
@@ -543,6 +553,7 @@ impl ServiceFactory {
             logging_service,
             metrics_service,
             tag_service,
+            tag_group_service,
             entity_tag_service,
             port_service,
             binding_service,
@@ -601,6 +612,7 @@ impl ServiceFactory {
             logging_service,
             metrics_service,
             tag_service,
+            tag_group_service,
             entity_tag_service,
             port_service,
             binding_service,
@@ -634,6 +646,7 @@ impl ServiceFactory {
             .with(logging_service.clone())
             .with(metrics_service.clone())
             .with(tag_service.clone())
+            .with(tag_group_service.clone())
             .with(entity_tag_service.clone())
             .with(port_service.clone())
             .with(binding_service.clone())

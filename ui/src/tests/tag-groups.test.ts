@@ -1,25 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import { groupNames, isSystemGroupName, tagTooltip, withTagAdded } from '$lib/features/tags/groups';
-import { createDefaultTag, type Tag } from '$lib/features/tags/types/base';
+import {
+	compareTagsByGroup,
+	groupNamed,
+	groupsFor,
+	tagAllowedOn,
+	tagTooltip,
+	withTagAdded
+} from '$lib/features/tags/groups';
+import { tagGroupFields, tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
+import {
+	createDefaultTag,
+	createDefaultTagGroup,
+	type Tag,
+	type TagGroup
+} from '$lib/features/tags/types/base';
+import { getFieldKey, isOrderableField } from '$lib/shared/components/data/types';
+import { groupItems } from '$lib/shared/components/data/controls/grouping';
 
-function tag(id: string, tag_group: Tag['tag_group'] = null): Tag {
-	return { ...createDefaultTag('org'), id, name: id, tag_group };
+function group(
+	id: string,
+	group_type: TagGroup['group_type'] = 'Custom',
+	entity_types: TagGroup['entity_types'] = null
+): TagGroup {
+	return { ...createDefaultTagGroup('org'), id, name: id, group_type, entity_types };
 }
 
-const status = (name: string) => tag(name, { type: 'Status' });
-const environment = (name: string) => tag(name, { type: 'Named', name: 'Environment' });
-const application = (name: string) => tag(name, { type: 'Application' });
+const statusGroup = group('Status', 'Status');
+const environmentGroup = group('Environment');
+const applicationGroup = group('Application', 'Application');
+const backupGroup = group('Backup', 'Custom', ['Host']);
+const groups = [applicationGroup, statusGroup, backupGroup, environmentGroup];
+
+function tag(id: string, tagGroup: TagGroup | null = null, position: number | null = null): Tag {
+	return {
+		...createDefaultTag('org'),
+		id,
+		name: id,
+		tag_group_id: tagGroup?.id ?? null,
+		position
+	};
+}
+
+const planned = tag('planned', statusGroup, 1);
+const active = tag('active', statusGroup, 2);
+const decommissioned = tag('decommissioned', statusGroup, 3);
+const production = tag('production', environmentGroup, 1);
+const web = tag('web', applicationGroup, 1);
+const db = tag('db', applicationGroup, 2);
+const nightly = tag('nightly', backupGroup, 1);
+const critical = tag('critical');
+const tags = [decommissioned, planned, active, production, web, db, nightly, critical];
 
 describe('withTagAdded', () => {
-	const tags = [
-		status('planned'),
-		status('decommissioned'),
-		environment('production'),
-		application('web'),
-		application('db'),
-		tag('critical')
-	];
-
 	it('replaces the held tag of the same group and keeps the rest', () => {
 		expect(withTagAdded(['planned', 'production', 'critical'], 'decommissioned', tags)).toEqual([
 			'production',
@@ -41,24 +73,46 @@ describe('withTagAdded', () => {
 	});
 });
 
-describe('groupNames', () => {
-	it('lists each named group once, without the system groups', () => {
-		expect(
-			groupNames([
-				environment('a'),
-				tag('b', { type: 'Named', name: 'Tier' }),
-				environment('c'),
-				application('d'),
-				status('e'),
-				tag('f')
-			])
-		).toEqual(['Environment', 'Tier']);
+describe('entity-type scope', () => {
+	it('offers a limited group only to the types it names', () => {
+		expect(groupsFor(groups, 'Host')).toContain(backupGroup);
+		expect(groupsFor(groups, 'Service')).not.toContain(backupGroup);
+		expect(groupsFor(groups, 'Service')).toContain(statusGroup);
+	});
+
+	it('allows a tag in no group anywhere', () => {
+		expect(tagAllowedOn(critical, groups, 'Vlan')).toBe(true);
+		expect(tagAllowedOn(nightly, groups, 'Vlan')).toBe(false);
+		expect(tagAllowedOn(nightly, groups, 'Host')).toBe(true);
+	});
+});
+
+describe('compareTagsByGroup', () => {
+	it('lists groups in the server order, each group in its own order, ungrouped tags last', () => {
+		expect([...tags].sort(compareTagsByGroup(groups)).map((t) => t.id)).toEqual([
+			'web',
+			'db',
+			'planned',
+			'active',
+			'decommissioned',
+			'nightly',
+			'production',
+			'critical'
+		]);
+	});
+});
+
+describe('groupNamed', () => {
+	it('finds a group by name or by a system group label, in any case', () => {
+		expect(groupNamed(groups, ' environment ')).toBe(environmentGroup);
+		expect(groupNamed(groups, 'STATUS')).toBe(statusGroup);
+		expect(groupNamed(groups, 'Tier')).toBeNull();
 	});
 });
 
 describe('tagTooltip', () => {
 	it('puts the group first and the description under it', () => {
-		const lines = tagTooltip({ ...status('planned'), description: '  Not deployed yet ' }).split(
+		const lines = tagTooltip({ ...planned, description: '  Not deployed yet ' }, groups).split(
 			'\n'
 		);
 		expect(lines).toHaveLength(2);
@@ -66,21 +120,71 @@ describe('tagTooltip', () => {
 		expect(lines[1]).toBe('Not deployed yet');
 	});
 
-	it('shows whichever of the two a tag has', () => {
-		expect(tagTooltip({ ...tag('critical'), description: 'Pages on-call' })).toBe('Pages on-call');
-		expect(tagTooltip(status('planned'))).toContain('Status');
-	});
-
 	it('is empty for a tag with neither, so the chip shows no tooltip', () => {
-		expect(tagTooltip({ ...tag('critical'), description: '   ' })).toBe('');
-		expect(tagTooltip(null)).toBe('');
+		expect(tagTooltip({ ...critical, description: '   ' }, groups)).toBe('');
+		expect(tagTooltip(null, groups)).toBe('');
 	});
 });
 
-describe('isSystemGroupName', () => {
-	it('matches a system group in any case, so the picker never creates a named copy', () => {
-		expect(isSystemGroupName(' status ')).toBe(true);
-		expect(isSystemGroupName('APPLICATION')).toBe(true);
-		expect(isSystemGroupName('Environment')).toBe(false);
+describe('tag group table columns', () => {
+	type Row = { id: string; tags: string[] };
+	const rows: Row[] = [
+		{ id: 'retired', tags: ['decommissioned'] },
+		{ id: 'untagged', tags: [] },
+		{ id: 'new', tags: ['planned', 'production'] },
+		{ id: 'live', tags: ['active'] }
+	];
+	const fieldsFor = (serverPaginated: boolean) =>
+		tagGroupFields<Row>({
+			groups,
+			tags,
+			entityType: 'Service',
+			getItemTags: (row) => row.tags,
+			serverPaginated
+		});
+
+	it('adds one hidden column per group that applies to the entity type', () => {
+		const fields = fieldsFor(false);
+		expect(fields.map((f) => tagGroupIdOf(getFieldKey(f)))).toEqual([
+			'Application',
+			'Status',
+			'Environment'
+		]);
+		expect(fields.every((f) => f.display?.hiddenByDefault)).toBe(true);
+	});
+
+	it("sorts and groups rows in the group's tag order, rows without a tag last", () => {
+		const status = fieldsFor(false)[1];
+		expect([...rows].sort(status.compare!).map((r) => r.id)).toEqual([
+			'new',
+			'live',
+			'retired',
+			'untagged'
+		]);
+		const grouped = groupItems(
+			rows,
+			[status],
+			getFieldKey(status),
+			{ ungrouped: '—', yes: 'yes', no: 'no' },
+			false
+		);
+		expect([...grouped.keys()]).toEqual(['planned', 'active', 'decommissioned', '—']);
+	});
+
+	it('is server-orderable on a server-paged list, keyed the way the server groups', () => {
+		const status = fieldsFor(true)[1];
+		expect(isOrderableField(status)).toBe(true);
+		expect(status.serverFiltered).toBe(true);
+		expect(status.getGroupValue!(rows[2])).toBe('0000000001:planned');
+		expect(status.getGroupValue!(rows[1])).toBeNull();
+	});
+});
+
+describe('tagSetsParam', () => {
+	it('sends one set per filtered group and drops a group with nothing checked', () => {
+		expect(
+			tagSetsParam({ Status: ['planned', 'active'], Environment: [], Backup: ['nightly'] }, tags)
+		).toEqual(['planned,active', 'nightly']);
+		expect(tagSetsParam({ Status: [] }, tags)).toBeUndefined();
 	});
 });

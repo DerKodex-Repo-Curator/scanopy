@@ -17,7 +17,7 @@ import {
 } from '../collapse';
 import { elevateEdgesToContainers } from '../layout/edge-elevation';
 import { containerTypes, views } from '$lib/shared/stores/metadata';
-import { activeView, topologyOptions } from '../queries';
+import { activeView, hiddenEdgeTypes as hiddenEdgeTypesStore, topologyOptions } from '../queries';
 import { tagHiddenNodeIds, hiddenEntityIdsByType } from '../interactions';
 import { changedCardIds } from './execute-layout';
 import { buildTopologyParentIndex } from '../topology-parent-index';
@@ -549,7 +549,7 @@ export function prepareTopologyData(
 
 	const elementToContainer = buildElementToContainer(layoutNodes);
 	const parentIndex = buildTopologyParentIndex(topology.nodes);
-	const hiddenEdgeTypes = get(topologyOptions).local.hide_edge_types ?? [];
+	const hiddenEdgeTypes = get(hiddenEdgeTypesStore);
 
 	// Elevate edges targeting elements inside absorbing containers.
 	// Then drop edges whose endpoints were filtered out so ELK doesn't

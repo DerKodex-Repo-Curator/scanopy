@@ -70,6 +70,8 @@ fn search_type<'a>(
     let items = match entity_type {
         // The caller's own organization is their scope, not something to find.
         E::Organization => async { Ok(empty()) }.boxed(),
+        // A group is found through the Tags page, where its tags are listed with it.
+        E::TagGroup => async { Ok(empty()) }.boxed(),
         E::Invite => listed(&*s.invite_service, scope, query),
         E::Share => listed(&*s.share_service, scope, query),
         E::Site => listed(&*s.site_service, scope, query),

@@ -1053,6 +1053,23 @@ impl TopologyView {
         }
     }
 
+    /// Edge types this view hides until the user turns them on: those active here with
+    /// `default_visibility: Hidden`. Read from [`Self::edge_view_config`], which also feeds the
+    /// view fixture, so the frontend and backend share one definition.
+    pub fn default_hidden_edge_types(&self) -> Vec<EdgeTypeDiscriminants> {
+        EdgeTypeDiscriminants::iter()
+            .filter(|&edge_type| {
+                matches!(
+                    self.edge_view_config(edge_type),
+                    EdgeViewConfig::Active {
+                        default_visibility: EdgeDefaultVisibility::Hidden,
+                        ..
+                    }
+                )
+            })
+            .collect()
+    }
+
     /// Inspector panel configuration for this view
     pub fn inspector_config(&self) -> ViewInspectorConfig {
         match self {

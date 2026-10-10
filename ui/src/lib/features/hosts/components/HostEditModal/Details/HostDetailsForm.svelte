@@ -58,7 +58,7 @@
 			{/snippet}
 		</form.Field>
 
-		<TagPicker bind:selectedTagIds={formData.tags} />
+		<TagPicker entityType="Host" bind:selectedTagIds={formData.tags} />
 	</div>
 
 	{#if isEditing}

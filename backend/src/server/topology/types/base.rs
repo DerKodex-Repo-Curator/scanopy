@@ -170,17 +170,17 @@ impl From<TagFilterWire> for TopologyTagFilter {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, ToSchema)]
+/// Viewer settings. All but `hide_edge_types` apply to every view.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, ToSchema)]
 #[serde(default)]
 pub struct TopologyLocalOptions {
     /// Keep unrelated edges at full opacity when something is selected.
     pub no_fade_edges: bool,
-    /// Edge types to leave out of the drawing. Unknown values are dropped on read rather than
-    /// failing the topology — see [`deserialize_known_edge_types`](crate::server::topology::types::edges::deserialize_known_edge_types).
-    #[serde(
-        deserialize_with = "crate::server::topology::types::edges::deserialize_known_edge_types"
-    )]
-    pub hide_edge_types: Vec<EdgeTypeDiscriminants>,
+    /// Edge types to leave out of the drawing, per view. A view with no entry hides the edge
+    /// types that view hides by default. Unknown edge types and views are dropped on read rather
+    /// than failing the topology.
+    #[serde(deserialize_with = "deserialize_hide_edge_types")]
+    pub hide_edge_types: HashMap<TopologyView, Vec<EdgeTypeDiscriminants>>,
     /// Restrict the view to entities carrying these tags.
     #[serde(default)]
     pub tag_filter: TopologyTagFilter,
@@ -196,11 +196,75 @@ fn default_true() -> bool {
     true
 }
 
+/// Every view's default hidden edge types.
+fn default_hide_edge_types() -> HashMap<TopologyView, Vec<EdgeTypeDiscriminants>> {
+    TopologyView::iter()
+        .map(|view| (view, view.default_hidden_edge_types()))
+        .collect()
+}
+
+/// An edge type list, dropping values that no longer name an edge type.
+#[derive(Deserialize)]
+struct KnownEdgeTypes(
+    #[serde(
+        deserialize_with = "crate::server::topology::types::edges::deserialize_known_edge_types"
+    )]
+    Vec<EdgeTypeDiscriminants>,
+);
+
+/// What a stored `hide_edge_types` may look like: the per-view map, or the single list written
+/// before it. Topology options are JSONB, so rows saved earlier still hold the list.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum HideEdgeTypesWire {
+    PerView(HashMap<String, KnownEdgeTypes>),
+    Flat(KnownEdgeTypes),
+}
+
+/// Read `hide_edge_types` in either stored shape, then give every view without an entry its
+/// default set.
+///
+/// The single list predates per-view storage. The viewer applied it to the view it hydrated
+/// into, which on load was L3 Logical, and drew every other view with its defaults. It is read
+/// into L3 Logical only: copying it into every view would show edges that L2 Physical, Workloads
+/// and Application hide by default.
+fn deserialize_hide_edge_types<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<TopologyView, Vec<EdgeTypeDiscriminants>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let mut stored: HashMap<TopologyView, Vec<EdgeTypeDiscriminants>> =
+        match HideEdgeTypesWire::deserialize(deserializer)? {
+            HideEdgeTypesWire::PerView(by_view) => by_view
+                .into_iter()
+                .filter_map(|(key, KnownEdgeTypes(edge_types))| {
+                    match serde_json::from_value::<TopologyView>(serde_json::Value::String(
+                        key.clone(),
+                    )) {
+                        Ok(view) => Some((view, edge_types)),
+                        Err(_) => {
+                            tracing::warn!(view = %key, "Unrecognized view in hide_edge_types; dropping it");
+                            None
+                        }
+                    }
+                })
+                .collect(),
+            HideEdgeTypesWire::Flat(KnownEdgeTypes(edge_types)) => {
+                HashMap::from([(TopologyView::L3Logical, edge_types)])
+            }
+        };
+    for (view, defaults) in default_hide_edge_types() {
+        stored.entry(view).or_insert(defaults);
+    }
+    Ok(stored)
+}
+
 impl Default for TopologyLocalOptions {
     fn default() -> Self {
         Self {
             no_fade_edges: false,
-            hide_edge_types: vec![EdgeTypeDiscriminants::Hypervisor],
+            hide_edge_types: default_hide_edge_types(),
             tag_filter: TopologyTagFilter::default(),
             show_minimap: true,
             bundle_edges: true,
@@ -529,18 +593,58 @@ mod tests {
         assert!(local.tag_filter.hidden_tag_ids.is_empty());
     }
 
-    /// A saved view that hides an edge type this binary doesn't know still loads, keeping the
-    /// edge types it does know.
+    /// Saved options that hide an edge type or name a view this binary doesn't know still load,
+    /// keeping what it does know.
     #[test]
-    fn an_unknown_hidden_edge_type_is_dropped_not_fatal() {
+    fn an_unknown_hidden_edge_type_or_view_is_dropped_not_fatal() {
         let options: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
-            "hide_edge_types": ["Hypervisor", "SomeFutureEdgeType"]
+            "hide_edge_types": {
+                "L3Logical": ["Hypervisor", "SomeFutureEdgeType"],
+                "SomeFutureView": ["Hypervisor"]
+            }
         }))
-        .expect("an unknown edge type must not fail the options");
+        .expect("an unknown edge type or view must not fail the options");
         assert_eq!(
-            options.hide_edge_types,
+            options.hide_edge_types[&TopologyView::L3Logical],
             vec![EdgeTypeDiscriminants::Hypervisor]
         );
+        assert_eq!(options.hide_edge_types.len(), TopologyView::iter().count());
+    }
+
+    /// The single list stored before per-view entries is what L3 Logical drew on load; every
+    /// other view drew its defaults, and still does.
+    #[test]
+    fn stored_flat_edge_list_reads_into_l3_and_other_views_keep_defaults() {
+        let options: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
+            "hide_edge_types": ["RequestPath"]
+        }))
+        .unwrap();
+        for view in TopologyView::iter() {
+            let expected = if view == TopologyView::L3Logical {
+                vec![EdgeTypeDiscriminants::RequestPath]
+            } else {
+                view.default_hidden_edge_types()
+            };
+            assert_eq!(options.hide_edge_types[&view], expected, "{view:?}");
+        }
+    }
+
+    /// A view with no entry hides its defaults; a view whose entry is an empty list shows every
+    /// edge, because the user turned them all on.
+    #[test]
+    fn missing_view_takes_its_default_and_empty_view_stays_empty() {
+        let options: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
+            "hide_edge_types": { "L3Logical": [] }
+        }))
+        .unwrap();
+        assert!(options.hide_edge_types[&TopologyView::L3Logical].is_empty());
+        for view in TopologyView::iter().filter(|v| *v != TopologyView::L3Logical) {
+            assert_eq!(
+                options.hide_edge_types[&view],
+                view.default_hidden_edge_types(),
+                "{view:?}"
+            );
+        }
     }
 
     /// A stored map that predates a filter must adopt its default, or every existing topology

@@ -13,7 +13,12 @@
 	import { useTopology } from '../../../context';
 	import { getTopologyEditState, getOptionDisabledTooltip } from '../../../state';
 	import { edgeTypes, views } from '$lib/shared/stores/metadata';
-	import { activeView, clearedViewHideSet } from '../../../queries';
+	import {
+		activeView,
+		clearedViewHideSet,
+		hiddenEdgeTypes,
+		updateHiddenEdgeTypes
+	} from '../../../queries';
 	import {
 		coversSeveralEntities,
 		declaredMetadataFilters,
@@ -35,7 +40,8 @@
 	import GroupingRuleEditor from './GroupingRuleEditor.svelte';
 	import ElementSortSelect from './ElementSortSelect.svelte';
 	import EntityFilterHeader from './EntityFilterHeader.svelte';
-	import { useTagsQuery } from '$lib/features/tags/queries';
+	import { useTagGroupsQuery, useTagsQuery } from '$lib/features/tags/queries';
+	import { compareTagsByGroup } from '$lib/features/tags/groups';
 	import {
 		common_all,
 		common_visual,
@@ -108,8 +114,12 @@
 
 	// Tags query — always up-to-date, survives SSE topology overwrites
 	const tagsQuery = useTagsQuery();
-	// Sorted alphabetically so the filter view's tag lists are stable + scannable.
-	let allTags = $derived([...(tagsQuery.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)));
+	const tagGroupsQuery = useTagGroupsQuery();
+	// In group order, each group's tags in its own order, so the filter lists read the way the
+	// tables and pickers do.
+	let allTags = $derived(
+		[...(tagsQuery.data ?? [])].sort(compareTagsByGroup(tagGroupsQuery.data ?? []))
+	);
 
 	// Derive tags that are actually used per entity type
 	let hostTagIds = $derived(new Set(hostsData.flatMap((h) => h.tags)));
@@ -434,38 +444,24 @@
 	}
 
 	function toggleEdgeType(edgeType: string) {
-		updateTopologyOptions((opts) => {
-			const hidden = opts.local.hide_edge_types ?? [];
-
+		updateHiddenEdgeTypes((hidden) => {
 			if (edgeType === DEPENDENCIES_GROUP) {
 				// Toggle all dependency edge types together
 				const allHidden = dependencyEdgeTypeIds.every((id) =>
 					hidden.includes(id as (typeof hidden)[number])
 				);
-				const newHidden = allHidden
+				return allHidden
 					? hidden.filter((e) => !dependencyEdgeTypeIds.includes(e))
 					: [
 							...hidden.filter((e) => !dependencyEdgeTypeIds.includes(e)),
 							...(dependencyEdgeTypeIds as (typeof hidden)[number][])
 						];
-				return {
-					...opts,
-					local: { ...opts.local, hide_edge_types: newHidden }
-				};
 			}
 
 			const idx = hidden.indexOf(edgeType as (typeof hidden)[number]);
-			const newHidden =
-				idx === -1
-					? [...hidden, edgeType as (typeof hidden)[number]]
-					: hidden.filter((e) => e !== edgeType);
-			return {
-				...opts,
-				local: {
-					...opts.local,
-					hide_edge_types: newHidden
-				}
-			};
+			return idx === -1
+				? [...hidden, edgeType as (typeof hidden)[number]]
+				: hidden.filter((e) => e !== edgeType);
 		});
 	}
 
@@ -539,7 +535,7 @@
 	// Map hide_edge_types to filter-group selected values, replacing individual
 	// dependency type IDs with the unified DEPENDENCIES_GROUP sentinel
 	let edgeFilterSelectedValues = $derived.by(() => {
-		const hidden = $topologyOptions.local.hide_edge_types ?? [];
+		const hidden = $hiddenEdgeTypes;
 		const nonDep = hidden.filter((e) => !dependencyEdgeTypeIds.includes(e));
 		const allDepHidden =
 			dependencyEdgeTypeIds.length > 0 &&
@@ -621,16 +617,11 @@
 	function updateValue(def: TopologyFieldDef, newValue: boolean | string | string[]) {
 		values = { ...values, [def.id]: newValue };
 
-		updateTopologyOptions((opts) => {
-			if (def.path === 'local') {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				(opts.local as any)[def.key] = newValue;
-			} else {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				(opts.request as any)[def.key] = newValue;
-			}
-			return opts;
-		});
+		updateTopologyOptions((opts) =>
+			def.path === 'local'
+				? { ...opts, local: { ...opts.local, [def.key]: newValue } }
+				: { ...opts, request: { ...opts.request, [def.key]: newValue } }
+		);
 	}
 </script>
 
@@ -743,6 +734,7 @@
 								onToggle={(id) => onToggleTagForEntity(section.entityType, id)}
 								entityType={section.entityType}
 								hasUntagged={tagBundle.hasUntagged}
+								applicationGroupId={renderableTopology?.application_group_id ?? null}
 							/>
 						{/if}
 						{@render metadataFilterGroups(metadataFilters)}

@@ -128,6 +128,7 @@
 				<form.Field name="tags">
 					{#snippet children(field)}
 						<TagPicker
+							entityType="Vlan"
 							selectedTagIds={field.state.value || []}
 							onChange={(tags) => field.handleChange(tags)}
 						/>

@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use utoipa::IntoParams;
 use uuid::Uuid;
 
+use crate::server::shared::types::api::ApiError;
+
 use crate::server::shared::storage::{filter::StorableFilter, traits::Storable};
 
 // ============================================================================
@@ -418,5 +420,40 @@ impl FilterQueryExtractor for SharesQuery {
             limit: self.limit,
             offset: self.offset,
         }
+    }
+}
+
+/// Parse `tag_sets` query values: each a comma-separated list of tag ids. Blank entries are
+/// skipped.
+pub fn parse_tag_sets(sets: Option<&[String]>) -> Result<Vec<Vec<Uuid>>, ApiError> {
+    sets.unwrap_or_default()
+        .iter()
+        .filter(|set| !set.trim().is_empty())
+        .map(|set| {
+            set.split(',')
+                .map(|id| {
+                    Uuid::parse_str(id.trim()).map_err(|_| {
+                        ApiError::bad_request(&format!("\"{id}\" in tag_sets is not a tag id"))
+                    })
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tag_sets_tests {
+    use super::*;
+
+    #[test]
+    fn each_entry_becomes_one_set_and_a_bad_id_is_refused() {
+        let (a, b, c) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let sets = vec![format!("{a},{b}"), String::new(), c.to_string()];
+        assert_eq!(
+            parse_tag_sets(Some(&sets)).unwrap(),
+            vec![vec![a, b], vec![c]]
+        );
+        assert!(parse_tag_sets(None).unwrap().is_empty());
+        assert!(parse_tag_sets(Some(&["nope".to_string()])).is_err());
     }
 }

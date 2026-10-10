@@ -873,8 +873,16 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
-    /// Filter entities that have ANY of the specified tags.
-    /// Uses a subquery against the entity_tags junction table.
+    /// Filter entities that hold at least one tag of every set in `sets`: each set is one tag
+    /// group's filter, and the groups combine as AND.
+    pub fn has_tags_from_each(self, sets: &[Vec<Uuid>], entity_type: EntityDiscriminants) -> Self {
+        sets.iter()
+            .fold(self, |filter, set| filter.has_any_tags(set, entity_type))
+    }
+
+    /// Filter entities that hold ANY of the specified tags now. Closed and snapshot
+    /// assignments don't count: an entity moved from one Status to another no longer matches
+    /// the first.
     ///
     /// Example SQL: `entities.id IN (SELECT entity_id FROM entity_tags WHERE entity_type = 'Service' AND tag_id IN ($1, $2))`
     pub fn has_any_tags(mut self, tag_ids: &[Uuid], entity_type: EntityDiscriminants) -> Self {
@@ -891,7 +899,8 @@ impl<T: Storable> StorableFilter<T> {
             .collect();
 
         self.conditions.push(format!(
-            "{} IN (SELECT entity_id FROM entity_tags WHERE entity_type = ${} AND tag_id IN ({}))",
+            "{} IN (SELECT entity_id FROM entity_tags WHERE entity_type = ${} AND tag_id IN ({}) \
+             AND valid_to IS NULL AND snapshot_id IS NULL)",
             col,
             entity_type_idx,
             placeholders.join(", ")

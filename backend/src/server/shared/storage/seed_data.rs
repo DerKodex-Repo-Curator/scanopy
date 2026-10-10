@@ -25,7 +25,10 @@ use crate::server::{
         base::{Subnet, SubnetBase},
         types::SubnetType,
     },
-    tags::r#impl::base::{Tag, TagBase, TagGroup, TagIcon},
+    tags::{
+        groups::base::{TagGroup, TagGroupType},
+        r#impl::base::{Tag, TagBase, TagIcon},
+    },
     users::r#impl::base::{User, UserBase},
 };
 
@@ -66,9 +69,9 @@ be found by scanning. Create ip_addresses on this subnet to include them in your
 /// A tag every organization starts with: (name, description, color, icon).
 type StarterTag = (&'static str, &'static str, Color, Icon);
 
-/// The tag groups every organization starts with, by stored group name, each with its tags in
-/// order. "Status" is the system [`TagGroup::Status`]; the others are named groups, a starting
-/// point the organization can rename, extend or empty.
+/// The tag groups every organization starts with, by name, each with its tags in order. "Status"
+/// is the system Status group; the others are custom groups, a starting point the organization can
+/// rename, extend, empty or delete.
 const STARTER_TAG_GROUPS: [(&str, &[StarterTag]); 4] = [
     (
         "Status",
@@ -177,22 +180,44 @@ const STARTER_TAG_GROUPS: [(&str, &[StarterTag]); 4] = [
     ),
 ];
 
-/// The tags every organization starts with, in their groups.
-pub fn create_starter_tags(organization_id: Uuid) -> Vec<Tag> {
+/// The custom groups every organization starts with, besides the system groups.
+pub fn starter_custom_group_names() -> Vec<&'static str> {
     STARTER_TAG_GROUPS
         .iter()
-        .flat_map(|(group, tags)| {
-            tags.iter().map(move |(name, description, color, icon)| {
-                Tag::new(TagBase {
-                    name: name.to_string(),
-                    description: Some(description.to_string()),
-                    color: *color,
-                    organization_id,
-                    tag_group: Some(TagGroup::from_stored_name(group.to_string())),
-                    icon: Some(TagIcon(*icon)),
-                })
-            })
+        .map(|(group, _)| *group)
+        .filter(|group| TagGroupType::system_named(group).is_none())
+        .collect()
+}
+
+/// The tags every organization starts with, each in its group of `groups` and in the starter
+/// order. A starter group missing from `groups` contributes no tags.
+pub fn create_starter_tags(organization_id: Uuid, groups: &[TagGroup]) -> Vec<Tag> {
+    STARTER_TAG_GROUPS
+        .iter()
+        .filter_map(|(group_name, tags)| {
+            let group = groups
+                .iter()
+                .find(|g| match TagGroupType::system_named(group_name) {
+                    Some(system) => g.base.group_type == system,
+                    None => g.base.name.eq_ignore_ascii_case(group_name),
+                })?;
+            Some(
+                tags.iter()
+                    .zip(1..)
+                    .map(move |((name, description, color, icon), position)| {
+                        Tag::new(TagBase {
+                            name: name.to_string(),
+                            description: Some(description.to_string()),
+                            color: *color,
+                            organization_id,
+                            tag_group_id: Some(group.id),
+                            position: Some(position),
+                            icon: Some(TagIcon(*icon)),
+                        })
+                    }),
+            )
         })
+        .flatten()
         .collect()
 }
 

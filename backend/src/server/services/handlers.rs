@@ -3,9 +3,10 @@ use crate::server::hosts::r#impl::base::{Host, host_primary_address_join};
 use crate::server::services::definitions::ServiceDefinitionRegistry;
 use crate::server::services::r#impl::categories::ServiceCategory;
 use crate::server::services::r#impl::patterns::MatchConfidence;
+use crate::server::shared::entities::EntityDiscriminants;
 use crate::server::shared::handlers::ordering::OrderField;
 use crate::server::shared::handlers::query::{
-    FilterQueryExtractor, OrderDirection, PaginationParams,
+    FilterQueryExtractor, OrderDirection, PaginationParams, parse_tag_sets,
 };
 use crate::server::shared::handlers::traits::update_handler;
 use crate::server::shared::services::traits::CrudService;
@@ -146,6 +147,10 @@ pub struct ServiceFilterQuery {
     pub match_confidences: Option<Vec<MatchConfidence>>,
     /// Filter by tag IDs (returns services that have ANY of the specified tags)
     pub tag_ids: Option<Vec<Uuid>>,
+    /// Tag sets the service must hold one tag from each of. Each entry is a comma-separated
+    /// list of tag ids; a service matches when it holds at least one tag of every entry. One
+    /// entry per tag group the list is filtered by.
+    pub tag_sets: Option<Vec<String>>,
     /// Free-text search. Case-insensitive substring match against the service's
     /// name and definition, and against the name of the host it runs on.
     pub search: Option<String>,
@@ -153,6 +158,12 @@ pub struct ServiceFilterQuery {
     pub group_by: Option<ServiceOrderField>,
     /// Secondary ordering field (sorting within groups or standalone sort).
     pub order_by: Option<ServiceOrderField>,
+    /// Group by the tag each row holds from this tag group, in the group's tag order. Takes
+    /// the place of `group_by`.
+    pub group_by_tag_group: Option<Uuid>,
+    /// Sort by the position of the tag each row holds from this tag group. Takes the place of
+    /// `order_by`.
+    pub order_by_tag_group: Option<Uuid>,
     /// Direction for order_by field (group_by always uses ASC).
     pub order_direction: Option<OrderDirection>,
     /// Only services exposed on one of these port numbers, over either protocol.
@@ -181,7 +192,12 @@ impl ServiceFilterQuery {
         &self,
         filter: StorableFilter<Service>,
     ) -> (StorableFilter<Service>, String) {
-        crate::server::shared::handlers::ordering::apply_ordering(
+        crate::server::shared::handlers::ordering::TagGroupOrdering {
+            group_by: self.group_by_tag_group,
+            order_by: self.order_by_tag_group,
+        }
+        .apply(
+            EntityDiscriminants::Service,
             self.group_by,
             self.order_by,
             self.order_direction,
@@ -301,6 +317,10 @@ async fn get_all_services(
         ),
         _ => filter,
     };
+    let filter = filter.has_tags_from_each(
+        &parse_tag_sets(query.tag_sets.as_deref())?,
+        EntityDiscriminants::Service,
+    );
 
     // Server-side because the list is paginated: a client-side search would
     // only ever match the page already loaded.
@@ -386,12 +406,19 @@ async fn get_all_services(
     // Grouped lists report each group's full size, not the slice of it that
     // landed on this page. Runs against the same filter — including the JOIN
     // `apply_ordering` just added, which the group expression may reference.
-    let group_counts = match query.group_by {
-        Some(group_field) => Some(
+    let group_sql = match (query.group_by_tag_group, query.group_by) {
+        (Some(_), _) => {
+            Some(crate::server::shared::handlers::ordering::TagGroupOrdering::GROUP_SQL)
+        }
+        (None, Some(group_field)) => Some(group_field.group_sql()),
+        (None, None) => None,
+    };
+    let group_counts = match group_sql {
+        Some(group_sql) => Some(
             state
                 .services
                 .service_service
-                .count_by_group(filter.clone(), group_field.group_sql())
+                .count_by_group(filter.clone(), group_sql)
                 .await?,
         ),
         None => None,

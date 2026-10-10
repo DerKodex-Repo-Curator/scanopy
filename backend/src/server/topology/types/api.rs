@@ -223,6 +223,11 @@ pub struct TopologyData {
     pub vlans: Vec<Vlan>,
     /// Tags assigned to this entity.
     pub tags: Vec<Tag>,
+    /// The organization's Application tag group. Its tags place entities in applications.
+    /// Shipped here because share and embed viewers can't list tag groups.
+    #[serde(default)]
+    #[schema(required)]
+    pub application_group_id: Option<Uuid>,
     /// Per-view graph built on request from the entities above + grouping
     /// options. Keyed by view so switching the active perspective is a
     /// client-side slice selection.

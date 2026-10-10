@@ -8,6 +8,7 @@ use tower_sessions_sqlx_store::PostgresStore;
 
 use crate::server::dependencies::dependency_members::DependencyMemberStorage;
 use crate::server::tags::entity_tags::EntityTagStorage;
+use crate::server::tags::groups::base::TagGroup;
 use crate::server::user_api_keys::r#impl::site_access::UserApiKeySiteAccessStorage;
 use crate::server::users::UserSiteAccessStorage;
 use crate::server::vlans::r#impl::subnet_vlans::SubnetVlanStorage;
@@ -44,6 +45,7 @@ pub struct StorageFactory {
     pub topologies: Arc<GenericPostgresStorage<Topology>>,
     pub snapshots: Arc<GenericPostgresStorage<Snapshot>>,
     pub tags: Arc<GenericPostgresStorage<Tag>>,
+    pub tag_groups: Arc<GenericPostgresStorage<TagGroup>>,
     pub ports: Arc<GenericPostgresStorage<Port>>,
     pub bindings: Arc<GenericPostgresStorage<Binding>>,
     pub credentials: Arc<GenericPostgresStorage<Credential>>,
@@ -102,6 +104,7 @@ impl StorageFactory {
             topologies: Arc::new(GenericPostgresStorage::new(pool.clone())),
             snapshots: Arc::new(GenericPostgresStorage::new(pool.clone())),
             tags: Arc::new(GenericPostgresStorage::new(pool.clone())),
+            tag_groups: Arc::new(GenericPostgresStorage::new(pool.clone())),
             ports: Arc::new(GenericPostgresStorage::new(pool.clone())),
             bindings: Arc::new(GenericPostgresStorage::new(pool.clone())),
             credentials: Arc::new(GenericPostgresStorage::new(pool.clone())),

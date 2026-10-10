@@ -311,7 +311,8 @@
 			items={userApiKeysData}
 			fields={apiKeyFields}
 			onBulkDelete={isReadOnly ? undefined : handleBulkDelete}
-			entityType={isReadOnly ? undefined : 'UserApiKey'}
+			entityType="UserApiKey"
+			canEditTags={!isReadOnly}
 			getItemTags={getUserApiKeyTags}
 			storageKey="scanopy-user-api-keys-table-state"
 			defaults={tableDefaults}

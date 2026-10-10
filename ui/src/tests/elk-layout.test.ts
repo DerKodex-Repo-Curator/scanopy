@@ -153,7 +153,7 @@ function makeTopology(
 			options: {
 				local: {
 					left_zone_title: '', // Deprecated field, kept for generated type compat
-					hide_edge_types: [],
+					hide_edge_types: {},
 					no_fade_edges: false,
 					hide_resize_handles: false
 				},

@@ -17,7 +17,11 @@ use crate::server::{
     },
     tags::{
         entity_tags::{EntityTagStorage, entities_holding_several},
-        r#impl::base::{Tag, TagGroup},
+        groups::{
+            base::{TagGroup, TagGroupType},
+            service::TagGroupService,
+        },
+        r#impl::base::Tag,
     },
 };
 use anyhow::{Result, anyhow};
@@ -30,6 +34,7 @@ pub struct TagService {
     /// The tags module's own junction storage, read to check a tag group change against existing
     /// assignments.
     entity_tags: Arc<EntityTagStorage>,
+    tag_group_service: Arc<TagGroupService>,
     event_bus: Arc<EventBus>,
 }
 
@@ -58,6 +63,15 @@ impl CrudService<Tag> for TagService {
         None
     }
 
+    /// A tag joins the end of its group.
+    async fn create(&self, mut entity: Tag, authentication: AuthenticatedEntity) -> Result<Tag> {
+        entity.base.position = match self.group_for(&entity).await? {
+            Some(group) => Some(self.tag_group_service.next_position(group.id).await?),
+            None => None,
+        };
+        self.create_base(entity, authentication).await
+    }
+
     /// Tag rename uses per-action close-and-clone (`SnapshotMutator`) instead
     /// of in-place UPDATE: the prior field values are preserved on a closed
     /// historical row with `lineage_id` lineage; the live row keeps its id
@@ -75,10 +89,18 @@ impl CrudService<Tag> for TagService {
             .await?
             .ok_or_else(|| anyhow!("Could not find Tag {}", entity.id))?;
 
-        if entity.base.tag_group != current.base.tag_group
-            && let Some(group) = &entity.base.tag_group
-        {
-            self.refuse_group_already_doubled(entity, group).await?;
+        let group = self.group_for(entity).await?;
+        if entity.base.tag_group_id == current.base.tag_group_id {
+            entity.base.position = current.base.position;
+        } else {
+            entity.base.position = None;
+            if let Some(group) = &group {
+                self.refuse_group_already_doubled(entity, group).await?;
+                self.tag_group_service
+                    .refuse_tag_out_of_scope(entity, group)
+                    .await?;
+                entity.base.position = Some(self.tag_group_service.next_position(group.id).await?);
+            }
         }
 
         let updated = SnapshotMutator::close_and_clone(self, entity.clone()).await?;
@@ -157,13 +179,49 @@ impl TagService {
     pub fn new(
         storage: Arc<GenericPostgresStorage<Tag>>,
         entity_tags: Arc<EntityTagStorage>,
+        tag_group_service: Arc<TagGroupService>,
         event_bus: Arc<EventBus>,
     ) -> Self {
         Self {
             storage,
             entity_tags,
+            tag_group_service,
             event_bus,
         }
+    }
+
+    pub fn tag_group_service(&self) -> &Arc<TagGroupService> {
+        &self.tag_group_service
+    }
+
+    /// The group `tag` names, checked to belong to the tag's organization. An application tag
+    /// draws the application icon, so it can't choose its own.
+    async fn group_for(&self, tag: &Tag) -> Result<Option<TagGroup>> {
+        let Some(group_id) = tag.base.tag_group_id else {
+            return Ok(None);
+        };
+        let group = self
+            .tag_group_service
+            .get_by_id(&group_id)
+            .await?
+            .filter(|g| g.base.organization_id == tag.base.organization_id)
+            .ok_or_else(|| ValidationError::new(format!("Tag group {group_id} not found")))?;
+        if group.base.group_type == TagGroupType::Application && tag.base.icon.is_some() {
+            return Err(ValidationError::new(
+                "Application tags use the application icon and cannot set their own",
+            )
+            .into());
+        }
+        Ok(Some(group))
+    }
+
+    /// The id of the organization's Application group, whose tags drive the application view.
+    pub async fn application_group_id(&self, organization_id: &Uuid) -> Result<Option<Uuid>> {
+        Ok(self
+            .tag_group_service
+            .system_group(organization_id, TagGroupType::Application)
+            .await?
+            .map(|g| g.id))
     }
 
     /// Refuse to move `tag` into `group` while some entity holds both it and another tag of `group`.
@@ -177,7 +235,7 @@ impl TagService {
             .await?;
         let mut group_tag_ids: Vec<Uuid> = siblings
             .iter()
-            .filter(|t| t.id != tag.id && t.base.tag_group.as_ref() == Some(group))
+            .filter(|t| t.id != tag.id && t.in_group(Some(group.id)))
             .map(|t| t.id)
             .collect();
         if group_tag_ids.is_empty() {
@@ -189,8 +247,9 @@ impl TagService {
         match entities_holding_several(&rows, &group_tag_ids) {
             0 => Ok(()),
             count => Err(ValidationError::new(format!(
-                "{count} {} hold more than one tag in the \"{group}\" group. Remove the extra tags first.",
-                if count == 1 { "entity" } else { "entities" }
+                "{count} {} hold more than one tag in the \"{}\" group. Remove the extra tags first.",
+                if count == 1 { "entity" } else { "entities" },
+                group.base.name
             ))
             .into()),
         }

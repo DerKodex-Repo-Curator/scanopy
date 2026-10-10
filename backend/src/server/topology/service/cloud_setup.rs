@@ -27,13 +27,16 @@ use crate::server::{
         services::traits::CrudService,
         storage::{
             filter::StorableFilter,
-            seed_data::{create_remote_subnet, create_starter_tags, create_wan_subnet},
+            seed_data::{
+                create_remote_subnet, create_starter_tags, create_wan_subnet,
+                starter_custom_group_names,
+            },
             traits::Storable,
         },
     },
     sites::r#impl::{Site, SiteBase},
     subnets::{r#impl::base::Subnet, r#impl::types::SubnetType},
-    tags::r#impl::base::Tag,
+    tags::{groups::base::TagGroup, r#impl::base::Tag},
     topology::{
         service::main::TopologyService,
         types::base::{Topology, TopologyBase},
@@ -62,10 +65,14 @@ impl SiteSetupGaps {
     }
 }
 
-/// The starter tags an org lacks, by name. Names compare case-insensitively, so an org
-/// that already made its own "active" tag doesn't get a second one.
-pub(crate) fn missing_starter_tags(organization_id: Uuid, existing_names: &[String]) -> Vec<Tag> {
-    create_starter_tags(organization_id)
+/// The starter tags an org lacks, by name, in its `groups`. Names compare case-insensitively, so
+/// an org that already made its own "active" tag doesn't get a second one.
+pub(crate) fn missing_starter_tags(
+    organization_id: Uuid,
+    groups: &[TagGroup],
+    existing_names: &[String],
+) -> Vec<Tag> {
+    create_starter_tags(organization_id, groups)
         .into_iter()
         .filter(|tag| {
             !existing_names
@@ -128,8 +135,9 @@ impl TopologyService {
         Ok(())
     }
 
-    /// Create whichever of the starter tags the org lacks. A tag the org already has by
-    /// that name is kept as it is, so a person's edits to it survive a repeat run.
+    /// Create whichever of the system groups, starter groups and starter tags the org lacks. A
+    /// group or tag the org already has by that name is kept as it is, so a person's edits to it
+    /// survive a repeat run.
     async fn ensure_starter_tags(
         &self,
         organization_id: Uuid,
@@ -143,7 +151,17 @@ impl TopologyService {
             .map(|tag| tag.base.name)
             .collect();
 
-        for tag in missing_starter_tags(organization_id, &existing) {
+        let groups = self
+            .tag_service
+            .tag_group_service()
+            .ensure_groups(
+                organization_id,
+                &starter_custom_group_names(),
+                authentication.clone(),
+            )
+            .await?;
+
+        for tag in missing_starter_tags(organization_id, &groups, &existing) {
             self.tag_service.create(tag, authentication.clone()).await?;
         }
         Ok(())
@@ -316,53 +334,64 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_new_org_gets_every_starter_tag_in_its_group() {
-        use crate::server::tags::r#impl::base::TagGroup;
+    /// The groups ensure_groups gives a new org: the system groups and the starter custom groups.
+    fn starter_groups(org: Uuid) -> Vec<TagGroup> {
+        use crate::server::tags::groups::base::{TagGroupBase, TagGroupType};
 
+        TagGroupType::system()
+            .map(|t| TagGroupBase::new(org, t.to_string(), t))
+            .chain(
+                starter_custom_group_names()
+                    .into_iter()
+                    .map(|name| TagGroupBase::new(org, name.to_string(), TagGroupType::Custom)),
+            )
+            .map(TagGroup::new)
+            .collect()
+    }
+
+    #[test]
+    fn a_new_org_gets_every_starter_tag_in_its_group_in_order() {
         let org = Uuid::new_v4();
-        let tags = missing_starter_tags(org, &[]);
+        let groups = starter_groups(org);
+        let tags = missing_starter_tags(org, &groups, &[]);
         assert!(
             tags.iter()
                 .all(|t| t.base.organization_id == org && t.base.icon.is_some())
         );
         let group_of = |name: &str| {
-            tags.iter()
-                .find(|t| t.base.name == name)
-                .and_then(|t| t.base.tag_group.clone())
+            let tag = tags.iter().find(|t| t.base.name == name).unwrap();
+            let group = groups
+                .iter()
+                .find(|g| Some(g.id) == tag.base.tag_group_id)
+                .unwrap();
+            (group.base.name.clone(), tag.base.position)
         };
-        assert_eq!(group_of("Active"), Some(TagGroup::Status));
-        for (tag, group) in [
-            ("Production", "Environment"),
-            ("Critical", "Criticality"),
-            ("Third-party", "Management"),
-        ] {
-            assert_eq!(
-                group_of(tag),
-                Some(TagGroup::Named {
-                    name: group.to_string()
-                })
-            );
-        }
+        assert_eq!(group_of("Planned"), ("Status".to_string(), Some(1)));
+        assert_eq!(group_of("Decommissioned"), ("Status".to_string(), Some(4)));
+        assert_eq!(group_of("Production").0, "Environment");
+        assert_eq!(group_of("Critical").0, "Criticality");
+        assert_eq!(group_of("Third-party").0, "Management");
     }
 
     #[test]
     fn a_second_run_creates_nothing() {
         let org = Uuid::new_v4();
-        let existing: Vec<String> = missing_starter_tags(org, &[])
+        let groups = starter_groups(org);
+        let existing: Vec<String> = missing_starter_tags(org, &groups, &[])
             .into_iter()
             .map(|t| t.base.name)
             .collect();
-        assert!(missing_starter_tags(org, &existing).is_empty());
+        assert!(missing_starter_tags(org, &groups, &existing).is_empty());
     }
 
     /// A tag the org made itself under one of these names is kept, never duplicated.
     #[test]
     fn an_existing_tag_of_the_same_name_is_kept() {
         let org = Uuid::new_v4();
-        let all = missing_starter_tags(org, &[]);
+        let groups = starter_groups(org);
+        let all = missing_starter_tags(org, &groups, &[]);
         let taken = all[0].base.name.to_lowercase();
-        let missing = missing_starter_tags(org, &[taken.clone(), "Printers".to_string()]);
+        let missing = missing_starter_tags(org, &groups, &[taken.clone(), "Printers".to_string()]);
         assert_eq!(missing.len(), all.len() - 1);
         assert!(
             missing

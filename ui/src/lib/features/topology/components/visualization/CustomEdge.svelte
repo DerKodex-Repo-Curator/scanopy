@@ -8,7 +8,7 @@
 		getStraightPath,
 		EdgeReconnectAnchor
 	} from '@xyflow/svelte';
-	import { topologyOptions } from '../../queries';
+	import { hiddenEdgeTypes, topologyOptions } from '../../queries';
 	import { useTopology, selectedTopologyId } from '../../context';
 	import { edgeTypes } from '$lib/shared/stores/metadata';
 	import { createColorHelper, type Color } from '$lib/shared/utils/styling';
@@ -139,7 +139,7 @@
 		isEdgeHidden(edgeData, {
 			isPreview,
 			simplified,
-			hiddenEdgeTypes: $topologyOptions.local.hide_edge_types
+			hiddenEdgeTypes: $hiddenEdgeTypes
 		})
 	);
 

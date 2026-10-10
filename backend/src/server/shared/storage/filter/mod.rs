@@ -36,6 +36,7 @@ mod constructors;
 mod filters;
 mod hosts;
 mod inclusion;
+mod interfaces;
 mod lldp;
 mod organization;
 mod subnets;

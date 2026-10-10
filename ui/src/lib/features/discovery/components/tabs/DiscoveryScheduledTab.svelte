@@ -538,7 +538,8 @@
 			storageKey="scanopy-discovery-scans-table-state"
 			defaults={tableDefaults}
 			getItemId={(item) => item.id}
-			entityType={isReadOnly ? undefined : 'Discovery'}
+			entityType="Discovery"
+			canEditTags={!isReadOnly}
 			getItemTags={(item) => item.tags}
 			onCsvExport={handleCsvExport}
 			getActions={discoveryActions}

@@ -553,7 +553,8 @@ mod tests {
                 description: None,
                 color: Color::Yellow,
                 organization_id: Uuid::new_v4(),
-                tag_group: None,
+                tag_group_id: None,
+                position: None,
                 icon: None,
             },
             ..Default::default()

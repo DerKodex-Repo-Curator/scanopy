@@ -154,6 +154,9 @@ export const queryKeys = {
 		all: ['tags'] as const,
 		detail: (id: string) => [...queryKeys.tags.all, 'detail', id] as const
 	},
+	tagGroups: {
+		all: ['tagGroups'] as const
+	},
 	credentials: {
 		all: ['credentials'] as const,
 		detail: (id: string) => [...queryKeys.credentials.all, 'detail', id] as const

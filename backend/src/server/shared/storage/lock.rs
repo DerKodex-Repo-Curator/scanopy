@@ -67,6 +67,8 @@ pub enum LockKey {
     /// Serialize read-modify-writes of one organization row: the billing
     /// event mirror, license key regeneration, and license check-ins.
     Organization(Uuid),
+    /// Serialize creating an organization's tag groups and reordering any group's tags.
+    TagGroups { organization_id: Uuid },
 }
 
 impl LockKey {
@@ -89,6 +91,7 @@ impl LockKey {
             }
             LockKey::ApiKey(id) => format!("api-key:{id}"),
             LockKey::Organization(id) => format!("organization:{id}"),
+            LockKey::TagGroups { organization_id } => format!("tag-groups:{organization_id}"),
         }
     }
 

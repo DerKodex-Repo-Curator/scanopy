@@ -338,6 +338,7 @@
 						<detailsForm.Field name="tags">
 							{#snippet children(field)}
 								<TagPicker
+									entityType="Daemon"
 									label={common_tags()}
 									selectedTagIds={field.state.value || []}
 									onChange={(tags) => field.handleChange(tags)}

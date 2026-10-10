@@ -20,6 +20,7 @@
 	import type { TabProps } from '$lib/shared/types';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import { useDiscoveriesByIds } from '$lib/features/discovery/queries';
+	import { useInterfacesByIds } from '$lib/features/interfaces/queries';
 	import { tagNames } from '$lib/features/tags/columns';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { discoveryRunIds, discoveryRunItems } from '$lib/features/discovery/columns';
@@ -79,11 +80,16 @@
 	const subnetsQuery = useSubnetsQuery();
 	const tagsQuery = useTagsQuery();
 	const discoveryRunsQuery = useDiscoveriesByIds(() => discoveryRunIds(vlansQuery.data ?? []));
+	// The interfaces serving each VLAN, named by the hydrated `interface_ids`.
+	const interfacesQuery = useInterfacesByIds(() => [
+		...new Set((vlansQuery.data ?? []).flatMap((vlan) => vlan.interface_ids ?? []))
+	]);
 
 	// Derived data
 	let vlansData = $derived(vlansQuery.data ?? []);
 	let sitesData = $derived(sitesQuery.data ?? []);
 	let discoveryRunsData = $derived(discoveryRunsQuery.data ?? []);
+	let interfacesData = $derived(interfacesQuery.data ?? []);
 	let tagsData = $derived(tagsQuery.data ?? []);
 	let subnetsById = $derived(
 		new Map((subnetsQuery.data ?? []).filter(isUserManagedSubnet).map((s) => [s.id, s]))
@@ -130,8 +136,15 @@
 		sort: { field: 'vlan_number', direction: 'asc' }
 	};
 
-	// Related entities the registry's VLAN fields read: the subnets a VLAN carries, the site.
-	let lookup = $derived(collectionLookup({ Subnet: [...subnetsById.values()], Site: sitesData }));
+	// Related entities the registry's VLAN fields read: the subnets and interfaces a VLAN
+	// carries, the site.
+	let lookup = $derived(
+		collectionLookup({
+			Subnet: [...subnetsById.values()],
+			Interface: interfacesData,
+			Site: sitesData
+		})
+	);
 
 	// Columns from the entity field registry; this tab adds how each one searches, filters and
 	// sorts. Every VlanOrderField value must be listed.
@@ -184,6 +197,7 @@
 					display: { getItems: (item) => siteItems(item.site_id, sitesData) }
 				},
 				{ key: 'subnet_ids', searchable: true, filterable: true },
+				{ key: 'interface_ids', searchable: true, filterable: true },
 				{
 					// Not in VlanOrderField, so display-only with client-side sorting.
 					key: 'last_seen_at',
@@ -244,7 +258,8 @@
 			fields={vlanFields}
 			storageKey="scanopy-vlans-table-state"
 			defaults={tableDefaults}
-			entityType={isReadOnly ? undefined : 'Vlan'}
+			entityType="Vlan"
+			canEditTags={!isReadOnly}
 			getItemTags={getVlanTags}
 			getItemId={(item) => item.id}
 			onCsvExport={handleCsvExport}

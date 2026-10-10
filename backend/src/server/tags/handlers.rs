@@ -43,7 +43,7 @@ pub enum TagOrderField {
     Name,
     Color,
     UpdatedAt,
-    /// The tag group: "Application" for application tags, the group name for a named group.
+    /// The name of the tag's group.
     TagGroup,
 }
 
@@ -54,7 +54,14 @@ impl OrderField for TagOrderField {
             Self::Name => "tags.name",
             Self::Color => "tags.color",
             Self::UpdatedAt => "tags.updated_at",
-            Self::TagGroup => "tags.tag_group",
+            Self::TagGroup => "tag_groups.name",
+        }
+    }
+
+    fn join_sql(&self) -> Option<&'static str> {
+        match self {
+            Self::TagGroup => Some("LEFT JOIN tag_groups ON tag_groups.id = tags.tag_group_id"),
+            Self::CreatedAt | Self::Name | Self::Color | Self::UpdatedAt => None,
         }
     }
 }
@@ -264,7 +271,12 @@ pub async fn create_tag(
                     .await?;
             }
 
-            if created_tag.is_application()
+            let application_group_id = state
+                .services
+                .tag_service
+                .application_group_id(&organization_id)
+                .await?;
+            if created_tag.in_group(application_group_id)
                 && organization
                     .not_onboarded(&OnboardingOperationDiscriminants::FirstApplicationTagCreated)
             {
@@ -331,6 +343,9 @@ async fn resolve_entity_scope(
             resolve_scope(s.user_api_key_service.as_ref(), entity_id).await
         }
         EntityDiscriminants::Tag => resolve_scope(s.tag_service.as_ref(), entity_id).await,
+        EntityDiscriminants::TagGroup => {
+            resolve_scope(s.tag_group_service.as_ref(), entity_id).await
+        }
         EntityDiscriminants::Organization => {
             resolve_scope(s.organization_service.as_ref(), entity_id).await
         }

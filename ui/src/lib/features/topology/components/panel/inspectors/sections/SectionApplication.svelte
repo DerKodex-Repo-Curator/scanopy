@@ -53,7 +53,9 @@
 	});
 
 	// App tags
-	let appTags = $derived(entityTags.filter((t) => isApplicationTag(t)));
+	let appTags = $derived(
+		entityTags.filter((t) => isApplicationTag(t, topology?.application_group_id))
+	);
 	let appTagIds = $derived(new Set(appTags.map((t) => t.id)));
 
 	// Selected app tags: direct first, then inherited from host

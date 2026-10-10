@@ -51,6 +51,7 @@ use crate::server::snapshots::types::base::Snapshot;
 use crate::server::subnets::handlers::SubnetOrderField;
 use crate::server::subnets::r#impl::base::Subnet;
 use crate::server::subnets::r#impl::nesting::SubnetResponse;
+use crate::server::tags::groups::base::TagGroup;
 use crate::server::tags::handlers::TagOrderField;
 use crate::server::tags::r#impl::base::Tag;
 use crate::server::topology::types::base::Topology;
@@ -320,6 +321,7 @@ Resources are scoped to your **organization** and **site(s)**:
         (name = Credential::ENTITY_NAME_PLURAL, description = Credential::ENTITY_DESCRIPTION),
         (name = Subnet::ENTITY_NAME_PLURAL, description = Subnet::ENTITY_DESCRIPTION),
         (name = Tag::ENTITY_NAME_PLURAL, description = Tag::ENTITY_DESCRIPTION),
+        (name = TagGroup::ENTITY_NAME_PLURAL, description = TagGroup::ENTITY_DESCRIPTION),
         (name = Topology::ENTITY_NAME_PLURAL, description = Topology::ENTITY_DESCRIPTION),
         (name = User::ENTITY_NAME_PLURAL, description = User::ENTITY_DESCRIPTION),
         (name = UserApiKey::ENTITY_NAME_PLURAL, description = UserApiKey::ENTITY_DESCRIPTION),

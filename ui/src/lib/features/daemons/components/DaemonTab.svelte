@@ -552,7 +552,8 @@
 			storageKey="scanopy-daemons-table-state"
 			defaults={tableDefaults}
 			onBulkDelete={isReadOnly ? undefined : handleBulkDelete}
-			entityType={isReadOnly ? undefined : 'Daemon'}
+			entityType="Daemon"
+			canEditTags={!isReadOnly}
 			getItemTags={getDaemonTags}
 			getItemId={(item) => item.id}
 			onCsvExport={handleCsvExport}

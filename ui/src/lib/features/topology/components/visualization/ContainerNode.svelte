@@ -31,7 +31,7 @@
 	import { getFreshnessTag } from '$lib/shared/utils/freshness';
 	import { entities } from '$lib/shared/stores/metadata';
 	import { queryClient, queryKeys } from '$lib/api/query-client';
-	import type { Tag } from '$lib/features/tags/types/base';
+	import type { Tag, TagGroup } from '$lib/features/tags/types/base';
 	import { tagTooltip } from '$lib/features/tags/groups';
 	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
@@ -256,7 +256,9 @@
 		return {
 			label: tag?.name ?? tagId,
 			color: (tag?.color as Color) ?? 'Gray',
-			title: tagTooltip(tag) || undefined
+			title:
+				tagTooltip(tag, queryClient.getQueryData<TagGroup[]>(queryKeys.tagGroups.all) ?? []) ||
+				undefined
 		};
 	}
 

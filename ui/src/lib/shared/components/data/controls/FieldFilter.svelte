@@ -1,9 +1,14 @@
 <script lang="ts" generics="T">
 	import { getFieldKey, type FieldConfig } from '../types';
 	import type { FieldFilter } from './filtering';
-	import type { Tag as TagType } from '$lib/features/tags/types/base';
+	import type { Tag as TagType, TagGroup } from '$lib/features/tags/types/base';
 	import Tag from '../Tag.svelte';
-	import { isApplicationTag, tagIcon, tagTooltip } from '$lib/features/tags/groups';
+	import {
+		applicationGroupId,
+		isApplicationTag,
+		tagIcon,
+		tagTooltip
+	} from '$lib/features/tags/groups';
 	import { scrollFade } from '$lib/shared/utils/scrollFade';
 	import type { Color } from '$lib/shared/utils/styling';
 	import {
@@ -21,6 +26,7 @@
 		field,
 		filter,
 		allTags,
+		tagGroups,
 		/** The parent applies staleness and this field carries the toggle. */
 		showStale,
 		staleOnly,
@@ -33,6 +39,7 @@
 		field: FieldConfig<T>;
 		filter: FieldFilter | undefined;
 		allTags: TagType[];
+		tagGroups: TagGroup[];
 		showStale: boolean;
 		staleOnly: boolean;
 		getUniqueValues: (field: FieldConfig<T>) => string[];
@@ -104,9 +111,9 @@
 						<Tag
 							label={tag.name}
 							color={tag.color as Color}
-							icon={tagIcon(tag)}
-							title={tagTooltip(tag)}
-							isShiny={isApplicationTag(tag)}
+							icon={tagIcon(tag, applicationGroupId(tagGroups))}
+							title={tagTooltip(tag, tagGroups)}
+							isShiny={isApplicationTag(tag, applicationGroupId(tagGroups))}
 						/>
 					</button>
 				{/each}

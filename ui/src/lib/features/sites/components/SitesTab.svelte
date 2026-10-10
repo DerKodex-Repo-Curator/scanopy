@@ -399,7 +399,8 @@
 			items={sitesData}
 			fields={siteFields}
 			onBulkDelete={handleBulkDelete}
-			entityType={allowBulkDelete ? 'Site' : undefined}
+			entityType="Site"
+			canEditTags={allowBulkDelete}
 			getItemTags={getSiteTags}
 			{allowBulkDelete}
 			storageKey="scanopy-sites-table-state"

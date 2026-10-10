@@ -194,6 +194,12 @@ export interface HostQueryOptions {
 	order_direction?: components['schemas']['OrderDirection'];
 	/** Filter by tag IDs (returns hosts that have ANY of the specified tags). */
 	tag_ids?: string[];
+	/** Tag sets a host must hold one tag of each of: one comma-separated id list per tag group. */
+	tag_sets?: string[];
+	/** Group by the tag each host holds from this tag group, in place of `group_by`. */
+	group_by_tag_group?: string;
+	/** Sort by the position of the tag each host holds from this tag group, in place of `order_by`. */
+	order_by_tag_group?: string;
 	/** `true` returns only hosts discovery hasn't observed within their site's
 	 * staleness window; omit for no staleness constraint. */
 	stale?: boolean;
@@ -248,6 +254,9 @@ export function useHostsQuery(optionsOrGetter: HostQueryOptions | (() => HostQue
 								order_by: options.order_by,
 								order_direction: options.order_direction,
 								tag_ids: options.tag_ids,
+								tag_sets: options.tag_sets,
+								group_by_tag_group: options.group_by_tag_group,
+								order_by_tag_group: options.order_by_tag_group,
 								stale: options.stale,
 								search: options.search,
 								at: options.at,

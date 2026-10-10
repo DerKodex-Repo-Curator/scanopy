@@ -19,7 +19,7 @@ use crate::server::shared::events::types::BillingOperation;
 use crate::server::shared::extractors::Query;
 use crate::server::shared::handlers::ordering::OrderField;
 use crate::server::shared::handlers::query::{
-    FilterQueryExtractor, OrderDirection, PaginationParams,
+    FilterQueryExtractor, OrderDirection, PaginationParams, parse_tag_sets,
 };
 use crate::server::shared::handlers::traits::{
     BulkDeleteResponse, bulk_delete_handler, delete_handler,
@@ -224,6 +224,10 @@ pub struct HostFilterQuery {
     pub credential_ids: Option<Vec<Uuid>>,
     /// Filter by tag IDs (returns hosts that have ANY of the specified tags)
     pub tag_ids: Option<Vec<Uuid>>,
+    /// Tag sets the host must hold one tag from each of. Each entry is a comma-separated list
+    /// of tag ids; a host matches when it holds at least one tag of every entry. One entry per
+    /// tag group the list is filtered by.
+    pub tag_sets: Option<Vec<String>>,
     /// Free-text search. Case-insensitive substring match against the host's
     /// name, hostname, sysName, chassis id, serial number, asset tag and
     /// description, and against its IP addresses and the names of services
@@ -237,6 +241,12 @@ pub struct HostFilterQuery {
     pub group_by: Option<HostOrderField>,
     /// Secondary ordering field (sorting within groups or standalone sort).
     pub order_by: Option<HostOrderField>,
+    /// Group by the tag each row holds from this tag group, in the group's tag order. Takes
+    /// the place of `group_by`.
+    pub group_by_tag_group: Option<Uuid>,
+    /// Sort by the position of the tag each row holds from this tag group. Takes the place of
+    /// `order_by`.
+    pub order_by_tag_group: Option<Uuid>,
     /// Direction for order_by field (group_by always uses ASC).
     pub order_direction: Option<OrderDirection>,
     /// Maximum number of results to return (1-1000, default: 50). Use 0 for no limit.
@@ -264,7 +274,12 @@ impl HostFilterQuery {
     /// Build the ORDER BY clause and apply any required JOINs to the filter.
     /// Returns: (modified_filter, order_by_sql)
     pub fn apply_ordering(&self, filter: StorableFilter<Host>) -> (StorableFilter<Host>, String) {
-        crate::server::shared::handlers::ordering::apply_ordering(
+        crate::server::shared::handlers::ordering::TagGroupOrdering {
+            group_by: self.group_by_tag_group,
+            order_by: self.order_by_tag_group,
+        }
+        .apply(
+            EntityDiscriminants::Host,
             self.group_by,
             self.order_by,
             self.order_direction,
@@ -433,6 +448,10 @@ async fn get_all_hosts(
         }
         _ => filter,
     };
+    let filter = filter.has_tags_from_each(
+        &parse_tag_sets(query.tag_sets.as_deref())?,
+        EntityDiscriminants::Host,
+    );
 
     // Server-side because the list is paginated: a client-side search would
     // only ever match the page already loaded.
@@ -463,12 +482,19 @@ async fn get_all_hosts(
     // Grouped lists report each group's full size, not the slice of it that
     // landed on this page. Runs against the same filter — including the JOIN
     // `apply_ordering` just added, which the group expression may reference.
-    let group_counts = match query.group_by {
-        Some(group_field) => Some(
+    let group_sql = match (query.group_by_tag_group, query.group_by) {
+        (Some(_), _) => {
+            Some(crate::server::shared::handlers::ordering::TagGroupOrdering::GROUP_SQL)
+        }
+        (None, Some(group_field)) => Some(group_field.group_sql()),
+        (None, None) => None,
+    };
+    let group_counts = match group_sql {
+        Some(group_sql) => Some(
             state
                 .services
                 .host_service
-                .count_by_group(filter.clone(), group_field.group_sql())
+                .count_by_group(filter.clone(), group_sql)
                 .await?,
         ),
         None => None,
@@ -1448,6 +1474,10 @@ async fn export_hosts_zip(
         }
         _ => filter,
     };
+    let filter = filter.has_tags_from_each(
+        &parse_tag_sets(query.tag_sets.as_deref())?,
+        EntityDiscriminants::Host,
+    );
 
     // Honour the same staleness filter as the list view so an export mirrors
     // exactly what the user was looking at when they triggered it.
