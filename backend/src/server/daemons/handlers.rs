@@ -34,7 +34,9 @@ use crate::server::{
             DaemonStartupRequest, LegacyCapabilities, ServerCapabilities,
         },
         base::{Daemon, DaemonMode},
-        install_artifacts::{InstallCommandType, WINDOWS_MSI_URL},
+        install_artifacts::{
+            InstallCommandType, UpgradeArtifacts, WINDOWS_MSI_URL, build_upgrade_artifacts,
+        },
         version::DaemonVersionPolicy,
     },
     shared::{
@@ -330,6 +332,42 @@ async fn get_install_command(
     Ok(Json(ApiResponse::success(artifacts)))
 }
 
+/// Generate daemon upgrade commands
+///
+/// The steps to replace a daemon's binary and restart it, per OS, plus the docker method. Like the
+/// install command, a pure builder over the daemon record.
+#[utoipa::path(
+    get,
+    path = "/{id}/upgrade-command",
+    tag = Daemon::ENTITY_NAME_PLURAL,
+    operation_id = "get_daemon_upgrade_command",
+    summary = "Generate daemon upgrade commands",
+    params(("id" = Uuid, Path, description = "daemon ID")),
+    responses(
+        (status = 200, description = "Upgrade commands", body = ApiResponse<UpgradeArtifacts>),
+        (status = 404, description = "daemon not found", body = ApiErrorResponse),
+    ),
+    security(("user_api_key" = []), ("session" = []))
+)]
+async fn get_upgrade_command(
+    State(state): State<Arc<AppState>>,
+    auth: Authorized<Viewer>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<ApiResponse<UpgradeArtifacts>>> {
+    let daemon = Daemon::get_service(&state)
+        .get_by_id(&id)
+        .await?
+        .ok_or_else(|| ApiError::entity_not_found::<Daemon>(id))?;
+
+    validate_site_access(
+        Some(daemon.base.site_id),
+        &auth.site_ids(),
+        "get upgrade command",
+    )?;
+
+    Ok(Json(ApiResponse::success(build_upgrade_artifacts(&daemon))))
+}
+
 /// Cache key for the proxied Windows MSI bytes (see [`get_windows_msi`]).
 const WINDOWS_MSI_CACHE_KEY: &str = "windows_msi_bytes";
 
@@ -524,6 +562,7 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
         .routes(routes!(get_all))
         .routes(routes!(get_by_id, update_daemon, delete_daemon))
         .routes(routes!(get_install_command))
+        .routes(routes!(get_upgrade_command))
         .routes(routes!(bulk_delete_daemons))
         .routes(routes!(generated::export_csv))
         .routes(routes!(provision_daemon))

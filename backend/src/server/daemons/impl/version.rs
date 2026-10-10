@@ -203,6 +203,18 @@ pub fn supports_server_provisioned_identity(version: Option<&Version>) -> bool {
     version.is_some_and(|v| v >= &minimum_server_provisioned_identity())
 }
 
+/// Minimum daemon version installed by `scanopy-daemon install`, which registers each daemon as a
+/// slot-named service the `restart` subcommand can find by daemon id. Below this the service was
+/// set up by hand or named after the daemon, so the upgrade command names it the old way.
+pub fn minimum_install_engine() -> Version {
+    Version::new(0, 17, 5)
+}
+
+/// Returns true if the daemon version was installed by the install engine (>= 0.17.5).
+pub fn installed_by_install_engine(version: Option<&Version>) -> bool {
+    version.is_some_and(|v| v >= &minimum_install_engine())
+}
+
 /// Minimum daemon version that understands `DiscoveryType::Rescan`.
 ///
 /// This gate is not cosmetic — it is required for correctness. `DiscoveryType`
@@ -342,6 +354,10 @@ fn capability_floors() -> Vec<(String, Version)> {
         (
             "minimum_targeted_rescan".to_string(),
             minimum_targeted_rescan(),
+        ),
+        (
+            "minimum_install_engine".to_string(),
+            minimum_install_engine(),
         ),
     ];
 

@@ -152,8 +152,19 @@ pub enum DaemonCommand {
     Install(InstallArgs),
     /// Stop and remove the daemon's system service and delete its `config.json`.
     Uninstall(UninstallArgs),
+    /// Restart an installed daemon's system service, e.g. to pick up a newly downloaded binary.
+    Restart(RestartArgs),
     /// List the Scanopy daemons installed on this host, with the selector to use for each.
     List,
+}
+
+/// Flags for `scanopy-daemon restart`.
+#[derive(Args)]
+pub struct RestartArgs {
+    /// Which installed daemon to restart: its daemon id, name, slot, or service id (see
+    /// `scanopy-daemon list`). Optional when the host has only one daemon installed.
+    #[arg(long)]
+    pub instance: Option<String>,
 }
 
 /// Flags for `scanopy-daemon install`: the shared daemon flags plus install-only options.

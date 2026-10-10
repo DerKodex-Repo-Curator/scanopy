@@ -365,3 +365,40 @@ fn ambiguous_target_prompt_names_connected_and_never_connected_installs() {
         lines[0]
     );
 }
+
+#[test]
+fn restart_resolves_a_selector_or_the_only_install() {
+    let installed = [
+        installed_entry(DEFAULT_NAME, Some("edge-01")),
+        installed_entry("scanopy-daemon-2", Some("edge-02")),
+    ];
+    let id = installed[1].daemon_id.unwrap().to_string();
+
+    assert_eq!(
+        restart_target(&installed, Some(&id)).unwrap().slot,
+        "scanopy-daemon-2"
+    );
+    assert_eq!(
+        restart_target(&installed[..1], None).unwrap().slot,
+        DEFAULT_NAME
+    );
+}
+
+#[test]
+fn restart_refuses_to_guess_and_lists_what_is_installed() {
+    let installed = [
+        installed_entry(DEFAULT_NAME, Some("edge-01")),
+        installed_entry("scanopy-daemon-2", Some("edge-02")),
+    ];
+
+    for selector in [Some("edge-99"), None] {
+        let error = restart_target(&installed, selector)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("edge-01") && error.contains("scanopy-daemon-2"),
+            "{selector:?}: {error}"
+        );
+    }
+    assert!(restart_target(&[], None).is_err());
+}

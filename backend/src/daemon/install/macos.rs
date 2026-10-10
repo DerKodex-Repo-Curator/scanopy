@@ -25,14 +25,8 @@ pub fn default_bin_dir() -> PathBuf {
     PathBuf::from("/usr/local/bin")
 }
 
-/// launchd label (reverse-DNS). The default slot keeps the bare label; every other slot is
-/// suffixed with it.
 fn label(spec: &ServiceSpec) -> String {
-    if spec.slot == super::DEFAULT_NAME {
-        "com.scanopy.daemon".to_string()
-    } else {
-        format!("com.scanopy.daemon.{}", spec.slot)
-    }
+    super::launchd_label(&spec.slot)
 }
 
 fn plist_path(spec: &ServiceSpec) -> PathBuf {
@@ -103,6 +97,14 @@ pub fn register_service(spec: &ServiceSpec) -> Result<()> {
         .status();
 
     Ok(())
+}
+
+/// Kill and relaunch the loaded job, so it starts from the binary now on disk.
+pub fn restart_service(spec: &ServiceSpec) -> Result<()> {
+    run(
+        "launchctl",
+        &["kickstart", "-k", &format!("system/{}", label(spec))],
+    )
 }
 
 /// Returns whether a plist was present before removal. `bootout` is best-effort (idempotent).
