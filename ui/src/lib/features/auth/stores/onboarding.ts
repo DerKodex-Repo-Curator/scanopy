@@ -4,7 +4,7 @@ import type { PlanPickerHosting } from '$lib/features/billing/types';
 
 export interface OnboardingState {
 	useCase: UseCase | null;
-	/** Plan-picker tab requested at signup (`?hosting=self_hosted`). */
+	/** Where Scanopy runs, chosen at signup (preselected from `?hosting=`). Opens the plan picker on that tab. */
 	hosting: PlanPickerHosting | null;
 	organizationName: string;
 	site: SiteSetup;
@@ -20,6 +20,22 @@ const STORAGE_KEY = 'scanopy_onboarding';
  */
 export function asksForSite(hosting: PlanPickerHosting | null, cloudDeployment: boolean) {
 	return !(cloudDeployment && hosting === 'self_hosted');
+}
+
+export type OnboardingStep = 'hosting' | 'use_case' | 'setup' | 'register';
+
+/**
+ * The new-org signup steps, in order. A server that sells both cloud and
+ * self-hosted plans asks where Scanopy runs first. A self-hosted license
+ * buyer then skips the use case, which their own server asks for instead.
+ */
+export function onboardingSteps(
+	asksHosting: boolean,
+	hosting: PlanPickerHosting | null
+): OnboardingStep[] {
+	if (!asksHosting) return ['use_case', 'setup', 'register'];
+	if (hosting === 'self_hosted') return ['hosting', 'setup', 'register'];
+	return ['hosting', 'use_case', 'setup', 'register'];
 }
 
 // Fields to persist to localStorage (for billing page autofill)
@@ -102,6 +118,14 @@ function createOnboardingStore() {
 			updateAndPersist((state) => ({
 				...state,
 				hosting
+			})),
+
+		// Once a plan is picked, the signup's hosting choice has done its job.
+		// Clearing it stops it steering a later signup in this browser.
+		clearHosting: () =>
+			updateAndPersist((state) => ({
+				...state,
+				hosting: null
 			})),
 
 		setOrganizationName: (name: string) =>

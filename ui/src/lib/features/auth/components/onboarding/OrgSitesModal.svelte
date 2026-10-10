@@ -11,6 +11,8 @@
 		auth_scanopyLogo,
 		common_continue,
 		common_settingUp,
+		onboarding_licenseOrgHelp,
+		onboarding_licenseOrgTitle,
 		onboarding_visualizeCompany,
 		onboarding_visualizeHomelab,
 		onboarding_visualizeMsp
@@ -21,11 +23,20 @@
 		onClose: () => void;
 		onSubmit: (formData: SetupRequest) => void;
 		useCase?: UseCase | null;
-		/** False for a self-hosted license buyer, who skips the site step. */
-		askSite?: boolean;
+		/** A self-hosted license buyer: the org holds the license, so it skips the
+		 *  site and is described as a license account, not a network to visualize. */
+		licenseSignup?: boolean;
 	}
 
-	let { isOpen = false, onClose, onSubmit, useCase = null, askSite = true }: Props = $props();
+	let {
+		isOpen = false,
+		onClose,
+		onSubmit,
+		useCase = null,
+		licenseSignup = false
+	}: Props = $props();
+
+	let askSite = $derived(!licenseSignup);
 
 	let loading = $state(false);
 
@@ -77,11 +88,13 @@
 	}
 
 	let title = $derived(
-		useCase === 'msp'
-			? onboarding_visualizeMsp()
-			: useCase === 'internal_it'
-				? onboarding_visualizeCompany()
-				: onboarding_visualizeHomelab()
+		licenseSignup
+			? onboarding_licenseOrgTitle()
+			: useCase === 'msp'
+				? onboarding_visualizeMsp()
+				: useCase === 'internal_it'
+					? onboarding_visualizeCompany()
+					: onboarding_visualizeHomelab()
 	);
 </script>
 
@@ -122,7 +135,7 @@
 							id="organizationName"
 							placeholder={useCaseConfig.orgPlaceholder}
 							required={true}
-							helpText={useCaseConfig.orgHelp}
+							helpText={licenseSignup ? onboarding_licenseOrgHelp() : useCaseConfig.orgHelp}
 							{field}
 						/>
 					{/snippet}

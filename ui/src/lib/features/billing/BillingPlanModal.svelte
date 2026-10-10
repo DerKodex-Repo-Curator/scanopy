@@ -23,6 +23,7 @@
 	import { formatDate } from '$lib/shared/utils/formatting';
 	import {
 		errors_billing_air_gapped_plan_change_blocked,
+		billing_planPickerTitle,
 		settings_billing_changePlan
 	} from '$lib/paraglide/messages';
 
@@ -186,6 +187,9 @@
 
 			// Backend decides: new subscriber → checkout URL, existing → plan change message
 			const result = await checkoutMutation.mutateAsync(plan);
+			// The signup's hosting choice has opened the picker on its tab; from here
+			// the org's own plan does that.
+			onboardingStore.clearHosting();
 			if (result?.startsWith('http')) {
 				// First-time checkout: open Stripe in a new tab and close the modal. This
 				// tab converges once the checkout webhook activates the plan.
@@ -224,7 +228,7 @@
 
 <GenericModal
 	{isOpen}
-	title=""
+	title={billing_planPickerTitle()}
 	{name}
 	onClose={dismissible ? () => onClose() : null}
 	size="max"
