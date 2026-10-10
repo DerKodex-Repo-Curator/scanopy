@@ -30,7 +30,6 @@
 		billing_seatUnit,
 		billing_seatUnitPlural,
 		billing_selfHosted,
-		billing_selfHostedNotice,
 		billing_showFeatures,
 		billing_hideFeatures,
 		billing_snapshotRetention,
@@ -444,11 +443,6 @@
 			disabled={selfHostedActive}
 		/>
 	</div>
-	{#if selfHostedActive}
-		<p class="text-secondary shrink-0 px-4 pb-2 text-center text-sm lg:px-6">
-			{billing_selfHostedNotice()}
-		</p>
-	{/if}
 
 	<!-- Scrollable content -->
 	<div class="min-h-0 flex-1 overflow-y-auto">
