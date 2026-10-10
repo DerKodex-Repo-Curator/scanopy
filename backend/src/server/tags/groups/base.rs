@@ -60,7 +60,7 @@ impl TagGroupType {
 /// A limited group names at least one entity type, and only taggable ones. (`None`, every type, is
 /// never passed here.)
 fn validate_entity_types(
-    entity_types: &Vec<EntityDiscriminants>,
+    entity_types: &[EntityDiscriminants],
 ) -> Result<(), validator::ValidationError> {
     if entity_types.is_empty() {
         return Err(validator::ValidationError::new("tag_group_entity_types")

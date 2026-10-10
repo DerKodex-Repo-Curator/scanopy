@@ -2102,6 +2102,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/interfaces/{id}/neighbours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an Interface's neighbours
+         * @description Returns the adjacencies resolved for the interface and the raw LLDP/CDP evidence behind them,
+         *     including records that resolved to nothing.
+         */
+        get: operations["get_interface_neighbours"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invites": {
         parameters: {
             query?: never;
@@ -3687,19 +3708,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-10T16:21:28.122801Z",
+             *       "created_at": "2026-10-10T23:07:25.844617Z",
              *       "first_discovery_id": null,
-             *       "id": "139ae335-00b2-4bce-8d0e-f7e55cf4193f",
+             *       "id": "779728db-4c81-4c80-bdce-466e533d3e99",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-10T16:21:28.122801Z",
+             *       "last_seen_at": "2026-10-10T23:07:25.844617Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-10T16:21:28.122801Z",
-             *       "valid_from": "2026-10-10T16:21:28.122801Z",
+             *       "updated_at": "2026-10-10T23:07:25.844617Z",
+             *       "valid_from": "2026-10-10T23:07:25.844617Z",
              *       "valid_to": null
              *     }
              */
@@ -4552,19 +4573,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-10T16:21:28.095411Z",
+             *               "created_at": "2026-10-10T23:07:25.820457Z",
              *               "first_discovery_id": null,
-             *               "id": "a3a4f3fd-feb4-4a62-90dc-89504f746378",
+             *               "id": "d796b687-eb3f-408a-99f6-9e13a37186c2",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-10T16:21:28.095411Z",
+             *               "last_seen_at": "2026-10-10T23:07:25.820457Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-10T16:21:28.095411Z",
-             *               "valid_from": "2026-10-10T16:21:28.095411Z",
+             *               "updated_at": "2026-10-10T23:07:25.820457Z",
+             *               "valid_from": "2026-10-10T23:07:25.820457Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4577,7 +4598,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "RabbitMQ",
+             *           "service_definition": "Roborock Vacuum",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -4978,6 +4999,32 @@ export interface components {
                  * @description End of the interval this revision was current for. `null` while it is the live revision.
                  */
                 readonly valid_to?: string | null;
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
+        ApiResponse_InterfaceNeighbours: {
+            /**
+             * @description One interface's resolved adjacencies plus the raw LLDP/CDP evidence behind them, for the
+             *     host editor's per-interface panel. Read on its own so that panel does not load the site's
+             *     whole topology bundle to show one port.
+             */
+            data?: {
+                /** @description Every distinct LLDP/CDP record heard on this interface, resolved or not. */
+                candidates: components["schemas"]["InterfaceNeighborCandidate"][];
+                /** @description Adjacencies resolved for this interface. */
+                neighbours: components["schemas"]["InterfaceNeighborRow"][];
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -5481,19 +5528,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-10T16:21:28.117397Z",
+             *           "created_at": "2026-10-10T23:07:25.839996Z",
              *           "first_discovery_id": null,
-             *           "id": "e3d5b3d3-c184-4454-9bc5-940c950923b9",
+             *           "id": "aff7cf92-f7ca-4880-8c90-b509e1b45ef5",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-10T16:21:28.117397Z",
+             *           "last_seen_at": "2026-10-10T23:07:25.839996Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-10T16:21:28.117397Z",
-             *           "valid_from": "2026-10-10T16:21:28.117397Z",
+             *           "updated_at": "2026-10-10T23:07:25.839996Z",
+             *           "valid_from": "2026-10-10T23:07:25.839996Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5506,7 +5553,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "RabbitMQ",
+             *       "service_definition": "Roborock Vacuum",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6125,7 +6172,7 @@ export interface components {
              *     for either the live view (`snapshot_id = None`) or a point-in-time snapshot
              *     (`snapshot_id = Some(id)`). The per-view `nodes`/`edges` are built on request
              *     from these entities + the site's grouping options
-             *     (`build_all_view_graphs`) — they are not persisted. The frontend selects the
+             *     (`build_view_graphs`) — they are not persisted. The frontend selects the
              *     active view's slice client-side.
              */
             data?: {
@@ -6145,13 +6192,6 @@ export interface components {
                 available_views?: components["schemas"]["TopologyView"][];
                 /** @description Service bindings included in this topology. */
                 bindings: components["schemas"]["Binding"][];
-                /**
-                 * @description Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701) — for the admin/debug
-                 *     unresolved-evidence display and per-adjacency protocol derivation
-                 *     (`TopologyContext::interface_has_lldp_evidence`), neither of which the resolved rows alone
-                 *     can answer (they carry no raw evidence, by design — see `interface_neighbors`).
-                 */
-                candidates?: components["schemas"]["InterfaceNeighborCandidate"][];
                 /** @description Dependencies included in this topology. */
                 dependencies: components["schemas"]["Dependency"][];
                 /** @description Connections between the nodes of the built graph. */
@@ -6829,19 +6869,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-10T16:21:28.095913Z",
+         *       "created_at": "2026-10-10T23:07:25.820975Z",
          *       "first_discovery_id": null,
-         *       "id": "20ff50d3-399e-4fe4-9560-ec61db080021",
+         *       "id": "302dd0d6-4dd0-477e-9e14-aa4bcfdfab79",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-10T16:21:28.095913Z",
+         *       "last_seen_at": "2026-10-10T23:07:25.820975Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-10T16:21:28.095913Z",
-         *       "valid_from": "2026-10-10T16:21:28.095913Z",
+         *       "updated_at": "2026-10-10T23:07:25.820975Z",
+         *       "valid_from": "2026-10-10T23:07:25.820975Z",
          *       "valid_to": null
          *     }
          */
@@ -7188,7 +7228,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "RabbitMQ",
+         *           "service_definition": "Roborock Vacuum",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -9893,19 +9933,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-10T16:21:28.094874Z",
+         *               "created_at": "2026-10-10T23:07:25.819957Z",
          *               "first_discovery_id": null,
-         *               "id": "4c255961-b5d0-489c-a9ad-1ec6ff6664f9",
+         *               "id": "01c840f7-1020-4d57-8c6f-cec7544b4df2",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-10T16:21:28.094874Z",
+         *               "last_seen_at": "2026-10-10T23:07:25.819957Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-10T16:21:28.094874Z",
-         *               "valid_from": "2026-10-10T16:21:28.094874Z",
+         *               "updated_at": "2026-10-10T23:07:25.819957Z",
+         *               "valid_from": "2026-10-10T23:07:25.819957Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -9918,7 +9958,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "RabbitMQ",
+         *           "service_definition": "Roborock Vacuum",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10828,6 +10868,17 @@ export interface components {
              *     a time for it.
              */
             neighbor_seen_at?: string | null;
+        };
+        /**
+         * @description One interface's resolved adjacencies plus the raw LLDP/CDP evidence behind them, for the
+         *     host editor's per-interface panel. Read on its own so that panel does not load the site's
+         *     whole topology bundle to show one port.
+         */
+        InterfaceNeighbours: {
+            /** @description Every distinct LLDP/CDP record heard on this interface, resolved or not. */
+            candidates: components["schemas"]["InterfaceNeighborCandidate"][];
+            /** @description Adjacencies resolved for this interface. */
+            neighbours: components["schemas"]["InterfaceNeighborRow"][];
         };
         Invite: components["schemas"]["InviteBase"] & {
             /**
@@ -13059,19 +13110,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-10T16:21:28.095768Z",
+         *           "created_at": "2026-10-10T23:07:25.820830Z",
          *           "first_discovery_id": null,
-         *           "id": "73073b35-549f-4e57-8a2a-317995f1e9f8",
+         *           "id": "b0876195-f54d-4919-9c75-b1cf14536e90",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-10T16:21:28.095768Z",
+         *           "last_seen_at": "2026-10-10T23:07:25.820830Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-10T16:21:28.095768Z",
-         *           "valid_from": "2026-10-10T16:21:28.095768Z",
+         *           "updated_at": "2026-10-10T23:07:25.820830Z",
+         *           "valid_from": "2026-10-10T23:07:25.820830Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13084,7 +13135,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "RabbitMQ",
+         *       "service_definition": "Roborock Vacuum",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13892,7 +13943,7 @@ export interface components {
          *     for either the live view (`snapshot_id = None`) or a point-in-time snapshot
          *     (`snapshot_id = Some(id)`). The per-view `nodes`/`edges` are built on request
          *     from these entities + the site's grouping options
-         *     (`build_all_view_graphs`) — they are not persisted. The frontend selects the
+         *     (`build_view_graphs`) — they are not persisted. The frontend selects the
          *     active view's slice client-side.
          */
         TopologyData: {
@@ -13912,13 +13963,6 @@ export interface components {
             available_views?: components["schemas"]["TopologyView"][];
             /** @description Service bindings included in this topology. */
             bindings: components["schemas"]["Binding"][];
-            /**
-             * @description Raw LLDP/CDP candidate evidence behind `neighbours` (GH #701) — for the admin/debug
-             *     unresolved-evidence display and per-adjacency protocol derivation
-             *     (`TopologyContext::interface_has_lldp_evidence`), neither of which the resolved rows alone
-             *     can answer (they carry no raw evidence, by design — see `interface_neighbors`).
-             */
-            candidates?: components["schemas"]["InterfaceNeighborCandidate"][];
             /** @description Dependencies included in this topology. */
             dependencies: components["schemas"]["Dependency"][];
             /** @description Connections between the nodes of the built graph. */
@@ -14084,7 +14128,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "a4c19e50-edfd-4bdf-8fa5-9765822ac057",
+             *           "id": "d76a2620-978d-4938-9ce7-9fb6d55248f5",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14094,23 +14138,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
+             *           "id": "958ec785-b973-4ec2-8b01-04634e868d1a",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "e9ad12fa-e14a-4559-b3cb-9bd1b29694dd",
+             *           "id": "7a91c765-3fad-4ad3-84e2-f78ca342a32d",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "f36626ff-3d50-4358-829d-8e17064f837f",
+             *           "id": "90cad94c-fa77-4fcb-9356-8d4278aab712",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
+             *           "id": "958ec785-b973-4ec2-8b01-04634e868d1a",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14124,19 +14168,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "c5cf1ee7-baba-4246-af1e-e4f1de81c0e3",
+             *         "id": "0cb4ac6b-0a6f-4f31-a0f1-a1513cf67790",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "cbd31d25-a127-42fa-93eb-2b1ab6c11ceb",
+             *         "id": "4314ef7b-d9d5-4926-b9c3-f111b3156203",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "a7eb932a-c387-49d3-825d-6dcdf0328af8",
+             *         "id": "f76ba8b6-68e3-41d0-9844-2d97a4080262",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "8f26697a-6016-44b4-9595-5a6d6d10c3f0",
+             *         "id": "88f8cf34-e0bd-4a38-a116-5865eee25663",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14157,7 +14201,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "32ab774a-c602-4375-9bee-a7acc805bb43",
+             *         "id": "83ae3477-7663-4d07-8bfa-4ed9c7b3bf13",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14166,15 +14210,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "7ed0bd46-03eb-44aa-8d5e-8a9a8ac94612",
+             *         "id": "cdde12fd-01e9-4c00-85a0-9965cdf9636c",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "28c1ad75-9b7b-4e9a-a306-ab8d329fb044",
+             *         "id": "bb17996a-c9aa-4d58-9dbf-11e578f639c3",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "8e27c2ec-0de3-4ca3-9dc2-85a040a381b6",
+             *         "id": "763986a4-1d10-44b6-9972-0fe19f8f3bdb",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -19787,6 +19831,47 @@ export interface operations {
             };
         };
     };
+    get_interface_neighbours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description If entry ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved neighbours and raw evidence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_InterfaceNeighbours"];
+                };
+            };
+            /** @description Access denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description If entry not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     get_invites: {
         parameters: {
             query?: never;
@@ -23173,6 +23258,11 @@ export interface operations {
                  *     tabs. One-time per org (guarded below + subscriber dedup).
                  */
                 mark_viewed?: boolean | null;
+                /**
+                 * @description The view to build the graph for. When omitted, the graph of every view is built and
+                 *     returned. The topology tab always sends the view it draws.
+                 */
+                view?: null | components["schemas"]["TopologyView"];
             };
             header?: never;
             path?: never;
