@@ -29,6 +29,8 @@
 		billing_rateYearlyBilled,
 		billing_seatUnit,
 		billing_seatUnitPlural,
+		billing_hostingCloudTooltip,
+		billing_hostingSelfHostedTooltip,
 		billing_selfHosted,
 		billing_showFeatures,
 		billing_hideFeatures,
@@ -142,8 +144,12 @@
 	let hostingFilter = $state<PlanPickerHosting>(untrack(() => initialHosting));
 
 	const hostingOptions = [
-		{ value: 'cloud', label: common_cloud() },
-		{ value: 'self_hosted', label: billing_selfHosted() }
+		{ value: 'cloud', label: common_cloud(), tooltip: billing_hostingCloudTooltip() },
+		{
+			value: 'self_hosted',
+			label: billing_selfHosted(),
+			tooltip: billing_hostingSelfHostedTooltip()
+		}
 	];
 
 	// Self-hosted is annual-only (the paid tiers ship yearly), so the Self-Hosted tab
