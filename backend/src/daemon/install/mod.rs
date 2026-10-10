@@ -540,6 +540,43 @@ fn remove_file_when_released(path: &Path) -> std::io::Result<()> {
     unreachable!("the loop returns on its final attempt")
 }
 
+/// Where to move a binary that a running daemon may still execute. Every daemon on a host runs the
+/// one binary and keeps the image it started from, so an earlier retired copy can itself still be
+/// running, and Windows refuses to replace a file in use. Each retirement therefore gets its own
+/// name; [`remove_retired_binaries`] clears them once nothing runs them.
+fn retired_binary_path(bin_path: &Path) -> PathBuf {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default();
+    bin_path.with_extension(format!("{stamp}.old"))
+}
+
+/// Delete every retired copy of the binary beside `bin_path` (`scanopy-daemon*.old`, which includes
+/// the single `scanopy-daemon.old` older installers used). A copy a daemon still executes cannot be
+/// deleted on Windows and is left for a later install or restart; those are returned.
+fn remove_retired_binaries(bin_path: &Path) -> Vec<PathBuf> {
+    let (Some(dir), Some(stem)) = (
+        bin_path.parent(),
+        bin_path.file_stem().and_then(|s| s.to_str()),
+    ) else {
+        return Vec::new();
+    };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(stem) && n.ends_with(".old"))
+        })
+        .filter(|path| std::fs::remove_file(path).is_err())
+        .collect()
+}
+
 /// Copy the running executable to `dest`, with an already-in-place fast path. Idempotent.
 ///
 /// The binary is staged beside `dest` and renamed into place rather than copied over it. Every
@@ -578,13 +615,10 @@ fn place_binary(dest: &Path) -> Result<()> {
 
     // Windows refuses to *replace* a file that is currently executing, but it will let it be
     // renamed out of the way first. The retired copy can only be deleted once nothing is running
-    // it, so both the removal here and the one below are best-effort.
-    #[cfg(target_family = "windows")]
-    let retired = dest.with_extension("old");
+    // it, so clearing it below is best-effort.
     #[cfg(target_family = "windows")]
     if dest.exists() {
-        let _ = std::fs::remove_file(&retired);
-        std::fs::rename(dest, &retired).with_context(|| {
+        std::fs::rename(dest, retired_binary_path(dest)).with_context(|| {
             format!(
                 "Failed to move the running binary aside at {}",
                 dest.display()
@@ -595,8 +629,7 @@ fn place_binary(dest: &Path) -> Result<()> {
     std::fs::rename(&staged, dest)
         .with_context(|| format!("Failed to move binary into place at {}", dest.display()))?;
 
-    #[cfg(target_family = "windows")]
-    let _ = std::fs::remove_file(&retired);
+    remove_retired_binaries(dest);
 
     println!("Installed binary to {}.", dest.display());
     Ok(())

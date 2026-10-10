@@ -58,7 +58,7 @@ pub(super) async fn run_uninstall(args: UninstallArgs) -> Result<()> {
         found_anything = true;
         let remaining = installed_daemons();
         if args.purge && remaining.is_empty() {
-            let retired = bin_path.with_extension("old");
+            let mut self_retired = None;
             match remove_file_when_released(&bin_path) {
                 Ok(()) => {
                     removed_anything = true;
@@ -70,7 +70,7 @@ pub(super) async fn run_uninstall(args: UninstallArgs) -> Result<()> {
                 // uninstall that has already removed the service and config. `place_binary` and
                 // the sweep below clear a retired binary once nothing holds it.
                 Err(_) => {
-                    let _ = remove_file_when_released(&retired);
+                    let retired = retired_binary_path(&bin_path);
                     std::fs::rename(&bin_path, &retired).with_context(|| {
                         format!("Failed to delete binary {}", bin_path.display())
                     })?;
@@ -81,14 +81,18 @@ pub(super) async fn run_uninstall(args: UninstallArgs) -> Result<()> {
                         bin_path.display(),
                         retired.display()
                     );
+                    self_retired = Some(retired);
                 }
             }
-            // A binary retired by an earlier install goes too, once nothing runs it.
-            if retired.exists() && remove_file_when_released(&retired).is_err() {
-                println!(
-                    "Retired binary at {}: still in use — safe to delete once that process exits.",
-                    retired.display()
-                );
+            // Binaries retired by earlier installs and upgrades go too, once nothing runs them.
+            for retired in remove_retired_binaries(&bin_path) {
+                if Some(&retired) != self_retired.as_ref() {
+                    println!(
+                        "Retired binary at {}: still in use — safe to delete once that process \
+                         exits.",
+                        retired.display()
+                    );
+                }
             }
         } else if args.purge {
             println!(
