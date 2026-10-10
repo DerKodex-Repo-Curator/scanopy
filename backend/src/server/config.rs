@@ -121,17 +121,19 @@ pub struct ServerCli {
     #[arg(long)]
     email_feedback_sns_topic_arn: Option<String>,
 
-    /// AWS region of the SES v2 API used to validate signup email addresses.
-    #[arg(long, hide = true)]
-    email_validation_aws_region: Option<String>,
+    /// AWS region of the Amazon SES account. Signup validation calls SES in this region, and the
+    /// SNS topic ARN and an SES SMTP relay are checked against it.
+    #[arg(long)]
+    aws_region: Option<String>,
 
-    /// IAM access key id allowed `ses:GetEmailAddressInsights`. Not the SES SMTP username.
+    /// IAM access key id for AWS API calls (signup validation needs
+    /// `ses:GetEmailAddressInsights`). Not the SES SMTP username.
     #[arg(long, hide = true)]
-    email_validation_aws_access_key_id: Option<String>,
+    aws_access_key_id: Option<String>,
 
-    /// IAM secret access key for `email_validation_aws_access_key_id`. Not the SES SMTP password.
+    /// IAM secret access key for `aws_access_key_id`. Not the SES SMTP password.
     #[arg(long, hide = true)]
-    email_validation_aws_secret_access_key: Option<String>,
+    aws_secret_access_key: Option<String>,
 
     /// URL users reach the server at. Used in password reset links, invite links and webhooks.
     #[arg(long)]
@@ -213,15 +215,18 @@ pub struct ServerConfig {
     /// endpoint answers 404. Messages from any other topic are rejected.
     #[serde(default)]
     pub email_feedback_sns_topic_arn: Option<String>,
-    /// SES v2 API access used to validate addresses at signup with `GetEmailAddressInsights`
-    /// (`SCANOPY_EMAIL_VALIDATION_AWS_*`). These are IAM API keys, distinct from the SES SMTP
-    /// credentials. Validation runs only when all three are set.
+    /// Region of the Amazon SES account (`SCANOPY_AWS_REGION`). Signup validation calls SES
+    /// here; the SNS topic ARN and an SES SMTP relay are checked against it at startup.
     #[serde(default)]
-    pub email_validation_aws_region: Option<String>,
+    pub aws_region: Option<String>,
+    /// IAM API keys for Scanopy's AWS API calls (`SCANOPY_AWS_ACCESS_KEY_ID`,
+    /// `SCANOPY_AWS_SECRET_ACCESS_KEY`), distinct from the SES SMTP credentials. The one
+    /// consumer is signup validation with `GetEmailAddressInsights`, which runs only when the
+    /// region and both keys are set.
     #[serde(default)]
-    pub email_validation_aws_access_key_id: Option<String>,
+    pub aws_access_key_id: Option<String>,
     #[serde(default)]
-    pub email_validation_aws_secret_access_key: Option<String>,
+    pub aws_secret_access_key: Option<String>,
     #[serde(default)]
     pub oidc_providers: Option<Vec<OidcProviderConfig>>,
 
@@ -406,9 +411,9 @@ impl Default for ServerConfig {
             smtp_port: Some(465),
             email_log_dir: None,
             email_feedback_sns_topic_arn: None,
-            email_validation_aws_region: None,
-            email_validation_aws_access_key_id: None,
-            email_validation_aws_secret_access_key: None,
+            aws_region: None,
+            aws_access_key_id: None,
+            aws_secret_access_key: None,
             client_ip_source: None,
             oidc_providers: None,
             posthog_key: None,
@@ -480,14 +485,14 @@ impl ServerConfig {
         if let Some(topic_arn) = cli_args.email_feedback_sns_topic_arn {
             figment = figment.merge(("email_feedback_sns_topic_arn", topic_arn));
         }
-        if let Some(region) = cli_args.email_validation_aws_region {
-            figment = figment.merge(("email_validation_aws_region", region));
+        if let Some(region) = cli_args.aws_region {
+            figment = figment.merge(("aws_region", region));
         }
-        if let Some(key_id) = cli_args.email_validation_aws_access_key_id {
-            figment = figment.merge(("email_validation_aws_access_key_id", key_id));
+        if let Some(key_id) = cli_args.aws_access_key_id {
+            figment = figment.merge(("aws_access_key_id", key_id));
         }
-        if let Some(secret) = cli_args.email_validation_aws_secret_access_key {
-            figment = figment.merge(("email_validation_aws_secret_access_key", secret));
+        if let Some(secret) = cli_args.aws_secret_access_key {
+            figment = figment.merge(("aws_secret_access_key", secret));
         }
         if let Some(public_url) = cli_args.public_url {
             figment = figment.merge(("public_url", public_url));
@@ -538,6 +543,36 @@ impl ServerConfig {
         config.external_service_allowed_ips = Self::load_external_service_allowed_ips();
 
         Ok(config)
+    }
+
+    /// Settings whose embedded AWS region differs from `aws_region`, as (environment variable,
+    /// region it names). Empty when `aws_region` is unset. SES publishes feedback only to a topic
+    /// in its own region, so a mismatched topic never receives any. An SMTP relay that is not an
+    /// SES endpoint is not checked.
+    pub fn aws_region_mismatches(&self) -> Vec<(&'static str, String)> {
+        let Some(expected) = self.aws_region.as_deref().filter(|r| !r.is_empty()) else {
+            return Vec::new();
+        };
+        let topic_region = self
+            .email_feedback_sns_topic_arn
+            .as_deref()
+            .and_then(|arn| arn.split(':').nth(3));
+        let relay_region = self.smtp_relay.as_deref().and_then(|relay| {
+            relay
+                .strip_prefix("email-smtp.")?
+                .strip_suffix(".amazonaws.com")
+        });
+        [
+            ("SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN", topic_region),
+            ("SCANOPY_SMTP_RELAY", relay_region),
+        ]
+        .into_iter()
+        .filter_map(|(var, region)| {
+            region
+                .filter(|r| *r != expected)
+                .map(|r| (var, r.to_owned()))
+        })
+        .collect()
     }
 
     /// Every user-settable parameter, for the server configuration docs (`server-config.json`).
@@ -873,5 +908,60 @@ mod tests {
             "ServerCli flags with no doc comment, which the docs render as the description: \
              {undocumented:?}"
         );
+    }
+
+    fn ses_config(region: Option<&str>, topic_arn: &str, relay: &str) -> ServerConfig {
+        ServerConfig {
+            aws_region: region.map(str::to_owned),
+            email_feedback_sns_topic_arn: Some(topic_arn.to_owned()),
+            smtp_relay: Some(relay.to_owned()),
+            ..ServerConfig::default()
+        }
+    }
+
+    #[test]
+    fn aws_region_mismatches_names_settings_in_another_region() {
+        let config = ses_config(
+            Some("us-east-2"),
+            "arn:aws:sns:us-east-1:123456789012:ses-feedback",
+            "email-smtp.eu-west-1.amazonaws.com",
+        );
+        assert_eq!(
+            config.aws_region_mismatches(),
+            vec![
+                (
+                    "SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN",
+                    "us-east-1".to_owned()
+                ),
+                ("SCANOPY_SMTP_RELAY", "eu-west-1".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn aws_region_mismatches_passes_matching_and_non_ses_settings() {
+        let matching = ses_config(
+            Some("us-east-2"),
+            "arn:aws:sns:us-east-2:123456789012:ses-feedback",
+            "email-smtp.us-east-2.amazonaws.com",
+        );
+        assert!(matching.aws_region_mismatches().is_empty());
+
+        let other_relay = ses_config(
+            Some("us-east-2"),
+            "arn:aws:sns:us-east-2:123456789012:ses-feedback",
+            "smtp.gmail.com",
+        );
+        assert!(other_relay.aws_region_mismatches().is_empty());
+    }
+
+    #[test]
+    fn aws_region_mismatches_checks_nothing_without_a_region() {
+        let config = ses_config(
+            None,
+            "arn:aws:sns:us-east-1:123456789012:ses-feedback",
+            "email-smtp.eu-west-1.amazonaws.com",
+        );
+        assert!(config.aws_region_mismatches().is_empty());
     }
 }

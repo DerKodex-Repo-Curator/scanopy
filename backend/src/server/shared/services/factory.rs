@@ -74,7 +74,7 @@ pub struct ServiceFactory {
     pub email_service: Option<Arc<EmailService>>,
     /// Present only when `email_feedback_sns_topic_arn` is configured.
     pub email_feedback_service: Option<Arc<EmailFeedbackService>>,
-    /// Present only when the `email_validation_aws_*` settings are configured.
+    /// Present only when `aws_region` and both AWS keys are configured.
     pub email_validator: Option<Arc<SesEmailValidator>>,
     pub posthog_service: Option<Arc<PosthogService>>,
     pub event_bus: Arc<EventBus>,
@@ -358,6 +358,14 @@ impl ServiceFactory {
             event_bus.clone(),
         ));
 
+        for (var, region) in config.aws_region_mismatches() {
+            tracing::error!(
+                setting = var,
+                setting_region = %region,
+                aws_region = config.aws_region.as_deref().unwrap_or_default(),
+                "An SES setting names a different region than SCANOPY_AWS_REGION"
+            );
+        }
         let email_validator = SesEmailValidator::from_config(&config)?.map(Arc::new);
         let public_url = config.public_url.clone();
         let deployment_type = crate::server::config::get_deployment_type(&config);
