@@ -1483,6 +1483,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daemons/{id}/upgrade-command": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Generate daemon upgrade commands
+         * @description The steps to replace a daemon's binary and restart it, per OS, plus the docker method. Like the
+         *     install command, a pure builder over the daemon record.
+         */
+        get: operations["get_daemon_upgrade_command"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/summary": {
         parameters: {
             query?: never;
@@ -6065,6 +6086,35 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_UpgradeArtifacts: {
+            /** @description Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method. */
+            data?: {
+                docker: components["schemas"]["DockerUpgrade"];
+                freebsd: components["schemas"]["UpgradeStep"][];
+                /**
+                 * @description The restart step names the service after the daemon, as installs from before the install
+                 *     engine were named. Such a daemon may have been set up differently, so the UI points the
+                 *     operator to `scanopy-daemon list` for the real service.
+                 */
+                legacy_service_name: boolean;
+                linux: components["schemas"]["UpgradeStep"][];
+                macos: components["schemas"]["UpgradeStep"][];
+                windows: components["schemas"]["UpgradeStep"][];
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_User: {
             /** @description The result payload. Omitted on failure. */
             data?: components["schemas"]["UserBase"] & {
@@ -8696,6 +8746,18 @@ export interface components {
              *     reconfigure these are exactly the vars that changed, so the UI can show them as a swap-in.
              */
             env: string[];
+        };
+        /** @description The docker upgrade method. */
+        DockerUpgrade: {
+            /**
+             * @description Copies the daemon's config onto the `daemon-config` volume before the recreate. Set for
+             *     images that keep config outside the volume, where the recreate would otherwise erase it.
+             */
+            config_copy?: string | null;
+            /** @description The compose `image:` line pinned to this server's version. */
+            pinned_image: string;
+            /** @description Pulls and recreates on the `latest` tag. */
+            pull: string;
         };
         DockerVirtualization: {
             /** @description Compose project the container belongs to, when it was started by Compose. */
@@ -14098,6 +14160,30 @@ export interface components {
             /** @description New PO number; empty or absent removes it. */
             po_number?: string | null;
         };
+        /** @description Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method. */
+        UpgradeArtifacts: {
+            docker: components["schemas"]["DockerUpgrade"];
+            freebsd: components["schemas"]["UpgradeStep"][];
+            /**
+             * @description The restart step names the service after the daemon, as installs from before the install
+             *     engine were named. Such a daemon may have been set up differently, so the UI points the
+             *     operator to `scanopy-daemon list` for the real service.
+             */
+            legacy_service_name: boolean;
+            linux: components["schemas"]["UpgradeStep"][];
+            macos: components["schemas"]["UpgradeStep"][];
+            windows: components["schemas"]["UpgradeStep"][];
+        };
+        /** @description One command of a binary upgrade, in the order it runs. */
+        UpgradeStep: {
+            command: string;
+            type: components["schemas"]["UpgradeStepType"];
+        };
+        /**
+         * @description What one upgrade step does. The UI labels each step by its type.
+         * @enum {string}
+         */
+        UpgradeStepType: "Download" | "Restart" | "Stop" | "Start";
         /**
          * @description Whether the vendor publishes and supports the API a credential type talks to.
          *
@@ -17632,6 +17718,38 @@ export interface operations {
                 };
             };
             /** @description Daemon not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_daemon_upgrade_command: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description daemon ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upgrade commands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_UpgradeArtifacts"];
+                };
+            };
+            /** @description daemon not found */
             404: {
                 headers: {
                     [name: string]: unknown;

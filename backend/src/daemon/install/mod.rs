@@ -1,4 +1,4 @@
-//! `scanopy-daemon install` / `uninstall` / `list` — a single install engine shared across all
+//! `scanopy-daemon install` / `uninstall` / `restart` / `list` — a single install engine shared across all
 //! desktop operating systems.
 //!
 //! One config model, one engine. The **only** configuration input is the same connection/identity
@@ -31,6 +31,9 @@
 //!
 //! Uninstall reverses install (service → config → binary) and is idempotent: removing a daemon that
 //! was never installed succeeds with a "nothing to remove" message.
+//!
+//! Restart restarts one install's service, so it runs whatever binary is now on disk. The server's
+//! upgrade command uses it with `--instance <daemon id>` after downloading the new binary.
 
 use anyhow::{Context, Result};
 use std::io::{IsTerminal, Write};
@@ -39,7 +42,8 @@ use std::process::Command;
 use uuid::Uuid;
 
 use crate::daemon::shared::config::{
-    AppConfig, ConfigStore, DaemonCommand, InstallArgs, UninstallArgs, config_file_with_site_names,
+    AppConfig, ConfigStore, DaemonCommand, InstallArgs, RestartArgs, UninstallArgs,
+    config_file_with_site_names,
 };
 use crate::server::daemons::r#impl::base::DaemonMode;
 
@@ -54,6 +58,16 @@ mod windows;
 
 mod prompt;
 use prompt::{ambiguous_target_prompt, installed_summary};
+
+mod restart;
+#[cfg(test)]
+pub(crate) use restart::restart_target;
+use restart::run_restart;
+
+mod uninstall;
+use uninstall::run_uninstall;
+#[cfg(test)]
+use uninstall::uninstall_targets;
 
 #[cfg(any(target_os = "freebsd", target_os = "openbsd"))]
 use bsd as platform;
@@ -298,11 +312,12 @@ fn describe_installed(installed: &[Installed]) -> String {
     out
 }
 
-/// Dispatch an `install`/`uninstall`/`list` subcommand.
+/// Dispatch an `install`/`uninstall`/`restart`/`list` subcommand.
 pub async fn run_command(command: DaemonCommand) -> Result<()> {
     match command {
         DaemonCommand::Install(args) => run_install(args).await,
         DaemonCommand::Uninstall(args) => run_uninstall(args).await,
+        DaemonCommand::Restart(args) => run_restart(args),
         DaemonCommand::List => run_list(),
     }
 }
@@ -324,7 +339,8 @@ fn run_list() -> Result<()> {
         }
     }
     println!(
-        "\nTarget one with `install --instance <name>` or `uninstall --name <name>`.\
+        "\nTarget one with `install --instance <name>`, `restart --instance <name>` or \
+         `uninstall --name <name>`.\
          \nA name, service id, or daemon id all work."
     );
     Ok(())
@@ -502,255 +518,6 @@ fn choose_ambiguous_target(installed: &[Installed]) -> Result<String> {
     Ok(installed[choice - 1].slot.clone())
 }
 
-/// Print a uniform per-item disposition line for uninstall, e.g.
-/// `Config at /etc/…/config.json: Deleted` or
-/// `Binary at /usr/local/bin/scanopy-daemon: Kept (re-run with --purge to delete)`.
-fn report_disposition(label: &str, deleted: bool) {
-    if deleted {
-        println!("{label}: Deleted");
-    } else {
-        println!("{label}: Kept (re-run with --purge to delete)");
-    }
-}
-
-async fn run_uninstall(args: UninstallArgs) -> Result<()> {
-    require_elevation("uninstall")?;
-
-    let installed = installed_daemons();
-    let targets = uninstall_targets(&installed, &args)?;
-
-    // `removed_anything`: something was actually deregistered/deleted.
-    // `found_anything`: an artifact was present (even if kept). These drive the
-    // final summary so a plain uninstall that only finds a kept binary/log
-    // doesn't claim "no install found".
-    // A selector naming nothing discoverable still gets its paths swept (a half-removed install,
-    // service registered but config already gone, is only reachable that way). But if that turns
-    // up nothing either, the operator named a daemon that simply isn't here — say so, and say what
-    // is, rather than letting the generic summary below suggest `--purge` at them.
-    let unmatched_selector = args
-        .name
-        .as_deref()
-        .filter(|s| !installed.iter().any(|i| i.matches(s)));
-
-    let mut removed_anything = false;
-    let mut found_anything = false;
-    for slot in &targets {
-        let (removed, found) = remove_slot(slot, args.purge)?;
-        removed_anything |= removed;
-        found_anything |= found;
-    }
-
-    if let Some(selector) = unmatched_selector
-        && !found_anything
-    {
-        println!(
-            "No daemon matching '{selector}' is installed on this host.{}",
-            describe_installed(&installed)
-        );
-        return Ok(());
-    }
-
-    // The binary is shared by every daemon on the host, so it can only go once nothing is left to
-    // run it. Kept by default in any case; deleted only under --purge.
-    let bin_path = platform::default_bin_dir().join(BINARY_FILE_NAME);
-    if bin_path.exists() {
-        found_anything = true;
-        let remaining = installed_daemons();
-        if args.purge && remaining.is_empty() {
-            let retired = bin_path.with_extension("old");
-            match remove_file_when_released(&bin_path) {
-                Ok(()) => {
-                    removed_anything = true;
-                    report_disposition(&format!("Binary at {}", bin_path.display()), true);
-                }
-                // Windows cannot delete the image a process is executing — and on Windows that
-                // process is usually this uninstaller, run from the very path being purged. It
-                // does allow the file to be *renamed*, so retire it instead of failing an
-                // uninstall that has already removed the service and config. `place_binary` and
-                // the sweep below clear a retired binary once nothing holds it.
-                Err(_) => {
-                    let _ = remove_file_when_released(&retired);
-                    std::fs::rename(&bin_path, &retired).with_context(|| {
-                        format!("Failed to delete binary {}", bin_path.display())
-                    })?;
-                    removed_anything = true;
-                    println!(
-                        "Binary at {}: Removed (retired to {}, which this running uninstaller \
-                         cannot delete; the next install clears it)",
-                        bin_path.display(),
-                        retired.display()
-                    );
-                }
-            }
-            // A binary retired by an earlier install goes too, once nothing runs it.
-            if retired.exists() && remove_file_when_released(&retired).is_err() {
-                println!(
-                    "Retired binary at {}: still in use — safe to delete once that process exits.",
-                    retired.display()
-                );
-            }
-        } else if args.purge {
-            println!(
-                "Binary at {}: Kept ({} other daemon(s) still installed)",
-                bin_path.display(),
-                remaining.len()
-            );
-        } else {
-            report_disposition(&format!("Binary at {}", bin_path.display()), false);
-        }
-    }
-
-    if removed_anything {
-        println!("Scanopy daemon uninstalled.");
-    } else if found_anything {
-        println!("Nothing removed — re-run with --purge to delete the kept file(s).");
-    } else {
-        println!("Nothing to remove — no Scanopy daemon install found.");
-    }
-    Ok(())
-}
-
-/// Which slots an `uninstall` invocation should remove.
-///
-/// A selector that matches nothing discoverable still resolves to itself, so a half-removed
-/// install (service registered, config already deleted) stays removable by name. With no selector
-/// and nothing installed, the default slot is returned so the command reports on the standard
-/// paths rather than claiming there was nothing to look at.
-fn uninstall_targets(installed: &[Installed], args: &UninstallArgs) -> Result<Vec<String>> {
-    if args.all {
-        return Ok(installed.iter().map(|i| i.slot.clone()).collect());
-    }
-
-    if let Some(selector) = &args.name {
-        return Ok(vec![
-            installed
-                .iter()
-                .find(|i| i.matches(selector))
-                .map(|i| i.slot.clone())
-                .unwrap_or_else(|| selector.clone()),
-        ]);
-    }
-
-    match installed.len() {
-        0 => Ok(vec![DEFAULT_NAME.to_string()]),
-        1 => Ok(vec![installed[0].slot.clone()]),
-        _ => Ok(vec![choose_uninstall_target(installed)?]),
-    }
-}
-
-/// Ask which daemon to remove when several are installed. Never guesses: with no terminal to ask
-/// on, it lists them and stops.
-fn choose_uninstall_target(installed: &[Installed]) -> Result<String> {
-    if !std::io::stdin().is_terminal() {
-        anyhow::bail!(
-            "This host has {} Scanopy daemons installed — say which to remove with \
-             `--name <name>`, or remove them all with `--all`.{}",
-            installed.len(),
-            describe_installed(installed)
-        );
-    }
-
-    println!("This host has several Scanopy daemons installed:\n");
-    for (index, entry) in installed.iter().enumerate() {
-        println!(
-            "  [{}] {} (service {})",
-            index + 1,
-            entry.label(),
-            entry.service_id()
-        );
-    }
-    print!("\nWhich do you want to remove? [1-{}] ", installed.len());
-    std::io::stdout().flush().ok();
-
-    let mut answer = String::new();
-    std::io::stdin()
-        .read_line(&mut answer)
-        .context("Failed to read your choice")?;
-    let answer = answer.trim();
-    let choice: usize = answer
-        .parse()
-        .ok()
-        .filter(|c| (1..=installed.len()).contains(c))
-        .with_context(|| {
-            format!(
-                "'{answer}' is not one of the choices (1-{})",
-                installed.len()
-            )
-        })?;
-    Ok(installed[choice - 1].slot.clone())
-}
-
-/// Remove one slot's service, config and logs. Returns `(removed_anything, found_anything)`.
-fn remove_slot(slot: &str, purge: bool) -> Result<(bool, bool)> {
-    let mut removed_anything = false;
-    let mut found_anything = false;
-
-    // 1. Stop + deregister the service (tolerant of an already-absent service).
-    //    Always removed in both modes.
-    let config_dir = system_config_dir(slot);
-    let spec = ServiceSpec {
-        service_id: service_id(slot),
-        display_name: display_name(slot),
-        bin_path: platform::default_bin_dir().join(BINARY_FILE_NAME),
-        slot: slot.to_string(),
-        config_dir: config_dir.clone(),
-        log_file: AppConfig::default_system_log_path(slot),
-    };
-    if platform::deregister_service(&spec).context("Failed to remove the system service")? {
-        removed_anything = true;
-        found_anything = true;
-        println!("Service '{}': Removed", spec.service_id);
-    } else {
-        println!("Service '{}': Not found", spec.service_id);
-    }
-
-    // 2. Remove config.json from both the system location (service installs) and the per-user
-    //    profile location (--no-service / manual installs). Always removed in both modes.
-    let system_cfg = config_dir.join("config.json");
-    let profile_cfg = AppConfig::get_config_path_for_name(Some(slot), None)?.1;
-    for config_path in [system_cfg, profile_cfg] {
-        if config_path.exists() {
-            std::fs::remove_file(&config_path)
-                .with_context(|| format!("Failed to delete config {}", config_path.display()))?;
-            removed_anything = true;
-            found_anything = true;
-            report_disposition(&format!("Config at {}", config_path.display()), true);
-            // Take the slot directory with it once it holds nothing else, so removing a daemon
-            // doesn't leave its slot behind as an empty husk. `remove_dir` only succeeds on an
-            // empty directory, which is exactly the condition wanted — anything the operator put
-            // there keeps the directory.
-            if let Some(slot_dir) = config_path.parent() {
-                let _ = std::fs::remove_dir(slot_dir);
-            }
-        }
-    }
-
-    // 3. Log files. The service logs to a known, installer-baked path
-    //    (`--log-file`, always `default_system_log_path` == `spec.log_file`);
-    //    macOS also has the launchd stdout/stderr capture. Kept by default
-    //    (useful for a post-mortem), deleted only under --purge.
-    let log_files: Vec<std::path::PathBuf> = [
-        spec.log_file.clone(),
-        // macOS also captures the launchd stdout log; cfg'd on the element so the
-        // list is single-entry on other platforms without an unused `mut`/`vec!`.
-        #[cfg(target_os = "macos")]
-        std::path::PathBuf::from("/var/log/scanopy").join(format!("{}.out.log", spec.service_id)),
-    ]
-    .into_iter()
-    .collect();
-    for log_path in log_files.iter().filter(|p| p.exists()) {
-        found_anything = true;
-        if purge {
-            std::fs::remove_file(log_path)
-                .with_context(|| format!("Failed to delete log {}", log_path.display()))?;
-            removed_anything = true;
-        }
-        report_disposition(&format!("Log at {}", log_path.display()), purge);
-    }
-
-    Ok((removed_anything, found_anything))
-}
-
 /// Delete a file that a service may only just have released.
 ///
 /// Deregistering a service asks the platform to stop it and returns before it necessarily has:
@@ -844,10 +611,25 @@ fn require_elevation(action: &str) -> Result<()> {
     anyhow::bail!("Insufficient privileges: re-run the {action} command with elevated permissions")
 }
 
+/// The service an installed slot runs as, at the platform's default binary location.
+fn system_service_spec(slot: &str) -> ServiceSpec {
+    ServiceSpec {
+        service_id: service_id(slot),
+        display_name: display_name(slot),
+        bin_path: platform::default_bin_dir().join(BINARY_FILE_NAME),
+        slot: slot.to_string(),
+        config_dir: system_config_dir(slot),
+        log_file: AppConfig::default_system_log_path(slot),
+    }
+}
+
 /// Service/unit identifier for a slot. The default slot keeps its bare id for backward
 /// compatibility; every other slot is namespaced under the `scanopy-daemon-` prefix — which the
 /// allocated `scanopy-daemon-2`, `-3`, … already carry, so they are their own service id.
-fn service_id(slot: &str) -> String {
+///
+/// The server calls this too, to name the service of a daemon installed before slots, whose slot
+/// is its name.
+pub(crate) fn service_id(slot: &str) -> String {
     if slot == DEFAULT_NAME || is_numbered(slot) {
         slot.to_string()
     } else {
@@ -861,6 +643,17 @@ fn service_id(slot: &str) -> String {
 fn is_numbered(slot: &str) -> bool {
     slot.strip_prefix(&format!("{DEFAULT_NAME}-"))
         .is_some_and(|suffix| !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// launchd label (reverse-DNS) for a slot. The default slot keeps the bare label; every other slot
+/// is suffixed with it. Defined here rather than in the macOS module so the server can name a
+/// pre-slot daemon's job, as it does with [`service_id`].
+pub(crate) fn launchd_label(slot: &str) -> String {
+    if slot == DEFAULT_NAME {
+        "com.scanopy.daemon".to_string()
+    } else {
+        format!("com.scanopy.daemon.{slot}")
+    }
 }
 
 fn display_name(slot: &str) -> String {

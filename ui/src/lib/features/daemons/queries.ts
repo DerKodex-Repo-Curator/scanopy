@@ -82,6 +82,22 @@ export function useDaemonInstallCommandQuery(
 }
 
 /**
+ * Query hook for a daemon's upgrade steps: per OS, the binary download and the service restart,
+ * plus the docker method. Built on the server from the daemon record.
+ */
+export function useDaemonUpgradeCommandQuery(id: () => string) {
+	return createQuery(() => ({
+		queryKey: [...queryKeys.daemons.detail(id()), 'upgrade-command'],
+		queryFn: async () =>
+			unwrapData(
+				await apiClient.GET('/api/v1/daemons/{id}/upgrade-command', {
+					params: { path: { id: id() } }
+				})
+			)
+	}));
+}
+
+/**
  * Mutation hook for updating a daemon's server-side record (name, maintainer, tags, and
  * the ServerPoll url). Identity and server-managed fields are restored server-side.
  */

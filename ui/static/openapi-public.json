@@ -3096,6 +3096,58 @@
         ]
       }
     },
+    "/api/v1/daemons/{id}/upgrade-command": {
+      "get": {
+        "tags": [
+          "Daemons"
+        ],
+        "summary": "Generate daemon upgrade commands",
+        "description": "The steps to replace a daemon's binary and restart it, per OS, plus the docker method. Like the\ninstall command, a pure builder over the daemon record.",
+        "operationId": "get_daemon_upgrade_command",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "daemon ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upgrade commands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UpgradeArtifacts"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "daemon not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v1/dependencies": {
       "get": {
         "tags": [
@@ -18270,6 +18322,76 @@
           }
         }
       },
+      "ApiResponse_UpgradeArtifacts": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method.",
+            "required": [
+              "linux",
+              "macos",
+              "windows",
+              "freebsd",
+              "docker",
+              "legacy_service_name"
+            ],
+            "properties": {
+              "docker": {
+                "$ref": "#/components/schemas/DockerUpgrade"
+              },
+              "freebsd": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UpgradeStep"
+                }
+              },
+              "legacy_service_name": {
+                "type": "boolean",
+                "description": "The restart step names the service after the daemon, as installs from before the install\nengine were named. Such a daemon may have been set up differently, so the UI points the\noperator to `scanopy-daemon list` for the real service."
+              },
+              "linux": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UpgradeStep"
+                }
+              },
+              "macos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UpgradeStep"
+                }
+              },
+              "windows": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UpgradeStep"
+                }
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
       "ApiResponse_User": {
         "type": "object",
         "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
@@ -24851,6 +24973,31 @@
               "type": "string"
             },
             "description": "The `SCANOPY_*` environment variables (`KEY=value`) this daemon is configured with. For a\nreconfigure these are exactly the vars that changed, so the UI can show them as a swap-in."
+          }
+        }
+      },
+      "DockerUpgrade": {
+        "type": "object",
+        "description": "The docker upgrade method.",
+        "required": [
+          "pull",
+          "pinned_image"
+        ],
+        "properties": {
+          "config_copy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Copies the daemon's config onto the `daemon-config` volume before the recreate. Set for\nimages that keep config outside the volume, where the recreate would otherwise erase it."
+          },
+          "pinned_image": {
+            "type": "string",
+            "description": "The compose `image:` line pinned to this server's version."
+          },
+          "pull": {
+            "type": "string",
+            "description": "Pulls and recreates on the `latest` tag."
           }
         }
       },
@@ -36276,6 +36423,77 @@
             "description": "New PO number; empty or absent removes it."
           }
         }
+      },
+      "UpgradeArtifacts": {
+        "type": "object",
+        "description": "Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method.",
+        "required": [
+          "linux",
+          "macos",
+          "windows",
+          "freebsd",
+          "docker",
+          "legacy_service_name"
+        ],
+        "properties": {
+          "docker": {
+            "$ref": "#/components/schemas/DockerUpgrade"
+          },
+          "freebsd": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpgradeStep"
+            }
+          },
+          "legacy_service_name": {
+            "type": "boolean",
+            "description": "The restart step names the service after the daemon, as installs from before the install\nengine were named. Such a daemon may have been set up differently, so the UI points the\noperator to `scanopy-daemon list` for the real service."
+          },
+          "linux": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpgradeStep"
+            }
+          },
+          "macos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpgradeStep"
+            }
+          },
+          "windows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpgradeStep"
+            }
+          }
+        }
+      },
+      "UpgradeStep": {
+        "type": "object",
+        "description": "One command of a binary upgrade, in the order it runs.",
+        "required": [
+          "type",
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/UpgradeStepType"
+          }
+        }
+      },
+      "UpgradeStepType": {
+        "type": "string",
+        "description": "What one upgrade step does. The UI labels each step by its type.",
+        "enum": [
+          "Download",
+          "Restart",
+          "Stop",
+          "Start"
+        ]
       },
       "UpstreamSupport": {
         "type": "string",

@@ -1,9 +1,10 @@
 //! Windows service registration via the Service Control Manager (`sc.exe`). **New capability** —
 //! Windows previously had no background-service story.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use super::{ServiceSpec, run};
 
@@ -76,6 +77,43 @@ pub fn register_service(spec: &ServiceSpec) -> Result<()> {
     )?;
     run("sc", &["start", &spec.service_id])?;
     Ok(())
+}
+
+/// How long [`restart_service`] waits for the service to report STOPPED.
+const STOP_TIMEOUT: Duration = Duration::from_secs(30);
+const STOP_POLL: Duration = Duration::from_millis(500);
+
+/// Stop the service, wait until the SCM reports it stopped, then start it. `sc stop` returns
+/// before the service has stopped, and `sc start` on a service still stopping fails, so the wait
+/// is what makes this a restart.
+pub fn restart_service(spec: &ServiceSpec) -> Result<()> {
+    // Fails harmlessly when the service is already stopped; a missing service fails `sc start`.
+    let _ = Command::new("sc")
+        .args(["stop", &spec.service_id])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    let deadline = Instant::now() + STOP_TIMEOUT;
+    loop {
+        let query = Command::new("sc")
+            .args(["query", &spec.service_id])
+            .output()
+            .context("Failed to execute `sc query`")?;
+        if String::from_utf8_lossy(&query.stdout).contains("STOPPED") || !query.status.success() {
+            break;
+        }
+        if Instant::now() >= deadline {
+            anyhow::bail!(
+                "Service '{}' did not stop within {} seconds",
+                spec.service_id,
+                STOP_TIMEOUT.as_secs()
+            );
+        }
+        std::thread::sleep(STOP_POLL);
+    }
+
+    run("sc", &["start", &spec.service_id])
 }
 
 /// Returns whether the service existed before removal. Stop/delete are best-effort (idempotent).

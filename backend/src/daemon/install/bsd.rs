@@ -91,6 +91,10 @@ pub fn register_service(spec: &ServiceSpec) -> Result<()> {
     Ok(())
 }
 
+pub fn restart_service(spec: &ServiceSpec) -> Result<()> {
+    run("service", &[&spec.service_id, "restart"])
+}
+
 /// Returns whether an rc.d script was present before removal. Stop/disable are best-effort.
 pub fn deregister_service(spec: &ServiceSpec) -> Result<bool> {
     let path = script_path(spec);

@@ -20,6 +20,10 @@ export type ProvisionDaemonResponse = components['schemas']['ProvisionDaemonResp
 export type InstallArtifacts = components['schemas']['InstallArtifacts'];
 export type InstallCommandType = components['schemas']['InstallCommandType'];
 
+// Upgrade-command builder types
+export type UpgradeArtifacts = components['schemas']['UpgradeArtifacts'];
+export type UpgradeStep = components['schemas']['UpgradeStep'];
+
 /** The OS install methods whose content is a ready-to-paste command string. */
 export type OsInstallMethod = 'linux' | 'macos' | 'windows' | 'freebsd';
 

@@ -761,3 +761,105 @@ fn docker_config_dir_matches_every_compose_and_dockerfile() {
         }
     }
 }
+
+fn daemon_at(version: Option<&str>, name: &str) -> Daemon {
+    let mut daemon = daemon(DaemonMode::DaemonPoll, "");
+    daemon.base.name = name.to_string();
+    daemon.base.version = version.map(|v| semver::Version::parse(v).unwrap());
+    daemon
+}
+
+fn step(steps: &[UpgradeStep], r#type: UpgradeStepType) -> &str {
+    &steps
+        .iter()
+        .find(|s| s.r#type == r#type)
+        .unwrap_or_else(|| panic!("no {type:?} step in {steps:?}"))
+        .command
+}
+
+/// The upgrade's restart step must restart the service the installer registered for that daemon.
+/// The server emits only a daemon id; this resolves it through the installer's own selector
+/// matching and service naming, for each shape of install a host can hold.
+#[test]
+fn upgrade_restart_resolves_to_the_installed_slots_service() {
+    use crate::daemon::install::{Installed, restart_target};
+    use clap::Parser;
+
+    let install = |slot: &str| Installed {
+        slot: slot.to_string(),
+        config_path: format!("/etc/scanopy/daemon/{slot}/config.json").into(),
+        name: Some(format!("{slot} daemon")),
+        daemon_id: Some(uuid::Uuid::new_v4()),
+        api_key: None,
+        daemon_port: None,
+    };
+    // The default slot, an allocated numbered slot, and a pre-slot install named after its daemon.
+    let installed = [
+        install("scanopy-daemon"),
+        install("scanopy-daemon-2"),
+        install("edge"),
+    ];
+
+    for (entry, expected_service) in
+        installed
+            .iter()
+            .zip(["scanopy-daemon", "scanopy-daemon-2", "scanopy-daemon-edge"])
+    {
+        let mut daemon = daemon_at(Some("0.17.5"), "renamed in the UI since");
+        daemon.id = entry.daemon_id.unwrap();
+        let artifacts = build_upgrade_artifacts(&daemon);
+        assert!(!artifacts.legacy_service_name);
+
+        for steps in [&artifacts.linux, &artifacts.macos, &artifacts.freebsd] {
+            let restart = step(steps, UpgradeStepType::Restart);
+            let command = restart.strip_prefix("sudo ").unwrap();
+            let Some(DaemonCommand::Restart(args)) =
+                DaemonCli::parse_from(shell_split(command)).command
+            else {
+                panic!("not a restart command: {restart}");
+            };
+            let target = restart_target(&installed, args.instance.as_deref()).unwrap();
+            assert_eq!(target.service_id(), expected_service, "{restart}");
+        }
+    }
+}
+
+/// Daemons from before the install engine get their service named after the daemon, as it was
+/// registered then. A name with a space must reach `systemctl` as one argument.
+#[test]
+fn legacy_upgrade_restart_passes_the_service_name_as_one_argument() {
+    let artifacts = build_upgrade_artifacts(&daemon_at(Some("0.17.4"), "DC Daemon"));
+    assert!(artifacts.legacy_service_name);
+
+    let restart = shell_split(step(&artifacts.linux, UpgradeStepType::Restart));
+    assert_eq!(
+        restart.last().unwrap(),
+        &crate::daemon::install::service_id("DC Daemon")
+    );
+}
+
+#[test]
+fn upgrade_names_the_service_only_for_daemons_older_than_the_install_engine() {
+    for (version, legacy) in [
+        (None, true),
+        (Some("0.17.4"), true),
+        (Some("0.17.5"), false),
+    ] {
+        let daemon = daemon_at(version, "edge-01");
+        let artifacts = build_upgrade_artifacts(&daemon);
+        assert_eq!(artifacts.legacy_service_name, legacy, "{version:?}");
+        let names_instance = |steps: &[UpgradeStep]| {
+            step(steps, UpgradeStepType::Restart).contains(&daemon.id.to_string())
+        };
+        assert_eq!(names_instance(&artifacts.linux), !legacy, "{version:?}");
+        assert_eq!(
+            artifacts
+                .windows
+                .iter()
+                .any(|s| s.r#type == UpgradeStepType::Restart
+                    && s.command.contains(&daemon.id.to_string())),
+            !legacy,
+            "{version:?}"
+        );
+    }
+}
