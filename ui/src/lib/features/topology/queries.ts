@@ -294,7 +294,9 @@ export function useTopologyDataQuery(
 ) {
 	return createQuery(() => ({
 		...topologyDataQueryOptions(siteId() ?? '', snapshotId(), view()),
-		enabled: () => !!siteId() && (enabled?.() ?? true)
+		enabled: () => !!siteId() && (enabled?.() ?? true),
+		// A held site refetches only when the user asks (see `heldTopologySites`).
+		refetchOnWindowFocus: () => !get(heldTopologySites).has(siteId() ?? '')
 	}));
 }
 
@@ -1002,6 +1004,80 @@ interface LiveTopologyUpdate {
 // final state is always fetched), while still reflecting new hosts within ~1s.
 const TOPOLOGY_INVALIDATION_THROTTLE_MS = 1000;
 
+/**
+ * Sites whose live topology keeps its drawn layout while a scan runs.
+ *
+ * A scan changes the site several times a second, and on a large site every refetch that adds a
+ * host or service is a full layout run: seconds of main-thread work and hundreds of megabytes,
+ * most of it thrown away when the next refetch lands. A held site's live bundle is not refetched
+ * on those changes; `heldTopologyUpdates` records that one arrived instead.
+ *
+ * Only the change stream is held. The user's own edits invalidate the topology queries directly
+ * and still refetch.
+ */
+export const heldTopologySites = writable<ReadonlySet<string>>(new Set());
+
+/** Held sites that changed since their layout was drawn. */
+export const heldTopologyUpdates = writable<ReadonlySet<string>>(new Set());
+
+/** Matches the live bundles (every view) of the given sites. */
+function isLiveTopologyData(key: readonly unknown[], siteIds: ReadonlySet<string>): boolean {
+	// key shape: ['topology', 'data', siteId, snapshotId | null, view]
+	return (
+		key[0] === 'topology' &&
+		key[1] === 'data' &&
+		typeof key[2] === 'string' &&
+		siteIds.has(key[2]) &&
+		key[3] == null
+	);
+}
+
+/**
+ * Live data changed for these sites. Invalidate the topology list (a live row's nodes/edges may
+ * have shifted) plus the live bundle of each site that is not held. Snapshot bundles are
+ * immutable, so their cache entries stay.
+ */
+export function invalidateLiveTopology(siteIds: ReadonlySet<string>) {
+	const held = get(heldTopologySites);
+	const heldChanged = [...siteIds].filter((id) => held.has(id));
+	if (heldChanged.length > 0) {
+		heldTopologyUpdates.update((pending) => new Set([...pending, ...heldChanged]));
+	}
+	const refetchable = new Set([...siteIds].filter((id) => !held.has(id)));
+
+	queryClient.invalidateQueries({
+		predicate: (query) => {
+			const key = query.queryKey as readonly unknown[];
+			if (key[0] !== 'topology') return false;
+			if (key[1] === 'data') return isLiveTopologyData(key, refetchable);
+			return true;
+		}
+	});
+}
+
+/** Fetch a held site's live bundle now. The site stays held. */
+export function refreshHeldTopology(siteId: string) {
+	heldTopologyUpdates.update((pending) => {
+		const next = new Set(pending);
+		next.delete(siteId);
+		return next;
+	});
+	queryClient.invalidateQueries({
+		predicate: (query) =>
+			isLiveTopologyData(query.queryKey as readonly unknown[], new Set([siteId]))
+	});
+}
+
+/** Hold or release a site. Releasing a site that changed while held fetches it once. */
+export function setTopologyHeld(siteId: string, hold: boolean) {
+	const held = get(heldTopologySites);
+	if (held.has(siteId) === hold) return;
+	heldTopologySites.set(
+		new Set(hold ? [...held, siteId] : [...held].filter((id) => id !== siteId))
+	);
+	if (!hold && get(heldTopologyUpdates).has(siteId)) refreshHeldTopology(siteId);
+}
+
 class TopologySSEManager extends BaseSSEManager<LiveTopologyUpdate> {
 	/** Site ids pinged since the last flush; drained by `flushInvalidations`. */
 	private pendingSiteIds = new Set<string>();
@@ -1025,21 +1101,7 @@ class TopologySSEManager extends BaseSSEManager<LiveTopologyUpdate> {
 		const siteIds = this.pendingSiteIds;
 		this.pendingSiteIds = new Set<string>();
 
-		// Live data changed for these sites — invalidate the topology list
-		// (a live row's nodes/edges may have shifted) plus the LIVE entity
-		// bundle for each affected site. Snapshot bundles are immutable, so
-		// the predicate leaves their cache entries intact.
-		queryClient.invalidateQueries({
-			predicate: (query) => {
-				const key = query.queryKey as readonly unknown[];
-				if (key[0] !== 'topology') return false;
-				if (key[1] === 'data') {
-					// key shape: ['topology', 'data', siteId, snapshotId | null, view]
-					return typeof key[2] === 'string' && siteIds.has(key[2]) && key[3] == null;
-				}
-				return true;
-			}
-		});
+		invalidateLiveTopology(siteIds);
 
 		for (const siteId of siteIds) {
 			// Snapshots-for-site list (taking a snapshot would have added a row).

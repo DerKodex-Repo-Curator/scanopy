@@ -19,11 +19,13 @@
 	import { onMount, onDestroy, setContext } from 'svelte';
 	import { preloadElk } from '$lib/features/topology/layout/elk-layout';
 	import { get, writable } from 'svelte/store';
+	import { isScaleCollapsed } from '../collapse';
 	import {
 		useTopologiesQuery,
 		useTopologyDataQuery,
 		markTopologyViewed,
 		loadTopologyData,
+		setTopologyHeld,
 		selectedTopologyId,
 		selectedSiteId,
 		selectedSnapshotId,
@@ -318,6 +320,23 @@
 			: null
 	);
 	let discoveryColor = $derived(entities.getColorHelper('Discovery'));
+
+	// Keep the drawn layout of a large live site while a scan runs on it, instead of re-laying it
+	// out on every change the scan reports. The viewer offers a refresh, and the site is fetched
+	// once more when the scan ends. Scale-collapse is the size gate: below it a layout run is cheap
+	// enough to follow the scan live.
+	let holdLayout = $derived(
+		$selectedSnapshotId == null &&
+			activeSession != null &&
+			currentTopology != null &&
+			isScaleCollapsed(currentTopology.nodes)
+	);
+	$effect(() => {
+		const siteId = $selectedSiteId;
+		if (!siteId) return;
+		setTopologyHeld(siteId, holdLayout);
+		return () => setTopologyHeld(siteId, false);
+	});
 
 	// View selector — built from fixture data
 	import viewsJson from '$lib/data/views.json';
