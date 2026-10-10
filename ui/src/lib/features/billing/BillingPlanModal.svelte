@@ -23,7 +23,6 @@
 	import { formatDate } from '$lib/shared/utils/formatting';
 	import {
 		errors_billing_air_gapped_plan_change_blocked,
-		billing_planPickerTitle,
 		settings_billing_changePlan
 	} from '$lib/paraglide/messages';
 
@@ -228,7 +227,7 @@
 
 <GenericModal
 	{isOpen}
-	title={billing_planPickerTitle()}
+	title=""
 	{name}
 	onClose={dismissible ? () => onClose() : null}
 	size="max"

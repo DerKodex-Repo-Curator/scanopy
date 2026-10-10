@@ -1,8 +1,12 @@
 <script lang="ts">
+	import { tooltip } from '$lib/shared/actions/tooltip';
+
 	interface ToggleOption {
 		value: string;
 		label: string;
 		badge?: string;
+		/** Shown on hover. */
+		tooltip?: string;
 	}
 
 	interface Props {
@@ -21,6 +25,8 @@
 		<button
 			type="button"
 			{disabled}
+			use:tooltip
+			data-tooltip={option.tooltip ?? null}
 			onclick={() => onchange(option.value)}
 			class="rounded-full px-2.5 py-1 text-sm font-medium transition-all {selected === option.value
 				? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
