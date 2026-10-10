@@ -7107,6 +7107,21 @@
             }
           },
           {
+            "name": "tag_sets",
+            "in": "query",
+            "description": "Tag sets the host must hold one tag from each of. Each entry is a comma-separated list\nof tag ids; a host matches when it holds at least one tag of every entry. One entry per\ntag group the list is filtered by.",
+            "required": false,
+            "schema": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Free-text search. Case-insensitive substring match against the host's\nname, hostname, sysName, chassis id, serial number, asset tag and\ndescription, and against its IP addresses and the names of services\nrunning on it.\n\nsysName and chassis id are in there because they are rungs of the title\nladder: a host with no name of its own is *shown* under one of them, and\na title you can read but cannot search for is a dead end.",
@@ -7148,6 +7163,32 @@
                   "$ref": "#/components/schemas/HostOrderField"
                 }
               ]
+            }
+          },
+          {
+            "name": "group_by_tag_group",
+            "in": "query",
+            "description": "Group by the tag each row holds from this tag group, in the group's tag order. Takes\nthe place of `group_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "order_by_tag_group",
+            "in": "query",
+            "description": "Sort by the position of the tag each row holds from this tag group. Takes the place of\n`order_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           {
@@ -7641,6 +7682,21 @@
             }
           },
           {
+            "name": "tag_sets",
+            "in": "query",
+            "description": "Tag sets the host must hold one tag from each of. Each entry is a comma-separated list\nof tag ids; a host matches when it holds at least one tag of every entry. One entry per\ntag group the list is filtered by.",
+            "required": false,
+            "schema": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Free-text search. Case-insensitive substring match against the host's\nname, hostname, sysName, chassis id, serial number, asset tag and\ndescription, and against its IP addresses and the names of services\nrunning on it.\n\nsysName and chassis id are in there because they are rungs of the title\nladder: a host with no name of its own is *shown* under one of them, and\na title you can read but cannot search for is a dead end.",
@@ -7682,6 +7738,32 @@
                   "$ref": "#/components/schemas/HostOrderField"
                 }
               ]
+            }
+          },
+          {
+            "name": "group_by_tag_group",
+            "in": "query",
+            "description": "Group by the tag each row holds from this tag group, in the group's tag order. Takes\nthe place of `group_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "order_by_tag_group",
+            "in": "query",
+            "description": "Sort by the position of the tag each row holds from this tag group. Takes the place of\n`order_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           {
@@ -8011,6 +8093,21 @@
             }
           },
           {
+            "name": "tag_sets",
+            "in": "query",
+            "description": "Tag sets the host must hold one tag from each of. Each entry is a comma-separated list\nof tag ids; a host matches when it holds at least one tag of every entry. One entry per\ntag group the list is filtered by.",
+            "required": false,
+            "schema": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Free-text search. Case-insensitive substring match against the host's\nname, hostname, sysName, chassis id, serial number, asset tag and\ndescription, and against its IP addresses and the names of services\nrunning on it.\n\nsysName and chassis id are in there because they are rungs of the title\nladder: a host with no name of its own is *shown* under one of them, and\na title you can read but cannot search for is a dead end.",
@@ -8052,6 +8149,32 @@
                   "$ref": "#/components/schemas/HostOrderField"
                 }
               ]
+            }
+          },
+          {
+            "name": "group_by_tag_group",
+            "in": "query",
+            "description": "Group by the tag each row holds from this tag group, in the group's tag order. Takes\nthe place of `group_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "order_by_tag_group",
+            "in": "query",
+            "description": "Sort by the position of the tag each row holds from this tag group. Takes the place of\n`order_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           {
@@ -8390,6 +8513,21 @@
             }
           },
           {
+            "name": "tag_sets",
+            "in": "query",
+            "description": "Tag sets the host must hold one tag from each of. Each entry is a comma-separated list\nof tag ids; a host matches when it holds at least one tag of every entry. One entry per\ntag group the list is filtered by.",
+            "required": false,
+            "schema": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Free-text search. Case-insensitive substring match against the host's\nname, hostname, sysName, chassis id, serial number, asset tag and\ndescription, and against its IP addresses and the names of services\nrunning on it.\n\nsysName and chassis id are in there because they are rungs of the title\nladder: a host with no name of its own is *shown* under one of them, and\na title you can read but cannot search for is a dead end.",
@@ -8431,6 +8569,32 @@
                   "$ref": "#/components/schemas/HostOrderField"
                 }
               ]
+            }
+          },
+          {
+            "name": "group_by_tag_group",
+            "in": "query",
+            "description": "Group by the tag each row holds from this tag group, in the group's tag order. Takes\nthe place of `group_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "order_by_tag_group",
+            "in": "query",
+            "description": "Sort by the position of the tag each row holds from this tag group. Takes the place of\n`order_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           {
@@ -11547,6 +11711,21 @@
             }
           },
           {
+            "name": "tag_sets",
+            "in": "query",
+            "description": "Tag sets the service must hold one tag from each of. Each entry is a comma-separated\nlist of tag ids; a service matches when it holds at least one tag of every entry. One\nentry per tag group the list is filtered by.",
+            "required": false,
+            "schema": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Free-text search. Case-insensitive substring match against the service's\nname and definition, and against the name of the host it runs on.",
@@ -11588,6 +11767,32 @@
                   "$ref": "#/components/schemas/ServiceOrderField"
                 }
               ]
+            }
+          },
+          {
+            "name": "group_by_tag_group",
+            "in": "query",
+            "description": "Group by the tag each row holds from this tag group, in the group's tag order. Takes\nthe place of `group_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "order_by_tag_group",
+            "in": "query",
+            "description": "Sort by the position of the tag each row holds from this tag group. Takes the place of\n`order_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           {
@@ -11969,6 +12174,21 @@
             }
           },
           {
+            "name": "tag_sets",
+            "in": "query",
+            "description": "Tag sets the service must hold one tag from each of. Each entry is a comma-separated\nlist of tag ids; a service matches when it holds at least one tag of every entry. One\nentry per tag group the list is filtered by.",
+            "required": false,
+            "schema": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Free-text search. Case-insensitive substring match against the service's\nname and definition, and against the name of the host it runs on.",
@@ -12010,6 +12230,32 @@
                   "$ref": "#/components/schemas/ServiceOrderField"
                 }
               ]
+            }
+          },
+          {
+            "name": "group_by_tag_group",
+            "in": "query",
+            "description": "Group by the tag each row holds from this tag group, in the group's tag order. Takes\nthe place of `group_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "order_by_tag_group",
+            "in": "query",
+            "description": "Sort by the position of the tag each row holds from this tag group. Takes the place of\n`order_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           {
@@ -12308,6 +12554,21 @@
             }
           },
           {
+            "name": "tag_sets",
+            "in": "query",
+            "description": "Tag sets the service must hold one tag from each of. Each entry is a comma-separated\nlist of tag ids; a service matches when it holds at least one tag of every entry. One\nentry per tag group the list is filtered by.",
+            "required": false,
+            "schema": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Free-text search. Case-insensitive substring match against the service's\nname and definition, and against the name of the host it runs on.",
@@ -12349,6 +12610,32 @@
                   "$ref": "#/components/schemas/ServiceOrderField"
                 }
               ]
+            }
+          },
+          {
+            "name": "group_by_tag_group",
+            "in": "query",
+            "description": "Group by the tag each row holds from this tag group, in the group's tag order. Takes\nthe place of `group_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "order_by_tag_group",
+            "in": "query",
+            "description": "Sort by the position of the tag each row holds from this tag group. Takes the place of\n`order_by`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           {
@@ -14756,6 +15043,431 @@
           },
           "404": {
             "description": "Subnet not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tag-groups": {
+      "get": {
+        "tags": [
+          "Tag Groups"
+        ],
+        "summary": "List all tag groups",
+        "description": "Returns every tag group in your organization: the system groups (Application, Status) first,\nthen the groups your organization named, by name.",
+        "operationId": "get_all_tag_groups",
+        "responses": {
+          "200": {
+            "description": "List of tag groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Response type for paginated list endpoints (pagination is always present in meta)",
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/TagGroupBase"
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "created_at",
+                              "updated_at"
+                            ],
+                            "properties": {
+                              "created_at": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "When this record was first created.",
+                                "readOnly": true
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Server-assigned unique identifier.",
+                                "readOnly": true
+                              },
+                              "updated_at": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "When this record was last modified.",
+                                "readOnly": true
+                              }
+                            }
+                          }
+                        ],
+                        "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
+                        "example": {
+                          "created_at": "2026-01-15T10:30:00Z",
+                          "entity_types": null,
+                          "group_type": "Custom",
+                          "id": "550e8400-e29b-41d4-a716-446655440010",
+                          "name": "Environment",
+                          "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+                          "updated_at": "2026-01-15T10:30:00Z"
+                        }
+                      },
+                      "description": "The page of results. Empty when nothing matched the query."
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Human-readable failure message. Omitted on success."
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginatedApiMeta",
+                      "description": "API and server version metadata, plus pagination counters."
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "description": "`true` when the request succeeded. `false` responses carry `error` instead of `data`."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Tag Groups"
+        ],
+        "summary": "Create a tag group",
+        "description": "Creates a group your organization names. Group names are unique within the organization, and\n\"Application\" and \"Status\" are reserved for the system groups.",
+        "operationId": "create_tag_group",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagGroup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tag group created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TagGroup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tag-groups/bulk-delete": {
+      "post": {
+        "tags": [
+          "Tag Groups"
+        ],
+        "summary": "Bulk delete Tag Groups",
+        "operationId": "bulk_delete_tag_groups",
+        "requestBody": {
+          "description": "Array of Tag Group IDs to delete",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tag Groups deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_BulkDeleteResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tag-groups/{id}": {
+      "get": {
+        "tags": [
+          "Tag Groups"
+        ],
+        "summary": "Get Tag Group by ID",
+        "operationId": "get_tag_group_by_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tag Group ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tag Group found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TagGroup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tag Group not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Tag Groups"
+        ],
+        "summary": "Update Tag Group",
+        "operationId": "update_tag_group",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tag Group ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagGroup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tag Group updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TagGroup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tag Group not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Tag Groups"
+        ],
+        "summary": "Delete Tag Group",
+        "operationId": "delete_tag_group",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tag Group ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tag Group deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tag Group not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tag-groups/{id}/tag-order": {
+      "put": {
+        "tags": [
+          "Tag Groups"
+        ],
+        "summary": "Set the order of a tag group's tags",
+        "description": "Tables, pickers and the topology list a group's tags in this order.",
+        "operationId": "set_tag_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tag group ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The group's tags, in their new order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Vec_Tag"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The list doesn't name every tag in the group exactly once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tag group not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -17251,19 +17963,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-10T15:37:23.559227Z",
+              "created_at": "2026-10-10T16:21:28.122801Z",
               "first_discovery_id": null,
-              "id": "4c577d07-44ee-49de-88d5-ec068755823a",
+              "id": "139ae335-00b2-4bce-8d0e-f7e55cf4193f",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-10T15:37:23.559227Z",
+              "last_seen_at": "2026-10-10T16:21:28.122801Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-10T15:37:23.559227Z",
-              "valid_from": "2026-10-10T15:37:23.559227Z",
+              "updated_at": "2026-10-10T16:21:28.122801Z",
+              "valid_from": "2026-10-10T16:21:28.122801Z",
               "valid_to": null
             }
           },
@@ -18969,19 +19681,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-10T15:37:23.477395Z",
+                      "created_at": "2026-10-10T16:21:28.095411Z",
                       "first_discovery_id": null,
-                      "id": "b429bb47-701c-4475-9e2d-84854c797db4",
+                      "id": "a3a4f3fd-feb4-4a62-90dc-89504f746378",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-10T15:37:23.477395Z",
+                      "last_seen_at": "2026-10-10T16:21:28.095411Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-10T15:37:23.477395Z",
-                      "valid_from": "2026-10-10T15:37:23.477395Z",
+                      "updated_at": "2026-10-10T16:21:28.095411Z",
+                      "valid_from": "2026-10-10T16:21:28.095411Z",
                       "valid_to": null
                     }
                   ],
@@ -18994,7 +19706,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "EtherNet/IP",
+                  "service_definition": "RabbitMQ",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -20315,19 +21027,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-10T15:37:23.540539Z",
+                  "created_at": "2026-10-10T16:21:28.117397Z",
                   "first_discovery_id": null,
-                  "id": "3bf6ce0f-5c76-4b61-97d7-4ea9bbbdf508",
+                  "id": "e3d5b3d3-c184-4454-9bc5-940c950923b9",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-10T15:37:23.540539Z",
+                  "last_seen_at": "2026-10-10T16:21:28.117397Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-10T15:37:23.540539Z",
-                  "valid_from": "2026-10-10T15:37:23.540539Z",
+                  "updated_at": "2026-10-10T16:21:28.117397Z",
+                  "valid_from": "2026-10-10T16:21:28.117397Z",
                   "valid_to": null
                 }
               ],
@@ -20340,7 +21052,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "EtherNet/IP",
+              "service_definition": "RabbitMQ",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -21045,10 +21757,81 @@
               "lineage_id": null,
               "name": "production",
               "organization_id": "550e8400-e29b-41d4-a716-446655440001",
-              "tag_group": null,
+              "position": 1,
+              "tag_group_id": "550e8400-e29b-41d4-a716-446655440010",
               "updated_at": "2026-01-15T10:30:00Z",
               "valid_from": "2026-01-15T10:30:00Z",
               "valid_to": null
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
+      "ApiResponse_TagGroup": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TagGroupBase"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "created_at",
+                  "updated_at"
+                ],
+                "properties": {
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When this record was first created.",
+                    "readOnly": true
+                  },
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Server-assigned unique identifier.",
+                    "readOnly": true
+                  },
+                  "updated_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When this record was last modified.",
+                    "readOnly": true
+                  }
+                }
+              }
+            ],
+            "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
+            "example": {
+              "created_at": "2026-01-15T10:30:00Z",
+              "entity_types": null,
+              "group_type": "Custom",
+              "id": "550e8400-e29b-41d4-a716-446655440010",
+              "name": "Environment",
+              "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+              "updated_at": "2026-01-15T10:30:00Z"
             }
           },
           "error": {
@@ -21202,9 +21985,18 @@
               "interfaces",
               "services",
               "vlans",
-              "tags"
+              "tags",
+              "application_group_id"
             ],
             "properties": {
+              "application_group_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid",
+                "description": "The organization's Application tag group. Its tags place entities in applications.\nShipped here because share and embed viewers can't list tag groups."
+              },
               "available_views": {
                 "type": "array",
                 "items": {
@@ -21290,6 +22082,7 @@
                     "Daemon",
                     "DaemonApiKey",
                     "Tag",
+                    "TagGroup",
                     "User",
                     "UserApiKey",
                     "Credential",
@@ -22267,6 +23060,109 @@
           }
         }
       },
+      "ApiResponse_Vec_Tag": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TagBase"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "properties": {
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "When this record was first created.",
+                      "readOnly": true
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Server-assigned unique identifier.",
+                      "readOnly": true
+                    },
+                    "lineage_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid",
+                      "description": "Stable identifier shared by every revision of the same entity across its history.",
+                      "readOnly": true
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "When this record was last modified.",
+                      "readOnly": true
+                    },
+                    "valid_from": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Start of the interval this revision was current for (SCD2 history).",
+                      "readOnly": true
+                    },
+                    "valid_to": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "End of the interval this revision was current for. `null` while it is the live revision.",
+                      "readOnly": true
+                    }
+                  }
+                }
+              ],
+              "example": {
+                "color": "Green",
+                "created_at": "2026-01-15T10:30:00Z",
+                "description": "Production environment resources",
+                "icon": null,
+                "id": "550e8400-e29b-41d4-a716-44665544000a",
+                "lineage_id": null,
+                "name": "production",
+                "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+                "position": 1,
+                "tag_group_id": "550e8400-e29b-41d4-a716-446655440010",
+                "updated_at": "2026-01-15T10:30:00Z",
+                "valid_from": "2026-01-15T10:30:00Z",
+                "valid_to": null
+              }
+            },
+            "description": "The result payload. Omitted on failure."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
       "ApiResponse_VersionInfo": {
         "type": "object",
         "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
@@ -23046,19 +23942,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-10T15:37:23.478616Z",
+          "created_at": "2026-10-10T16:21:28.095913Z",
           "first_discovery_id": null,
-          "id": "37a2bda2-7bd9-4209-9b98-101b465bd7ca",
+          "id": "20ff50d3-399e-4fe4-9560-ec61db080021",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-10T15:37:23.478616Z",
+          "last_seen_at": "2026-10-10T16:21:28.095913Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-10T15:37:23.478616Z",
-          "valid_from": "2026-10-10T15:37:23.478616Z",
+          "updated_at": "2026-10-10T16:21:28.095913Z",
+          "valid_from": "2026-10-10T16:21:28.095913Z",
           "valid_to": null
         }
       },
@@ -23824,7 +24720,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "EtherNet/IP",
+              "service_definition": "RabbitMQ",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -28784,6 +29680,7 @@
           "Daemon",
           "DaemonApiKey",
           "Tag",
+          "TagGroup",
           "User",
           "UserApiKey",
           "Credential",
@@ -30663,19 +31560,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-10T15:37:23.475884Z",
+                  "created_at": "2026-10-10T16:21:28.094874Z",
                   "first_discovery_id": null,
-                  "id": "b573f906-0f0b-4bea-9ba2-10264418e934",
+                  "id": "4c255961-b5d0-489c-a9ad-1ec6ff6664f9",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-10T15:37:23.475884Z",
+                  "last_seen_at": "2026-10-10T16:21:28.094874Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-10T15:37:23.475884Z",
-                  "valid_from": "2026-10-10T15:37:23.475884Z",
+                  "updated_at": "2026-10-10T16:21:28.094874Z",
+                  "valid_from": "2026-10-10T16:21:28.094874Z",
                   "valid_to": null
                 }
               ],
@@ -30688,7 +31585,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "EtherNet/IP",
+              "service_definition": "RabbitMQ",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -34486,19 +35383,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-10T15:37:23.449479Z",
+                        "created_at": "2026-10-10T16:21:28.082534Z",
                         "first_discovery_id": null,
-                        "id": "f7017026-f0e4-467f-8476-2b8b366ec5cc",
+                        "id": "34446ec6-6971-4586-9086-122c5563f302",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-10T15:37:23.449479Z",
+                        "last_seen_at": "2026-10-10T16:21:28.082534Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-10T15:37:23.449479Z",
-                        "valid_from": "2026-10-10T15:37:23.449479Z",
+                        "updated_at": "2026-10-10T16:21:28.082534Z",
+                        "valid_from": "2026-10-10T16:21:28.082534Z",
                         "valid_to": null
                       }
                     ],
@@ -34511,7 +35408,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "EtherNet/IP",
+                    "service_definition": "RabbitMQ",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -34660,19 +35557,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-10T15:37:23.538539Z",
+                    "created_at": "2026-10-10T16:21:28.116640Z",
                     "first_discovery_id": null,
-                    "id": "7a7c0e66-61e8-4f8b-b99b-3462ee9478e6",
+                    "id": "49e4f092-6a5a-45c0-88f3-1a5ec6f39e3e",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-10T15:37:23.538539Z",
+                    "last_seen_at": "2026-10-10T16:21:28.116640Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-10T15:37:23.538539Z",
-                    "valid_from": "2026-10-10T15:37:23.538539Z",
+                    "updated_at": "2026-10-10T16:21:28.116640Z",
+                    "valid_from": "2026-10-10T16:21:28.116640Z",
                     "valid_to": null
                   }
                 ],
@@ -34685,7 +35582,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "EtherNet/IP",
+                "service_definition": "RabbitMQ",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -34865,7 +35762,8 @@
                 "lineage_id": null,
                 "name": "production",
                 "organization_id": "550e8400-e29b-41d4-a716-446655440001",
-                "tag_group": null,
+                "position": 1,
+                "tag_group_id": "550e8400-e29b-41d4-a716-446655440010",
                 "updated_at": "2026-01-15T10:30:00Z",
                 "valid_from": "2026-01-15T10:30:00Z",
                 "valid_to": null
@@ -37109,19 +38007,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-10T15:37:23.478241Z",
+              "created_at": "2026-10-10T16:21:28.095768Z",
               "first_discovery_id": null,
-              "id": "17122362-4f76-49af-9abc-5c3f5a7fdfd7",
+              "id": "73073b35-549f-4e57-8a2a-317995f1e9f8",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-10T15:37:23.478241Z",
+              "last_seen_at": "2026-10-10T16:21:28.095768Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-10T15:37:23.478241Z",
-              "valid_from": "2026-10-10T15:37:23.478241Z",
+              "updated_at": "2026-10-10T16:21:28.095768Z",
+              "valid_from": "2026-10-10T16:21:28.095768Z",
               "valid_to": null
             }
           ],
@@ -37134,7 +38032,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "EtherNet/IP",
+          "service_definition": "RabbitMQ",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -38337,7 +39235,8 @@
           "lineage_id": null,
           "name": "production",
           "organization_id": "550e8400-e29b-41d4-a716-446655440001",
-          "tag_group": null,
+          "position": 1,
+          "tag_group_id": "550e8400-e29b-41d4-a716-446655440010",
           "updated_at": "2026-01-15T10:30:00Z",
           "valid_from": "2026-01-15T10:30:00Z",
           "valid_to": null
@@ -38348,7 +39247,9 @@
         "required": [
           "name",
           "color",
-          "organization_id"
+          "organization_id",
+          "tag_group_id",
+          "position"
         ],
         "properties": {
           "color": {
@@ -38382,76 +39283,112 @@
             "format": "uuid",
             "description": "The organization that owns this record."
           },
-          "tag_group": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TagGroup",
-                "description": "The group this tag belongs to, if any. An entity holds at most one tag of a group."
-              }
-            ]
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The tag's place in its group's order, from 1. `null` when the tag is in no group. Set by\nthe server: a tag joins the end of its group, and the group's tag order endpoint reorders.",
+            "readOnly": true
+          },
+          "tag_group_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The tag group this tag belongs to, if any. An entity holds at most one tag of a group."
           }
         }
       },
       "TagGroup": {
-        "oneOf": [
+        "allOf": [
           {
-            "type": "object",
-            "title": "Application",
-            "description": "The system group of application tags.",
-            "required": [
-              "type"
-            ],
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "Application"
-                ]
-              }
-            }
+            "$ref": "#/components/schemas/TagGroupBase"
           },
           {
             "type": "object",
-            "title": "Status",
-            "description": "The system group of an asset's lifecycle status.",
             "required": [
-              "type"
+              "id",
+              "created_at",
+              "updated_at"
             ],
             "properties": {
-              "type": {
+              "created_at": {
                 "type": "string",
-                "enum": [
-                  "Status"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "title": "Named",
-            "description": "A group the organization named.",
-            "required": [
-              "name",
-              "type"
-            ],
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "The group's name, shared by every tag in it."
+                "format": "date-time",
+                "description": "When this record was first created.",
+                "readOnly": true
               },
-              "type": {
+              "id": {
                 "type": "string",
-                "enum": [
-                  "Named"
-                ]
+                "format": "uuid",
+                "description": "Server-assigned unique identifier.",
+                "readOnly": true
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When this record was last modified.",
+                "readOnly": true
               }
             }
           }
         ],
-        "description": "A group of tags of which an entity may hold at most one.\n\nAssigning a tag from a group replaces whichever tag of the same group the entity already holds.\n`Application` and `Status` are system groups: every organization has them, and no\norganization can name a group of its own after them. Application tags drive the application\nview, which can place an entity in one application only. Status tags track where an asset is\non its way from planned to decommissioned. `Named` groups are named by the organization (an\nenvironment, a tier) and exist for as long as a tag carries the name."
+        "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
+        "example": {
+          "created_at": "2026-01-15T10:30:00Z",
+          "entity_types": null,
+          "group_type": "Custom",
+          "id": "550e8400-e29b-41d4-a716-446655440010",
+          "name": "Environment",
+          "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+          "updated_at": "2026-01-15T10:30:00Z"
+        }
+      },
+      "TagGroupBase": {
+        "type": "object",
+        "required": [
+          "name",
+          "organization_id",
+          "group_type",
+          "entity_types"
+        ],
+        "properties": {
+          "entity_types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EntityDiscriminants"
+            },
+            "description": "The entity types this group's tags can be applied to. `null` allows every taggable type."
+          },
+          "group_type": {
+            "$ref": "#/components/schemas/TagGroupType",
+            "description": "Whether this is a system group or one the organization named. Set by the server: groups\ncreated through the API are always `Custom`."
+          },
+          "name": {
+            "type": "string",
+            "description": "The group's name. A system group's name is fixed."
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The organization that owns this record."
+          }
+        }
+      },
+      "TagGroupType": {
+        "type": "string",
+        "description": "What kind of tag group this is.\n\n`Application` and `Status` are system groups: every organization has exactly one of each, and\nthey can't be renamed, deleted or recreated. Application tags drive the application view.\nStatus tags track where an asset is on its way from planned to decommissioned. `Custom` groups\nare named by the organization.",
+        "enum": [
+          "Application",
+          "Status",
+          "Custom"
+        ]
       },
       "TagIcon": {
         "type": "string",
@@ -38467,6 +39404,23 @@
           "updated_at",
           "tag_group"
         ]
+      },
+      "TagOrderRequest": {
+        "type": "object",
+        "description": "Request body for setting a tag group's tag order",
+        "required": [
+          "tag_ids"
+        ],
+        "properties": {
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Every tag in the group, each once, in the order to list them."
+          }
+        }
       },
       "TestReachabilityRequest": {
         "type": "object",
@@ -38585,9 +39539,18 @@
           "interfaces",
           "services",
           "vlans",
-          "tags"
+          "tags",
+          "application_group_id"
         ],
         "properties": {
+          "application_group_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The organization's Application tag group. Its tags place entities in applications.\nShipped here because share and embed viewers can't list tag groups."
+          },
           "available_views": {
             "type": "array",
             "items": {
@@ -38673,6 +39636,7 @@
                 "Daemon",
                 "DaemonApiKey",
                 "Tag",
+                "TagGroup",
                 "User",
                 "UserApiKey",
                 "Credential",
@@ -38938,7 +39902,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "49ffbada-f7e8-4de8-8044-0c61648ebade",
+                  "id": "a4c19e50-edfd-4bdf-8fa5-9765822ac057",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -38948,23 +39912,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "ab414ded-fb9e-4f4f-b697-b4f8838e1061",
+                  "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "01288715-3765-4c1f-8ff6-3582a92ae4fd",
+                  "id": "e9ad12fa-e14a-4559-b3cb-9bd1b29694dd",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "5d4dc3eb-b4b3-4128-a491-c5abd3afbca4",
+                  "id": "f36626ff-3d50-4358-829d-8e17064f837f",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "ab414ded-fb9e-4f4f-b697-b4f8838e1061",
+                  "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
                   "rule": "ByHost"
                 }
               ]
@@ -38994,19 +39958,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "7675df3e-0c87-42dd-944a-adcc36108d3b",
+                "id": "c5cf1ee7-baba-4246-af1e-e4f1de81c0e3",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "40bf01c9-28ee-4cb3-98d6-208bcd6cb138",
+                "id": "cbd31d25-a127-42fa-93eb-2b1ab6c11ceb",
                 "rule": "ByVLAN"
               },
               {
-                "id": "90849907-86a7-4769-8367-1e7a82f3f4b6",
+                "id": "a7eb932a-c387-49d3-825d-6dcdf0328af8",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "aa5f22b6-be15-4fd6-adb1-1f5bf0c565d1",
+                "id": "8f26697a-6016-44b4-9595-5a6d6d10c3f0",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -39027,7 +39991,7 @@
                 }
               },
               {
-                "id": "1c2717ef-f760-4d89-be09-d77e1d99a191",
+                "id": "32ab774a-c602-4375-9bee-a7acc805bb43",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -39036,15 +40000,15 @@
                 }
               },
               {
-                "id": "cedd7cc2-8561-4790-9d2b-a6d31dc52afa",
+                "id": "7ed0bd46-03eb-44aa-8d5e-8a9a8ac94612",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "5255ffda-5eaf-4519-81b7-f3755f157056",
+                "id": "28c1ad75-9b7b-4e9a-a306-ab8d329fb044",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "a2677c90-b97c-474a-ab5b-8672206ffce1",
+                "id": "8e27c2ec-0de3-4ca3-9dc2-85a040a381b6",
                 "rule": "ByStack"
               }
             ]
@@ -39164,6 +40128,7 @@
                   "Daemon",
                   "DaemonApiKey",
                   "Tag",
+                  "TagGroup",
                   "User",
                   "UserApiKey",
                   "Credential",
@@ -39251,6 +40216,7 @@
                 "Daemon",
                 "DaemonApiKey",
                 "Tag",
+                "TagGroup",
                 "User",
                 "UserApiKey",
                 "Credential",
@@ -40024,6 +40990,7 @@
                 "Daemon",
                 "DaemonApiKey",
                 "Tag",
+                "TagGroup",
                 "User",
                 "UserApiKey",
                 "Credential",
@@ -40303,6 +41270,15 @@
             ],
             "description": "Free-text notes about the VLAN."
           },
+          "interface_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "readOnly": true
+            },
+            "description": "Interfaces that serve this VLAN, as their native VLAN or one of their\nmember VLANs (`Interface::native_vlan_id` / `Interface::vlan_ids`).\nHydrated by `VlanService` on read; not a column on `vlans`."
+          },
           "name": {
             "type": "string",
             "description": "Human-facing name for this VLAN."
@@ -40551,6 +41527,10 @@
     {
       "name": "Tags",
       "description": "Custom tags for categorization. Apply labels to entities for filtering and organization."
+    },
+    {
+      "name": "Tag Groups",
+      "description": "Sets of tags an entity holds one of, in a set order, optionally limited to some entity types."
     },
     {
       "name": "Topologies",

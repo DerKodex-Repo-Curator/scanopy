@@ -244,6 +244,7 @@
 					<form.Field name="tags">
 						{#snippet children(field)}
 							<TagPicker
+								entityType="Site"
 								selectedTagIds={field.state.value || []}
 								onChange={(tags) => field.handleChange(tags)}
 							/>

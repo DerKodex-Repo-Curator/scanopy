@@ -64,6 +64,8 @@ export interface EntityBundle {
 	dependencies: Dependency[];
 	vlans: Vlan[];
 	entity_tags: Tag[];
+	/** The organization's Application tag group: its tags place entities in applications. */
+	application_group_id: string | null;
 	/** Per-view graph built on request by the backend (keyed by view). */
 	nodes?: Partial<Record<TopologyView, TopologyNode[]>>;
 	edges?: Partial<Record<TopologyView, TopologyEdge[]>>;
@@ -82,7 +84,8 @@ export const EMPTY_ENTITY_BUNDLE: EntityBundle = {
 	filtered_out: {},
 	dependencies: [],
 	vlans: [],
-	entity_tags: []
+	entity_tags: [],
+	application_group_id: null
 };
 
 /**
@@ -102,7 +105,8 @@ export function entityBundleFrom(data: TopologyData): EntityBundle {
 		neighbours: neighbours ?? [],
 		candidates: candidates ?? [],
 		filtered_out: filtered_out ?? {},
-		entity_tags: tags
+		entity_tags: tags,
+		application_group_id: data.application_group_id ?? null
 	};
 }
 
@@ -185,6 +189,7 @@ export function toRenderableTopology(
 		dependencies,
 		vlans,
 		entity_tags: entityTags,
+		application_group_id: bundle.application_group_id,
 		name
 	};
 }

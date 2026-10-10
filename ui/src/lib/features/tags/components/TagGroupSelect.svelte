@@ -3,80 +3,74 @@
 	import CreatableOptionList, {
 		type CreatableOption
 	} from '$lib/shared/components/forms/selection/CreatableOptionList.svelte';
-	import {
-		isSystemGroupName,
-		systemGroupIcon,
-		systemTagGroups,
-		tagGroupLabel,
-		type TagGroup
-	} from '../groups';
+	import { groupNamed, tagGroupIcon, tagGroupLabel, type TagGroup } from '../groups';
 	import { common_none, tags_createTagQuoted } from '$lib/paraglide/messages';
 
 	/**
-	 * Choose the tag group a tag belongs to: a system group (Application, Status), a group another tag
-	 * already names, a new group typed here, or none. A tag sits in at most one group, so this is a
-	 * single value rather than a list.
+	 * Choose the tag group a tag belongs to: one of the organization's groups, a new group typed
+	 * here, or none. A tag sits in at most one group, so this is a single value rather than a list.
 	 */
 	let {
 		value,
 		groups,
 		onChange,
+		onCreate = null,
 		id,
 		placeholder,
 		disabled = false
 	}: {
-		value: TagGroup | null;
-		/** Names of the groups already in use. */
-		groups: string[];
-		onChange: (group: TagGroup | null) => void;
+		/** The selected group's id. */
+		value: string | null;
+		/** The organization's groups, system groups first. */
+		groups: TagGroup[];
+		onChange: (groupId: string | null) => void;
+		/** Creates a group named as typed and selects it. Omit to offer no creation. */
+		onCreate?: ((name: string) => Promise<void>) | null;
 		id: string;
 		placeholder: string;
 		disabled?: boolean;
 	} = $props();
 
 	const NONE = 'none';
-	const SYSTEM_PREFIX = 'system:';
-	const GROUP_PREFIX = 'group:';
 
 	let open = $state(false);
 	let query = $state('');
+	let creating = $state(false);
 
 	let needle = $derived(query.trim().toLowerCase());
-	let matchingGroups = $derived(groups.filter((name) => name.toLowerCase().includes(needle)));
+	let selected = $derived(groups.find((group) => group.id === value) ?? null);
 
 	let options = $derived.by<CreatableOption[]>(() => {
 		const result: CreatableOption[] = [];
 		if (value && !needle) result.push({ id: NONE, label: common_none() });
-		for (const group of systemTagGroups) {
-			const label = tagGroupLabel(group) ?? group.type;
+		for (const group of groups) {
+			const label = tagGroupLabel(group) ?? group.name;
 			if (!label.toLowerCase().includes(needle)) continue;
-			result.push({ id: SYSTEM_PREFIX + group.type, label, icon: systemGroupIcon(group) });
+			result.push({ id: group.id, label, icon: tagGroupIcon(group) ?? undefined });
 		}
-		for (const name of matchingGroups) result.push({ id: GROUP_PREFIX + name, label: name });
 		return result;
 	});
 
 	// Offer to create what was typed unless it already names a group.
 	let canCreate = $derived(
-		needle.length > 0 &&
-			!groups.some((name) => name.toLowerCase() === needle) &&
-			!isSystemGroupName(needle)
+		onCreate !== null && needle.length > 0 && groupNamed(groups, needle) === null
 	);
 
 	function select(optionId: string) {
-		if (optionId === NONE) onChange(null);
-		else if (optionId.startsWith(SYSTEM_PREFIX)) {
-			const type = optionId.slice(SYSTEM_PREFIX.length);
-			onChange(systemTagGroups.find((group) => group.type === type) ?? null);
-		} else onChange({ type: 'Named', name: optionId.slice(GROUP_PREFIX.length) });
+		onChange(optionId === NONE ? null : optionId);
 		close();
 	}
 
-	function create() {
+	async function create() {
 		const name = query.trim();
-		if (!name) return;
-		onChange({ type: 'Named', name });
-		close();
+		if (!name || !onCreate || creating) return;
+		creating = true;
+		try {
+			await onCreate(name);
+		} finally {
+			creating = false;
+			close();
+		}
 	}
 
 	function close() {
@@ -100,9 +94,9 @@
 		{id}
 		type="text"
 		class="input-field w-full pr-8"
-		{disabled}
+		disabled={disabled || creating}
 		placeholder={open ? '' : placeholder}
-		value={open ? query : (tagGroupLabel(value) ?? '')}
+		value={open ? query : (tagGroupLabel(selected) ?? '')}
 		onfocus={() => (open = true)}
 		onblur={() => setTimeout(close, 150)}
 		oninput={(e) => (query = e.currentTarget.value)}

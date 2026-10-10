@@ -873,6 +873,13 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
+    /// Filter entities that hold at least one tag of every set in `sets`: each set is one tag
+    /// group's filter, and the groups combine as AND.
+    pub fn has_tags_from_each(self, sets: &[Vec<Uuid>], entity_type: EntityDiscriminants) -> Self {
+        sets.iter()
+            .fold(self, |filter, set| filter.has_any_tags(set, entity_type))
+    }
+
     /// Filter entities that hold ANY of the specified tags now. Closed and snapshot
     /// assignments don't count: an entity moved from one Status to another no longer matches
     /// the first.

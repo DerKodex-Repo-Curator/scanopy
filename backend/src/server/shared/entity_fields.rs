@@ -235,7 +235,7 @@ const TAG: &[F] = &[
     F::new("name", "Name").summary(),
     DESCRIPTION.summary(),
     F::new("color", "Color"),
-    F::new("tag_group_id", "Tag Group").entity(&[Hop::parent(E::TagGroup, "tag_group_id")]),
+    F::new("tag_group", "Tag Group").entity(&[Hop::parent(E::TagGroup, "tag_group_id")]),
     F::new("icon", "Icon"),
 ];
 

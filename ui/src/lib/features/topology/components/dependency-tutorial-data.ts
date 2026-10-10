@@ -39,6 +39,7 @@ export const TUTORIAL_TOPOLOGY: RenderableTopology = {
 	edges: [],
 	dependencies: [],
 	entity_tags: [],
+	application_group_id: null,
 	bindings: [],
 	ports: [],
 	ip_addresses: [],

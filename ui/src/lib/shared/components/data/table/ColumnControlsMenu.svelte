@@ -6,7 +6,7 @@
 	import { columnControlState, type ColumnControl } from '../controls/headerControls';
 	import type { FilterState } from '../controls/filtering';
 	import type { FilterActions } from '../controls/filterActions';
-	import type { Tag as TagType } from '$lib/features/tags/types/base';
+	import type { Tag as TagType, TagGroup } from '$lib/features/tags/types/base';
 	import {
 		common_clearFilter,
 		common_clearGrouping,
@@ -27,6 +27,7 @@
 		staleOnly,
 		activeGroupField,
 		allTags,
+		tagGroups,
 		getUniqueValues,
 		filters,
 		onToggleGroup
@@ -37,6 +38,7 @@
 		staleOnly: boolean;
 		activeGroupField: string | null;
 		allTags: TagType[];
+		tagGroups: TagGroup[];
 		getUniqueValues: (field: FieldConfig<T>) => string[];
 		filters: FilterActions;
 		onToggleGroup: (fieldKey: string) => void;
@@ -88,6 +90,7 @@
 				field={control.field}
 				filter={filterState[key]}
 				{allTags}
+				{tagGroups}
 				showStale={control.stale}
 				{staleOnly}
 				{getUniqueValues}

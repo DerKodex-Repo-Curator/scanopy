@@ -750,7 +750,11 @@ impl EntityTagService {
     }
 
     /// Refuse when a tag group of one of `tags` doesn't allow `entity_type`.
-    async fn refuse_out_of_scope(&self, tags: &[Tag], entity_type: EntityDiscriminants) -> Result<()> {
+    async fn refuse_out_of_scope(
+        &self,
+        tags: &[Tag],
+        entity_type: EntityDiscriminants,
+    ) -> Result<()> {
         self.tag_service
             .tag_group_service()
             .refuse_out_of_scope(tags, entity_type)

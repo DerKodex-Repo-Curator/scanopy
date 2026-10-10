@@ -14,7 +14,8 @@
 		hiddenTagIds,
 		onToggle,
 		entityType,
-		hasUntagged = false
+		hasUntagged = false,
+		applicationGroupId = null
 	}: {
 		label?: string;
 		tags: TagType[];
@@ -25,6 +26,8 @@
 		// callers are updated to pass the typed value.
 		entityType: EntityType;
 		hasUntagged?: boolean;
+		// The organization's Application tag group, whose tags draw the application icon.
+		applicationGroupId?: string | null;
 	} = $props();
 
 	// Build items list with untagged sentinel first, then real tags
@@ -34,12 +37,12 @@
 			result.push({ value: UNTAGGED_SENTINEL, label: common_untagged(), color: 'Gray' });
 		}
 		for (const tag of tags) {
-			const isApp = isApplicationTag(tag);
+			const isApp = isApplicationTag(tag, applicationGroupId);
 			result.push({
 				value: tag.id,
 				label: tag.name,
 				color: tag.color as FilterItem['color'],
-				icon: tagIcon(tag) ?? undefined,
+				icon: tagIcon(tag, applicationGroupId) ?? undefined,
 				isShiny: isApp
 			});
 		}

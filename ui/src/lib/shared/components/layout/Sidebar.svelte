@@ -67,6 +67,7 @@
 	import UserTab from '$lib/features/users/components/UserTab.svelte';
 	import UserApiKeyTab from '$lib/features/user_api_keys/components/UserApiKeyTab.svelte';
 	import TagTab from '$lib/features/tags/components/TagTab.svelte';
+	import TagGroupTab from '$lib/features/tags/components/TagGroupTab.svelte';
 	import CredentialsTab from '$lib/features/credentials/components/CredentialsTab.svelte';
 
 	import HomeTab from '$lib/features/home/components/HomeTab.svelte';
@@ -345,12 +346,25 @@
 				}
 			]
 		},
+		// Tag groups are a sub-tab of Tags: groups exist to order and scope tags.
 		Tag: {
-			id: entityUIConfig.Tag!.tabId,
+			id: 'tags-group',
 			label: TAB_LABELS[entityUIConfig.Tag!.tabId],
 			icon: entities.getIconComponent('Tag'),
-			entityType: 'Tag',
-			component: TagTab
+			subTabs: [
+				{
+					id: entityUIConfig.Tag!.tabId,
+					label: TAB_LABELS[entityUIConfig.Tag!.tabId],
+					icon: entities.getIconComponent('Tag'),
+					component: TagTab
+				},
+				{
+					id: entityUIConfig.TagGroup!.tabId,
+					label: TAB_LABELS[entityUIConfig.TagGroup!.tabId],
+					icon: entities.getIconComponent('TagGroup'),
+					component: TagGroupTab
+				}
+			]
 		},
 		User: {
 			id: entityUIConfig.User!.tabId,

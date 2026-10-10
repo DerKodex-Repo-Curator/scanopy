@@ -3056,6 +3056,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tag-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all tag groups
+         * @description Returns every tag group in your organization: the system groups (Application, Status) first,
+         *     then the groups your organization named, by name.
+         */
+        get: operations["get_all_tag_groups"];
+        put?: never;
+        /**
+         * Create a tag group
+         * @description Creates a group your organization names. Group names are unique within the organization, and
+         *     "Application" and "Status" are reserved for the system groups.
+         */
+        post: operations["create_tag_group"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tag-groups/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk delete Tag Groups */
+        post: operations["bulk_delete_tag_groups"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tag-groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Tag Group by ID */
+        get: operations["get_tag_group_by_id"];
+        /** Update Tag Group */
+        put: operations["update_tag_group"];
+        post?: never;
+        /** Delete Tag Group */
+        delete: operations["delete_tag_group"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tag-groups/{id}/tag-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the order of a tag group's tags
+         * @description Tables, pickers and the topology list a group's tags in this order.
+         */
+        put: operations["set_tag_order"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tags": {
         parameters: {
             query?: never;
@@ -3605,19 +3687,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-10T15:37:23.559227Z",
+             *       "created_at": "2026-10-10T16:21:28.122801Z",
              *       "first_discovery_id": null,
-             *       "id": "4c577d07-44ee-49de-88d5-ec068755823a",
+             *       "id": "139ae335-00b2-4bce-8d0e-f7e55cf4193f",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-10T15:37:23.559227Z",
+             *       "last_seen_at": "2026-10-10T16:21:28.122801Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-10T15:37:23.559227Z",
-             *       "valid_from": "2026-10-10T15:37:23.559227Z",
+             *       "updated_at": "2026-10-10T16:21:28.122801Z",
+             *       "valid_from": "2026-10-10T16:21:28.122801Z",
              *       "valid_to": null
              *     }
              */
@@ -4470,19 +4552,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-10T15:37:23.477395Z",
+             *               "created_at": "2026-10-10T16:21:28.095411Z",
              *               "first_discovery_id": null,
-             *               "id": "b429bb47-701c-4475-9e2d-84854c797db4",
+             *               "id": "a3a4f3fd-feb4-4a62-90dc-89504f746378",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-10T15:37:23.477395Z",
+             *               "last_seen_at": "2026-10-10T16:21:28.095411Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-10T15:37:23.477395Z",
-             *               "valid_from": "2026-10-10T15:37:23.477395Z",
+             *               "updated_at": "2026-10-10T16:21:28.095411Z",
+             *               "valid_from": "2026-10-10T16:21:28.095411Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4495,7 +4577,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "EtherNet/IP",
+             *           "service_definition": "RabbitMQ",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5399,19 +5481,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-10T15:37:23.540539Z",
+             *           "created_at": "2026-10-10T16:21:28.117397Z",
              *           "first_discovery_id": null,
-             *           "id": "3bf6ce0f-5c76-4b61-97d7-4ea9bbbdf508",
+             *           "id": "e3d5b3d3-c184-4454-9bc5-940c950923b9",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-10T15:37:23.540539Z",
+             *           "last_seen_at": "2026-10-10T16:21:28.117397Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-10T15:37:23.540539Z",
-             *           "valid_from": "2026-10-10T15:37:23.540539Z",
+             *           "updated_at": "2026-10-10T16:21:28.117397Z",
+             *           "valid_from": "2026-10-10T16:21:28.117397Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5424,7 +5506,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "EtherNet/IP",
+             *       "service_definition": "RabbitMQ",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -5879,7 +5961,8 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "production",
              *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
-             *       "tag_group": null,
+             *       "position": 1,
+             *       "tag_group_id": "550e8400-e29b-41d4-a716-446655440010",
              *       "updated_at": "2026-01-15T10:30:00Z",
              *       "valid_from": "2026-01-15T10:30:00Z",
              *       "valid_to": null
@@ -5916,6 +5999,51 @@ export interface components {
                  * @description End of the interval this revision was current for. `null` while it is the live revision.
                  */
                 readonly valid_to?: string | null;
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
+        ApiResponse_TagGroup: {
+            /**
+             * @description A named set of tags of which an entity holds at most one, in an order the organization sets,
+             *     optionally limited to some entity types.
+             * @example {
+             *       "created_at": "2026-01-15T10:30:00Z",
+             *       "entity_types": null,
+             *       "group_type": "Custom",
+             *       "id": "550e8400-e29b-41d4-a716-446655440010",
+             *       "name": "Environment",
+             *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+             *       "updated_at": "2026-01-15T10:30:00Z"
+             *     }
+             */
+            data?: components["schemas"]["TagGroupBase"] & {
+                /**
+                 * Format: date-time
+                 * @description When this record was first created.
+                 */
+                readonly created_at: string;
+                /**
+                 * Format: uuid
+                 * @description Server-assigned unique identifier.
+                 */
+                readonly id: string;
+                /**
+                 * Format: date-time
+                 * @description When this record was last modified.
+                 */
+                readonly updated_at: string;
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -6001,6 +6129,12 @@ export interface components {
              *     active view's slice client-side.
              */
             data?: {
+                /**
+                 * Format: uuid
+                 * @description The organization's Application tag group. Its tags place entities in applications.
+                 *     Shipped here because share and embed viewers can't list tag groups.
+                 */
+                application_group_id: string | null;
                 /**
                  * @description Views whose data is present in this entity set (L3/Workloads always;
                  *     L2 Physical iff LLDP/CDP neighbors exist; Application iff app-flagged
@@ -6453,6 +6587,54 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_Vec_Tag: {
+            /** @description The result payload. Omitted on failure. */
+            data?: (components["schemas"]["TagBase"] & {
+                /**
+                 * Format: date-time
+                 * @description When this record was first created.
+                 */
+                readonly created_at: string;
+                /**
+                 * Format: uuid
+                 * @description Server-assigned unique identifier.
+                 */
+                readonly id: string;
+                /**
+                 * Format: uuid
+                 * @description Stable identifier shared by every revision of the same entity across its history.
+                 */
+                readonly lineage_id?: string | null;
+                /**
+                 * Format: date-time
+                 * @description When this record was last modified.
+                 */
+                readonly updated_at: string;
+                /**
+                 * Format: date-time
+                 * @description Start of the interval this revision was current for (SCD2 history).
+                 */
+                readonly valid_from?: string;
+                /**
+                 * Format: date-time
+                 * @description End of the interval this revision was current for. `null` while it is the live revision.
+                 */
+                readonly valid_to?: string | null;
+            })[];
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_VersionInfo: {
             /** @description Version information for API compatibility checking */
             data?: {
@@ -6647,19 +6829,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-10T15:37:23.478616Z",
+         *       "created_at": "2026-10-10T16:21:28.095913Z",
          *       "first_discovery_id": null,
-         *       "id": "37a2bda2-7bd9-4209-9b98-101b465bd7ca",
+         *       "id": "20ff50d3-399e-4fe4-9560-ec61db080021",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-10T15:37:23.478616Z",
+         *       "last_seen_at": "2026-10-10T16:21:28.095913Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-10T15:37:23.478616Z",
-         *       "valid_from": "2026-10-10T15:37:23.478616Z",
+         *       "updated_at": "2026-10-10T16:21:28.095913Z",
+         *       "valid_from": "2026-10-10T16:21:28.095913Z",
          *       "valid_to": null
          *     }
          */
@@ -7006,7 +7188,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "EtherNet/IP",
+         *           "service_definition": "RabbitMQ",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -9066,7 +9248,7 @@ export interface components {
             entitlement: string;
         };
         /** @enum {string} */
-        EntityDiscriminants: "Site" | "Vlan" | "Subnet" | "Host" | "Service" | "IPAddress" | "Interface" | "Port" | "Binding" | "Discovery" | "Daemon" | "DaemonApiKey" | "Tag" | "User" | "UserApiKey" | "Credential" | "Organization" | "Invite" | "Topology" | "Snapshot" | "Share" | "Dependency";
+        EntityDiscriminants: "Site" | "Vlan" | "Subnet" | "Host" | "Service" | "IPAddress" | "Interface" | "Port" | "Binding" | "Discovery" | "Daemon" | "DaemonApiKey" | "Tag" | "TagGroup" | "User" | "UserApiKey" | "Credential" | "Organization" | "Invite" | "Topology" | "Snapshot" | "Share" | "Dependency";
         /** @description One fact that describes an entity, possibly read from a related entity. */
         EntityField: {
             /**
@@ -9711,19 +9893,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-10T15:37:23.475884Z",
+         *               "created_at": "2026-10-10T16:21:28.094874Z",
          *               "first_discovery_id": null,
-         *               "id": "b573f906-0f0b-4bea-9ba2-10264418e934",
+         *               "id": "4c255961-b5d0-489c-a9ad-1ec6ff6664f9",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-10T15:37:23.475884Z",
+         *               "last_seen_at": "2026-10-10T16:21:28.094874Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-10T15:37:23.475884Z",
-         *               "valid_from": "2026-10-10T15:37:23.475884Z",
+         *               "updated_at": "2026-10-10T16:21:28.094874Z",
+         *               "valid_from": "2026-10-10T16:21:28.094874Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -9736,7 +9918,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "EtherNet/IP",
+         *           "service_definition": "RabbitMQ",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -12877,19 +13059,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-10T15:37:23.478241Z",
+         *           "created_at": "2026-10-10T16:21:28.095768Z",
          *           "first_discovery_id": null,
-         *           "id": "17122362-4f76-49af-9abc-5c3f5a7fdfd7",
+         *           "id": "73073b35-549f-4e57-8a2a-317995f1e9f8",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-10T15:37:23.478241Z",
+         *           "last_seen_at": "2026-10-10T16:21:28.095768Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-10T15:37:23.478241Z",
-         *           "valid_from": "2026-10-10T15:37:23.478241Z",
+         *           "updated_at": "2026-10-10T16:21:28.095768Z",
+         *           "valid_from": "2026-10-10T16:21:28.095768Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -12902,7 +13084,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "EtherNet/IP",
+         *       "service_definition": "RabbitMQ",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13521,7 +13703,8 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "production",
          *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
-         *       "tag_group": null,
+         *       "position": 1,
+         *       "tag_group_id": "550e8400-e29b-41d4-a716-446655440010",
          *       "updated_at": "2026-01-15T10:30:00Z",
          *       "valid_from": "2026-01-15T10:30:00Z",
          *       "valid_to": null
@@ -13572,30 +13755,74 @@ export interface components {
              * @description The organization that owns this record.
              */
             organization_id: string;
-            tag_group?: null | components["schemas"]["TagGroup"];
+            /**
+             * Format: int32
+             * @description The tag's place in its group's order, from 1. `null` when the tag is in no group. Set by
+             *     the server: a tag joins the end of its group, and the group's tag order endpoint reorders.
+             */
+            readonly position: number | null;
+            /**
+             * Format: uuid
+             * @description The tag group this tag belongs to, if any. An entity holds at most one tag of a group.
+             */
+            tag_group_id: string | null;
         };
         /**
-         * @description A group of tags of which an entity may hold at most one.
-         *
-         *     Assigning a tag from a group replaces whichever tag of the same group the entity already holds.
-         *     `Application` and `Status` are system groups: every organization has them, and no
-         *     organization can name a group of its own after them. Application tags drive the application
-         *     view, which can place an entity in one application only. Status tags track where an asset is
-         *     on its way from planned to decommissioned. `Named` groups are named by the organization (an
-         *     environment, a tier) and exist for as long as a tag carries the name.
+         * @description A named set of tags of which an entity holds at most one, in an order the organization sets,
+         *     optionally limited to some entity types.
+         * @example {
+         *       "created_at": "2026-01-15T10:30:00Z",
+         *       "entity_types": null,
+         *       "group_type": "Custom",
+         *       "id": "550e8400-e29b-41d4-a716-446655440010",
+         *       "name": "Environment",
+         *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+         *       "updated_at": "2026-01-15T10:30:00Z"
+         *     }
          */
-        TagGroup: {
-            /** @enum {string} */
-            type: "Application";
-        } | {
-            /** @enum {string} */
-            type: "Status";
-        } | {
-            /** @description The group's name, shared by every tag in it. */
-            name: string;
-            /** @enum {string} */
-            type: "Named";
+        TagGroup: components["schemas"]["TagGroupBase"] & {
+            /**
+             * Format: date-time
+             * @description When this record was first created.
+             */
+            readonly created_at: string;
+            /**
+             * Format: uuid
+             * @description Server-assigned unique identifier.
+             */
+            readonly id: string;
+            /**
+             * Format: date-time
+             * @description When this record was last modified.
+             */
+            readonly updated_at: string;
         };
+        TagGroupBase: {
+            /** @description The entity types this group's tags can be applied to. `null` allows every taggable type. */
+            entity_types: components["schemas"]["EntityDiscriminants"][] | null;
+            /**
+             * @description Whether this is a system group or one the organization named. Set by the server: groups
+             *     created through the API are always `Custom`.
+             */
+            group_type: components["schemas"]["TagGroupType"];
+            /** @description The group's name. A system group's name is fixed. */
+            name: string;
+            /**
+             * Format: uuid
+             * @description The organization that owns this record.
+             */
+            organization_id: string;
+        };
+        /**
+         * @description What kind of tag group this is.
+         *
+         *     `Application` and `Status` are system groups: every organization has exactly one of each, and
+         *     they can't be renamed, deleted or recreated. Application tags drive the application view.
+         *     Status tags track where an asset is on its way from planned to decommissioned. `Custom` groups
+         *     are named by the organization.
+         * @enum {string}
+         */
+        TagGroupType: "Application" | "Status" | "Custom";
         /**
          * @description A lucide icon a person chose for a tag.
          *
@@ -13608,6 +13835,11 @@ export interface components {
          * @enum {string}
          */
         TagOrderField: "created_at" | "name" | "color" | "updated_at" | "tag_group";
+        /** @description Request body for setting a tag group's tag order */
+        TagOrderRequest: {
+            /** @description Every tag in the group, each once, in the order to list them. */
+            tag_ids: string[];
+        };
         /** @description Request to test reachability of a daemon URL. */
         TestReachabilityRequest: {
             /** @description If true, also perform an HTTP GET to {url}/health after the TCP check */
@@ -13664,6 +13896,12 @@ export interface components {
          *     active view's slice client-side.
          */
         TopologyData: {
+            /**
+             * Format: uuid
+             * @description The organization's Application tag group. Its tags place entities in applications.
+             *     Shipped here because share and embed viewers can't list tag groups.
+             */
+            application_group_id: string | null;
             /**
              * @description Views whose data is present in this entity set (L3/Workloads always;
              *     L2 Physical iff LLDP/CDP neighbors exist; Application iff app-flagged
@@ -13846,7 +14084,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "49ffbada-f7e8-4de8-8044-0c61648ebade",
+             *           "id": "a4c19e50-edfd-4bdf-8fa5-9765822ac057",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -13856,23 +14094,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "ab414ded-fb9e-4f4f-b697-b4f8838e1061",
+             *           "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "01288715-3765-4c1f-8ff6-3582a92ae4fd",
+             *           "id": "e9ad12fa-e14a-4559-b3cb-9bd1b29694dd",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "5d4dc3eb-b4b3-4128-a491-c5abd3afbca4",
+             *           "id": "f36626ff-3d50-4358-829d-8e17064f837f",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "ab414ded-fb9e-4f4f-b697-b4f8838e1061",
+             *           "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -13886,19 +14124,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "7675df3e-0c87-42dd-944a-adcc36108d3b",
+             *         "id": "c5cf1ee7-baba-4246-af1e-e4f1de81c0e3",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "40bf01c9-28ee-4cb3-98d6-208bcd6cb138",
+             *         "id": "cbd31d25-a127-42fa-93eb-2b1ab6c11ceb",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "90849907-86a7-4769-8367-1e7a82f3f4b6",
+             *         "id": "a7eb932a-c387-49d3-825d-6dcdf0328af8",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "aa5f22b6-be15-4fd6-adb1-1f5bf0c565d1",
+             *         "id": "8f26697a-6016-44b4-9595-5a6d6d10c3f0",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -13919,7 +14157,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "1c2717ef-f760-4d89-be09-d77e1d99a191",
+             *         "id": "32ab774a-c602-4375-9bee-a7acc805bb43",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -13928,15 +14166,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "cedd7cc2-8561-4790-9d2b-a6d31dc52afa",
+             *         "id": "7ed0bd46-03eb-44aa-8d5e-8a9a8ac94612",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "5255ffda-5eaf-4519-81b7-f3755f157056",
+             *         "id": "28c1ad75-9b7b-4e9a-a306-ab8d329fb044",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "a2677c90-b97c-474a-ab5b-8672206ffce1",
+             *         "id": "8e27c2ec-0de3-4ca3-9dc2-85a040a381b6",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -14559,6 +14797,12 @@ export interface components {
         VlanBase: {
             /** @description Free-text notes about the VLAN. */
             description?: string | null;
+            /**
+             * @description Interfaces that serve this VLAN, as their native VLAN or one of their
+             *     member VLANs (`Interface::native_vlan_id` / `Interface::vlan_ids`).
+             *     Hydrated by `VlanService` on read; not a column on `vlans`.
+             */
+            interface_ids?: string[];
             /** @description Human-facing name for this VLAN. */
             name: string;
             /**
@@ -18548,6 +18792,12 @@ export interface operations {
                 /** @description Filter by tag IDs (returns hosts that have ANY of the specified tags) */
                 tag_ids?: string[] | null;
                 /**
+                 * @description Tag sets the host must hold one tag from each of. Each entry is a comma-separated list
+                 *     of tag ids; a host matches when it holds at least one tag of every entry. One entry per
+                 *     tag group the list is filtered by.
+                 */
+                tag_sets?: string[] | null;
+                /**
                  * @description Free-text search. Case-insensitive substring match against the host's
                  *     name, hostname, sysName, chassis id, serial number, asset tag and
                  *     description, and against its IP addresses and the names of services
@@ -18562,6 +18812,16 @@ export interface operations {
                 group_by?: null | components["schemas"]["HostOrderField"];
                 /** @description Secondary ordering field (sorting within groups or standalone sort). */
                 order_by?: null | components["schemas"]["HostOrderField"];
+                /**
+                 * @description Group by the tag each row holds from this tag group, in the group's tag order. Takes
+                 *     the place of `group_by`.
+                 */
+                group_by_tag_group?: string | null;
+                /**
+                 * @description Sort by the position of the tag each row holds from this tag group. Takes the place of
+                 *     `order_by`.
+                 */
+                order_by_tag_group?: string | null;
                 /** @description Direction for order_by field (group_by always uses ASC). */
                 order_direction?: null | components["schemas"]["OrderDirection"];
                 /** @description Maximum number of results to return (1-1000, default: 50). Use 0 for no limit. */
@@ -18758,6 +19018,12 @@ export interface operations {
                 /** @description Filter by tag IDs (returns hosts that have ANY of the specified tags) */
                 tag_ids?: string[] | null;
                 /**
+                 * @description Tag sets the host must hold one tag from each of. Each entry is a comma-separated list
+                 *     of tag ids; a host matches when it holds at least one tag of every entry. One entry per
+                 *     tag group the list is filtered by.
+                 */
+                tag_sets?: string[] | null;
+                /**
                  * @description Free-text search. Case-insensitive substring match against the host's
                  *     name, hostname, sysName, chassis id, serial number, asset tag and
                  *     description, and against its IP addresses and the names of services
@@ -18772,6 +19038,16 @@ export interface operations {
                 group_by?: null | components["schemas"]["HostOrderField"];
                 /** @description Secondary ordering field (sorting within groups or standalone sort). */
                 order_by?: null | components["schemas"]["HostOrderField"];
+                /**
+                 * @description Group by the tag each row holds from this tag group, in the group's tag order. Takes
+                 *     the place of `group_by`.
+                 */
+                group_by_tag_group?: string | null;
+                /**
+                 * @description Sort by the position of the tag each row holds from this tag group. Takes the place of
+                 *     `order_by`.
+                 */
+                order_by_tag_group?: string | null;
                 /** @description Direction for order_by field (group_by always uses ASC). */
                 order_direction?: null | components["schemas"]["OrderDirection"];
                 /** @description Maximum number of results to return (1-1000, default: 50). Use 0 for no limit. */
@@ -18859,6 +19135,12 @@ export interface operations {
                 /** @description Filter by tag IDs (returns hosts that have ANY of the specified tags) */
                 tag_ids?: string[] | null;
                 /**
+                 * @description Tag sets the host must hold one tag from each of. Each entry is a comma-separated list
+                 *     of tag ids; a host matches when it holds at least one tag of every entry. One entry per
+                 *     tag group the list is filtered by.
+                 */
+                tag_sets?: string[] | null;
+                /**
                  * @description Free-text search. Case-insensitive substring match against the host's
                  *     name, hostname, sysName, chassis id, serial number, asset tag and
                  *     description, and against its IP addresses and the names of services
@@ -18873,6 +19155,16 @@ export interface operations {
                 group_by?: null | components["schemas"]["HostOrderField"];
                 /** @description Secondary ordering field (sorting within groups or standalone sort). */
                 order_by?: null | components["schemas"]["HostOrderField"];
+                /**
+                 * @description Group by the tag each row holds from this tag group, in the group's tag order. Takes
+                 *     the place of `group_by`.
+                 */
+                group_by_tag_group?: string | null;
+                /**
+                 * @description Sort by the position of the tag each row holds from this tag group. Takes the place of
+                 *     `order_by`.
+                 */
+                order_by_tag_group?: string | null;
                 /** @description Direction for order_by field (group_by always uses ASC). */
                 order_direction?: null | components["schemas"]["OrderDirection"];
                 /** @description Maximum number of results to return (1-1000, default: 50). Use 0 for no limit. */
@@ -18960,6 +19252,12 @@ export interface operations {
                 /** @description Filter by tag IDs (returns hosts that have ANY of the specified tags) */
                 tag_ids?: string[] | null;
                 /**
+                 * @description Tag sets the host must hold one tag from each of. Each entry is a comma-separated list
+                 *     of tag ids; a host matches when it holds at least one tag of every entry. One entry per
+                 *     tag group the list is filtered by.
+                 */
+                tag_sets?: string[] | null;
+                /**
                  * @description Free-text search. Case-insensitive substring match against the host's
                  *     name, hostname, sysName, chassis id, serial number, asset tag and
                  *     description, and against its IP addresses and the names of services
@@ -18974,6 +19272,16 @@ export interface operations {
                 group_by?: null | components["schemas"]["HostOrderField"];
                 /** @description Secondary ordering field (sorting within groups or standalone sort). */
                 order_by?: null | components["schemas"]["HostOrderField"];
+                /**
+                 * @description Group by the tag each row holds from this tag group, in the group's tag order. Takes
+                 *     the place of `group_by`.
+                 */
+                group_by_tag_group?: string | null;
+                /**
+                 * @description Sort by the position of the tag each row holds from this tag group. Takes the place of
+                 *     `order_by`.
+                 */
+                order_by_tag_group?: string | null;
                 /** @description Direction for order_by field (group_by always uses ASC). */
                 order_direction?: null | components["schemas"]["OrderDirection"];
                 /** @description Maximum number of results to return (1-1000, default: 50). Use 0 for no limit. */
@@ -20644,6 +20952,12 @@ export interface operations {
                 /** @description Filter by tag IDs (returns services that have ANY of the specified tags) */
                 tag_ids?: string[] | null;
                 /**
+                 * @description Tag sets the service must hold one tag from each of. Each entry is a comma-separated
+                 *     list of tag ids; a service matches when it holds at least one tag of every entry. One
+                 *     entry per tag group the list is filtered by.
+                 */
+                tag_sets?: string[] | null;
+                /**
                  * @description Free-text search. Case-insensitive substring match against the service's
                  *     name and definition, and against the name of the host it runs on.
                  */
@@ -20652,6 +20966,16 @@ export interface operations {
                 group_by?: null | components["schemas"]["ServiceOrderField"];
                 /** @description Secondary ordering field (sorting within groups or standalone sort). */
                 order_by?: null | components["schemas"]["ServiceOrderField"];
+                /**
+                 * @description Group by the tag each row holds from this tag group, in the group's tag order. Takes
+                 *     the place of `group_by`.
+                 */
+                group_by_tag_group?: string | null;
+                /**
+                 * @description Sort by the position of the tag each row holds from this tag group. Takes the place of
+                 *     `order_by`.
+                 */
+                order_by_tag_group?: string | null;
                 /** @description Direction for order_by field (group_by always uses ASC). */
                 order_direction?: null | components["schemas"]["OrderDirection"];
                 /** @description Only services exposed on one of these port numbers, over either protocol. */
@@ -20782,6 +21106,12 @@ export interface operations {
                 /** @description Filter by tag IDs (returns services that have ANY of the specified tags) */
                 tag_ids?: string[] | null;
                 /**
+                 * @description Tag sets the service must hold one tag from each of. Each entry is a comma-separated
+                 *     list of tag ids; a service matches when it holds at least one tag of every entry. One
+                 *     entry per tag group the list is filtered by.
+                 */
+                tag_sets?: string[] | null;
+                /**
                  * @description Free-text search. Case-insensitive substring match against the service's
                  *     name and definition, and against the name of the host it runs on.
                  */
@@ -20790,6 +21120,16 @@ export interface operations {
                 group_by?: null | components["schemas"]["ServiceOrderField"];
                 /** @description Secondary ordering field (sorting within groups or standalone sort). */
                 order_by?: null | components["schemas"]["ServiceOrderField"];
+                /**
+                 * @description Group by the tag each row holds from this tag group, in the group's tag order. Takes
+                 *     the place of `group_by`.
+                 */
+                group_by_tag_group?: string | null;
+                /**
+                 * @description Sort by the position of the tag each row holds from this tag group. Takes the place of
+                 *     `order_by`.
+                 */
+                order_by_tag_group?: string | null;
                 /** @description Direction for order_by field (group_by always uses ASC). */
                 order_direction?: null | components["schemas"]["OrderDirection"];
                 /** @description Only services exposed on one of these port numbers, over either protocol. */
@@ -20862,6 +21202,12 @@ export interface operations {
                 /** @description Filter by tag IDs (returns services that have ANY of the specified tags) */
                 tag_ids?: string[] | null;
                 /**
+                 * @description Tag sets the service must hold one tag from each of. Each entry is a comma-separated
+                 *     list of tag ids; a service matches when it holds at least one tag of every entry. One
+                 *     entry per tag group the list is filtered by.
+                 */
+                tag_sets?: string[] | null;
+                /**
                  * @description Free-text search. Case-insensitive substring match against the service's
                  *     name and definition, and against the name of the host it runs on.
                  */
@@ -20870,6 +21216,16 @@ export interface operations {
                 group_by?: null | components["schemas"]["ServiceOrderField"];
                 /** @description Secondary ordering field (sorting within groups or standalone sort). */
                 order_by?: null | components["schemas"]["ServiceOrderField"];
+                /**
+                 * @description Group by the tag each row holds from this tag group, in the group's tag order. Takes
+                 *     the place of `group_by`.
+                 */
+                group_by_tag_group?: string | null;
+                /**
+                 * @description Sort by the position of the tag each row holds from this tag group. Takes the place of
+                 *     `order_by`.
+                 */
+                order_by_tag_group?: string | null;
                 /** @description Direction for order_by field (group_by always uses ASC). */
                 order_direction?: null | components["schemas"]["OrderDirection"];
                 /** @description Only services exposed on one of these port numbers, over either protocol. */
@@ -22157,6 +22513,254 @@ export interface operations {
                 };
             };
             /** @description Subnet not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_all_tag_groups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of tag groups */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The page of results. Empty when nothing matched the query. */
+                        data: (components["schemas"]["TagGroupBase"] & {
+                            /**
+                             * Format: date-time
+                             * @description When this record was first created.
+                             */
+                            readonly created_at: string;
+                            /**
+                             * Format: uuid
+                             * @description Server-assigned unique identifier.
+                             */
+                            readonly id: string;
+                            /**
+                             * Format: date-time
+                             * @description When this record was last modified.
+                             */
+                            readonly updated_at: string;
+                        })[];
+                        /** @description Human-readable failure message. Omitted on success. */
+                        error?: string | null;
+                        /** @description API and server version metadata, plus pagination counters. */
+                        meta: components["schemas"]["PaginatedApiMeta"];
+                        /** @description `true` when the request succeeded. `false` responses carry `error` instead of `data`. */
+                        success: boolean;
+                    };
+                };
+            };
+        };
+    };
+    create_tag_group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagGroup"];
+            };
+        };
+        responses: {
+            /** @description Tag group created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_TagGroup"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    bulk_delete_tag_groups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Array of Tag Group IDs to delete */
+        requestBody: {
+            content: {
+                "application/json": string[];
+            };
+        };
+        responses: {
+            /** @description Tag Groups deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_BulkDeleteResponse"];
+                };
+            };
+        };
+    };
+    get_tag_group_by_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tag Group ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tag Group found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_TagGroup"];
+                };
+            };
+            /** @description Tag Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    update_tag_group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tag Group ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagGroup"];
+            };
+        };
+        responses: {
+            /** @description Tag Group updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_TagGroup"];
+                };
+            };
+            /** @description Tag Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_tag_group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tag Group ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tag Group deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse"];
+                };
+            };
+            /** @description Tag Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    set_tag_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tag group ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description The group's tags, in their new order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_Vec_Tag"];
+                };
+            };
+            /** @description The list doesn't name every tag in the group exactly once */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Tag group not found */
             404: {
                 headers: {
                     [name: string]: unknown;

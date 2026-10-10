@@ -40,7 +40,8 @@
 	import GroupingRuleEditor from './GroupingRuleEditor.svelte';
 	import ElementSortSelect from './ElementSortSelect.svelte';
 	import EntityFilterHeader from './EntityFilterHeader.svelte';
-	import { useTagsQuery } from '$lib/features/tags/queries';
+	import { useTagGroupsQuery, useTagsQuery } from '$lib/features/tags/queries';
+	import { compareTagsByGroup } from '$lib/features/tags/groups';
 	import {
 		common_all,
 		common_visual,
@@ -113,8 +114,12 @@
 
 	// Tags query — always up-to-date, survives SSE topology overwrites
 	const tagsQuery = useTagsQuery();
-	// Sorted alphabetically so the filter view's tag lists are stable + scannable.
-	let allTags = $derived([...(tagsQuery.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)));
+	const tagGroupsQuery = useTagGroupsQuery();
+	// In group order, each group's tags in its own order, so the filter lists read the way the
+	// tables and pickers do.
+	let allTags = $derived(
+		[...(tagsQuery.data ?? [])].sort(compareTagsByGroup(tagGroupsQuery.data ?? []))
+	);
 
 	// Derive tags that are actually used per entity type
 	let hostTagIds = $derived(new Set(hostsData.flatMap((h) => h.tags)));
@@ -729,6 +734,7 @@
 								onToggle={(id) => onToggleTagForEntity(section.entityType, id)}
 								entityType={section.entityType}
 								hasUntagged={tagBundle.hasUntagged}
+								applicationGroupId={renderableTopology?.application_group_id ?? null}
 							/>
 						{/if}
 						{@render metadataFilterGroups(metadataFilters)}

@@ -13,6 +13,7 @@ import { SubnetDisplay } from '$lib/shared/components/forms/selection/display/Su
 import { DaemonDisplay } from '$lib/shared/components/forms/selection/display/DaemonDisplay.svelte';
 import { DependencyDisplay } from '$lib/shared/components/forms/selection/display/DependencyDisplay.svelte';
 import { SiteDisplay } from '$lib/shared/components/forms/selection/display/SiteDisplay.svelte';
+import { TagGroupDisplay } from '$lib/shared/components/forms/selection/display/TagGroupDisplay.svelte';
 import { CredentialDisplay } from '$lib/shared/components/forms/selection/display/CredentialDisplay.svelte';
 import { TopologyDisplay } from '$lib/shared/components/forms/selection/display/TopologyDisplay.svelte';
 import { DaemonApiKeyDisplay } from '$lib/shared/components/forms/selection/display/DaemonApiKeyDisplay.svelte';
@@ -60,6 +61,7 @@ export const TAB_LABELS: Record<string, string> = {
 	hosts: 'Hosts',
 	services: 'Services',
 	tags: 'Tags',
+	'tag-groups': 'Tag Groups',
 	users: 'Users',
 	'api-keys': 'API Keys',
 	credentials: 'Credentials'
@@ -129,6 +131,11 @@ export const entityUIConfig: Record<EntityDiscriminants, EntityUIConfig | null> 
 		variants: [HISTORICAL_DISCOVERY]
 	},
 	Tag: { tabId: 'tags', modalName: 'tag-editor', displayComponent: TagDisplay },
+	TagGroup: {
+		tabId: 'tag-groups',
+		modalName: 'tag-group-editor',
+		displayComponent: TagGroupDisplay
+	},
 	// Shares are edited in SharesModal, which no URL opens.
 	Share: { tabId: 'shares' },
 	// No modal opens a topology by URL; it shows in its tab.

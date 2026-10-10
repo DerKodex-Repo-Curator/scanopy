@@ -233,13 +233,27 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				color: 'color',
 				created_at: 'created_at',
 				description: 'description',
-				tag_group: 'tag_group',
+				tag_group_id: 'tag_group',
+				position: 'tag_group',
 				icon: 'icon',
 				name: 'name',
 				updated_at: 'updated_at',
 				id: ID,
 				organization_id: ORGANIZATION,
 				...HISTORY
+			})
+		]
+	},
+	'tags/components/TagGroupTab.svelte': {
+		schemas: [
+			decide('TagGroup', {
+				name: 'name',
+				group_type: 'group_type',
+				entity_types: 'entity_types',
+				created_at: 'created_at',
+				updated_at: 'updated_at',
+				id: ID,
+				organization_id: ORGANIZATION
 			})
 		]
 	},

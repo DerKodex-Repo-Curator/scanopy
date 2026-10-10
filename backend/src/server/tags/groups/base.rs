@@ -74,8 +74,7 @@ fn validate_entity_types(
 }
 
 fn validate_tag_group_base(base: &TagGroupBase) -> Result<(), validator::ValidationError> {
-    if base.group_type == TagGroupType::Custom && TagGroupType::system_named(&base.name).is_some()
-    {
+    if base.group_type == TagGroupType::Custom && TagGroupType::system_named(&base.name).is_some() {
         return Err(validator::ValidationError::new("tag_group_reserved")
             .with_message(format!("\"{}\" is a system tag group name", base.name).into()));
     }

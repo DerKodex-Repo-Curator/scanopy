@@ -1,6 +1,6 @@
 use super::*;
-use std::collections::{HashMap, HashSet};
 use crate::server::shared::entities::EntityDiscriminants;
+use std::collections::{HashMap, HashSet};
 
 #[test]
 fn subnet_vlan_records_are_derived_and_reference_valid_entities() {
@@ -366,7 +366,9 @@ fn no_demo_entity_holds_two_tags_of_one_tag_group() {
         .filter_map(|t| t.base.tag_group_id.map(|g| (t.id, g)))
         .collect();
 
-    let tag_lists = demo_tag_lists(&demo).into_iter().map(|(id, _, tags)| (id, tags));
+    let tag_lists = demo_tag_lists(&demo)
+        .into_iter()
+        .map(|(id, _, tags)| (id, tags));
 
     let name_of = |tag_id: &Uuid| {
         demo.tags
@@ -417,7 +419,13 @@ fn demo_tag_lists(demo: &DemoData) -> Vec<(Uuid, EntityDiscriminants, Vec<Uuid>)
         .collect();
     hosts
         .iter()
-        .map(|h| (h.host.id, EntityDiscriminants::Host, h.host.base.tags.clone()))
+        .map(|h| {
+            (
+                h.host.id,
+                EntityDiscriminants::Host,
+                h.host.base.tags.clone(),
+            )
+        })
         .chain(hosts.iter().flat_map(|h| {
             h.services
                 .iter()
@@ -442,7 +450,9 @@ fn demo_tag_lists(demo: &DemoData) -> Vec<(Uuid, EntityDiscriminants, Vec<Uuid>)
 fn demo_tags_sit_only_on_types_their_group_allows() {
     let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     assert!(
-        demo.tag_groups.iter().any(|g| g.base.entity_types.is_some()),
+        demo.tag_groups
+            .iter()
+            .any(|g| g.base.entity_types.is_some()),
         "the demo shows a group limited to some entity types"
     );
 

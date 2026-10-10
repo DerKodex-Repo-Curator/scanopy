@@ -57,7 +57,6 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
     get,
     path = "",
     tag = TagGroup::ENTITY_NAME_PLURAL,
-    params(NoFilterQuery),
     responses(
         (status = 200, description = "List of tag groups", body = inline(PaginatedApiResponse<TagGroup>)),
     ),
@@ -99,7 +98,12 @@ async fn create_tag_group(
     auth: Authorized<Admin>,
     ApiJson(group): ApiJson<TagGroup>,
 ) -> ApiResult<Json<ApiResponse<TagGroup>>> {
-    create_handler::<TagGroup>(State(state), auth.into_permission::<Member>(), ApiJson(group)).await
+    create_handler::<TagGroup>(
+        State(state),
+        auth.into_permission::<Member>(),
+        ApiJson(group),
+    )
+    .await
 }
 
 /// Request body for setting a tag group's tag order

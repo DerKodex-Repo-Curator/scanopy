@@ -15,8 +15,9 @@
 	import TextArea from '$lib/shared/components/forms/input/TextArea.svelte';
 	import IconPicker from '$lib/shared/components/forms/IconPicker.svelte';
 	import TagGroupSelect from './TagGroupSelect.svelte';
-	import { useTagsQuery } from '../queries';
-	import { groupNames, tagGroupHelp, type TagGroup } from '../groups';
+	import { useCreateTagGroupMutation, useTagGroupsQuery } from '../queries';
+	import { createDefaultTagGroup } from '../types/base';
+	import { tagGroupHelp } from '../groups';
 	import tagIconsFixture from '$lib/data/tag-icons.json';
 	import {
 		common_cancel,
@@ -62,9 +63,9 @@
 	const organizationQuery = useOrganizationQuery();
 	let organization = $derived(organizationQuery.data);
 
-	// Every tag, for the names of the tag groups already in use.
-	const tagsQuery = useTagsQuery();
-	let allTags = $derived(tagsQuery.data ?? []);
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+	const createTagGroupMutation = useCreateTagGroupMutation();
 	const tagIconNames: string[] = tagIconsFixture;
 
 	let loading = $state(false);
@@ -112,13 +113,25 @@
 
 	// The group and icon are source of truth here and synced into the form: switching to the
 	// Application group clears the icon programmatically, which the form store alone would not show.
-	let selectedGroup = $state<TagGroup | null>(null);
+	let selectedGroupId = $state<string | null>(null);
+	let selectedGroup = $derived(tagGroups.find((group) => group.id === selectedGroupId) ?? null);
+	let isApplicationGroup = $derived(selectedGroup?.group_type === 'Application');
 	let selectedIcon = $state<string | null>(null);
 
-	function handleGroupChange(group: TagGroup | null) {
-		selectedGroup = group;
-		form.setFieldValue('tag_group', group);
-		if (group?.type === 'Application') handleIconChange(null);
+	function handleGroupChange(groupId: string | null) {
+		selectedGroupId = groupId;
+		form.setFieldValue('tag_group_id', groupId);
+		if (tagGroups.find((group) => group.id === groupId)?.group_type === 'Application')
+			handleIconChange(null);
+	}
+
+	// A group typed into the picker is created, then chosen.
+	async function handleGroupCreate(name: string) {
+		if (!organization) return;
+		const group = createDefaultTagGroup(organization.id);
+		group.name = name;
+		const created = await createTagGroupMutation.mutateAsync(group);
+		handleGroupChange(created.id);
 	}
 
 	function handleIconChange(icon: string | null) {
@@ -130,7 +143,7 @@
 	function handleOpen() {
 		const defaults = getDefaultValues();
 		form.reset(defaults);
-		selectedGroup = defaults.tag_group ?? null;
+		selectedGroupId = defaults.tag_group_id ?? null;
 		selectedIcon = defaults.icon ?? null;
 	}
 
@@ -221,17 +234,18 @@
 
 					<!-- Tag group. Held in $state: choosing Application clears the icon, a
 					     programmatic write TanStack Form would not re-render. -->
-					<form.Field name="tag_group">
+					<form.Field name="tag_group_id">
 						<div class="space-y-2">
 							<label for="tag_group" class="text-secondary block text-sm font-medium">
 								{tags_tagGroup()}
 							</label>
 							<TagGroupSelect
 								id="tag_group"
-								value={selectedGroup}
-								groups={groupNames(allTags)}
+								value={selectedGroupId}
+								groups={tagGroups}
 								placeholder={tags_tagGroupPlaceholder()}
 								onChange={handleGroupChange}
+								onCreate={handleGroupCreate}
 							/>
 							<p class="text-tertiary text-xs">
 								{tagGroupHelp(selectedGroup) ?? tags_tagGroupHelp()}
@@ -246,10 +260,10 @@
 							<IconPicker
 								id="icon"
 								label={common_icon()}
-								value={selectedGroup?.type === 'Application' ? null : selectedIcon}
+								value={isApplicationGroup ? null : selectedIcon}
 								icons={tagIconNames}
-								disabled={selectedGroup?.type === 'Application'}
-								helpText={selectedGroup?.type === 'Application' ? tags_iconApplicationFixed() : ''}
+								disabled={isApplicationGroup}
+								helpText={isApplicationGroup ? tags_iconApplicationFixed() : ''}
 								onChange={handleIconChange}
 							/>
 						</form.Field>

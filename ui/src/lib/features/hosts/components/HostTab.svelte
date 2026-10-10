@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
 	import { lastSeenItems } from '$lib/shared/utils/freshness';
 	import type {
 		Host,
@@ -152,6 +153,10 @@
 
 	// Tag filter state (for server-side filtering)
 	let tagIds = $state<string[]>([]);
+	// Tag-group columns sort, group and filter on the server, by group id.
+	let groupByTagGroup = $state<string | undefined>(undefined);
+	let orderByTagGroup = $state<string | undefined>(undefined);
+	let tagGroupFilters = $state<Record<string, string[]>>({});
 	// Staleness filter state (server-side: the list is server-paginated)
 	let stale = $state<boolean | null>(null);
 	// Search state (server-side, for the same reason)
@@ -209,6 +214,9 @@
 		order_by: orderBy,
 		order_direction: orderDirection,
 		tag_ids: tagIds.length > 0 ? tagIds : undefined,
+		tag_sets: tagSetsParam(tagGroupFilters, tagsData),
+		group_by_tag_group: groupByTagGroup,
+		order_by_tag_group: orderByTagGroup,
 		stale: stale ?? undefined,
 		search: search || undefined,
 		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
@@ -322,8 +330,10 @@
 		orderField: string | null,
 		direction: 'asc' | 'desc'
 	) {
-		groupBy = (groupField as HostOrderField) ?? undefined;
-		orderBy = (orderField as HostOrderField) ?? undefined;
+		groupByTagGroup = tagGroupIdOf(groupField) ?? undefined;
+		orderByTagGroup = tagGroupIdOf(orderField) ?? undefined;
+		groupBy = groupByTagGroup ? undefined : ((groupField as HostOrderField) ?? undefined);
+		orderBy = orderByTagGroup ? undefined : ((orderField as HostOrderField) ?? undefined);
 		orderDirection = direction;
 	}
 
@@ -352,6 +362,11 @@
 	 * all, since DataControls skips the client pass for those fields.
 	 */
 	function handleFilterChange(fieldKey: string, values: string[]) {
+		const tagGroupId = tagGroupIdOf(fieldKey);
+		if (tagGroupId) {
+			tagGroupFilters = { ...tagGroupFilters, [tagGroupId]: values };
+			return;
+		}
 		switch (fieldKey) {
 			case 'site_id':
 				filterSiteIds = idsForNames(values, sitesData);
@@ -419,6 +434,9 @@
 	// looking at rather than the whole network.
 	let exportParams = $derived({
 		tag_ids: tagIds.length > 0 ? tagIds : undefined,
+		tag_sets: tagSetsParam(tagGroupFilters, tagsData),
+		group_by_tag_group: groupByTagGroup,
+		order_by_tag_group: orderByTagGroup,
 		order_by: orderBy,
 		order_direction: orderDirection,
 		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
@@ -1049,7 +1067,8 @@
 			storageKey="scanopy-hosts-table-state"
 			defaults={tableDefaults}
 			onBulkDelete={isReadOnly ? undefined : handleBulkDelete}
-			entityType={isReadOnly ? undefined : 'Host'}
+			entityType="Host"
+			canEditTags={!isReadOnly}
 			getItemTags={getHostTags}
 			getItemId={(item) => item.id}
 			serverPagination={hostsPagination}

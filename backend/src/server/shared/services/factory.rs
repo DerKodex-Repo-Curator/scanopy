@@ -38,9 +38,7 @@ use crate::server::{
     sites::service::SiteService,
     snapshots::service::SnapshotService,
     subnets::service::SubnetService,
-    tags::{
-        entity_tags::EntityTagService, groups::service::TagGroupService, service::TagService,
-    },
+    tags::{entity_tags::EntityTagService, groups::service::TagGroupService, service::TagService},
     topology::service::main::TopologyService,
     user_api_keys::service::UserApiKeyService,
     users::service::UserService,

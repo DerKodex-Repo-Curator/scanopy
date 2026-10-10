@@ -36,7 +36,7 @@
 	import { daemonItems } from '$lib/features/daemons/columns';
 	import { siteItems } from '$lib/features/sites/columns';
 	import { tagItems, tagNames } from '$lib/features/tags/columns';
-	import { useTagsQuery } from '$lib/features/tags/queries';
+	import { useTagGroupsQuery, useTagsQuery } from '$lib/features/tags/queries';
 	import { toColor } from '$lib/shared/utils/styling';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { runOutcomeTag, TERMINAL_PHASES, type OutcomeTag } from '../../utils/outcome';
@@ -152,6 +152,7 @@
 		() => isActive
 	);
 	const tagsQuery = useTagsQuery();
+	const tagGroupsQuery = useTagGroupsQuery();
 	const daemonsQuery = useDaemonsQuery();
 	const sitesQuery = useSitesQuery();
 
@@ -479,7 +480,10 @@
 					label: common_tags(),
 					type: 'array',
 					getValue: (item) => tagNames(item.tags, tagsData),
-					display: { hiddenByDefault: true, getItems: (item) => tagItems(item.tags, tagsData) }
+					display: {
+						hiddenByDefault: true,
+						getItems: (item) => tagItems(item.tags, tagsData, tagGroupsQuery.data ?? [])
+					}
 				}
 			],
 			// Every run here is historical, so a run-type column would read the same on every row.

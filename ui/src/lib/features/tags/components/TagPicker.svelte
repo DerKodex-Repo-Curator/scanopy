@@ -1,12 +1,25 @@
 <script lang="ts">
 	import { Plus } from 'lucide-svelte';
 	import Tag from '$lib/shared/components/data/Tag.svelte';
-	import { useTagsQuery, useCreateTagMutation } from '$lib/features/tags/queries';
+	import {
+		useTagsQuery,
+		useTagGroupsQuery,
+		useCreateTagMutation
+	} from '$lib/features/tags/queries';
 	import { createDefaultTag } from '$lib/features/tags/types/base';
 	import { createColorHelper, AVAILABLE_COLORS, type Color } from '$lib/shared/utils/styling';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { permissions, billingPlans } from '$lib/shared/stores/metadata';
-	import { isApplicationTag, tagIcon, tagTooltip, withTagAdded } from '$lib/features/tags/groups';
+	import {
+		applicationGroupId,
+		compareTagsByGroup,
+		isApplicationTag,
+		tagAllowedOn,
+		tagIcon,
+		tagTooltip,
+		withTagAdded
+	} from '$lib/features/tags/groups';
+	import type { components } from '$lib/api/schema';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 
 	/**
@@ -23,12 +36,15 @@
 		label = 'Tags',
 		placeholder = 'Type to add tags...',
 		disabled = false,
+		entityType,
 		onChange
 	}: {
 		selectedTagIds?: string[];
 		label?: string;
 		placeholder?: string;
 		disabled?: boolean;
+		/** What the tags go on: a tag whose group doesn't allow it isn't offered. */
+		entityType: components['schemas']['EntityDiscriminants'];
 		onChange?: (tagIds: string[]) => void;
 	} = $props();
 
@@ -44,6 +60,9 @@
 
 	// Query and mutation
 	const tagsQuery = useTagsQuery();
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+	let applicationGroup = $derived(applicationGroupId(tagGroups));
 	const createTagMutation = useCreateTagMutation();
 	const organizationQuery = useOrganizationQuery();
 	const currentUserQuery = useCurrentUserQuery();
@@ -82,11 +101,14 @@
 
 	// Filter available tags based on input and exclude already selected
 	let availableTags = $derived(
-		tags.filter(
-			(tag) =>
-				!selectedTagIds.includes(tag.id) &&
-				tag.name.toLowerCase().includes(inputValue.toLowerCase())
-		)
+		tags
+			.filter(
+				(tag) =>
+					!selectedTagIds.includes(tag.id) &&
+					tagAllowedOn(tag, tagGroups, entityType) &&
+					tag.name.toLowerCase().includes(inputValue.toLowerCase())
+			)
+			.sort(compareTagsByGroup(tagGroups))
 	);
 
 	let showDropdown = $derived(isFocused && (availableTags.length > 0 || showCreateOption));
@@ -181,9 +203,9 @@
 						<Tag
 							label={tag?.name}
 							color={tag?.color}
-							icon={tagIcon(tag)}
-							title={tagTooltip(tag)}
-							isShiny={isApplicationTag(tag)}
+							icon={tagIcon(tag, applicationGroup)}
+							title={tagTooltip(tag, tagGroups)}
+							isShiny={isApplicationTag(tag, applicationGroup)}
 							pill={true}
 							removable={!disabled}
 							onRemove={() => removeTag(tagId)}

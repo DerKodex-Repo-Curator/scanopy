@@ -1,11 +1,11 @@
 //! Tags
 
 use super::*;
+use crate::server::shared::entities::EntityDiscriminants;
 use crate::server::shared::storage::seed_data::{create_starter_tags, starter_custom_group_names};
 use crate::server::shared::types::Icon;
 use crate::server::tags::groups::base::{TagGroup, TagGroupBase, TagGroupType};
 use crate::server::tags::r#impl::base::TagIcon;
-use crate::server::shared::entities::EntityDiscriminants;
 use std::collections::HashMap;
 
 /// The tag group a demo tag belongs to.
@@ -21,10 +21,11 @@ const BACKUP_SCHEDULE: &str = "Backup Schedule";
 /// The demo's tag groups: the system groups, the starter groups every organization gets, and a
 /// group limited to hosts.
 pub(super) fn generate_tag_groups(organization_id: Uuid, now: DateTime<Utc>) -> Vec<TagGroup> {
-    let system = TagGroupType::system().map(|t| TagGroupBase::new(organization_id, t.to_string(), t));
-    let starter = starter_custom_group_names().into_iter().map(|name| {
-        TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom)
-    });
+    let system =
+        TagGroupType::system().map(|t| TagGroupBase::new(organization_id, t.to_string(), t));
+    let starter = starter_custom_group_names()
+        .into_iter()
+        .map(|name| TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom));
     let backup_schedule = TagGroupBase {
         entity_types: Some(vec![EntityDiscriminants::Host]),
         ..TagGroupBase::new(
@@ -163,22 +164,22 @@ pub(super) fn generate_tags(
                 *next
             });
             Tag {
-            id: Uuid::new_v4(),
-            created_at: now,
-            updated_at: now,
-            valid_from: now,
-            valid_to: None,
-            lineage_id: None,
-            base: TagBase {
-                name: name.to_string(),
-                description: Some(description.to_string()),
-                color: *color,
-                organization_id,
-                tag_group_id,
-                position,
-                icon: icon.map(TagIcon),
-            },
-        }
+                id: Uuid::new_v4(),
+                created_at: now,
+                updated_at: now,
+                valid_from: now,
+                valid_to: None,
+                lineage_id: None,
+                base: TagBase {
+                    name: name.to_string(),
+                    description: Some(description.to_string()),
+                    color: *color,
+                    organization_id,
+                    tag_group_id,
+                    position,
+                    icon: icon.map(TagIcon),
+                },
+            }
         })
         .collect();
 

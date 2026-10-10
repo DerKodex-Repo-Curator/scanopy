@@ -8,8 +8,24 @@ export function createDefaultTag(organization_id: string): Tag {
 		name: '',
 		description: null,
 		color: 'Yellow',
-		tag_group: null,
+		tag_group_id: null,
+		position: null,
 		icon: null,
+		id: uuidv4Sentinel,
+		created_at: utcTimeZoneSentinel,
+		updated_at: utcTimeZoneSentinel,
+		organization_id
+	};
+}
+
+export type TagGroup = components['schemas']['TagGroup'];
+export type TagGroupType = components['schemas']['TagGroupType'];
+
+export function createDefaultTagGroup(organization_id: string): TagGroup {
+	return {
+		name: '',
+		group_type: 'Custom',
+		entity_types: null,
 		id: uuidv4Sentinel,
 		created_at: utcTimeZoneSentinel,
 		updated_at: utcTimeZoneSentinel,

@@ -195,23 +195,27 @@ pub fn create_starter_tags(organization_id: Uuid, groups: &[TagGroup]) -> Vec<Ta
     STARTER_TAG_GROUPS
         .iter()
         .filter_map(|(group_name, tags)| {
-            let group = groups.iter().find(|g| match TagGroupType::system_named(group_name) {
-                Some(system) => g.base.group_type == system,
-                None => g.base.name.eq_ignore_ascii_case(group_name),
-            })?;
-            Some(tags.iter().zip(1..).map(
-                move |((name, description, color, icon), position)| {
-                    Tag::new(TagBase {
-                        name: name.to_string(),
-                        description: Some(description.to_string()),
-                        color: *color,
-                        organization_id,
-                        tag_group_id: Some(group.id),
-                        position: Some(position),
-                        icon: Some(TagIcon(*icon)),
-                    })
-                },
-            ))
+            let group = groups
+                .iter()
+                .find(|g| match TagGroupType::system_named(group_name) {
+                    Some(system) => g.base.group_type == system,
+                    None => g.base.name.eq_ignore_ascii_case(group_name),
+                })?;
+            Some(
+                tags.iter()
+                    .zip(1..)
+                    .map(move |((name, description, color, icon), position)| {
+                        Tag::new(TagBase {
+                            name: name.to_string(),
+                            description: Some(description.to_string()),
+                            color: *color,
+                            organization_id,
+                            tag_group_id: Some(group.id),
+                            position: Some(position),
+                            icon: Some(TagIcon(*icon)),
+                        })
+                    }),
+            )
         })
         .flatten()
         .collect()

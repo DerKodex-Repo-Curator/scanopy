@@ -396,6 +396,7 @@
 
 			<!-- service prop comes via slot, so use callback pattern instead of bind: -->
 			<TagPicker
+				entityType="Service"
 				selectedTagIds={service.tags}
 				onChange={(tags) => onChange({ ...service, tags })}
 			/>

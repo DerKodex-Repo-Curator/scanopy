@@ -521,7 +521,8 @@
 			storageKey="scanopy-subnets-table-state"
 			defaults={tableDefaults}
 			onBulkDelete={isReadOnly ? undefined : handleBulkDelete}
-			entityType={isReadOnly ? undefined : 'Subnet'}
+			entityType="Subnet"
+			canEditTags={!isReadOnly}
 			getItemTags={getSubnetTags}
 			getItemId={(item) => item.id}
 			onStaleFilterChange={handleStaleFilterChange}

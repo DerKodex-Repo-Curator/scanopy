@@ -19,7 +19,7 @@ use crate::server::shared::events::types::BillingOperation;
 use crate::server::shared::extractors::Query;
 use crate::server::shared::handlers::ordering::OrderField;
 use crate::server::shared::handlers::query::{
-    FilterQueryExtractor, OrderDirection, PaginationParams,
+    FilterQueryExtractor, OrderDirection, PaginationParams, parse_tag_sets,
 };
 use crate::server::shared::handlers::traits::{
     BulkDeleteResponse, bulk_delete_handler, delete_handler,
@@ -224,6 +224,10 @@ pub struct HostFilterQuery {
     pub credential_ids: Option<Vec<Uuid>>,
     /// Filter by tag IDs (returns hosts that have ANY of the specified tags)
     pub tag_ids: Option<Vec<Uuid>>,
+    /// Tag sets the host must hold one tag from each of. Each entry is a comma-separated list
+    /// of tag ids; a host matches when it holds at least one tag of every entry. One entry per
+    /// tag group the list is filtered by.
+    pub tag_sets: Option<Vec<String>>,
     /// Free-text search. Case-insensitive substring match against the host's
     /// name, hostname, sysName, chassis id, serial number, asset tag and
     /// description, and against its IP addresses and the names of services
@@ -444,6 +448,10 @@ async fn get_all_hosts(
         }
         _ => filter,
     };
+    let filter = filter.has_tags_from_each(
+        &parse_tag_sets(query.tag_sets.as_deref())?,
+        EntityDiscriminants::Host,
+    );
 
     // Server-side because the list is paginated: a client-side search would
     // only ever match the page already loaded.
@@ -475,7 +483,9 @@ async fn get_all_hosts(
     // landed on this page. Runs against the same filter — including the JOIN
     // `apply_ordering` just added, which the group expression may reference.
     let group_sql = match (query.group_by_tag_group, query.group_by) {
-        (Some(_), _) => Some(crate::server::shared::handlers::ordering::TagGroupOrdering::GROUP_SQL),
+        (Some(_), _) => {
+            Some(crate::server::shared::handlers::ordering::TagGroupOrdering::GROUP_SQL)
+        }
         (None, Some(group_field)) => Some(group_field.group_sql()),
         (None, None) => None,
     };
@@ -1464,6 +1474,10 @@ async fn export_hosts_zip(
         }
         _ => filter,
     };
+    let filter = filter.has_tags_from_each(
+        &parse_tag_sets(query.tag_sets.as_deref())?,
+        EntityDiscriminants::Host,
+    );
 
     // Honour the same staleness filter as the list view so an export mirrors
     // exactly what the user was looking at when they triggered it.

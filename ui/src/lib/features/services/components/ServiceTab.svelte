@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
@@ -134,6 +135,10 @@
 
 	// Tag filter state (for server-side filtering)
 	let tagIds = $state<string[]>([]);
+	// Tag-group columns sort, group and filter on the server, by group id.
+	let groupByTagGroup = $state<string | undefined>(undefined);
+	let orderByTagGroup = $state<string | undefined>(undefined);
+	let tagGroupFilters = $state<Record<string, string[]>>({});
 
 	// Exclude categories state (for server-side filtering)
 	let excludeCategories = $state<string[]>(['OpenPorts']);
@@ -169,6 +174,9 @@
 		order_by: orderBy,
 		order_direction: orderDirection,
 		tag_ids: tagIds.length > 0 ? tagIds : undefined,
+		tag_sets: tagSetsParam(tagGroupFilters, tagsData),
+		group_by_tag_group: groupByTagGroup,
+		order_by_tag_group: orderByTagGroup,
 		stale: stale ?? undefined,
 		search: search || undefined,
 		ports: ports.length > 0 ? ports : undefined,
@@ -322,8 +330,10 @@
 		orderField: string | null,
 		direction: 'asc' | 'desc'
 	) {
-		groupBy = (groupField as ServiceOrderField) ?? undefined;
-		orderBy = (orderField as ServiceOrderField) ?? undefined;
+		groupByTagGroup = tagGroupIdOf(groupField) ?? undefined;
+		orderByTagGroup = tagGroupIdOf(orderField) ?? undefined;
+		groupBy = groupByTagGroup ? undefined : ((groupField as ServiceOrderField) ?? undefined);
+		orderBy = orderByTagGroup ? undefined : ((orderField as ServiceOrderField) ?? undefined);
 		orderDirection = direction;
 	}
 
@@ -343,6 +353,11 @@
 	 * nothing at all, since DataControls skips the client pass for those fields.
 	 */
 	function handleFilterChange(fieldKey: string, values: string[]) {
+		const tagGroupId = tagGroupIdOf(fieldKey);
+		if (tagGroupId) {
+			tagGroupFilters = { ...tagGroupFilters, [tagGroupId]: values };
+			return;
+		}
 		switch (fieldKey) {
 			case 'category':
 				excludeCategories = values;
@@ -416,6 +431,9 @@
 	async function handleCsvExport() {
 		await downloadCsv('Service', {
 			tag_ids: tagIds.length > 0 ? tagIds : undefined,
+			tag_sets: tagSetsParam(tagGroupFilters, tagsData),
+			group_by_tag_group: groupByTagGroup,
+			order_by_tag_group: orderByTagGroup,
 			order_by: orderBy,
 			order_direction: orderDirection
 		});
@@ -824,7 +842,8 @@
 			storageKey="scanopy-services-table-state"
 			defaults={tableDefaults}
 			onBulkDelete={isReadOnly ? undefined : handleBulkDelete}
-			entityType={isReadOnly ? undefined : 'Service'}
+			entityType="Service"
+			canEditTags={!isReadOnly}
 			getItemTags={getServiceTags}
 			getItemId={(item) => item.id}
 			serverPagination={servicesPagination}

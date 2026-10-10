@@ -127,7 +127,11 @@ impl CrudService<TagGroup> for TagGroupService {
         Ok(())
     }
 
-    async fn delete_many(&self, ids: &[Uuid], authentication: AuthenticatedEntity) -> Result<usize> {
+    async fn delete_many(
+        &self,
+        ids: &[Uuid],
+        authentication: AuthenticatedEntity,
+    ) -> Result<usize> {
         let groups = self
             .get_all(StorableFilter::<TagGroup>::new_from_entity_ids(ids))
             .await?;
@@ -162,10 +166,7 @@ impl TagGroupService {
         authentication: AuthenticatedEntity,
         deleted: bool,
     ) -> Result<()> {
-        use crate::server::shared::events::{
-            traits::EntityScope,
-            types::EntityOperation,
-        };
+        use crate::server::shared::events::{traits::EntityScope, types::EntityOperation};
         if let Some(scope) = EntityScope::from_ids(
             group.id,
             group.clone().into(),
@@ -190,11 +191,16 @@ impl TagGroupService {
             .get_all(StorableFilter::<TagGroup>::new_from_org_id(organization_id))
             .await?;
         groups.sort_by(|a, b| {
-            (!a.is_system(), a.base.group_type.to_string(), a.base.name.to_lowercase()).cmp(&(
-                !b.is_system(),
-                b.base.group_type.to_string(),
-                b.base.name.to_lowercase(),
-            ))
+            (
+                !a.is_system(),
+                a.base.group_type.to_string(),
+                a.base.name.to_lowercase(),
+            )
+                .cmp(&(
+                    !b.is_system(),
+                    b.base.group_type.to_string(),
+                    b.base.name.to_lowercase(),
+                ))
         });
         Ok(groups)
     }
@@ -241,7 +247,9 @@ impl TagGroupService {
                         .iter()
                         .any(|g| g.base.name.eq_ignore_ascii_case(name))
                 })
-                .map(|name| TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom)),
+                .map(|name| {
+                    TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom)
+                }),
         );
         for base in missing {
             self.create_base(TagGroup::new(base), authentication.clone())
@@ -255,7 +263,12 @@ impl TagGroupService {
     /// The position a tag joining `group_id` takes: after every live tag already in it.
     pub async fn next_position(&self, group_id: Uuid) -> Result<i32> {
         let tags = self.live_tags_in(group_id).await?;
-        Ok(tags.iter().filter_map(|t| t.base.position).max().unwrap_or(0) + 1)
+        Ok(tags
+            .iter()
+            .filter_map(|t| t.base.position)
+            .max()
+            .unwrap_or(0)
+            + 1)
     }
 
     async fn live_tags_in(&self, group_id: Uuid) -> Result<Vec<Tag>> {
@@ -287,7 +300,10 @@ impl TagGroupService {
         }
 
         for tag in tags.iter_mut() {
-            let position = tag_ids.iter().position(|id| *id == tag.id).map(|p| p as i32 + 1);
+            let position = tag_ids
+                .iter()
+                .position(|id| *id == tag.id)
+                .map(|p| p as i32 + 1);
             if tag.base.position != position {
                 tag.base.position = position;
                 tx.update(tag).await?;
@@ -313,10 +329,7 @@ impl TagGroupService {
             .get_all(StorableFilter::<TagGroup>::new_from_entity_ids(&group_ids))
             .await?;
         for tag in tags {
-            let Some(group) = groups
-                .iter()
-                .find(|g| Some(g.id) == tag.base.tag_group_id)
-            else {
+            let Some(group) = groups.iter().find(|g| Some(g.id) == tag.base.tag_group_id) else {
                 continue;
             };
             if !group.base.allows(entity_type) {
@@ -505,18 +518,24 @@ mod tests {
     #[test]
     fn counts_name_only_the_types_asked_about() {
         let tag = Uuid::new_v4();
-        let row = |entity_type| EntityTag::new(EntityTagBase::new(Uuid::new_v4(), entity_type, tag));
+        let row =
+            |entity_type| EntityTag::new(EntityTagBase::new(Uuid::new_v4(), entity_type, tag));
         let rows = [
             row(EntityDiscriminants::Host),
             row(EntityDiscriminants::Host),
             row(EntityDiscriminants::Service),
             row(EntityDiscriminants::Vlan),
         ];
-        let counts =
-            assignments_by_type(&rows, &[EntityDiscriminants::Host, EntityDiscriminants::Service]);
+        let counts = assignments_by_type(
+            &rows,
+            &[EntityDiscriminants::Host, EntityDiscriminants::Service],
+        );
         assert_eq!(
             counts.into_iter().collect::<Vec<_>>(),
-            vec![(EntityDiscriminants::Host, 2), (EntityDiscriminants::Service, 1)]
+            vec![
+                (EntityDiscriminants::Host, 2),
+                (EntityDiscriminants::Service, 1)
+            ]
         );
         assert_eq!(counts_by_type(&rows, &[EntityDiscriminants::Subnet]), None);
     }

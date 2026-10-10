@@ -240,11 +240,7 @@ impl TagGroupOrdering {
 
         let mut parts = Vec::new();
         if let Some(group_id) = self.group_by {
-            filter = filter.join(&Self::join::<T>(
-                "tag_group_grouped",
-                entity_type,
-                group_id,
-            ));
+            filter = filter.join(&Self::join::<T>("tag_group_grouped", entity_type, group_id));
             parts.push(format!("{} ASC", Self::GROUP_SQL));
         }
         // A field ordering ends with the row id; a tag-group sort goes in before it. With no

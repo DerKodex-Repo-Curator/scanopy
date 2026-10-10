@@ -340,9 +340,11 @@ mod tests {
 
         TagGroupType::system()
             .map(|t| TagGroupBase::new(org, t.to_string(), t))
-            .chain(starter_custom_group_names().into_iter().map(|name| {
-                TagGroupBase::new(org, name.to_string(), TagGroupType::Custom)
-            }))
+            .chain(
+                starter_custom_group_names()
+                    .into_iter()
+                    .map(|name| TagGroupBase::new(org, name.to_string(), TagGroupType::Custom)),
+            )
             .map(TagGroup::new)
             .collect()
     }
@@ -389,8 +391,7 @@ mod tests {
         let groups = starter_groups(org);
         let all = missing_starter_tags(org, &groups, &[]);
         let taken = all[0].base.name.to_lowercase();
-        let missing =
-            missing_starter_tags(org, &groups, &[taken.clone(), "Printers".to_string()]);
+        let missing = missing_starter_tags(org, &groups, &[taken.clone(), "Printers".to_string()]);
         assert_eq!(missing.len(), all.len() - 1);
         assert!(
             missing

@@ -553,8 +553,7 @@ impl TopologyService {
                     .await?;
                 self.tag_service
                     .get_all(
-                        StorableFilter::<Tag>::new_from_org_id(&site.base.organization_id)
-                            .live(),
+                        StorableFilter::<Tag>::new_from_org_id(&site.base.organization_id).live(),
                     )
                     .await?
                     .iter()

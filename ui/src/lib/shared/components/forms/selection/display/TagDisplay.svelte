@@ -1,14 +1,21 @@
 <script lang="ts" module>
 	import { entities } from '$lib/shared/stores/metadata';
 	import { createColorHelper } from '$lib/shared/utils/styling';
-	import { tagIcon, tagTooltip } from '$lib/features/tags/groups';
+	import { applicationGroupId, tagIcon, tagTooltip } from '$lib/features/tags/groups';
+	import { queryClient, queryKeys } from '$lib/api/query-client';
+	import type { TagGroup } from '$lib/features/tags/types/base';
+
+	/** The organization's tag groups, as the tag-group query last loaded them. */
+	const cachedTagGroups = (): TagGroup[] =>
+		queryClient.getQueryData<TagGroup[]>(queryKeys.tagGroups.all) ?? [];
 
 	/** A tag as a row: drawn with its own icon and colour, its group and description beneath. */
 	export const TagDisplay: EntityDisplayComponent<Tag, object> = {
 		getId: (tag) => tag.id,
 		getLabel: (tag) => tag.name,
-		getDescription: (tag) => tagTooltip(tag).replaceAll('\n', ' · '),
-		getIcon: (tag) => tagIcon(tag) ?? entities.getIconComponent('Tag'),
+		getDescription: (tag) => tagTooltip(tag, cachedTagGroups()).replaceAll('\n', ' · '),
+		getIcon: (tag) =>
+			tagIcon(tag, applicationGroupId(cachedTagGroups())) ?? entities.getIconComponent('Tag'),
 		getIconColor: (tag) => createColorHelper(tag.color).icon,
 		getCategory: () => null
 	};

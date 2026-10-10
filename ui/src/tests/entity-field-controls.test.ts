@@ -270,6 +270,17 @@ const DECISIONS: Record<string, TabDecisions> = {
 			icon: { sort: 'An icon name has no useful order', group: true, filter: true }
 		}
 	},
+	'tags/components/TagGroupTab.svelte': {
+		columns: {
+			name: IDENTITY,
+			group_type: YES,
+			entity_types: SHARED_ARRAY,
+			// Each tag is in one group, so filtering by one finds its group.
+			tags: SHARED_ARRAY,
+			created_at: DATE,
+			updated_at: DATE
+		}
+	},
 	'sites/components/SitesTab.svelte': {
 		columns: {
 			name: IDENTITY,

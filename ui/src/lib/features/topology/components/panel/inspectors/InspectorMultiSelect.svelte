@@ -31,6 +31,7 @@
 	import TagPickerInline from '$lib/features/tags/components/TagPickerInline.svelte';
 	import {
 		useTagsQuery,
+		useTagGroupsQuery,
 		useBulkAddTagMutation,
 		useBulkRemoveTagMutation
 	} from '$lib/features/tags/queries';
@@ -211,6 +212,8 @@
 	});
 
 	// Merge topology entity_tags with tags query cache for newly created tags
+	const tagGroupsQuery = useTagGroupsQuery();
+	let orgTagGroups = $derived(tagGroupsQuery.data ?? []);
 	const tagsQuery = useTagsQuery();
 	let topoEntityTags = $derived.by(() => {
 		const topoTags = topology?.entity_tags ?? [];
@@ -219,13 +222,21 @@
 		return [...topoTags, ...cachedTags.filter((t) => !topoIds.has(t.id))];
 	});
 
-	let appTagIds = $derived(topoEntityTags.filter((t) => isApplicationTag(t)).map((t) => t.id));
+	let appTagIds = $derived(
+		topoEntityTags
+			.filter((t) => isApplicationTag(t, topology?.application_group_id))
+			.map((t) => t.id)
+	);
 
 	let appTagSet = $derived(new Set(appTagIds));
 
 	// Filtered tag lists for pickers
-	let nonAppTags = $derived(topoEntityTags.filter((t) => !isApplicationTag(t)));
-	let appTags = $derived(topoEntityTags.filter((t) => isApplicationTag(t)));
+	let nonAppTags = $derived(
+		topoEntityTags.filter((t) => !isApplicationTag(t, topology?.application_group_id))
+	);
+	let appTags = $derived(
+		topoEntityTags.filter((t) => isApplicationTag(t, topology?.application_group_id))
+	);
 
 	// Common app tags across selected services (for app picker selectedTagIds).
 	// Always derived from services — app-group tagging only applies to services.
@@ -902,9 +913,9 @@
 							<Tag
 								label={tag.name}
 								color={tag.color}
-								icon={tagIcon(tag)}
-								title={tagTooltip(tag)}
-								isShiny={isApplicationTag(tag)}
+								icon={tagIcon(tag, topology?.application_group_id)}
+								title={tagTooltip(tag, orgTagGroups)}
+								isShiny={isApplicationTag(tag, topology?.application_group_id)}
 							/>
 						{/if}
 					{/each}

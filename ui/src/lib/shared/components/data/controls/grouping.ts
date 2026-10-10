@@ -69,7 +69,14 @@ export function groupItems<T>(
 
 	if (preserveOrder) return groups;
 
-	return new Map([...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+	// A field that orders its values (a CIDR, a tag group's tags) orders its groups the same way;
+	// every row of a group holds the same value, so its first row stands for it.
+	const compare = field.compare;
+	return new Map(
+		[...groups.entries()].sort((a, b) =>
+			compare ? compare(a[1][0], b[1][0]) || a[0].localeCompare(b[0]) : a[0].localeCompare(b[0])
+		)
+	);
 }
 
 /**

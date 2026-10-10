@@ -258,7 +258,8 @@
 			fields={vlanFields}
 			storageKey="scanopy-vlans-table-state"
 			defaults={tableDefaults}
-			entityType={isReadOnly ? undefined : 'Vlan'}
+			entityType="Vlan"
+			canEditTags={!isReadOnly}
 			getItemTags={getVlanTags}
 			getItemId={(item) => item.id}
 			onCsvExport={handleCsvExport}

@@ -503,7 +503,8 @@
 			storageKey="scanopy-credentials-table-state"
 			defaults={tableDefaults}
 			onBulkDelete={handleBulkDelete}
-			entityType={allowBulkDelete ? 'Credential' : undefined}
+			entityType="Credential"
+			canEditTags={allowBulkDelete}
 			getItemTags={getCredentialTags}
 			getItemId={(item) => item.id}
 			onCsvExport={handleCsvExport}

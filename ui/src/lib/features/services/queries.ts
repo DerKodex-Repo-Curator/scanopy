@@ -45,6 +45,12 @@ export interface ServicesQueryParams {
 	order_direction?: components['schemas']['OrderDirection'];
 	/** Filter by tag IDs (returns services that have ANY of the specified tags). */
 	tag_ids?: string[];
+	/** Tag sets a service must hold one tag of each of: one comma-separated id list per tag group. */
+	tag_sets?: string[];
+	/** Group by the tag each service holds from this tag group, in place of `group_by`. */
+	group_by_tag_group?: string;
+	/** Sort by the position of the tag each service holds from this tag group, in place of `order_by`. */
+	order_by_tag_group?: string;
 	/** `true` returns only services discovery hasn't observed within their
 	 * site's staleness window; omit for no staleness constraint. */
 	stale?: boolean;
@@ -101,6 +107,9 @@ export function useServicesQuery(
 			order_by,
 			order_direction,
 			tag_ids,
+			tag_sets,
+			group_by_tag_group,
+			order_by_tag_group,
 			stale,
 			search,
 			ports,
@@ -125,6 +134,9 @@ export function useServicesQuery(
 					order_by,
 					order_direction,
 					tag_ids,
+					tag_sets,
+					group_by_tag_group,
+					order_by_tag_group,
 					stale,
 					search,
 					ports,
@@ -149,6 +161,9 @@ export function useServicesQuery(
 								order_by,
 								order_direction,
 								tag_ids,
+								tag_sets,
+								group_by_tag_group,
+								order_by_tag_group,
 								stale,
 								search,
 								ports,
