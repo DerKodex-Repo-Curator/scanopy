@@ -1,7 +1,8 @@
 //! Signup-time address validation with the Amazon SES v2 `GetEmailAddressInsights` operation.
 //!
-//! Runs after the local disposable-list and DNS checks in `register`, and only when the
-//! `email_validation_aws_*` config is set (Scanopy Cloud). Each call costs $0.01.
+//! Runs after the local disposable-list and DNS checks in `register`, and only when
+//! `aws_region`, `aws_access_key_id` and `aws_secret_access_key` are set (Scanopy Cloud).
+//! Each call costs $0.01.
 //!
 //! Policy: reject when SES rates overall validity LOW, or rates the address HIGH for being
 //! disposable or randomly generated. Role addresses and MEDIUM validity pass, since they cover
@@ -97,14 +98,15 @@ pub struct SesEmailValidator {
 }
 
 impl SesEmailValidator {
-    /// `None` unless all three `email_validation_aws_*` settings are present and non-empty.
+    /// `None` unless `aws_region`, `aws_access_key_id` and `aws_secret_access_key` are all
+    /// present and non-empty.
     pub fn from_config(config: &ServerConfig) -> anyhow::Result<Option<Self>> {
         let non_empty =
             |v: &Option<String>| v.as_deref().filter(|s| !s.is_empty()).map(str::to_owned);
         let (Some(region), Some(key_id), Some(secret)) = (
-            non_empty(&config.email_validation_aws_region),
-            non_empty(&config.email_validation_aws_access_key_id),
-            non_empty(&config.email_validation_aws_secret_access_key),
+            non_empty(&config.aws_region),
+            non_empty(&config.aws_access_key_id),
+            non_empty(&config.aws_secret_access_key),
         ) else {
             return Ok(None);
         };
@@ -264,9 +266,9 @@ mod tests {
     #[test]
     fn unconfigured_without_all_three_settings() {
         let full = ServerConfig {
-            email_validation_aws_region: Some("us-east-1".into()),
-            email_validation_aws_access_key_id: Some("AKIDEXAMPLE".into()),
-            email_validation_aws_secret_access_key: Some("secret".into()),
+            aws_region: Some("us-east-1".into()),
+            aws_access_key_id: Some("AKIDEXAMPLE".into()),
+            aws_secret_access_key: Some("secret".into()),
             ..ServerConfig::default()
         };
         assert!(SesEmailValidator::from_config(&full).unwrap().is_some());
@@ -280,9 +282,9 @@ mod tests {
             for value in [None, Some(String::new())] {
                 let mut config = full.clone();
                 *match missing {
-                    0 => &mut config.email_validation_aws_region,
-                    1 => &mut config.email_validation_aws_access_key_id,
-                    _ => &mut config.email_validation_aws_secret_access_key,
+                    0 => &mut config.aws_region,
+                    1 => &mut config.aws_access_key_id,
+                    _ => &mut config.aws_secret_access_key,
                 } = value;
                 assert!(SesEmailValidator::from_config(&config).unwrap().is_none());
             }
@@ -292,9 +294,9 @@ mod tests {
     #[test]
     fn signs_the_request_for_ses() {
         let config = ServerConfig {
-            email_validation_aws_region: Some("eu-west-1".into()),
-            email_validation_aws_access_key_id: Some("AKIDEXAMPLE".into()),
-            email_validation_aws_secret_access_key: Some("secret".into()),
+            aws_region: Some("eu-west-1".into()),
+            aws_access_key_id: Some("AKIDEXAMPLE".into()),
+            aws_secret_access_key: Some("secret".into()),
             ..ServerConfig::default()
         };
         let validator = SesEmailValidator::from_config(&config).unwrap().unwrap();
