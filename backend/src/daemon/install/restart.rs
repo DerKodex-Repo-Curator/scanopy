@@ -18,8 +18,9 @@ pub(super) fn run_restart(args: RestartArgs) -> Result<()> {
     );
 
     // On Windows the upgrade command renames the running binary aside before moving the new one
-    // in. Clear that copy once nothing runs it; another daemon still on the old image keeps it.
-    let _ = remove_file_when_released(&spec.bin_path.with_extension("old"));
+    // in. Clear those copies once nothing runs them; another daemon still on the old image keeps
+    // its copy until it restarts too.
+    remove_retired_binaries(&spec.bin_path);
     Ok(())
 }
 

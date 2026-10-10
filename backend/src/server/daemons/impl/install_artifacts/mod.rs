@@ -581,13 +581,17 @@ pub fn build_upgrade_artifacts(daemon: &Daemon) -> UpgradeArtifacts {
         ];
         let windows = vec![
             // Windows refuses to overwrite a running exe but lets it be renamed, and every daemon
-            // on the host runs the same one. Download beside it, move the running copy aside (the
-            // `restart` clears it once released), and move the new one in.
+            // on the host runs the same one. Download beside it, move the running copy aside, and
+            // move the new one in. The retired copy gets a unique name: an earlier one can still be
+            // running (another daemon not yet restarted), and an in-use file can't be replaced.
+            // `restart` and `install` clear retired copies once released. Errors stop the chain,
+            // so a failed download never moves the working exe away.
             UpgradeStep::new(
                 Download,
                 format!(
-                    "Invoke-WebRequest -Uri \"{WINDOWS_EXE_URL}\" -OutFile \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\"; \
-                     Move-Item -Force \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.old\"; \
+                    "$ErrorActionPreference = 'Stop'; \
+                     Invoke-WebRequest -Uri \"{WINDOWS_EXE_URL}\" -OutFile \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\"; \
+                     Move-Item \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.$(Get-Date -Format yyyyMMddHHmmss).old\"; \
                      Move-Item \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\""
                 ),
             ),

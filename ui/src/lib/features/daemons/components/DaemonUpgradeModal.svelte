@@ -5,6 +5,7 @@
 	import InlineDanger from '$lib/shared/components/feedback/InlineDanger.svelte';
 	import InlineInfo from '$lib/shared/components/feedback/InlineInfo.svelte';
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
+	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
 	import ModalHeaderIcon from '$lib/shared/components/layout/ModalHeaderIcon.svelte';
 	import { entities } from '$lib/shared/stores/metadata';
@@ -202,6 +203,8 @@
 									</p>
 								</div>
 							</div>
+						{:else}
+							<Loading />
 						{/if}
 					{:else if artifacts}
 						<!-- Binary: the server's steps for this OS (download, then restart the service) -->
@@ -225,6 +228,8 @@
 								/>
 							{/if}
 						</div>
+					{:else}
+						<Loading />
 					{/if}
 				</OsSelector>
 			</div>

@@ -402,3 +402,22 @@ fn restart_refuses_to_guess_and_lists_what_is_installed() {
     }
     assert!(restart_target(&[], None).is_err());
 }
+
+#[test]
+fn retired_binaries_are_swept_and_nothing_else_is() {
+    let dir = tempfile::tempdir().unwrap();
+    let bin = dir.path().join(BINARY_FILE_NAME);
+    let retired = retired_binary_path(&bin);
+    // The single retired name older installers used, a uniquely named retirement, and files the
+    // sweep must leave alone.
+    let legacy_retired = bin.with_extension("old");
+    let unrelated = dir.path().join("other-tool.old");
+    for path in [&bin, &retired, &legacy_retired, &unrelated] {
+        std::fs::write(path, b"x").unwrap();
+    }
+
+    assert!(remove_retired_binaries(&bin).is_empty());
+
+    assert!(bin.exists() && unrelated.exists());
+    assert!(!retired.exists() && !legacy_retired.exists());
+}
