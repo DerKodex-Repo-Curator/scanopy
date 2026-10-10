@@ -41,7 +41,7 @@
 	} from '$lib/features/dependencies/queries';
 	import type { Dependency } from '$lib/features/dependencies/types/base';
 	import EdgeStyleForm from '$lib/features/dependencies/components/DependencyEditModal/EdgeStyleForm.svelte';
-	import { computeOptimalHandles } from '../../../layout/elk-layout';
+	import { computeOptimalHandles } from '../../../layout/handle-picking';
 	import { dependencyTypes, concepts } from '$lib/shared/stores/metadata';
 	import {
 		commonTagsHeader,
