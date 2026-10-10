@@ -213,6 +213,9 @@ const VLAN: &[F] = &[
     F::new("subnet_ids", "Subnets")
         .entity(&[Hop::parent(E::Subnet, "subnet_ids")])
         .many(),
+    F::new("interface_ids", "Interfaces")
+        .entity(&[Hop::parent(E::Interface, "interface_ids")])
+        .many(),
     SOURCE,
     SITE,
 ];

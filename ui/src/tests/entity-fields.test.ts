@@ -97,12 +97,13 @@ describe('entity field walker', () => {
 });
 
 describe('registry-backed table columns', () => {
-	type Row = { id: string; name: string; subnet_ids: string[] };
+	type Row = { id: string; name: string; subnet_ids: string[]; interface_ids?: string[] };
 	const subnets = [{ id: 'sn1', name: 'LAN' }];
+	const interfaces = [{ id: 'if1', host_id: 'h1', if_name: 'Gi1/0/1' }];
 	const columns = () =>
 		defineRegistryFields<Row, 'name'>(
 			'Vlan',
-			() => collectionLookup({ Subnet: subnets }),
+			() => collectionLookup({ Subnet: subnets, Interface: interfaces }),
 			{ name: { searchable: true } },
 			[{ key: 'description', display: { hiddenByDefault: false } }],
 			['source']
@@ -135,6 +136,20 @@ describe('registry-backed table columns', () => {
 		expect(items?.map((i) => [i.label, i.entityRef?.entityType, i.entityRef?.entityId])).toEqual([
 			['LAN', 'Subnet', 'sn1']
 		]);
+	});
+
+	it('draws the interfaces serving a VLAN as linked interface chips', () => {
+		const interfacesColumn = columns().find((c) => getFieldKey(c) === 'interface_ids')!;
+		const items = interfacesColumn.display?.getItems?.({
+			id: 'v1',
+			name: 'v',
+			subnet_ids: [],
+			interface_ids: ['if1', 'missing']
+		});
+		expect(items?.map((i) => [i.entityRef?.entityType, i.entityRef?.entityId])).toEqual([
+			['Interface', 'if1']
+		]);
+		expect(items?.[0].label).toContain('Gi1/0/1');
 	});
 });
 

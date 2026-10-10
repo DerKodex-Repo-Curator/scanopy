@@ -2003,6 +2003,7 @@
 	"meta_entities_User_field_permissions_label": "Permissions",
 	"meta_entities_User_field_terms_accepted_at_label": "Terms Accepted",
 	"meta_entities_Vlan_field_description_label": "Description",
+	"meta_entities_Vlan_field_interface_ids_label": "Interfaces",
 	"meta_entities_Vlan_field_name_label": "Name",
 	"meta_entities_Vlan_field_site_id_label": "Site",
 	"meta_entities_Vlan_field_source_label": "Source",

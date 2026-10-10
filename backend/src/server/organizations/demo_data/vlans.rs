@@ -60,6 +60,7 @@ pub(super) fn generate_vlans(
                     organization_id,
                     source: EntitySource::Discovery,
                     subnet_ids: Vec::new(),
+                    interface_ids: Vec::new(),
                     tags: tag.and_then(tag_id).into_iter().collect(),
                 },
             });

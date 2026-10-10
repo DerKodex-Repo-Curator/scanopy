@@ -223,13 +223,6 @@ impl ServiceFactory {
             ip_address_service.clone(),
         ));
 
-        let vlan_service = Arc::new(VlanService::new(
-            storage.vlans.clone(),
-            event_bus.clone(),
-            entity_tag_service.clone(),
-            storage.subnet_vlan.clone(),
-        ));
-
         let site_service = Arc::new(SiteService::new(
             storage.sites.clone(),
             subnet_service.clone(),
@@ -264,6 +257,15 @@ impl ServiceFactory {
             event_bus.clone(),
             ip_address_service.clone(),
             interface_neighbor_service.clone(),
+        ));
+
+        // VlanService reads each VLAN's serving interfaces through InterfaceService.
+        let vlan_service = Arc::new(VlanService::new(
+            storage.vlans.clone(),
+            event_bus.clone(),
+            entity_tag_service.clone(),
+            storage.subnet_vlan.clone(),
+            interface_service.clone(),
         ));
 
         let credential_service = Arc::new(CredentialService::new(
