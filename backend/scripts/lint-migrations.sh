@@ -66,6 +66,9 @@ DOWNTIME_FILES=(
     # Containers from the previous release read and write the column, so the
     # release ships as a downtime deploy.
     "$MIGRATIONS_DIR/20261009120101_drop_tags_is_application.sql"
+    # Drops organizations.brevo_company_id (Brevo retired; discard approved) alongside the
+    # unsubscribe-token column. The previous release reads it, so it rides the same downtime deploy.
+    "$MIGRATIONS_DIR/20261009120000_user_email_unsubscribe_token.sql"
 )
 FK_BACKFILL_FILES=("$MIGRATIONS_DIR/20260502120001_add_snapshot_id_fks.sql")
 # Columns dropped that have NO live code readers at the currently-deployed release,

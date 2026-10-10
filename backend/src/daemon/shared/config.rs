@@ -1433,12 +1433,17 @@ mod tests {
         assert_eq!(saved["integration_targets"][0]["scope"], "Site");
     }
 
-    /// The last release's `config.json` (named `network_id`) in a temp config dir, with a
-    /// broadcast credential as `--credential-id <uuid>` persisted it before the rename. Returns
-    /// the dir, the fixture's network id and the credential id.
+    /// A pre-rename `config.json` (named `network_id`) in a temp config dir, with a broadcast
+    /// credential as `--credential-id <uuid>` persisted it before the rename. Built from the
+    /// release fixture, whose `site_id` is moved back to `network_id` once the fixture comes from
+    /// a release after the rename. Returns the dir, the network id and the credential id.
     fn pre_rename_config_dir() -> (tempfile::TempDir, Uuid, Uuid) {
         let mut fixture: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(DAEMON_CONFIG_FIXTURE).unwrap()).unwrap();
+        let object = fixture.as_object_mut().unwrap();
+        if let Some(site_id) = object.remove("site_id") {
+            object.insert("network_id".to_string(), site_id);
+        }
         let network_id: Uuid = fixture["network_id"].as_str().unwrap().parse().unwrap();
         let credential_id = Uuid::new_v4();
         fixture["integration_targets"] =

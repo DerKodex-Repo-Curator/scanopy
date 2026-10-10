@@ -7,7 +7,7 @@ use axum::response::IntoResponse;
 use email_address::EmailAddress;
 use strum::IntoEnumIterator;
 
-use super::self_hosted_license_emails::{create_owner, sent};
+use super::self_hosted_license_emails::create_owner;
 use super::self_hosted_licensing::{create_org, test_state_with_email_dir};
 use crate::server::billing::plans::get_enterprise_plan;
 use crate::server::config::AppState;
@@ -31,9 +31,18 @@ async fn owner(state: &AppState) -> User {
         .unwrap()
 }
 
-/// The `List-Unsubscribe` URLs the logging transport recorded.
-fn unsubscribe_urls(sent: &str) -> Vec<String> {
-    sent.lines()
+/// The `List-Unsubscribe` URLs the logging transport recorded, one per email.
+/// The transport writes each email as an `.html` and a `.txt` file with the
+/// same metadata, so only the `.txt` files are read.
+fn unsubscribe_urls(dir: &std::path::Path) -> Vec<String> {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
+        .map(|path| std::fs::read_to_string(path).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+        .lines()
         .filter_map(|line| line.strip_prefix("List-Unsubscribe: <"))
         .filter_map(|rest| rest.strip_suffix('>'))
         .map(str::to_string)
@@ -61,7 +70,7 @@ async fn only_pausable_email_to_a_known_user_carries_an_unsubscribe_link() {
         .await
         .unwrap();
     assert!(
-        unsubscribe_urls(&sent(dir.path())).is_empty(),
+        unsubscribe_urls(dir.path()).is_empty(),
         "a required email, and a pausable one to an address with no account, carry no link"
     );
 
@@ -76,7 +85,7 @@ async fn only_pausable_email_to_a_known_user_carries_an_unsubscribe_link() {
         .base
         .email_unsubscribe_token
         .expect("the first pausable send stores a token");
-    let urls = unsubscribe_urls(&sent(dir.path()));
+    let urls = unsubscribe_urls(dir.path());
     assert_eq!(urls.len(), 2);
     assert!(
         urls.iter().all(|url| url.ends_with(&format!(
