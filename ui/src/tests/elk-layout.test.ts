@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { LayoutGraph } from '$lib/features/topology/layout/layout-graph';
+import { computeElkLayout, type ElkLayoutInput } from '$lib/features/topology/layout/elk-layout';
 import {
-	computeElkLayout,
 	computeOptimalHandles,
-	type ElkLayoutInput,
 	type ObstacleRect
-} from '$lib/features/topology/layout/elk-layout';
+} from '$lib/features/topology/layout/handle-picking';
 import {
 	isDisabledEdge,
 	isDottedEdge,

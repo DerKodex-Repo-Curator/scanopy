@@ -25,6 +25,7 @@ use scanopy::server::{
 };
 use tower::ServiceBuilder;
 use tower_http::{
+    compression::CompressionLayer,
     cors::{AllowOrigin, CorsLayer},
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
@@ -407,6 +408,10 @@ async fn main() -> anyhow::Result<()> {
         ServiceBuilder::new()
             .layer(client_ip_source.into_extension())
             .layer(TraceLayer::new_for_http())
+            // Gzip for clients that accept it. The default predicate leaves SSE streams, images
+            // and tiny bodies alone. The topology bundle is the reason: repetitive JSON several
+            // megabytes long on a large site.
+            .layer(CompressionLayer::new())
             .layer(cors)
             .layer(session_store)
             .layer(middleware::from_fn_with_state(
@@ -465,7 +470,8 @@ async fn main() -> anyhow::Result<()> {
     let public_share_app = public_share_app
         .with_state(state.clone())
         .layer(public_cors)
-        .layer(cache_headers.clone());
+        .layer(cache_headers.clone())
+        .layer(CompressionLayer::new());
 
     // Permissive CORS for health check (marketing site, uptime monitors, etc.)
     let health_cors = CorsLayer::new()

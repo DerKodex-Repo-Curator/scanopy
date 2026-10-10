@@ -20,6 +20,8 @@
 		topology_levelContainersFullyExpanded,
 		topology_parseFailed,
 		topology_detailSimplified,
+		topology_updatedDuringScan,
+		common_refresh,
 		common_rendering
 	} from '$lib/paraglide/messages';
 	import { type Node, type Edge } from '@xyflow/svelte';
@@ -52,7 +54,9 @@
 		topologyReadOnly,
 		topologyOptionsHydrated,
 		activeView,
-		hiddenEdgeTypes
+		hiddenEdgeTypes,
+		heldTopologyUpdates,
+		refreshHeldTopology
 	} from '../../queries';
 	import {
 		isExporting,
@@ -506,6 +510,9 @@
 			exporting: $isExporting
 		})
 	);
+
+	// The running scan changed this site and the layout is held (see `heldTopologySites`).
+	let heldUpdatePending = $derived(!$isExporting && $heldTopologyUpdates.has(topology.site_id));
 
 	// Publish rather than let each node decide: the size term above is not visible to a node, and
 	// one refcounted subscription beats a viewport read per node. See `detailSimplified`.
@@ -1687,7 +1694,7 @@
 			/>
 		{/if}
 
-		{#if $isRenderingTopology || detailHidden}
+		{#if $isRenderingTopology || detailHidden || heldUpdatePending}
 			<!--
 				One pill for what the view is doing to itself, in flow chrome rather than in the graph
 				so it belongs to the view and not to any node.
@@ -1706,6 +1713,18 @@
 				{#if detailHidden}
 					<span class="detail-hidden-row">
 						{topology_detailSimplified()}
+					</span>
+				{/if}
+				{#if heldUpdatePending && !$isRenderingTopology}
+					<span class="detail-hidden-row">
+						{topology_updatedDuringScan()}
+						<button
+							type="button"
+							class="held-refresh"
+							onclick={() => refreshHeldTopology(topology.site_id)}
+						>
+							{common_refresh()}
+						</button>
 					</span>
 				{/if}
 			</div>
@@ -1761,6 +1780,15 @@
 		display: flex;
 		align-items: center;
 		gap: 5px;
+	}
+
+	/* The pill ignores the pointer so the graph under it stays usable; this one control takes it. */
+	.held-refresh {
+		pointer-events: auto;
+		font-weight: 600;
+		color: var(--color-text-primary, #0f172a);
+		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 
 	/*

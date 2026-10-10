@@ -19,10 +19,13 @@
 	import { onMount, onDestroy, setContext } from 'svelte';
 	import { preloadElk } from '$lib/features/topology/layout/elk-layout';
 	import { get, writable } from 'svelte/store';
+	import { isScaleCollapsed } from '../collapse';
 	import {
 		useTopologiesQuery,
 		useTopologyDataQuery,
 		markTopologyViewed,
+		loadTopologyData,
+		setTopologyHeld,
 		selectedTopologyId,
 		selectedSiteId,
 		selectedSnapshotId,
@@ -146,6 +149,7 @@
 	const topologyDataQuery = useTopologyDataQuery(
 		() => $selectedSiteId ?? undefined,
 		() => $selectedSnapshotId ?? undefined,
+		() => $activeView,
 		() => isActive
 	);
 
@@ -342,6 +346,23 @@
 	);
 	let discoveryColor = $derived(entities.getColorHelper('Discovery'));
 
+	// Keep the drawn layout of a large live site while a scan runs on it, instead of re-laying it
+	// out on every change the scan reports. The viewer offers a refresh, and the site is fetched
+	// once more when the scan ends. Scale-collapse is the size gate: below it a layout run is cheap
+	// enough to follow the scan live.
+	let holdLayout = $derived(
+		$selectedSnapshotId == null &&
+			activeSession != null &&
+			currentTopology != null &&
+			isScaleCollapsed(currentTopology.nodes)
+	);
+	$effect(() => {
+		const siteId = $selectedSiteId;
+		if (!siteId) return;
+		setTopologyHeld(siteId, holdLayout);
+		return () => setTopologyHeld(siteId, false);
+	});
+
 	// View selector — built from fixture data
 	import viewsJson from '$lib/data/views.json';
 
@@ -402,7 +423,7 @@
 			firstTopologyMilestoneTracked = true;
 			const siteId = $selectedSiteId;
 			void (async () => {
-				await markTopologyViewed(siteId);
+				await markTopologyViewed(siteId, get(activeView));
 				void waitForOrgUpdate((o) => o.onboarding.includes('FirstTopologyRebuild'));
 			})();
 		}
@@ -585,9 +606,22 @@
 		clearSelection();
 	}
 
-	// Handle view selection (user-initiated)
-	function handleViewChange(value: string) {
+	// Handle view selection (user-initiated). Each view's bundle is fetched on its own, so load the
+	// next one before switching: the current graph stays on screen in the meantime instead of the
+	// viewer unmounting behind a loading screen. A failed load leaves the current view in place
+	// (the API client has already shown the error).
+	let viewSwitchRequest = 0;
+	async function handleViewChange(value: string) {
 		const view = value as TopologyView;
+		const siteId = $selectedSiteId;
+		const request = ++viewSwitchRequest;
+		try {
+			if (siteId) await loadTopologyData(siteId, $selectedSnapshotId ?? undefined, view);
+		} catch {
+			return;
+		}
+		// A later pick superseded this one while it loaded.
+		if (request !== viewSwitchRequest) return;
 		pushTopologyParams(get(selectedTopologyId), view);
 		activeView.set(view);
 		clearSelection();

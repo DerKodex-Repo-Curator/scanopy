@@ -3,7 +3,7 @@ import type { Edge, EdgeMarkerType } from '@xyflow/svelte';
 import type { TopologyEdge } from '../types/base';
 import type { TopologyView } from '../queries';
 import type { EdgeHandles } from '../layout/elk-layout';
-import { computeOptimalHandles } from '../layout/elk-layout';
+import { computeOptimalHandles, ObstacleGrid } from '../layout/handle-picking';
 import { getViewLayout } from '../layout/view-layout';
 import type { SelectionStores } from '../selection';
 import type { AggregatedEdge } from '../collapse';
@@ -317,7 +317,7 @@ function computeHandlesFromLayout(
 	// handle-resolution pass. Per-edge we filter out the endpoints and their
 	// ancestor containers (a line from an element to its own parent naturally
 	// crosses the parent's boundary — don't penalise that).
-	const allRects = layoutGraph.getAllNodeRects();
+	const obstacles = new ObstacleGrid(layoutGraph.getAllNodeRects());
 
 	const pick = (src: string, tgt: string): EdgeHandles | undefined => {
 		const srcPos = layoutGraph.getAbsolutePosition(src);
@@ -338,8 +338,9 @@ function computeHandlesFromLayout(
 		const exclude = new Set<string>([src, tgt]);
 		for (const a of layoutGraph.ancestorIdsOf(src)) exclude.add(a);
 		for (const a of layoutGraph.ancestorIdsOf(tgt)) exclude.add(a);
-		const obstacles = allRects.filter((r) => !exclude.has(r.id));
-		return computeOptimalHandles(srcPos, srcSize, tgtPos, tgtSize, obstacles);
+		return computeOptimalHandles(srcPos, srcSize, tgtPos, tgtSize, (x1, y1, x2, y2) =>
+			obstacles.countCrossings(x1, y1, x2, y2, exclude)
+		);
 	};
 
 	for (const edge of elevatedEdges) {

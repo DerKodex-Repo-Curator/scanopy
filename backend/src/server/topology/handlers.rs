@@ -43,6 +43,7 @@ use futures::{Stream, stream};
 use serde::Deserialize;
 use serde_json::json;
 use std::{convert::Infallible, sync::Arc};
+use strum::IntoEnumIterator;
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
@@ -98,6 +99,10 @@ pub struct TopologyDataQuery {
     /// tabs. One-time per org (guarded below + subscriber dedup).
     #[serde(default)]
     pub mark_viewed: Option<bool>,
+    /// The view to build the graph for. When omitted, the graph of every view is built and
+    /// returned. The topology tab always sends the view it draws.
+    #[serde(default)]
+    pub view: Option<TopologyView>,
 }
 
 #[derive(Debug, Deserialize, IntoParams, ToSchema)]
@@ -149,13 +154,17 @@ async fn get_topology_data(
         }
     }
 
-    // Build the per-view graph on request from entities + the site's
-    // grouping options (live or snapshot entity set). The frontend selects the
-    // active view's slice client-side and runs ELK each render.
+    // Build the requested view's graph on request from entities + the site's
+    // grouping options (live or snapshot entity set). The frontend runs ELK
+    // each render.
+    let views: Vec<TopologyView> = match params.view {
+        Some(view) => vec![view],
+        None => TopologyView::iter().collect(),
+    };
     let data = state
         .services
         .topology_service
-        .get_topology_render_data(params.site_id, params.snapshot_id)
+        .get_topology_render_data(params.site_id, params.snapshot_id, &views)
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
@@ -497,7 +506,7 @@ async fn export_mermaid(
 
     // Build the graph on request and export the requested view's slice.
     let data = service
-        .get_topology_render_data(topology.base.site_id, None)
+        .get_topology_render_data(topology.base.site_id, None, &[query.view])
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
     let nodes = data
@@ -563,7 +572,7 @@ async fn export_confluence(
 
     // Build the graph on request and export the requested view's slice.
     let data = service
-        .get_topology_render_data(topology.base.site_id, None)
+        .get_topology_render_data(topology.base.site_id, None, &[query.view])
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
     let nodes = data
