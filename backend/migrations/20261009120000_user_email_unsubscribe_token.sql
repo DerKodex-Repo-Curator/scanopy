@@ -15,7 +15,7 @@
 -- WHY THIS NEEDS A DOWNTIME DEPLOY: containers from the previous release read and write
 -- `brevo_company_id`, so under a rolling deploy their organization reads and writes would fail
 -- once it is gone. It ships in the same downtime release as
--- 20261009120101_drop_tags_is_application.sql. Rollback is roll-forward only. Registered in
+-- 20261009120100_tag_groups.sql. Rollback is roll-forward only. Registered in
 -- DOWNTIME_FILES in backend/scripts/lint-migrations.sh.
 --
 -- No view, index, constraint or trigger references the dropped column, so no CASCADE is needed.

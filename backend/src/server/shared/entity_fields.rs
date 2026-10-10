@@ -232,8 +232,14 @@ const TAG: &[F] = &[
     F::new("name", "Name").summary(),
     DESCRIPTION.summary(),
     F::new("color", "Color"),
-    F::new("tag_group", "Tag Group").field("tag_group.name"),
+    F::new("tag_group_id", "Tag Group").entity(&[Hop::parent(E::TagGroup, "tag_group_id")]),
     F::new("icon", "Icon"),
+];
+
+const TAG_GROUP: &[F] = &[
+    F::new("name", "Name").summary(),
+    F::new("group_type", "Group Type"),
+    F::new("entity_types", "Applies To").many(),
 ];
 
 const DAEMON: &[F] = &[
@@ -339,6 +345,7 @@ impl E {
             E::Daemon => DAEMON,
             E::DaemonApiKey => DAEMON_API_KEY,
             E::Tag => TAG,
+            E::TagGroup => TAG_GROUP,
             E::User => USER,
             E::UserApiKey => USER_API_KEY,
             E::Credential => CREDENTIAL,
@@ -372,6 +379,7 @@ impl E {
             | E::Daemon
             | E::DaemonApiKey
             | E::Tag
+            | E::TagGroup
             | E::UserApiKey
             | E::Credential
             | E::Organization

@@ -62,10 +62,10 @@ DOWNTIME_FILES=(
     # columns on `interfaces` in the same migration that creates their
     # replacement tables. No expand/contract -- ships as a downtime deploy.
     "$MIGRATIONS_DIR/20260903120001_interface_neighbor_tables.sql"
-    # Drops tags.is_application after 20261009120100 copies it into tags.tag_group.
-    # Containers from the previous release read and write the column, so the
-    # release ships as a downtime deploy.
-    "$MIGRATIONS_DIR/20261009120101_drop_tags_is_application.sql"
+    # Replaces tags.tag_group and tags.is_application with tag_groups rows and
+    # tags.tag_group_id, then drops both columns. Containers from the previous
+    # release read and write them, so the release ships as a downtime deploy.
+    "$MIGRATIONS_DIR/20261009120100_tag_groups.sql"
     # Drops organizations.brevo_company_id (Brevo retired; discard approved) alongside the
     # unsubscribe-token column. The previous release reads it, so it rides the same downtime deploy.
     "$MIGRATIONS_DIR/20261009120000_user_email_unsubscribe_token.sql"
@@ -108,7 +108,11 @@ fi
 # documents the deploy mode (stop-migrate-start). Suppress ban-drop-column.
 for f in "${DOWNTIME_FILES[@]}"; do
     if [ -e "$f" ]; then
-        squawk --config "$CONFIG_PATH" --exclude=ban-drop-column "$f" || status=$?
+        tx_flag=()
+        if [ "$(head -n 1 "$f")" = "-- no-transaction" ]; then
+            tx_flag=(--no-assume-in-transaction)
+        fi
+        squawk --config "$CONFIG_PATH" ${tx_flag[@]+"${tx_flag[@]}"} --exclude=ban-drop-column "$f" || status=$?
     fi
 done
 

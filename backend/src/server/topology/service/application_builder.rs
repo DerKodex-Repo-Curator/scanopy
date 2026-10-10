@@ -74,7 +74,7 @@ impl ViewBuilder for ApplicationBuilder {
         let app_tags: HashMap<Uuid, &Tag> = ctx
             .entity_tags
             .iter()
-            .filter(|t| t.is_application())
+            .filter(|t| t.in_group(ctx.application_group_id))
             .map(|t| (t.id, t))
             .collect();
 
@@ -361,6 +361,9 @@ impl ViewBuilder for ApplicationBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Application tag group the tests' application tags belong to.
+    const APP_GROUP: Uuid = Uuid::from_u128(0xA991);
     use crate::server::hosts::r#impl::name::{HostName, HostNameSources};
     use crate::server::{
         bindings::r#impl::base::{Binding, BindingBase, BindingType},
@@ -782,7 +785,8 @@ mod tests {
                 description: None,
                 color: Color::Blue,
                 organization_id: Uuid::new_v4(),
-                tag_group: Some(crate::server::tags::r#impl::base::TagGroup::Application),
+                tag_group_id: Some(APP_GROUP),
+                position: None,
                 icon: None,
             },
             ..Default::default()
@@ -796,7 +800,8 @@ mod tests {
                 description: None,
                 color: Color::Green,
                 organization_id: Uuid::new_v4(),
-                tag_group: Some(crate::server::tags::r#impl::base::TagGroup::Application),
+                tag_group_id: Some(APP_GROUP),
+                position: None,
                 icon: None,
             },
             ..Default::default()
@@ -831,7 +836,8 @@ mod tests {
             &[],
             &options,
             TopologyView::Application,
-        );
+        )
+        .with_application_group(Some(APP_GROUP));
 
         let builder = ApplicationBuilder;
         let (nodes, _edges) = builder.build(
@@ -934,7 +940,8 @@ mod tests {
                 description: None,
                 color: Color::Blue,
                 organization_id: Uuid::new_v4(),
-                tag_group: Some(crate::server::tags::r#impl::base::TagGroup::Application),
+                tag_group_id: Some(APP_GROUP),
+                position: None,
                 icon: None,
             },
             ..Default::default()
@@ -948,7 +955,8 @@ mod tests {
                 description: None,
                 color: Color::Green,
                 organization_id: Uuid::new_v4(),
-                tag_group: Some(crate::server::tags::r#impl::base::TagGroup::Application),
+                tag_group_id: Some(APP_GROUP),
+                position: None,
                 icon: None,
             },
             ..Default::default()
@@ -991,7 +999,8 @@ mod tests {
             &[],
             &options,
             TopologyView::Application,
-        );
+        )
+        .with_application_group(Some(APP_GROUP));
 
         let builder = ApplicationBuilder;
         let (nodes, _edges) = builder.build(

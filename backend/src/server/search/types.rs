@@ -167,6 +167,9 @@ impl TryFrom<Entity> for SearchHit {
             Entity::Organization(_) => {
                 return Err(anyhow::anyhow!("organizations are not searched"));
             }
+            Entity::TagGroup(_) => {
+                return Err(anyhow::anyhow!("tag groups are not searched"));
+            }
             Entity::Invite(e) => SearchHit::Invite(e),
             Entity::Share(e) => SearchHit::Share(e),
             Entity::Site(e) => SearchHit::Site(e),

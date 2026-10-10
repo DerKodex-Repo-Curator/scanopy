@@ -282,7 +282,12 @@ pub(crate) async fn insert_demo_data(
     // per-entity create() for speed. Entities without event subscribers use
     // storage().create_many() directly.
 
-    // 1. Tags (no dependencies)
+    // 1. Tag groups, then the tags in them
+    services
+        .tag_group_service
+        .storage()
+        .create_many(&demo_data.tag_groups)
+        .await?;
     services
         .tag_service
         .storage()

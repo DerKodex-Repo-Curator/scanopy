@@ -12,7 +12,7 @@ use crate::server::{
             traits::{Entity, SqlValue, Storable},
         },
     },
-    tags::r#impl::base::{Tag, TagBase, TagGroup},
+    tags::r#impl::base::{Tag, TagBase},
 };
 
 impl Storable for Tag {
@@ -64,7 +64,8 @@ impl Storable for Tag {
                     description,
                     color,
                     organization_id,
-                    tag_group,
+                    tag_group_id,
+                    position,
                     icon,
                 },
         } = self.clone();
@@ -76,7 +77,8 @@ impl Storable for Tag {
                 "description",
                 "color",
                 "organization_id",
-                "tag_group",
+                "tag_group_id",
+                "position",
                 "icon",
                 "created_at",
                 "updated_at",
@@ -90,7 +92,8 @@ impl Storable for Tag {
                 SqlValue::OptionalString(description),
                 SqlValue::String(color.to_string()),
                 SqlValue::Uuid(organization_id),
-                SqlValue::OptionalString(tag_group.map(|group| group.to_string())),
+                SqlValue::OptionalUuid(tag_group_id),
+                SqlValue::OptionalI32(position),
                 SqlValue::OptionalString(icon.map(|icon| icon.to_string())),
                 SqlValue::Timestamp(created_at),
                 SqlValue::Timestamp(updated_at),
@@ -114,9 +117,8 @@ impl Storable for Tag {
                 description: row.get("description"),
                 organization_id: row.get("organization_id"),
                 color: row.get::<String, _>("color").parse().unwrap_or_default(),
-                tag_group: row
-                    .get::<Option<String>, _>("tag_group")
-                    .map(TagGroup::from_stored_name),
+                tag_group_id: row.get("tag_group_id"),
+                position: row.get("position"),
                 // An icon name the linked lucide build no longer knows reads as no icon rather
                 // than failing the whole tag list.
                 icon: row
@@ -212,7 +214,7 @@ mod tests {
     use uuid::Uuid;
 
     const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/migrations");
-    const SYSTEM_TAG_GROUPS: &str = "20261009120100";
+    const TAG_GROUPS: &str = "20261009120100";
 
     /// A copy of the migrations directory holding only the migrations before `version`.
     fn migrations_before(version: &str) -> tempfile::TempDir {
@@ -269,19 +271,27 @@ mod tests {
         .get("id")
     }
 
+    /// The name and type of the group a tag row points at, and its position.
+    async fn group_of(pool: &PgPool, id: Uuid) -> (Option<String>, Option<String>, Option<i32>) {
+        let row = sqlx::query(
+            "SELECT g.name, g.group_type, t.position FROM tags t \
+             LEFT JOIN tag_groups g ON g.id = t.tag_group_id WHERE t.id = $1",
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        (row.get("name"), row.get("group_type"), row.get("position"))
+    }
+
     async fn tag_group_of(pool: &PgPool, id: Uuid) -> Option<String> {
-        sqlx::query("SELECT tag_group FROM tags WHERE id = $1")
-            .bind(id)
-            .fetch_one(pool)
-            .await
-            .unwrap()
-            .get("tag_group")
+        group_of(pool, id).await.0
     }
 
     #[tokio::test]
-    async fn system_tag_groups_migration_carries_every_group_forward() {
+    async fn tag_groups_migration_carries_every_group_forward() {
         let (pool, _url, _container) = setup_test_db().await;
-        let before = migrations_before(SYSTEM_TAG_GROUPS);
+        let before = migrations_before(TAG_GROUPS);
         apply_migrations(&pool, before.path()).await.unwrap();
 
         let org: Uuid = sqlx::query(
@@ -339,6 +349,28 @@ mod tests {
             insert_tag(&pool, org, "Mine", false, Some("application"), None, None).await;
         let environment =
             insert_tag(&pool, org, "Prod", false, Some("Environment"), None, None).await;
+        let planned = insert_tag(&pool, org, "Planned", false, Some("Status"), None, None).await;
+        // A group name only a closed row still carries.
+        let retired_group = insert_tag(
+            &pool,
+            org,
+            "Old",
+            false,
+            Some("Retired Group"),
+            Some("2026-01-01T00:00:00Z"),
+            None,
+        )
+        .await;
+        let ungrouped = insert_tag(&pool, org, "Loose", false, None, None, None).await;
+
+        let empty_org: Uuid = sqlx::query(
+            "INSERT INTO organizations (id, name, plan) VALUES ($1, 'Empty', '{}') RETURNING id",
+        )
+        .bind(Uuid::new_v4())
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .get("id");
 
         // A host holding a tag of each Status spelling: after the fold it may keep only one.
         let host = Uuid::new_v4();
@@ -368,6 +400,38 @@ mod tests {
             tag_group_of(&pool, environment).await.as_deref(),
             Some("Environment")
         );
+        assert_eq!(
+            tag_group_of(&pool, retired_group).await.as_deref(),
+            Some("Retired Group")
+        );
+        assert_eq!(group_of(&pool, ungrouped).await, (None, None, None));
+
+        assert_eq!(
+            group_of(&pool, app_live).await.1.as_deref(),
+            Some("Application")
+        );
+        assert_eq!(
+            group_of(&pool, environment).await.1.as_deref(),
+            Some("Custom")
+        );
+        // Starter order first, then by name; closed and snapshot rows carry no position.
+        assert_eq!(group_of(&pool, planned).await.2, Some(1));
+        assert_eq!(group_of(&pool, status).await.2, Some(2));
+        assert_eq!(group_of(&pool, shouted).await.2, Some(3));
+        assert_eq!(group_of(&pool, app_closed).await.2, None);
+        assert_eq!(group_of(&pool, app_snapshot).await.2, None);
+
+        let system_groups: Vec<String> = sqlx::query(
+            "SELECT group_type FROM tag_groups WHERE organization_id = $1 ORDER BY group_type",
+        )
+        .bind(empty_org)
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get("group_type"))
+        .collect();
+        assert_eq!(system_groups, vec!["Application", "Status"]);
 
         let live: Vec<Uuid> =
             sqlx::query("SELECT id FROM entity_tags WHERE entity_id = $1 AND valid_to IS NULL")
@@ -391,14 +455,15 @@ mod tests {
             "the older assignment is closed, not deleted"
         );
 
-        let column_left: bool = sqlx::query(
+        let columns_left: bool = sqlx::query(
             "SELECT EXISTS (SELECT 1 FROM information_schema.columns \
-             WHERE table_name = 'tags' AND column_name = 'is_application') AS present",
+             WHERE table_name = 'tags' AND column_name IN ('is_application', 'tag_group')) \
+             AS present",
         )
         .fetch_one(&pool)
         .await
         .unwrap()
         .get("present");
-        assert!(!column_left);
+        assert!(!columns_left);
     }
 }

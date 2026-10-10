@@ -20,7 +20,7 @@ use crate::server::shared::storage::{
     traits::{Entity, SqlValue, Storable, Storage},
 };
 use crate::server::shared::types::api::{ApiError, ValidationError};
-use crate::server::tags::r#impl::base::{Tag, TagGroup};
+use crate::server::tags::r#impl::base::Tag;
 use crate::server::tags::service::TagService;
 
 /// Build the `entity_tags` lookup filter for a batch of entities.
@@ -571,8 +571,10 @@ impl EntityTagService {
         tag_id: Uuid,
         organization_id: Uuid,
     ) -> Result<(), Error> {
-        // Validate tag exists and belongs to organization
+        // Validate tag exists, belongs to organization, and may go on this entity type
         let tag = self.validate_tag_full(tag_id, organization_id).await?;
+        self.refuse_out_of_scope(std::slice::from_ref(&tag), entity_type)
+            .await?;
 
         // A tag from a tag group replaces the one of that group the entity already holds.
         self.remove_displaced(&tag, &[entity_id], entity_type)
@@ -622,13 +624,14 @@ impl EntityTagService {
         for tag_id in &tag_ids {
             tags.push(self.validate_tag_full(*tag_id, organization_id).await?);
         }
-        if let Some(group) = group_held_twice(&tags) {
+        if group_held_twice(&tags).is_some() {
             return Err(ValidationError::new(format!(
-                "A {} can hold only one tag of the \"{}\" group",
-                entity_type, group
+                "A {} can hold only one tag of each tag group",
+                entity_type.entity_name_singular()
             ))
             .into());
         }
+        self.refuse_out_of_scope(&tags, entity_type).await?;
 
         // Replace tags
         self.storage
@@ -677,6 +680,9 @@ impl EntityTagService {
         // Validate tag exists and belongs to organization
         let tag = self
             .validate_tag_full(tag_id, organization_id)
+            .await
+            .map_err(ApiError::from)?;
+        self.refuse_out_of_scope(std::slice::from_ref(&tag), entity_type)
             .await
             .map_err(ApiError::from)?;
 
@@ -743,6 +749,14 @@ impl EntityTagService {
         }
     }
 
+    /// Refuse when a tag group of one of `tags` doesn't allow `entity_type`.
+    async fn refuse_out_of_scope(&self, tags: &[Tag], entity_type: EntityDiscriminants) -> Result<()> {
+        self.tag_service
+            .tag_group_service()
+            .refuse_out_of_scope(tags, entity_type)
+            .await
+    }
+
     /// Close each entity's tags that `incoming` displaces: the other tags of its tag group.
     /// Nothing to do for a tag in no group.
     async fn remove_displaced(
@@ -753,7 +767,7 @@ impl EntityTagService {
     ) -> Result<()> {
         use crate::server::shared::services::traits::CrudService;
 
-        if incoming.base.tag_group.is_none() || entity_ids.is_empty() {
+        if incoming.base.tag_group_id.is_none() || entity_ids.is_empty() {
             return Ok(());
         }
 
@@ -792,20 +806,20 @@ impl EntityTagService {
 /// The tags among `held` that assigning `incoming` displaces: those in the same tag group,
 /// other than `incoming` itself.
 fn displaced_by(incoming: &Tag, held: &[Tag]) -> Vec<Uuid> {
-    let Some(group) = &incoming.base.tag_group else {
+    let Some(group) = incoming.base.tag_group_id else {
         return Vec::new();
     };
     held.iter()
-        .filter(|tag| tag.id != incoming.id && tag.base.tag_group.as_ref() == Some(group))
+        .filter(|tag| tag.id != incoming.id && tag.in_group(Some(group)))
         .map(|tag| tag.id)
         .collect()
 }
 
 /// The first tag group that two of `tags` belong to, if any.
-fn group_held_twice(tags: &[Tag]) -> Option<&TagGroup> {
-    let mut seen: Vec<(&TagGroup, Uuid)> = Vec::new();
+fn group_held_twice(tags: &[Tag]) -> Option<Uuid> {
+    let mut seen: Vec<(Uuid, Uuid)> = Vec::new();
     for tag in tags {
-        let Some(group) = &tag.base.tag_group else {
+        let Some(group) = tag.base.tag_group_id else {
             continue;
         };
         if seen.iter().any(|(s, id)| *s == group && *id != tag.id) {
@@ -868,21 +882,20 @@ mod tag_group_tests {
     use super::*;
     use crate::server::tags::r#impl::base::TagBase;
 
-    fn tag(group: Option<TagGroup>) -> Tag {
+    fn tag(group: Option<Uuid>) -> Tag {
         Tag {
             id: Uuid::new_v4(),
             base: TagBase {
-                tag_group: group,
+                tag_group_id: group,
                 ..Default::default()
             },
             ..Default::default()
         }
     }
 
-    fn group(name: &str) -> Option<TagGroup> {
-        Some(TagGroup::Named {
-            name: name.to_string(),
-        })
+    /// A stable id per group name, so two calls name the same group.
+    fn group(name: &str) -> Option<Uuid> {
+        Some(Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes()))
     }
 
     #[test]
@@ -890,7 +903,7 @@ mod tag_group_tests {
         let planned = tag(group("Status"));
         let staging = tag(group("Environment"));
         let plain = tag(None);
-        let app = tag(Some(TagGroup::Application));
+        let app = tag(group("Application"));
         let decommissioned = tag(group("Status"));
 
         let held = [planned.clone(), staging, plain, app, decommissioned.clone()];
@@ -905,8 +918,8 @@ mod tag_group_tests {
 
     #[test]
     fn application_tags_displace_each_other() {
-        let web = tag(Some(TagGroup::Application));
-        let db = tag(Some(TagGroup::Application));
+        let web = tag(group("Application"));
+        let db = tag(group("Application"));
         assert_eq!(displaced_by(&db, std::slice::from_ref(&web)), vec![web.id]);
     }
 
@@ -918,7 +931,7 @@ mod tag_group_tests {
             tag(group("Status")),
             tag(group("Status")),
         ];
-        assert_eq!(group_held_twice(&tags), group("Status").as_ref());
+        assert_eq!(group_held_twice(&tags), group("Status"));
     }
 
     #[test]
@@ -926,7 +939,7 @@ mod tag_group_tests {
         let tags = [
             tag(group("Environment")),
             tag(group("Status")),
-            tag(Some(TagGroup::Application)),
+            tag(group("Application")),
             tag(None),
             tag(None),
         ];

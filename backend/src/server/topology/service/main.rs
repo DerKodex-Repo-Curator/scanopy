@@ -198,6 +198,8 @@ pub struct BuildGraphParams<'a> {
     /// Raw candidate evidence — see `TopologyContext::candidates`.
     pub candidates: &'a [InterfaceNeighborCandidate],
     pub entity_tags: &'a [Tag],
+    /// The organization's Application tag group: tags in it place entities in applications.
+    pub application_group_id: Option<Uuid>,
     pub vlans: &'a [Vlan],
     pub old_nodes: &'a [Node],
     pub old_edges: &'a [Edge],
@@ -400,6 +402,7 @@ impl TopologyService {
             ))
             .await?;
         let tags = self.get_entity_tags(&hosts, &services, &subnets).await?;
+        let application_group_id = self.application_group_id(site_id).await?;
 
         // Which views have data in THIS entity set (snapshot-aware). Reuses the
         // same `TopologyViewSupport` / `is_supported` logic that governs shares,
@@ -418,7 +421,7 @@ impl TopologyService {
                 &ip_addresses,
                 !neighbours.is_empty(),
             ),
-            application: tags.iter().any(|t| t.is_application()),
+            application: tags.iter().any(|t| t.in_group(application_group_id)),
         };
         let available_views: Vec<TopologyView> = TopologyView::iter()
             .filter(|v| v.is_supported(&support))
@@ -454,6 +457,7 @@ impl TopologyService {
             services,
             vlans,
             tags,
+            application_group_id,
             available_views,
             // Built on request by `get_topology_render_data`; the bare entity
             // loader leaves them empty.
@@ -507,6 +511,18 @@ impl TopologyService {
     /// Compute per-view data-support flags for a site's topology by
     /// querying raw entity tables — independent of whatever the topology
     /// was last rebuilt under.
+    /// The Application tag group of the organization that owns `site_id`.
+    async fn application_group_id(&self, site_id: Uuid) -> Result<Option<Uuid>, Error> {
+        match self.site_service.get_by_id(&site_id).await? {
+            Some(site) => {
+                self.tag_service
+                    .application_group_id(&site.base.organization_id)
+                    .await
+            }
+            None => Ok(None),
+        }
+    }
+
     pub async fn get_view_support(&self, site_id: Uuid) -> Result<TopologyViewSupport, Error> {
         // Device-level neighbours count too — see the equivalent in `get_topology_data`. Live
         // only: this check has no snapshot context, and the live view is what it governs.
@@ -530,14 +546,20 @@ impl TopologyService {
         );
 
         let application = match self.site_service.get_by_id(&site_id).await? {
-            Some(site) => self
-                .tag_service
-                .get_all(StorableFilter::<Tag>::new_from_org_id(
-                    &site.base.organization_id,
-                ))
-                .await?
-                .iter()
-                .any(|t| t.is_application()),
+            Some(site) => {
+                let application_group_id = self
+                    .tag_service
+                    .application_group_id(&site.base.organization_id)
+                    .await?;
+                self.tag_service
+                    .get_all(
+                        StorableFilter::<Tag>::new_from_org_id(&site.base.organization_id)
+                            .live(),
+                    )
+                    .await?
+                    .iter()
+                    .any(|t| t.in_group(application_group_id))
+            }
             None => false,
         };
 
@@ -732,6 +754,7 @@ impl TopologyService {
                 neighbours: &data.neighbours,
                 candidates: &data.candidates,
                 entity_tags: &data.tags,
+                application_group_id: data.application_group_id,
                 vlans: &data.vlans,
                 // No stored prior graph to preserve handles from — overrides
                 // aren't persisted (handle-preservation is disabled below).
@@ -762,6 +785,7 @@ impl TopologyService {
             neighbours,
             candidates,
             entity_tags,
+            application_group_id,
             vlans,
             old_edges,
             old_nodes,
@@ -786,7 +810,8 @@ impl TopologyService {
             view,
         )
         .with_neighbours(neighbours)
-        .with_candidates(candidates);
+        .with_candidates(candidates)
+        .with_application_group(application_group_id);
 
         // Build grouping config from request options
         let grouping = GroupingConfig::from_request_options(&options.request, view);

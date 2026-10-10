@@ -46,6 +46,9 @@ pub struct TopologyContext<'a> {
     /// LLDP-vs-CDP protocol label on a `NeighborLink` edge) rather than the resolved outcome.
     /// Defaults to `&[]`; attach via [`Self::with_candidates`].
     pub candidates: &'a [InterfaceNeighborCandidate],
+    /// The organization's Application tag group; tags in it place entities in applications.
+    /// `None` (the default) means no tag does. Attach via [`Self::with_application_group`].
+    pub application_group_id: Option<Uuid>,
     pub options: &'a TopologyOptions,
     /// View this context is building — drives grouping rule selection.
     pub view: TopologyView,
@@ -80,6 +83,7 @@ impl<'a> TopologyContext<'a> {
             vlans,
             neighbours: &[],
             candidates: &[],
+            application_group_id: None,
             options,
             view,
         }
@@ -92,6 +96,11 @@ impl<'a> TopologyContext<'a> {
 
     pub fn with_candidates(mut self, candidates: &'a [InterfaceNeighborCandidate]) -> Self {
         self.candidates = candidates;
+        self
+    }
+
+    pub fn with_application_group(mut self, application_group_id: Option<Uuid>) -> Self {
+        self.application_group_id = application_group_id;
         self
     }
 

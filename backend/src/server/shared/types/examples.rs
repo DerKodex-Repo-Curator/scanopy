@@ -48,7 +48,10 @@ use crate::server::{
         base::{Subnet, SubnetBase},
         types::SubnetType,
     },
-    tags::r#impl::base::{Tag, TagBase},
+    tags::{
+        groups::base::{TagGroup, TagGroupBase, TagGroupType},
+        r#impl::base::{Tag, TagBase},
+    },
     topology::types::edges::EdgeStyle,
     users::r#impl::{
         base::{User, UserBase},
@@ -75,6 +78,7 @@ pub mod ids {
     pub const GROUP: Uuid = Uuid::from_u128(0x550e8400_e29b_41d4_a716_446655440008);
     pub const BINDING: Uuid = Uuid::from_u128(0x550e8400_e29b_41d4_a716_446655440009);
     pub const TAG: Uuid = Uuid::from_u128(0x550e8400_e29b_41d4_a716_44665544000a);
+    pub const TAG_GROUP: Uuid = Uuid::from_u128(0x550e8400_e29b_41d4_a716_446655440010);
     pub const API_KEY: Uuid = Uuid::from_u128(0x550e8400_e29b_41d4_a716_44665544000b);
     pub const DAEMON: Uuid = Uuid::from_u128(0x550e8400_e29b_41d4_a716_44665544000c);
     pub const USER: Uuid = Uuid::from_u128(0x550e8400_e29b_41d4_a716_44665544000d);
@@ -309,8 +313,24 @@ pub fn tag() -> Tag {
             description: Some("Production environment resources".to_string()),
             color: Color::Green,
             organization_id: ids::ORGANIZATION,
-            tag_group: None,
+            tag_group_id: Some(ids::TAG_GROUP),
+            position: Some(1),
             icon: None,
+        },
+    }
+}
+
+/// Example TagGroup entity.
+pub fn tag_group() -> TagGroup {
+    TagGroup {
+        id: ids::TAG_GROUP,
+        created_at: example_timestamp(),
+        updated_at: example_timestamp(),
+        base: TagGroupBase {
+            name: "Environment".to_string(),
+            organization_id: ids::ORGANIZATION,
+            group_type: TagGroupType::Custom,
+            entity_types: None,
         },
     }
 }

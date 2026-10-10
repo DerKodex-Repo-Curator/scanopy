@@ -89,6 +89,10 @@ fn create_billed_openapi_routes() -> OpenApiRouter<Arc<AppState>> {
         )
         .nest("/api/v1/invites", invite_handlers::create_router())
         .nest("/api/v1/tags", tag_handlers::create_router())
+        .nest(
+            "/api/v1/tag-groups",
+            crate::server::tags::groups::handlers::create_router(),
+        )
         .nest("/api/v1/ports", port_handlers::create_router())
         .nest("/api/v1/bindings", binding_handlers::create_router())
         // API key routes (versioned)

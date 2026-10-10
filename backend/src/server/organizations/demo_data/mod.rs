@@ -66,7 +66,10 @@ use crate::server::{
         base::{Subnet, SubnetBase},
         types::SubnetType,
     },
-    tags::r#impl::base::{Tag, TagBase},
+    tags::{
+        groups::base::TagGroup,
+        r#impl::base::{Tag, TagBase},
+    },
     topology::types::{
         base::{Topology, TopologyBase, TopologyOptions, TopologyRequestOptions},
         edges::EdgeStyle,
@@ -147,6 +150,7 @@ struct DependencyServiceIds {
 
 /// Container for all demo data entities
 pub struct DemoData {
+    pub tag_groups: Vec<TagGroup>,
     pub tags: Vec<Tag>,
     pub credentials: Vec<Credential>,
     pub site_credential_assignments: Vec<SiteCredentialAssignment>,
@@ -205,7 +209,8 @@ impl DemoData {
         };
 
         // Generate all entities in dependency order
-        let tags = generate_tags(organization_id, now);
+        let tag_groups = generate_tag_groups(organization_id, now);
+        let tags = generate_tags(organization_id, &tag_groups, now);
         let credentials = generate_credentials(organization_id, now);
         let sites = generate_sites(organization_id, &tags, &credentials, now);
         let subnets = generate_subnets(
@@ -251,6 +256,7 @@ impl DemoData {
         let dependencies = generate_dependencies(&sites, &tags, &dep_svc_ids);
 
         Self {
+            tag_groups,
             tags,
             credentials,
             site_credential_assignments,
@@ -302,7 +308,7 @@ use interfaces::generate_interfaces;
 use shares::generate_shares;
 use sites::generate_sites;
 use subnets::generate_subnets;
-use tags::generate_tags;
+use tags::{generate_tag_groups, generate_tags};
 use topologies::generate_topologies;
 use vlans::{generate_subnet_vlan_records, generate_vlans};
 

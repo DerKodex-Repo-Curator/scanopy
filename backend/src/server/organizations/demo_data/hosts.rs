@@ -169,6 +169,8 @@ pub(super) fn generate_hosts_and_services(
     let managed_tag = find_tag("Managed");
     let unmanaged_tag = find_tag("Unmanaged");
     let third_party_tag = find_tag("Third-party");
+    let nightly_backup_tag = find_tag("Nightly");
+    let weekly_backup_tag = find_tag("Weekly");
 
     // Pre-generated service UUIDs for virtualization wiring
     let pve_hq1_svc_id = Uuid::new_v4(); // Proxmox VE on proxmox-hv01
@@ -1205,7 +1207,10 @@ pub(super) fn generate_hosts_and_services(
                     hq,
                     hq_storage,
                     Ipv4Addr::new(10, 0, 40, 20),
-                    critical_tag.into_iter().chain(backup_tag).collect(),
+                    [critical_tag, backup_tag, nightly_backup_tag]
+                        .into_iter()
+                        .flatten()
+                        .collect(),
                     None,
                     None,
                     now,
@@ -1272,7 +1277,10 @@ pub(super) fn generate_hosts_and_services(
                     hq,
                     hq_storage,
                     Ipv4Addr::new(10, 0, 40, 21),
-                    backup_tag.into_iter().chain(medium_tag).collect(),
+                    [backup_tag, medium_tag, weekly_backup_tag]
+                        .into_iter()
+                        .flatten()
+                        .collect(),
                     None,
                     None,
                     now,

@@ -1,5 +1,6 @@
 use super::*;
 use std::collections::{HashMap, HashSet};
+use crate::server::shared::entities::EntityDiscriminants;
 
 #[test]
 fn subnet_vlan_records_are_derived_and_reference_valid_entities() {
@@ -359,27 +360,13 @@ fn daemons_report_the_subnets_their_host_has_addresses_on() {
 #[test]
 fn no_demo_entity_holds_two_tags_of_one_tag_group() {
     let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
-    let group_of: HashMap<Uuid, String> = demo
+    let group_of: HashMap<Uuid, Uuid> = demo
         .tags
         .iter()
-        .filter_map(|t| t.base.tag_group.as_ref().map(|g| (t.id, g.to_string())))
+        .filter_map(|t| t.base.tag_group_id.map(|g| (t.id, g)))
         .collect();
 
-    let hosts: Vec<&HostWithServices> = demo
-        .hosts_with_services
-        .iter()
-        .chain(&demo.recent_hosts_with_services)
-        .collect();
-    let tag_lists = hosts
-        .iter()
-        .map(|h| (h.host.id, h.host.base.tags.clone()))
-        .chain(
-            hosts
-                .iter()
-                .flat_map(|h| h.services.iter().map(|s| (s.id, s.base.tags.clone()))),
-        )
-        .chain(demo.subnets.iter().map(|s| (s.id, s.base.tags.clone())))
-        .chain(demo.sites.iter().map(|s| (s.id, s.base.tags.clone())));
+    let tag_lists = demo_tag_lists(&demo).into_iter().map(|(id, _, tags)| (id, tags));
 
     let name_of = |tag_id: &Uuid| {
         demo.tags
@@ -419,4 +406,79 @@ fn every_daemon_api_key_is_bound_one_to_one() {
         assert_eq!(daemon.base.site_id, key.base.site_id, "{}", key.base.name);
     }
     assert!(demo.daemons.iter().all(|d| d.base.api_key_id.is_some()));
+}
+
+/// Every tagged demo entity: its id, its type, and its tags.
+fn demo_tag_lists(demo: &DemoData) -> Vec<(Uuid, EntityDiscriminants, Vec<Uuid>)> {
+    let hosts: Vec<&HostWithServices> = demo
+        .hosts_with_services
+        .iter()
+        .chain(&demo.recent_hosts_with_services)
+        .collect();
+    hosts
+        .iter()
+        .map(|h| (h.host.id, EntityDiscriminants::Host, h.host.base.tags.clone()))
+        .chain(hosts.iter().flat_map(|h| {
+            h.services
+                .iter()
+                .map(|s| (s.id, EntityDiscriminants::Service, s.base.tags.clone()))
+        }))
+        .chain(
+            demo.subnets
+                .iter()
+                .map(|s| (s.id, EntityDiscriminants::Subnet, s.base.tags.clone())),
+        )
+        .chain(
+            demo.sites
+                .iter()
+                .map(|s| (s.id, EntityDiscriminants::Site, s.base.tags.clone())),
+        )
+        .collect()
+}
+
+/// Seeding writes the junction rows directly, past the check that keeps a limited group's tags
+/// off other entity types, so the demo has to keep the rule itself.
+#[test]
+fn demo_tags_sit_only_on_types_their_group_allows() {
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
+    assert!(
+        demo.tag_groups.iter().any(|g| g.base.entity_types.is_some()),
+        "the demo shows a group limited to some entity types"
+    );
+
+    for (id, entity_type, tags) in demo_tag_lists(&demo) {
+        for tag in demo.tags.iter().filter(|t| tags.contains(&t.id)) {
+            let Some(group) = demo
+                .tag_groups
+                .iter()
+                .find(|g| Some(g.id) == tag.base.tag_group_id)
+            else {
+                continue;
+            };
+            assert!(
+                group.base.allows(entity_type),
+                "{entity_type} {id} holds {} from the {} group",
+                tag.base.name,
+                group.base.name
+            );
+        }
+    }
+}
+
+/// Positions within each demo group run 1, 2, 3… with no gap or repeat, so tables and pickers
+/// list them in the order written.
+#[test]
+fn demo_tag_positions_run_from_one_in_each_group() {
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
+    for group in &demo.tag_groups {
+        let mut positions: Vec<i32> = demo
+            .tags
+            .iter()
+            .filter(|t| t.base.tag_group_id == Some(group.id))
+            .map(|t| t.base.position.expect("a grouped tag has a position"))
+            .collect();
+        positions.sort();
+        let expected: Vec<i32> = (1..=positions.len() as i32).collect();
+        assert_eq!(positions, expected, "{}", group.base.name);
+    }
 }
