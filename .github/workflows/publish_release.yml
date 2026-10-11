@@ -1,0 +1,107 @@
+name: Publish Release
+
+# Creates the release that release.yml builds. Runs on its own when a
+# release/vX.Y.Z notes PR from prepare_release.yml is merged into dev, reading
+# the deploy mode from the PR body. prepare_release.yml also calls it directly
+# when it's re-run for a version whose notes are already on dev, which is how a
+# failed publish or build is retried without regenerating the notes.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev]
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      deploy_mode:
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Create Release
+    # A called run sees the caller's event name, so it's told apart by its inputs.
+    if: >-
+      inputs.version != '' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'release/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Resolve version and deploy mode
+        id: inputs
+        env:
+          CALLED_VERSION: ${{ inputs.version }}
+          CALLED_DEPLOY_MODE: ${{ inputs.deploy_mode }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ -n "$CALLED_VERSION" ]; then
+            VERSION="$CALLED_VERSION"
+            DEPLOY_MODE="$CALLED_DEPLOY_MODE"
+          else
+            VERSION="${HEAD_REF#release/v}"
+            # The notes PR carries one `Deploy-Mode: <mode>` line, editable before merging.
+            DEPLOY_MODE=$(printf '%s\n' "$PR_BODY" | tr -d '\r' \
+              | sed -n 's/^Deploy-Mode: *\([a-z-]*\) *$/\1/p' | head -1)
+          fi
+          case "$DEPLOY_MODE" in
+            backward-compatible|downtime) ;;
+            *)
+              echo "::error::Deploy mode '$DEPLOY_MODE' is not backward-compatible or downtime. Fix the Deploy-Mode line in the PR body and re-run Prepare Release for $VERSION."
+              exit 1
+              ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "deploy_mode=$DEPLOY_MODE" >> "$GITHUB_OUTPUT"
+          echo "Publishing v$VERSION ($DEPLOY_MODE)"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: dev
+
+      - name: Check dev is ready to release
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version = ' backend/Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$CARGO_VERSION" != "$VERSION" ]; then
+            echo "::error::backend/Cargo.toml on dev is $CARGO_VERSION, not $VERSION. Merge the release notes PR first."
+            exit 1
+          fi
+          if [ ! -f "backend/release-notes/v$VERSION.md" ]; then
+            echo "::error::backend/release-notes/v$VERSION.md is not on dev. Run Prepare Release for $VERSION."
+            exit 1
+          fi
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: v${{ steps.inputs.outputs.version }}
+          DEPLOY_MODE: ${{ steps.inputs.outputs.deploy_mode }}
+        run: |
+          # Create as a draft first so the release.published event doesn't fire
+          # until after the Deploy-Mode marker is in the body. Otherwise
+          # release.yml reads a stale event payload and the marker is missed.
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --draft \
+            --target dev
+
+          # Prepend a machine-readable Deploy-Mode marker that release.yml parses
+          # to decide whether to run the backward-compat harness / enum tests and
+          # what OCI label to stamp on the built images.
+          GENERATED_BODY=$(gh release view "$TAG" --json body -q '.body')
+          NEW_BODY=$(printf 'Deploy-Mode: %s\n\n%s' "$DEPLOY_MODE" "$GENERATED_BODY")
+          gh release edit "$TAG" --notes "$NEW_BODY"
+
+          # Publish the draft as a prerelease — this fires release.published
+          # with the marker intact in the event payload.
+          gh release edit "$TAG" --draft=false --prerelease

@@ -1,14 +1,15 @@
 name: Prepare Release
 
-# Run it twice per release, with the same version:
+# Happy path: prepare -> merge the notes PR (publishes) -> promote.
 #
-# 1. While `dev` has no backend/release-notes/vX.Y.Z.md, it bumps the version on
-#    release/vX.Y.Z, generates the release notes, and opens a PR into dev. Edit
-#    the notes (and their `email` flag) in that PR and merge it. Running again
-#    before the merge regenerates the notes onto the same PR.
-# 2. Once the notes are on dev, it creates the release, which fires release.yml
-#    and builds the images with those notes embedded. Re-running after a failed
-#    build does the same again, as before.
+# - While `dev` has no backend/release-notes/vX.Y.Z.md, this bumps the version on
+#   release/vX.Y.Z, generates the release notes, and opens a PR into dev. Edit the
+#   notes, their `email` flag and the PR's Deploy-Mode line, then merge it. The
+#   merge runs publish_release.yml, which creates the release that release.yml
+#   builds. Running this again before the merge regenerates the notes onto the PR.
+# - Once the notes are on dev, this skips straight to publish_release.yml. That is
+#   the retry after a failed publish or build: re-run this workflow, and the
+#   reviewed notes are reused.
 
 on:
   workflow_dispatch:
@@ -38,9 +39,11 @@ on:
 permissions: {}
 
 jobs:
-  prepare-release:
-    name: Prepare Notes or Create Release
+  prepare-notes:
+    name: Prepare Release Notes
     runs-on: ubuntu-latest
+    outputs:
+      phase: ${{ steps.phase.outputs.phase }}
     permissions:
       contents: write
       pull-requests: write
@@ -66,7 +69,7 @@ jobs:
         NOTES_FILE="backend/release-notes/v${{ inputs.version }}.md"
         echo "notes_file=$NOTES_FILE" >> $GITHUB_OUTPUT
         if [ -f "$NOTES_FILE" ]; then
-          echo "Release notes are on dev: creating the release"
+          echo "Release notes are on dev: publishing the release"
           echo "phase=release" >> $GITHUB_OUTPUT
         else
           echo "No release notes on dev yet: generating them for review"
@@ -224,6 +227,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         VERSION: ${{ inputs.version }}
+        DEPLOY_MODE: ${{ inputs.deploy_mode }}
         NOTES_FILE: ${{ steps.phase.outputs.notes_file }}
         EMAIL: ${{ steps.email.outputs.email }}
       run: |
@@ -234,61 +238,42 @@ jobs:
         git commit -m "chore: release notes and version bump for v${VERSION}"
         git push --force origin "$BRANCH"
 
-        if [ -n "$(gh pr list --head "$BRANCH" --base dev --state open --json number -q '.[].number')" ]; then
-          echo "Updated the open PR for $BRANCH"
-          exit 0
-        fi
-
         if [ "$EMAIL" = "true" ]; then
           EMAIL_LINE="\`email: true\`: servers that upgrade to v${VERSION} email these notes to every user, together with the notes of each release since the last emailed one."
         else
           EMAIL_LINE="\`email: false\`: the notes show in the app only. Set it to \`true\` to email them."
         fi
+        # publish_release.yml reads the Deploy-Mode line when this PR is merged.
         {
+          echo "Deploy-Mode: ${DEPLOY_MODE}"
+          echo ""
           echo "Release notes for v${VERSION}. Servers embed this file at build time: it fills the in-app release notes modal and the release email."
           echo ""
           echo "- [ ] Edit \`${NOTES_FILE}\` until it reads right"
           echo "- [ ] Check the \`email\` flag. ${EMAIL_LINE}"
+          echo "- [ ] Check the Deploy-Mode line above (\`backward-compatible\` or \`downtime\`)"
           echo ""
-          echo "After merging, run **Prepare Release** again with version \`${VERSION}\` to create the release and build it."
-        } > pr_body.md
-        gh pr create --base dev --head "$BRANCH" \
-          --title "Release notes for v${VERSION}" \
-          --body-file pr_body.md
+          echo "Merging this PR publishes v${VERSION}: it creates the release, which builds the images. If the publish or the build fails, re-run **Prepare Release** for \`${VERSION}\`; it reuses these notes."
+        } > "$RUNNER_TEMP/pr_body.md"
 
-    # ── Phase 2: create the release ──────────────────────────────────────────
-
-    - name: Create release
-      if: steps.phase.outputs.phase == 'release'
-      env:
-        GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        DEPLOY_MODE: ${{ inputs.deploy_mode }}
-      run: |
-        TAG="v${{ inputs.version }}"
-
-        # The version bump arrives with the notes PR.
-        CARGO_VERSION=$(grep -m1 '^version = ' backend/Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-        if [ "$CARGO_VERSION" != "${{ inputs.version }}" ]; then
-          echo "❌ backend/Cargo.toml on dev is $CARGO_VERSION, not ${{ inputs.version }}. Merge the release notes PR first."
-          exit 1
+        if [ -n "$(gh pr list --head "$BRANCH" --base dev --state open --json number -q '.[].number')" ]; then
+          gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/pr_body.md"
+          echo "Updated the open PR for $BRANCH"
+        else
+          gh pr create --base dev --head "$BRANCH" \
+            --title "Release notes for v${VERSION}" \
+            --body-file "$RUNNER_TEMP/pr_body.md"
         fi
 
-        # Create as a draft first so the release.published event doesn't fire
-        # until after the Deploy-Mode marker is in the body. Otherwise
-        # release.yml reads a stale event payload and the marker is missed.
-        gh release create "$TAG" \
-          --title "$TAG" \
-          --generate-notes \
-          --draft \
-          --target dev
-
-        # Prepend a machine-readable Deploy-Mode marker that release.yml parses
-        # to decide whether to run the backward-compat harness / enum tests and
-        # what OCI label to stamp on the built images.
-        GENERATED_BODY=$(gh release view "$TAG" --json body -q '.body')
-        NEW_BODY=$(printf 'Deploy-Mode: %s\n\n%s' "$DEPLOY_MODE" "$GENERATED_BODY")
-        gh release edit "$TAG" --notes "$NEW_BODY"
-
-        # Publish the draft as a prerelease — this fires release.published
-        # with the marker intact in the event payload.
-        gh release edit "$TAG" --draft=false --prerelease
+  # Notes already on dev: the PR was merged, so this run is a retry of the publish.
+  publish:
+    name: Publish Release
+    needs: prepare-notes
+    if: needs.prepare-notes.outputs.phase == 'release'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish_release.yml
+    with:
+      version: ${{ inputs.version }}
+      deploy_mode: ${{ inputs.deploy_mode }}
+    secrets: inherit
