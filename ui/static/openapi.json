@@ -15189,6 +15189,7 @@
                           "group_type": "Custom",
                           "id": "550e8400-e29b-41d4-a716-446655440010",
                           "name": "Environment",
+                          "ordered": true,
                           "organization_id": "550e8400-e29b-41d4-a716-446655440001",
                           "updated_at": "2026-01-15T10:30:00Z"
                         }
@@ -18041,19 +18042,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-10T23:07:25.844617Z",
+              "created_at": "2026-10-11T13:22:37.431170Z",
               "first_discovery_id": null,
-              "id": "779728db-4c81-4c80-bdce-466e533d3e99",
+              "id": "4f48db6f-dc92-45c5-ab73-7a2e47259e1d",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-10T23:07:25.844617Z",
+              "last_seen_at": "2026-10-11T13:22:37.431170Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-10T23:07:25.844617Z",
-              "valid_from": "2026-10-10T23:07:25.844617Z",
+              "updated_at": "2026-10-11T13:22:37.431170Z",
+              "valid_from": "2026-10-11T13:22:37.431170Z",
               "valid_to": null
             }
           },
@@ -19759,19 +19760,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-10T23:07:25.820457Z",
+                      "created_at": "2026-10-11T13:22:37.387721Z",
                       "first_discovery_id": null,
-                      "id": "d796b687-eb3f-408a-99f6-9e13a37186c2",
+                      "id": "44265607-95ec-4116-9e3e-77641e6bfb70",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-10T23:07:25.820457Z",
+                      "last_seen_at": "2026-10-11T13:22:37.387721Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-10T23:07:25.820457Z",
-                      "valid_from": "2026-10-10T23:07:25.820457Z",
+                      "updated_at": "2026-10-11T13:22:37.387721Z",
+                      "valid_from": "2026-10-11T13:22:37.387721Z",
                       "valid_to": null
                     }
                   ],
@@ -19784,7 +19785,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Roborock Vacuum",
+                  "service_definition": "Jump",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -21154,19 +21155,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-10T23:07:25.839996Z",
+                  "created_at": "2026-10-11T13:22:37.422256Z",
                   "first_discovery_id": null,
-                  "id": "aff7cf92-f7ca-4880-8c90-b509e1b45ef5",
+                  "id": "5245d2a5-5514-49a7-93bb-3610b2a56687",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-10T23:07:25.839996Z",
+                  "last_seen_at": "2026-10-11T13:22:37.422256Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-10T23:07:25.839996Z",
-                  "valid_from": "2026-10-10T23:07:25.839996Z",
+                  "updated_at": "2026-10-11T13:22:37.422256Z",
+                  "valid_from": "2026-10-11T13:22:37.422256Z",
                   "valid_to": null
                 }
               ],
@@ -21179,7 +21180,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Roborock Vacuum",
+              "service_definition": "Jump",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -21957,6 +21958,7 @@
               "group_type": "Custom",
               "id": "550e8400-e29b-41d4-a716-446655440010",
               "name": "Environment",
+              "ordered": true,
               "organization_id": "550e8400-e29b-41d4-a716-446655440001",
               "updated_at": "2026-01-15T10:30:00Z"
             }
@@ -24062,19 +24064,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-10T23:07:25.820975Z",
+          "created_at": "2026-10-11T13:22:37.388514Z",
           "first_discovery_id": null,
-          "id": "302dd0d6-4dd0-477e-9e14-aa4bcfdfab79",
+          "id": "8f942043-2190-43ba-acb9-b8bef60aeef6",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-10T23:07:25.820975Z",
+          "last_seen_at": "2026-10-11T13:22:37.388514Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-10T23:07:25.820975Z",
-          "valid_from": "2026-10-10T23:07:25.820975Z",
+          "updated_at": "2026-10-11T13:22:37.388514Z",
+          "valid_from": "2026-10-11T13:22:37.388514Z",
           "valid_to": null
         }
       },
@@ -24840,7 +24842,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Roborock Vacuum",
+              "service_definition": "Jump",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -31680,19 +31682,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-10T23:07:25.819957Z",
+                  "created_at": "2026-10-11T13:22:37.387018Z",
                   "first_discovery_id": null,
-                  "id": "01c840f7-1020-4d57-8c6f-cec7544b4df2",
+                  "id": "84e65c31-ad98-428d-9884-c5de7ede1e6b",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-10T23:07:25.819957Z",
+                  "last_seen_at": "2026-10-11T13:22:37.387018Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-10T23:07:25.819957Z",
-                  "valid_from": "2026-10-10T23:07:25.819957Z",
+                  "updated_at": "2026-10-11T13:22:37.387018Z",
+                  "valid_from": "2026-10-11T13:22:37.387018Z",
                   "valid_to": null
                 }
               ],
@@ -31705,7 +31707,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Roborock Vacuum",
+              "service_definition": "Jump",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -35527,19 +35529,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-10T23:07:25.810346Z",
+                        "created_at": "2026-10-11T13:22:37.368593Z",
                         "first_discovery_id": null,
-                        "id": "63f7c79f-9305-4463-982d-c6639d567ea5",
+                        "id": "718eed85-16eb-4eac-92d9-f3ea3f6413e2",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-10T23:07:25.810346Z",
+                        "last_seen_at": "2026-10-11T13:22:37.368593Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-10T23:07:25.810346Z",
-                        "valid_from": "2026-10-10T23:07:25.810346Z",
+                        "updated_at": "2026-10-11T13:22:37.368593Z",
+                        "valid_from": "2026-10-11T13:22:37.368593Z",
                         "valid_to": null
                       }
                     ],
@@ -35552,7 +35554,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Roborock Vacuum",
+                    "service_definition": "Jump",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -35701,19 +35703,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-10T23:07:25.839298Z",
+                    "created_at": "2026-10-11T13:22:37.421393Z",
                     "first_discovery_id": null,
-                    "id": "a28bd2d5-ed67-4c13-ab89-c0cecfd39849",
+                    "id": "f8c281de-d477-4ed1-a3a5-d65cf59a2f91",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-10T23:07:25.839298Z",
+                    "last_seen_at": "2026-10-11T13:22:37.421393Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-10T23:07:25.839298Z",
-                    "valid_from": "2026-10-10T23:07:25.839298Z",
+                    "updated_at": "2026-10-11T13:22:37.421393Z",
+                    "valid_from": "2026-10-11T13:22:37.421393Z",
                     "valid_to": null
                   }
                 ],
@@ -35726,7 +35728,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Roborock Vacuum",
+                "service_definition": "Jump",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -38151,19 +38153,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-10T23:07:25.820830Z",
+              "created_at": "2026-10-11T13:22:37.388147Z",
               "first_discovery_id": null,
-              "id": "b0876195-f54d-4919-9c75-b1cf14536e90",
+              "id": "3ba5d707-6e70-40d0-b245-f5a40e8e985b",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-10T23:07:25.820830Z",
+              "last_seen_at": "2026-10-11T13:22:37.388147Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-10T23:07:25.820830Z",
-              "valid_from": "2026-10-10T23:07:25.820830Z",
+              "updated_at": "2026-10-11T13:22:37.388147Z",
+              "valid_from": "2026-10-11T13:22:37.388147Z",
               "valid_to": null
             }
           ],
@@ -38176,7 +38178,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Roborock Vacuum",
+          "service_definition": "Jump",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -39487,6 +39489,7 @@
           "group_type": "Custom",
           "id": "550e8400-e29b-41d4-a716-446655440010",
           "name": "Environment",
+          "ordered": true,
           "organization_id": "550e8400-e29b-41d4-a716-446655440001",
           "updated_at": "2026-01-15T10:30:00Z"
         }
@@ -39497,7 +39500,8 @@
           "name",
           "organization_id",
           "group_type",
-          "entity_types"
+          "entity_types",
+          "ordered"
         ],
         "properties": {
           "entity_types": {
@@ -39517,6 +39521,10 @@
           "name": {
             "type": "string",
             "description": "The group's name. A system group's name is fixed."
+          },
+          "ordered": {
+            "type": "boolean",
+            "description": "Whether the group's tags have an order the organization sets. An unordered group lists its\ntags by name. Fixed for system groups: statuses are ordered, applications are not."
           },
           "organization_id": {
             "type": "string",
@@ -40039,7 +40047,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "d76a2620-978d-4938-9ce7-9fb6d55248f5",
+                  "id": "07f981a0-9665-495c-abe0-07dbbc46eded",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -40049,23 +40057,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "958ec785-b973-4ec2-8b01-04634e868d1a",
+                  "id": "1f3114a1-d99e-48de-b420-7b76b006a89a",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "7a91c765-3fad-4ad3-84e2-f78ca342a32d",
+                  "id": "da487cc4-d74d-4cf8-9520-b546170febd7",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "90cad94c-fa77-4fcb-9356-8d4278aab712",
+                  "id": "191a16fb-3e69-43bb-874f-34816bf024cb",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "958ec785-b973-4ec2-8b01-04634e868d1a",
+                  "id": "1f3114a1-d99e-48de-b420-7b76b006a89a",
                   "rule": "ByHost"
                 }
               ]
@@ -40095,19 +40103,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "0cb4ac6b-0a6f-4f31-a0f1-a1513cf67790",
+                "id": "23b98dca-74a4-4afa-acef-9c01967c1c3e",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "4314ef7b-d9d5-4926-b9c3-f111b3156203",
+                "id": "9a83395d-7871-464a-85b9-221af5438efe",
                 "rule": "ByVLAN"
               },
               {
-                "id": "f76ba8b6-68e3-41d0-9844-2d97a4080262",
+                "id": "dd8cfc8d-1387-470a-b69e-f87b773771e2",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "88f8cf34-e0bd-4a38-a116-5865eee25663",
+                "id": "2f15e69c-6233-4d9d-bcc6-a86af8af0925",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -40128,7 +40136,7 @@
                 }
               },
               {
-                "id": "83ae3477-7663-4d07-8bfa-4ed9c7b3bf13",
+                "id": "e9bc0195-1525-494c-b2b4-7e1bd0c5b44b",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -40137,15 +40145,15 @@
                 }
               },
               {
-                "id": "cdde12fd-01e9-4c00-85a0-9965cdf9636c",
+                "id": "1bf96867-9116-4e60-ae9b-34412f220434",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "bb17996a-c9aa-4d58-9dbf-11e578f639c3",
+                "id": "1f7b29e4-a070-4ea9-be67-7e9f3b53eff1",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "763986a4-1d10-44b6-9972-0fe19f8f3bdb",
+                "id": "84fa3725-dcbc-4edf-bfb4-45f2f7345bc5",
                 "rule": "ByStack"
               }
             ]
