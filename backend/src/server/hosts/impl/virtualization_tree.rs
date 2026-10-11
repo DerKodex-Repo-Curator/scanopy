@@ -100,6 +100,7 @@ pub static VIRTUALIZATION_TREE_JOIN: LazyLock<String> = LazyLock::new(|| {
                     WHERE own.host_id = hosts.id AND own.valid_to IS NULL \
                         AND guest.id <> hosts.id\
                 ) THEN top.ids[1] END AS root_id, \
+                CASE WHEN top.depth > 0 THEN top.ids[top.depth] END AS parent_id, \
                 ARRAY(\
                     SELECT lower({title}) || ' ' || ancestor.id::text \
                     FROM unnest(top.ids) WITH ORDINALITY AS step(id, ord) \
@@ -122,6 +123,45 @@ pub const VIRTUALIZATION_TREE_GROUP_SQL: &str = "COALESCE(virt_tree.root_id::tex
 
 /// The order inside a group: parent first, subtrees under their parents, siblings by title.
 pub const VIRTUALIZATION_TREE_ORDER_SQL: &str = "virt_tree.path";
+
+/// The host a row runs under, as [`VIRTUALIZATION_TREE_JOIN`] finds it: NULL for a root or a host in
+/// no tree.
+pub const VIRTUALIZATION_TREE_PARENT_SQL: &str = "virt_tree.parent_id";
+
+/// A list grouped by virtualization tree and sorted by another field, in display order: groups by
+/// key, each tree parent first with its subtree directly under it, and every set of siblings in the
+/// order `rows` arrive in, which is the sort. A row whose parent is not among `rows` (filtered out)
+/// is placed as a root of its group.
+///
+/// `rows` is every matching row in sort order: its id, its group key and its parent.
+pub fn tree_order(rows: &[(Uuid, String, Option<Uuid>)]) -> Vec<Uuid> {
+    let present: std::collections::HashSet<Uuid> = rows.iter().map(|(id, _, _)| *id).collect();
+    let mut children: std::collections::HashMap<Uuid, Vec<Uuid>> = Default::default();
+    let mut roots: std::collections::BTreeMap<&str, Vec<Uuid>> = Default::default();
+    for (id, group, parent) in rows {
+        match parent.filter(|p| present.contains(p) && p != id) {
+            Some(parent) => children.entry(parent).or_default().push(*id),
+            None => roots.entry(group.as_str()).or_default().push(*id),
+        }
+    }
+
+    let mut ordered = Vec::with_capacity(rows.len());
+    let mut seen = std::collections::HashSet::new();
+    for group_roots in roots.values() {
+        let mut stack: Vec<Uuid> = group_roots.iter().rev().copied().collect();
+        while let Some(id) = stack.pop() {
+            // A cycle the walk should never meet; stop rather than repeat a row.
+            if !seen.insert(id) {
+                continue;
+            }
+            ordered.push(id);
+            if let Some(kids) = children.get(&id) {
+                stack.extend(kids.iter().rev());
+            }
+        }
+    }
+    ordered
+}
 
 #[cfg(test)]
 mod tests {
@@ -197,5 +237,34 @@ mod tests {
         let position = tree_position(chain[0], parents(&edges), false).expect("has parents");
         assert_eq!(position.depth as usize, DEPTH_CAP);
         assert_eq!(position.root_host_id, chain[DEPTH_CAP]);
+    }
+
+    #[test]
+    fn siblings_follow_the_sort_and_parents_lead_their_subtrees() {
+        let [node, vm_b, vm_a, container, lone_z, lone_y] = ids();
+        let tree = node.to_string();
+        // Sort order: lone_z, container, vm_b, lone_y, node, vm_a.
+        let rows = vec![
+            (lone_z, String::new(), None),
+            (container, tree.clone(), Some(vm_a)),
+            (vm_b, tree.clone(), Some(node)),
+            (lone_y, String::new(), None),
+            (node, tree.clone(), None),
+            (vm_a, tree.clone(), Some(node)),
+        ];
+        assert_eq!(
+            tree_order(&rows),
+            vec![lone_z, lone_y, node, vm_b, vm_a, container],
+            "hosts in no tree group first and keep the sort; inside the tree each parent leads and siblings keep the sort"
+        );
+    }
+
+    #[test]
+    fn a_row_whose_parent_is_filtered_out_heads_its_group() {
+        let [node, vm, container] = ids();
+        let tree = node.to_string();
+        // `vm` is filtered out: `container` stands in its tree's group on its own.
+        let rows = vec![(container, tree.clone(), Some(vm)), (node, tree, None)];
+        assert_eq!(tree_order(&rows), vec![container, node]);
     }
 }

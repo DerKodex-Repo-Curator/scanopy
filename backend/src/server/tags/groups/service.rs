@@ -96,6 +96,9 @@ impl CrudService<TagGroup> for TagGroupService {
         if current.is_system() {
             entity.base.ordered = current.base.ordered;
         }
+        if current.base.group_type.fixed_entity_types().is_some() {
+            entity.base.entity_types = current.base.entity_types.clone();
+        }
         entity.base.name = entity.base.name.trim().to_string();
         if current.is_system() && entity.base.name != current.base.name {
             return Err(ValidationError::new(format!(
@@ -253,13 +256,26 @@ impl TagGroupService {
                         .iter()
                         .any(|g| g.base.name.eq_ignore_ascii_case(name))
                 })
-                .map(|name| {
-                    TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom)
+                .map(|name| TagGroupBase {
+                    description:
+                        crate::server::shared::storage::seed_data::starter_group_description(name)
+                            .map(str::to_string),
+                    ..TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom)
                 }),
         );
         for base in missing {
-            self.create_base(TagGroup::new(base), authentication.clone())
+            let group = self
+                .create_base(TagGroup::new(base), authentication.clone())
                 .await?;
+            // A new Visibility group starts with the tag that hides a host.
+            if group.base.group_type == TagGroupType::Visibility {
+                self.tags
+                    .create(&crate::server::shared::storage::seed_data::hidden_tag(
+                        organization_id,
+                        group.id,
+                    ))
+                    .await?;
+            }
         }
 
         lock.release().await?;

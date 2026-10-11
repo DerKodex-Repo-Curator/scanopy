@@ -2,10 +2,11 @@
 	import { entities } from '$lib/shared/stores/metadata';
 	import { tagGroupIcon, tagGroupLabel } from '$lib/features/tags/groups';
 
-	/** A tag group as a row: its name, drawn with the system group's icon when it is one. */
+	/** A tag group as a row: its name and description, drawn with the system group's icon when it is one. */
 	export const TagGroupDisplay: EntityDisplayComponent<TagGroup, object> = {
 		getId: (group) => group.id,
 		getLabel: (group) => tagGroupLabel(group) ?? group.name,
+		getDescription: (group) => group.description ?? '',
 		getIcon: (group) => tagGroupIcon(group) ?? entities.getIconComponent('TagGroup'),
 		getIconColor: () => entities.getColorHelper('TagGroup').icon,
 		getCategory: () => null

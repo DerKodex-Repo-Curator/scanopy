@@ -138,7 +138,6 @@ pub fn host() -> Host {
             virtualization_metadata: None,
             virtualization_service_id: None,
             virtualization_interface_id: None,
-            hidden: false,
             tags: vec![],
             sys_descr: None,
             sys_object_id: None,
@@ -328,6 +327,7 @@ pub fn tag_group() -> TagGroup {
         updated_at: example_timestamp(),
         base: TagGroupBase {
             name: "Environment".to_string(),
+            description: Some("Which stage of delivery an asset serves.".to_string()),
             organization_id: ids::ORGANIZATION,
             group_type: TagGroupType::Custom,
             entity_types: None,
@@ -535,7 +535,6 @@ pub fn create_host_request() -> CreateHostRequest {
         virtualization_metadata: None,
         virtualization_service_id: None,
         virtualization_interface_id: None,
-        hidden: false,
         tags: vec![],
         // SNMP fields (optional)
         sys_descr: None,

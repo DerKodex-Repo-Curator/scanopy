@@ -24,7 +24,6 @@ impl HostService {
             virtualization_metadata,
             virtualization_service_id,
             virtualization_interface_id,
-            hidden,
             tags,
             expected_updated_at: _,
             ip_addresses,
@@ -86,7 +85,6 @@ impl HostService {
                 virtualization_metadata,
                 virtualization_service_id,
                 virtualization_interface_id,
-                hidden,
                 tags: tags.clone(),
                 // Preserve existing SNMP fields on update
                 sys_descr: existing.base.sys_descr.clone(),
@@ -111,7 +109,7 @@ impl HostService {
         // Only an actual change of the name is a person naming the host. The edit modal PUTs the
         // whole object, so stamping `Manual` on every save would freeze a derived name — a host
         // named after its detected service could then never adopt its controller's name because
-        // someone once toggled "hidden".
+        // someone once edited its description.
         //
         // A blank name is a person handing naming back to discovery. `apply_name` would read it as
         // "no name to offer" and keep the stored one, so it is cleared explicitly.

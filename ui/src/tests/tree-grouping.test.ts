@@ -9,7 +9,7 @@ import {
 	treeDepthViolations,
 	type TreeEntry
 } from '$lib/shared/components/data/controls/grouping';
-import { compareByField } from '$lib/shared/components/data/controls/sorting';
+import { compareByField, treeSiblingCompare } from '$lib/shared/components/data/controls/sorting';
 import type { FieldConfig, TreeConfig } from '$lib/shared/components/data/types';
 import { compareCidr } from '$lib/shared/utils/cidr';
 import { nestedRangeOf, subnetNesting } from '$lib/features/subnets/nesting';
@@ -269,5 +269,29 @@ describe('subnetNesting', () => {
 		expect(nestedRangeOf(find('wide'), nesting)).toBe('10.10.0.0/16');
 		expect(nestedRangeOf(find('lone'), nesting)).toBeNull();
 		expect(nestedRangeOf(find('orphan'), nesting)).toBeNull();
+	});
+});
+
+describe('treeSiblingCompare', () => {
+	const fields: FieldConfig<Range>[] = [
+		{ key: 'cidr', label: 'CIDR', type: 'string', compare: byCidr, sortable: true },
+		{ key: 'id', label: 'Name', type: 'string', sortable: true, getValue: (r) => r.id }
+	];
+	const order = (compare?: (a: Range, b: Range) => number) =>
+		flattenTreeEntries(
+			buildTreeSections([leaf, sibling, mid, wide], tree, false, 'g', compare)
+		).map((r) => r.id);
+
+	it('orders siblings by the active sort and keeps each parent above its children', () => {
+		const compare = treeSiblingCompare(fields, { field: 'id', direction: 'desc' }, byCidr);
+		// Under `wide`, `sibling` now comes before `mid` (name descending), and `leaf` stays under `mid`.
+		expect(order(compare)).toEqual(['wide', 'sibling', 'mid', 'leaf']);
+	});
+
+	it('falls back to the grouped field’s order with no sort', () => {
+		const compare = treeSiblingCompare(fields, { field: null, direction: 'asc' }, byCidr);
+		expect(order(compare)).toEqual(['wide', 'sibling', 'mid', 'leaf']);
+		const ascending = treeSiblingCompare(fields, { field: 'id', direction: 'asc' }, byCidr);
+		expect(order(ascending)).toEqual(['wide', 'mid', 'leaf', 'sibling']);
 	});
 });

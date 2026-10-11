@@ -24,6 +24,7 @@ export type TagGroupType = components['schemas']['TagGroupType'];
 export function createDefaultTagGroup(organization_id: string): TagGroup {
 	return {
 		name: '',
+		description: null,
 		group_type: 'Custom',
 		entity_types: null,
 		ordered: true,

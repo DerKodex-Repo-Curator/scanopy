@@ -728,9 +728,6 @@ pub struct CreateHostRequest {
     /// The interface on the virtualizing host that presents this host, for a network identity.
     #[serde(default)]
     pub virtualization_interface_id: Option<Uuid>,
-    /// Hide the host from topology views without deleting it.
-    #[serde(default)]
-    pub hidden: bool,
     /// Tags assigned to this entity.
     #[serde(default)]
     #[schema(required)]
@@ -800,8 +797,6 @@ pub struct UpdateHostRequest {
     /// The interface on the virtualizing host that presents this host, for a network identity.
     #[serde(default)]
     pub virtualization_interface_id: Option<Uuid>,
-    /// Hide the host from topology views without deleting it.
-    pub hidden: bool,
     /// Tags assigned to this entity.
     #[serde(default)]
     #[schema(required)]
@@ -937,7 +932,9 @@ pub struct HostResponse {
     #[serde(default)]
     #[schema(read_only)]
     pub virtualization_depth: u32,
-    /// Whether the host is hidden from topology views.
+    /// Always `false`. Kept because daemons before v0.17.23 require it when they read a host
+    /// back; a host is hidden from topology by a tag of the Visibility group.
+    #[schema(read_only)]
     pub hidden: bool,
     /// Tags assigned to this entity.
     pub tags: Vec<Uuid>,

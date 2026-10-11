@@ -20,8 +20,20 @@
 --                                             organization and name, created from every row
 --                                             version that carries the name.
 --   tag_group IS NULL, not application      -> tag_group_id IS NULL (no group).
+--   hosts.hidden = true                     -> an `entity_tags` row holding the organization's
+--                                             Hidden tag (Visibility group), one per host row
+--                                             version: live, closed and snapshot rows each get one
+--                                             carrying that row's id, valid_from, valid_to and
+--                                             snapshot_id. Then `hosts.hidden` is dropped.
 --
--- Every organization gets an Application and a Status group, whether or not it has tags.
+-- Every organization gets an Application, a Status and a Visibility group, whether or not it has
+-- tags, and the Visibility group gets one tag, Hidden (named 'Hidden (topology)' where the
+-- organization already has a live tag called Hidden). Visibility applies to hosts only, and a host
+-- holding any tag of it is left out of topology.
+--
+-- DATA DROPPED: Status applies only to entity types without a status of their own. Every
+-- `entity_tags` row (live, closed and snapshot) that puts a Status tag on a daemon, a discovery, a
+-- daemon API key or a user API key is deleted.
 --
 -- `tags` and `entity_tags` are SCD2. The `tags` updates cover live, closed (`valid_to IS NOT NULL`)
 -- and snapshot (`snapshot_id IS NOT NULL`) rows and touch no validity, lineage or snapshot column,
@@ -36,7 +48,7 @@
 -- `is_application` is held by `tag_group_id`, and only then are the two columns dropped.
 --
 -- WHY THIS NEEDS A DOWNTIME DEPLOY: containers from the previous release read and write
--- `tags.tag_group` and `tags.is_application`. Under a rolling deploy an old container would still
+-- `tags.tag_group`, `tags.is_application` and `hosts.hidden`. Under a rolling deploy an old container would still
 -- be serving traffic while this drops them, and every tag read and write it made would fail. The
 -- release that carries this migration MUST be cut with `Deploy-Mode: downtime`. Rollback is
 -- roll-forward only. Registered in DOWNTIME_FILES in backend/scripts/lint-migrations.sh.
@@ -52,6 +64,7 @@ CREATE TABLE IF NOT EXISTS tag_groups (
     id UUID PRIMARY KEY,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    description TEXT,
     group_type TEXT NOT NULL,
     entity_types TEXT[],
     ordered BOOLEAN NOT NULL DEFAULT true,
@@ -137,11 +150,22 @@ UPDATE entity_tags
  WHERE entity_tags.id = held.id
    AND held.rank > 1;
 
--- The system groups, for every organization. Applications have no order; statuses do.
-INSERT INTO tag_groups (id, organization_id, name, group_type, ordered)
-SELECT gen_random_uuid(), o.id, s.name, s.name, s.name <> 'Application'
+-- The system groups, for every organization. Statuses have an order; applications and visibility
+-- don't. Visibility applies to hosts only. Descriptions match `TagGroupType::default_description`.
+INSERT INTO tag_groups (id, organization_id, name, description, group_type, entity_types, ordered)
+SELECT gen_random_uuid(), o.id, s.name, s.description, s.name, s.entity_types, s.ordered
   FROM organizations o
- CROSS JOIN (VALUES ('Application'), ('Status')) AS s(name)
+ CROSS JOIN (VALUES
+     ('Application',
+      'What each entity is part of. A service inherits its host''s application tag, and the Application view groups by it.',
+      NULL::TEXT[], false),
+     ('Status',
+      'Where an asset is in its lifecycle.',
+      NULL::TEXT[], true),
+     ('Visibility',
+      'Hosts holding a tag of this group are left out of topology.',
+      ARRAY['Host']::TEXT[], false)
+ ) AS s(name, description, entity_types, ordered)
  WHERE NOT EXISTS (
      SELECT 1 FROM tag_groups g
       WHERE g.organization_id = o.id AND g.group_type = s.name
@@ -180,6 +204,91 @@ BEGIN
          WHERE tags.id = ANY(batch)
            AND g.organization_id = tags.organization_id
            AND g.name = tags.tag_group;
+
+        last_id := batch[array_length(batch, 1)];
+        COMMIT;
+    END LOOP;
+END $$;
+
+-- The Visibility group's Hidden tag, once per organization. A live tag already called Hidden keeps
+-- its name and meaning, so the new one is named apart from it.
+INSERT INTO tags (id, organization_id, name, description, color, icon, created_at, updated_at,
+                  valid_from, tag_group_id)
+SELECT gen_random_uuid(), g.organization_id,
+       CASE WHEN EXISTS (
+           SELECT 1 FROM tags t
+            WHERE t.organization_id = g.organization_id AND t.name = 'Hidden'
+              AND t.valid_to IS NULL AND t.snapshot_id IS NULL
+       ) THEN 'Hidden (topology)' ELSE 'Hidden' END,
+       'Left out of topology.', 'Gray', 'eye-off', now(), now(), now(), g.id
+  FROM tag_groups g
+ WHERE g.group_type = 'Visibility'
+   AND NOT EXISTS (
+       SELECT 1 FROM tags t
+        WHERE t.tag_group_id = g.id AND t.valid_to IS NULL AND t.snapshot_id IS NULL
+   );
+
+-- Status applies only to entity types without a status of their own. Delete every assignment of a
+-- Status tag to one of them, in every row version.
+DO $$
+DECLARE
+    batch UUID[];
+BEGIN
+    LOOP
+        SELECT array_agg(et.id)
+          INTO batch
+          FROM (SELECT et.id FROM entity_tags et
+                  JOIN tags t ON t.id = et.tag_id
+                  JOIN tag_groups g ON g.id = t.tag_group_id
+                 WHERE g.group_type = 'Status'
+                   AND et.entity_type IN ('"Daemon"', '"Discovery"', '"DaemonApiKey"', '"UserApiKey"')
+                 LIMIT 1000) et;
+
+        EXIT WHEN batch IS NULL;
+
+        DELETE FROM entity_tags WHERE id = ANY(batch);
+        COMMIT;
+    END LOOP;
+END $$;
+
+-- hosts.hidden becomes the Hidden tag: one assignment per hidden host row version, with that row's
+-- id, validity and snapshot. Snapshot reads look tags up by the snapshot copy's id, as here.
+DO $$
+DECLARE
+    last_id UUID := '00000000-0000-0000-0000-000000000000';
+    batch UUID[];
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'hosts' AND column_name = 'hidden') THEN
+        RETURN;
+    END IF;
+    LOOP
+        SELECT array_agg(id ORDER BY id)
+          INTO batch
+          FROM (SELECT id FROM hosts
+                 WHERE id > last_id AND hidden
+                 ORDER BY id LIMIT 1000) h;
+
+        EXIT WHEN batch IS NULL;
+
+        INSERT INTO entity_tags (id, entity_id, entity_type, tag_id, created_at, valid_from,
+                                 valid_to, snapshot_id)
+        SELECT gen_random_uuid(), h.id, '"Host"', hidden_tag.id, h.created_at, h.valid_from,
+               h.valid_to, h.snapshot_id
+          FROM hosts h
+          JOIN sites s ON s.id = h.site_id
+          JOIN tag_groups g ON g.organization_id = s.organization_id AND g.group_type = 'Visibility'
+          JOIN LATERAL (
+              SELECT t.id FROM tags t
+               WHERE t.tag_group_id = g.id AND t.valid_to IS NULL AND t.snapshot_id IS NULL
+               ORDER BY t.created_at, t.id LIMIT 1
+          ) hidden_tag ON true
+         WHERE h.id = ANY(batch)
+           AND NOT EXISTS (
+               SELECT 1 FROM entity_tags et
+                WHERE et.entity_id = h.id AND et.tag_id = hidden_tag.id
+                  AND et.entity_type = '"Host"'
+           );
 
         last_id := batch[array_length(batch, 1)];
         COMMIT;
@@ -244,3 +353,7 @@ ALTER TABLE tags VALIDATE CONSTRAINT tags_tag_group_id_fkey;
 -- never finds one column gone and the other left.
 -- squawk-ignore ban-drop-column
 ALTER TABLE tags DROP COLUMN IF EXISTS tag_group, DROP COLUMN IF EXISTS is_application;
+
+-- Every hidden host row version now holds the Hidden tag.
+-- squawk-ignore ban-drop-column
+ALTER TABLE hosts DROP COLUMN IF EXISTS hidden;

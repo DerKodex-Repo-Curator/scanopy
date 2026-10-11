@@ -13,6 +13,7 @@
 	import {
 		sortItems,
 		nextSortState,
+		treeSiblingCompare,
 		sortableFields as sortableFieldsOf,
 		groupableFields as groupableFieldsOf,
 		type SortState
@@ -500,7 +501,10 @@
 	/** The active group field, when its groups are trees. */
 	let activeTree = $derived.by(() => {
 		const field = fields.find((f) => getFieldKey(f) === activeGroupField);
-		return field?.tree ? { tree: field.tree, compare: field.compare } : null;
+		// Siblings follow the active sort; with none, the grouped field's own order.
+		return field?.tree
+			? { tree: field.tree, compare: treeSiblingCompare(fields, activeSort, field.compare) }
+			: null;
 	});
 
 	/**

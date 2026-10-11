@@ -100,6 +100,21 @@ export function sortItems<T>(
 }
 
 /**
+ * How the siblings of a tree grouping are ordered: by the active sort when there is one, else by
+ * `fallback`, the grouped field's own order. Parents stay above their children either way; only
+ * the order among rows under the same parent changes.
+ */
+export function treeSiblingCompare<T>(
+	fields: FieldConfig<T>[],
+	sort: SortState,
+	fallback?: (a: T, b: T) => number
+): ((a: T, b: T) => number) | undefined {
+	const field = sort.field ? fields.find((f) => getFieldKey(f) === sort.field) : undefined;
+	if (!field) return fallback;
+	return (a, b) => compareByField(a, b, field, sort.direction);
+}
+
+/**
  * Where a click on `fieldKey` moves the sort.
  *
  * Clicking the active field flips direction; clicking any other field starts it

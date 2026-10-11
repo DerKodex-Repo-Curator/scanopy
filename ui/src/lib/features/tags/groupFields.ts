@@ -3,6 +3,7 @@ import type { FieldConfig } from '$lib/shared/components/data/types';
 import { tagItems } from './columns';
 import { compareTagOrder, groupsFor, tagGroupLabel, tagsInGroup } from './groups';
 import type { Tag, TagGroup } from './types/base';
+import { tags_tagGroups } from '$lib/paraglide/messages';
 
 type EntityDiscriminants = components['schemas']['EntityDiscriminants'];
 
@@ -73,6 +74,7 @@ export function tagGroupFields<T>({
 			},
 			display: {
 				hiddenByDefault: true,
+				section: tags_tagGroups(),
 				getItems: (item: T) => {
 					const tag = held(item);
 					return tag ? tagItems([tag.id], tags, groups) : [];

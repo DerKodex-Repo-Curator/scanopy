@@ -167,14 +167,6 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
-    pub fn hidden_is(mut self, hidden: bool) -> Self {
-        let col = self.qualify_column("hidden");
-        self.conditions
-            .push(format!("{} = ${}", col, self.values.len() + 1));
-        self.values.push(SqlValue::Bool(hidden));
-        self
-    }
-
     /// SCD2 current-state filter: only live rows (`valid_to IS NULL`).
     /// Used by the topology read path and reconciliation natural-key
     /// matching to ignore closed historical copies.
@@ -965,21 +957,6 @@ impl<T: Storable> StorableFilter<T> {
             .collect();
         self.conditions
             .push(format!("{} IN ({})", col, placeholders.join(", ")));
-    }
-
-    /// Hosts whose `hidden` flag is one of `values`.
-    pub fn hidden_in(mut self, values: &[bool]) -> Self {
-        if values.is_empty() {
-            self.conditions.push("FALSE".to_string());
-            return self;
-        }
-
-        self.push_in_clause("hidden", values.len());
-        for value in values {
-            self.values.push(SqlValue::Bool(*value));
-        }
-
-        self
     }
 
     /// Entities whose virtualization parent is one of `service_ids`, and — when

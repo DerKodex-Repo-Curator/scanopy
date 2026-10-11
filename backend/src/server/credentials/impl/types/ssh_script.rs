@@ -260,7 +260,6 @@ pub fn host_coverage() -> Vec<(&'static str, ScriptCoverage)> {
         virtualization_metadata => NotWritable(VIRTUALIZATION),
         virtualization_service_id => NotWritable(VIRTUALIZATION),
         virtualization_interface_id => NotWritable(VIRTUALIZATION),
-        hidden => NotWritable(USER_SET),
         tags => NotWritable(USER_SET),
         sys_descr => Writable(F::SysDescr),
         sys_object_id => Writable(F::SysObjectId),

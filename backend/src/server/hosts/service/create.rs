@@ -210,7 +210,6 @@ impl HostService {
             virtualization_metadata,
             virtualization_service_id,
             virtualization_interface_id,
-            hidden,
             tags,
             sys_descr,
             sys_object_id,
@@ -267,7 +266,6 @@ impl HostService {
             virtualization_metadata,
             virtualization_service_id,
             virtualization_interface_id,
-            hidden,
             tags,
             // A person filling in the create form is the definition of `Manual`: nothing discovery
             // reads may displace what they typed.

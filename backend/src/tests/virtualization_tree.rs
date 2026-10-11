@@ -97,3 +97,61 @@ async fn sql_and_rust_place_every_host_in_the_same_tree() {
         vec![(String::new(), 1), (node.id.to_string(), 4)]
     );
 }
+
+/// Sorted inside a tree grouping, each parent still leads its subtree and every set of siblings
+/// follows the sort, across the database's keys and the Rust walk.
+#[tokio::test]
+async fn a_sort_orders_siblings_inside_each_tree() {
+    use crate::server::hosts::r#impl::virtualization_tree::VIRTUALIZATION_TREE_JOIN;
+    use crate::server::shared::handlers::query::OrderDirection;
+
+    let (storage, services, _container) = test_services().await;
+
+    let org = organization();
+    storage.organizations.create(&org).await.unwrap();
+    let net = site(&org.id);
+    storage.sites.create(&net).await.unwrap();
+
+    let named = |name: &str| {
+        let mut h = host(&net.id);
+        h.base.name = HostName::manual(name.to_string());
+        h
+    };
+
+    let node = named("pve-01");
+    storage.hosts.create(&node).await.unwrap();
+    let node_runtime = service(&net.id, &node.id);
+    storage.services.create(&node_runtime).await.unwrap();
+    for guest in ["app-vm", "docker-vm"] {
+        let mut vm = named(guest);
+        vm.base.virtualization_service_id = Some(node_runtime.id);
+        storage.hosts.create(&vm).await.unwrap();
+    }
+    for lone in ["printer", "camera"] {
+        storage.hosts.create(&named(lone)).await.unwrap();
+    }
+
+    let query = HostFilterQuery {
+        group_by: Some(HostOrderField::VirtualizedBy),
+        order_by: Some(HostOrderField::Name),
+        order_direction: Some(OrderDirection::Desc),
+        ..Default::default()
+    };
+    assert!(query.sorts_inside_virtualization_trees());
+    let (filter, order_by) = query.apply_sort_only(
+        StorableFilter::new_from_site_ids(&[net.id])
+            .live()
+            .join(&VIRTUALIZATION_TREE_JOIN),
+    );
+
+    let page = services
+        .host_service
+        .get_all_host_responses_tree_ordered(filter, &order_by, Some(3), 1, None, false)
+        .await
+        .unwrap();
+
+    assert_eq!(page.total_count, 5);
+    let names: Vec<&str> = page.items.iter().map(|h| h.name.as_str()).collect();
+    // Whole order: printer, camera | pve-01, docker-vm, app-vm. The page skips one, takes three.
+    assert_eq!(names, vec!["camera", "pve-01", "docker-vm"]);
+}

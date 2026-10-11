@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn text_column_in_binds_after_earlier_conditions() {
         let filter = StorableFilter::<Host>::new_unfiltered()
-            .hidden_in(&[false])
+            .text_column_in("model", &["C9300".to_string()])
             .text_column_in("manufacturer", &["Cisco".to_string()]);
 
         assert!(

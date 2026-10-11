@@ -36,7 +36,7 @@ impl HostResponse {
             virtualization_parent_host_id: _,
             virtualization_root_host_id: _,
             virtualization_depth: _,
-            hidden,
+            hidden: _,
             tags,
             sys_descr,
             sys_descr_source,
@@ -98,7 +98,6 @@ impl HostResponse {
                 virtualization_metadata: virtualization_metadata.clone(),
                 virtualization_service_id: *virtualization_service_id,
                 virtualization_interface_id: *virtualization_interface_id,
-                hidden: *hidden,
                 tags: tags.clone(),
                 sys_descr: sys_descr
                     .clone()
@@ -210,7 +209,6 @@ impl HostResponse {
             virtualization_metadata,
             virtualization_service_id,
             virtualization_interface_id,
-            hidden,
             tags,
             sys_descr,
             sys_object_id,
@@ -253,7 +251,7 @@ impl HostResponse {
             virtualization_parent_host_id: None,
             virtualization_root_host_id: None,
             virtualization_depth: 0,
-            hidden,
+            hidden: false,
             tags,
             sys_descr_source: sys_descr.as_ref().map(|v| v.source()).unwrap_or_default(),
             sys_descr: attribution::text_of(&sys_descr),

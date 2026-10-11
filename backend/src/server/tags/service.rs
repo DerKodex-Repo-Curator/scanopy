@@ -224,6 +224,24 @@ impl TagService {
             .map(|g| g.id))
     }
 
+    /// The live tags of the organization's Visibility group. A host holding any of them is left out
+    /// of topology.
+    pub async fn hiding_tag_ids(&self, organization_id: &Uuid) -> Result<Vec<Uuid>> {
+        let Some(group) = self
+            .tag_group_service
+            .system_group(organization_id, TagGroupType::Visibility)
+            .await?
+        else {
+            return Ok(vec![]);
+        };
+        Ok(self
+            .get_all(StorableFilter::<Tag>::new_from_uuid_column("tag_group_id", &group.id).live())
+            .await?
+            .into_iter()
+            .map(|t| t.id)
+            .collect())
+    }
+
     /// Refuse to move `tag` into `group` while some entity holds both it and another tag of `group`.
     ///
     /// Moving it would leave that entity breaking the rule the group exists to keep, and which of

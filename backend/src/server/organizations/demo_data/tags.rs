@@ -2,7 +2,9 @@
 
 use super::*;
 use crate::server::shared::entities::EntityDiscriminants;
-use crate::server::shared::storage::seed_data::{create_starter_tags, starter_custom_group_names};
+use crate::server::shared::storage::seed_data::{
+    create_starter_tags, hidden_tag, starter_custom_group_names, starter_group_description,
+};
 use crate::server::shared::types::Icon;
 use crate::server::tags::groups::base::{TagGroup, TagGroupBase, TagGroupType};
 use crate::server::tags::r#impl::base::TagIcon;
@@ -25,9 +27,13 @@ pub(super) fn generate_tag_groups(organization_id: Uuid, now: DateTime<Utc>) -> 
         TagGroupType::system().map(|t| TagGroupBase::new(organization_id, t.to_string(), t));
     let starter = starter_custom_group_names()
         .into_iter()
-        .map(|name| TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom));
+        .map(|name| TagGroupBase {
+            description: starter_group_description(name).map(str::to_string),
+            ..TagGroupBase::new(organization_id, name.to_string(), TagGroupType::Custom)
+        });
     let backup_schedule = TagGroupBase {
         entity_types: Some(vec![EntityDiscriminants::Host]),
+        description: Some("How often a storage host is backed up.".to_string()),
         ..TagGroupBase::new(
             organization_id,
             BACKUP_SCHEDULE.to_string(),
@@ -197,5 +203,20 @@ pub(super) fn generate_tags(
             ..tag
         });
 
-    demo_tags.into_iter().chain(starter_tags).collect()
+    // The Visibility group's Hidden tag, as every organization gets it.
+    let hidden = groups
+        .iter()
+        .find(|g| g.base.group_type == TagGroupType::Visibility)
+        .map(|g| Tag {
+            created_at: now,
+            updated_at: now,
+            valid_from: now,
+            ..hidden_tag(organization_id, g.id)
+        });
+
+    demo_tags
+        .into_iter()
+        .chain(starter_tags)
+        .chain(hidden)
+        .collect()
 }

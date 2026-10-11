@@ -97,7 +97,6 @@ export interface HostFormData extends Partial<
 	virtualization_metadata: HostVirtualization | null;
 	virtualization_service_id: string | null;
 	virtualization_interface_id: string | null;
-	hidden: boolean;
 	tags: string[];
 
 	// SNMP fields (populated by discovery, read-only in UI).

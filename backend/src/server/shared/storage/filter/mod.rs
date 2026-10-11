@@ -542,9 +542,6 @@ mod tests {
     fn empty_inclusion_filters_match_nothing() {
         let clauses = [
             StorableFilter::<Host>::new_unfiltered()
-                .hidden_in(&[])
-                .to_where_clause(),
-            StorableFilter::<Host>::new_unfiltered()
                 .has_service_named(&[])
                 .to_where_clause(),
             StorableFilter::<Discovery>::new_unfiltered()

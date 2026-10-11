@@ -8,14 +8,18 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::server::shared::entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants};
+use crate::server::shared::{
+    entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants},
+    types::api::deserialize_empty_string_as_none,
+};
 
 /// What kind of tag group this is.
 ///
-/// `Application` and `Status` are system groups: every organization has exactly one of each, and
-/// they can't be renamed, deleted or recreated. Application tags drive the application view.
-/// Status tags track where an asset is on its way from planned to decommissioned. `Custom` groups
-/// are named by the organization.
+/// `Application`, `Status` and `Visibility` are system groups: every organization has exactly one
+/// of each, and they can't be renamed, deleted or recreated. Application tags drive the
+/// application view. Status tags track where an asset is on its way from planned to
+/// decommissioned, on entities that have no status of their own. A host holding a Visibility tag
+/// is left out of topology. `Custom` groups are named by the organization.
 #[derive(
     Debug,
     Clone,
@@ -34,6 +38,7 @@ use crate::server::shared::entities::{ChangeTriggersTopologyStaleness, EntityDis
 pub enum TagGroupType {
     Application,
     Status,
+    Visibility,
     #[default]
     Custom,
 }
@@ -46,16 +51,50 @@ impl TagGroupType {
 
     pub fn is_system(&self) -> bool {
         match self {
-            TagGroupType::Application | TagGroupType::Status => true,
+            TagGroupType::Application | TagGroupType::Status | TagGroupType::Visibility => true,
             TagGroupType::Custom => false,
         }
     }
 
-    /// Whether a new group of this type orders its tags. Applications have no sequence.
+    /// Whether a new group of this type orders its tags. Applications and visibility have no
+    /// sequence.
     pub fn default_ordered(&self) -> bool {
         match self {
-            TagGroupType::Application => false,
+            TagGroupType::Application | TagGroupType::Visibility => false,
             TagGroupType::Status | TagGroupType::Custom => true,
+        }
+    }
+
+    /// The entity types a group of this type is fixed to, when its scope can't be changed.
+    pub fn fixed_entity_types(&self) -> Option<Vec<EntityDiscriminants>> {
+        match self {
+            TagGroupType::Visibility => Some(vec![EntityDiscriminants::Host]),
+            TagGroupType::Application | TagGroupType::Status | TagGroupType::Custom => None,
+        }
+    }
+
+    /// Whether a group of this type can ever apply to `entity_type`, whatever its scope says. A
+    /// status tag would compete with the status an entity already carries.
+    pub fn admits(&self, entity_type: EntityDiscriminants) -> bool {
+        match self {
+            TagGroupType::Status => !entity_type.has_status(),
+            TagGroupType::Visibility => entity_type == EntityDiscriminants::Host,
+            TagGroupType::Application | TagGroupType::Custom => true,
+        }
+    }
+
+    /// The description a new group of this type starts with. The migration seeds the same text.
+    pub fn default_description(&self) -> Option<&'static str> {
+        match self {
+            TagGroupType::Application => Some(
+                "What each entity is part of. A service inherits its host's application tag, and \
+                 the Application view groups by it.",
+            ),
+            TagGroupType::Status => Some("Where an asset is in its lifecycle."),
+            TagGroupType::Visibility => {
+                Some("Hosts holding a tag of this group are left out of topology.")
+            }
+            TagGroupType::Custom => None,
         }
     }
 
@@ -90,6 +129,22 @@ fn validate_tag_group_base(base: &TagGroupBase) -> Result<(), validator::Validat
         return Err(validator::ValidationError::new("tag_group_reserved")
             .with_message(format!("\"{}\" is a system tag group name", base.name).into()));
     }
+    if let Some(entity_type) = base
+        .entity_types
+        .iter()
+        .flatten()
+        .find(|t| !base.group_type.admits(**t))
+    {
+        return Err(
+            validator::ValidationError::new("tag_group_entity_types").with_message(
+                format!(
+                    "A {} tag group can't apply to {entity_type}",
+                    base.group_type
+                )
+                .into(),
+            ),
+        );
+    }
     Ok(())
 }
 
@@ -103,6 +158,11 @@ pub struct TagGroupBase {
         message = "Tag group name must be between 1 and 100 characters"
     ))]
     pub name: String,
+    /// What the group is for.
+    #[serde(default, deserialize_with = "deserialize_empty_string_as_none")]
+    #[schema(required)]
+    #[validate(length(max = 500, message = "Description must be 500 characters or fewer"))]
+    pub description: Option<String>,
     /// The organization that owns this record.
     pub organization_id: Uuid,
     /// Whether this is a system group or one the organization named. Set by the server: groups
@@ -110,7 +170,9 @@ pub struct TagGroupBase {
     #[serde(default)]
     #[schema(read_only, required)]
     pub group_type: TagGroupType,
-    /// The entity types this group's tags can be applied to. `null` allows every taggable type.
+    /// The entity types this group's tags can be applied to. `null` allows every taggable type the
+    /// group type admits: Status leaves out types that carry a status of their own. Fixed for
+    /// Visibility, which applies to hosts.
     #[serde(default)]
     #[schema(required)]
     #[validate(custom(function = "validate_entity_types"))]
@@ -126,29 +188,33 @@ impl TagGroupBase {
     pub fn new(organization_id: Uuid, name: String, group_type: TagGroupType) -> Self {
         Self {
             name,
+            description: group_type.default_description().map(str::to_string),
             organization_id,
             group_type,
-            entity_types: None,
+            entity_types: group_type.fixed_entity_types(),
             ordered: group_type.default_ordered(),
         }
     }
 
     /// Whether this group's tags may be applied to `entity_type`.
     pub fn allows(&self, entity_type: EntityDiscriminants) -> bool {
-        self.entity_types
-            .as_ref()
-            .is_none_or(|types| types.contains(&entity_type))
+        self.group_type.admits(entity_type)
+            && self
+                .entity_types
+                .as_ref()
+                .is_none_or(|types| types.contains(&entity_type))
+    }
+
+    /// The taggable entity types this group's tags may be applied to.
+    pub fn allowed_types(&self) -> Vec<EntityDiscriminants> {
+        EntityDiscriminants::iter()
+            .filter(|t| t.is_taggable() && self.allows(*t))
+            .collect()
     }
 
     /// The entity types `self` allows and `next` no longer does.
     pub fn types_removed_by(&self, next: &TagGroupBase) -> Vec<EntityDiscriminants> {
-        let allowed_now: Vec<EntityDiscriminants> = match &self.entity_types {
-            Some(types) => types.clone(),
-            None => EntityDiscriminants::iter()
-                .filter(|t| t.is_taggable())
-                .collect(),
-        };
-        allowed_now
+        self.allowed_types()
             .into_iter()
             .filter(|t| !next.allows(*t))
             .collect()
@@ -241,6 +307,31 @@ mod tests {
         }
         let status = TagGroupBase::new(Uuid::nil(), "Status".into(), TagGroupType::Status);
         assert!(status.validate().is_ok());
+    }
+
+    #[test]
+    fn status_never_applies_to_a_type_with_its_own_status() {
+        let status = TagGroupBase::new(Uuid::nil(), "Status".into(), TagGroupType::Status);
+        let allowed = status.allowed_types();
+        assert!(!allowed.is_empty());
+        assert!(allowed.iter().all(|t| !t.has_status()));
+        assert!(EntityDiscriminants::iter().any(|t| t.is_taggable() && t.has_status()));
+
+        let with_daemon = TagGroupBase {
+            entity_types: Some(vec![EntityDiscriminants::Host, EntityDiscriminants::Daemon]),
+            ..status.clone()
+        };
+        assert!(with_daemon.validate().is_err());
+        // A custom group may hold the same types.
+        assert!(
+            TagGroupBase {
+                group_type: TagGroupType::Custom,
+                name: "Owner".into(),
+                ..with_daemon
+            }
+            .validate()
+            .is_ok()
+        );
     }
 
     #[test]

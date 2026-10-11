@@ -801,6 +801,41 @@ where
             .collect())
     }
 
+    async fn get_ordered_values(
+        &self,
+        filter: StorableFilter<T>,
+        order_by: &str,
+        exprs: &[&str],
+    ) -> Result<Vec<(Uuid, Vec<Option<String>>)>, anyhow::Error> {
+        let columns: String = exprs
+            .iter()
+            .map(|expr| format!(", ({expr})::text"))
+            .collect();
+        let query_str = format!(
+            "SELECT {table}.id{columns} FROM {table} {joins} {filter} ORDER BY {order_by}",
+            table = T::table_name(),
+            joins = filter.to_join_clause(),
+            filter = filter.to_where_clause(),
+        );
+
+        let mut query = sqlx::query(&query_str);
+        for value in filter.values() {
+            query = Self::bind_value(query, value)?;
+        }
+
+        let rows = query.fetch_all(&self.pool).await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let id: Uuid = sqlx::Row::get(&row, 0);
+                let values = (1..=exprs.len())
+                    .map(|i| sqlx::Row::get::<Option<String>, _>(&row, i))
+                    .collect();
+                (id, values)
+            })
+            .collect())
+    }
+
     async fn get_paginated(
         &self,
         filter: StorableFilter<T>,
