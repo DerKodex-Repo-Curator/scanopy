@@ -174,7 +174,7 @@
 		order_by: orderBy,
 		order_direction: orderDirection,
 		tag_ids: tagIds.length > 0 ? tagIds : undefined,
-		tag_sets: tagSetsParam(tagGroupFilters, tagsData),
+		tag_sets: tagSetsParam(tagGroupFilters, tagsQuery.data ?? []),
 		group_by_tag_group: groupByTagGroup,
 		order_by_tag_group: orderByTagGroup,
 		stale: stale ?? undefined,
