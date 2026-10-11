@@ -126,14 +126,14 @@ pub struct ServerCli {
     #[arg(long)]
     aws_region: Option<String>,
 
-    /// IAM access key id for AWS API calls (signup validation needs
-    /// `ses:GetEmailAddressInsights`). Not the SES SMTP username.
+    /// Access key id of the IAM user that signup validation calls SES as, allowed only
+    /// `ses:GetEmailAddressInsights`. Not the SES SMTP username.
     #[arg(long, hide = true)]
-    aws_access_key_id: Option<String>,
+    email_validation_aws_access_key_id: Option<String>,
 
-    /// IAM secret access key for `aws_access_key_id`. Not the SES SMTP password.
+    /// IAM secret access key for `email_validation_aws_access_key_id`. Not the SES SMTP password.
     #[arg(long, hide = true)]
-    aws_secret_access_key: Option<String>,
+    email_validation_aws_secret_access_key: Option<String>,
 
     /// URL users reach the server at. Used in password reset links, invite links and webhooks.
     #[arg(long)]
@@ -219,14 +219,13 @@ pub struct ServerConfig {
     /// here; the SNS topic ARN and an SES SMTP relay are checked against it at startup.
     #[serde(default)]
     pub aws_region: Option<String>,
-    /// IAM API keys for Scanopy's AWS API calls (`SCANOPY_AWS_ACCESS_KEY_ID`,
-    /// `SCANOPY_AWS_SECRET_ACCESS_KEY`), distinct from the SES SMTP credentials. The one
-    /// consumer is signup validation with `GetEmailAddressInsights`, which runs only when the
-    /// region and both keys are set.
+    /// Keys of the IAM user that signup validation calls `GetEmailAddressInsights` as
+    /// (`SCANOPY_EMAIL_VALIDATION_AWS_*`), scoped to that one action and distinct from the SES
+    /// SMTP credentials. Validation runs only when `aws_region` and both keys are set.
     #[serde(default)]
-    pub aws_access_key_id: Option<String>,
+    pub email_validation_aws_access_key_id: Option<String>,
     #[serde(default)]
-    pub aws_secret_access_key: Option<String>,
+    pub email_validation_aws_secret_access_key: Option<String>,
     #[serde(default)]
     pub oidc_providers: Option<Vec<OidcProviderConfig>>,
 
@@ -412,8 +411,8 @@ impl Default for ServerConfig {
             email_log_dir: None,
             email_feedback_sns_topic_arn: None,
             aws_region: None,
-            aws_access_key_id: None,
-            aws_secret_access_key: None,
+            email_validation_aws_access_key_id: None,
+            email_validation_aws_secret_access_key: None,
             client_ip_source: None,
             oidc_providers: None,
             posthog_key: None,
@@ -488,11 +487,11 @@ impl ServerConfig {
         if let Some(region) = cli_args.aws_region {
             figment = figment.merge(("aws_region", region));
         }
-        if let Some(key_id) = cli_args.aws_access_key_id {
-            figment = figment.merge(("aws_access_key_id", key_id));
+        if let Some(key_id) = cli_args.email_validation_aws_access_key_id {
+            figment = figment.merge(("email_validation_aws_access_key_id", key_id));
         }
-        if let Some(secret) = cli_args.aws_secret_access_key {
-            figment = figment.merge(("aws_secret_access_key", secret));
+        if let Some(secret) = cli_args.email_validation_aws_secret_access_key {
+            figment = figment.merge(("email_validation_aws_secret_access_key", secret));
         }
         if let Some(public_url) = cli_args.public_url {
             figment = figment.merge(("public_url", public_url));
