@@ -33,7 +33,7 @@
 	import { type Color } from '$lib/shared/utils/styling';
 	import { useServicesCacheQuery } from '$lib/features/services/queries';
 	import { useSubnetsQuery } from '$lib/features/subnets/queries';
-	import type { RenderableTopology, TopologyOptions } from '../../../types/base';
+	import type { RenderableTopology } from '../../../types/base';
 	import viewsJson from '$lib/data/views.json';
 	import TagFilterGroup from './TagFilterGroup.svelte';
 	import OptionToggle from './OptionToggle.svelte';

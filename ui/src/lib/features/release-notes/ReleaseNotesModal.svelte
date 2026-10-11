@@ -51,14 +51,16 @@
 				</section>
 			{/each}
 			{#if notes?.changelog_url}
+				<!-- eslint-disable svelte/no-navigation-without-resolve -->
 				<a
 					class="text-link text-sm"
 					href={notes.changelog_url}
 					target="_blank"
-					rel="noopener noreferrer"
+					rel="external noopener noreferrer"
 				>
 					{releaseNotes_earlierReleases()}
 				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/if}
 		</div>
 

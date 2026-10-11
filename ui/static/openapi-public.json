@@ -4772,21 +4772,6 @@
             }
           },
           {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
-              }
-            }
-          },
-          {
             "name": "virtualization_service_ids",
             "in": "query",
             "description": "Filter by the service virtualizing the host. Repeat for several.",
@@ -5299,21 +5284,6 @@
             }
           },
           {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
-              }
-            }
-          },
-          {
             "name": "virtualization_service_ids",
             "in": "query",
             "description": "Filter by the service virtualizing the host. Repeat for several.",
@@ -5706,21 +5676,6 @@
               "items": {
                 "type": "string",
                 "format": "uuid"
-              }
-            }
-          },
-          {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
               }
             }
           },
@@ -6126,21 +6081,6 @@
               "items": {
                 "type": "string",
                 "format": "uuid"
-              }
-            }
-          },
-          {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
               }
             }
           },
@@ -12359,12 +12299,14 @@
                         "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
                         "example": {
                           "created_at": "2026-01-15T10:30:00Z",
+                          "description": "Which stage of delivery an asset serves.",
                           "entity_types": null,
                           "group_type": "Custom",
                           "id": "550e8400-e29b-41d4-a716-446655440010",
                           "name": "Environment",
                           "ordered": true,
                           "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+                          "scope_computed": false,
                           "updated_at": "2026-01-15T10:30:00Z"
                         }
                       },
@@ -15018,19 +14960,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-11T13:22:37.532080Z",
+              "created_at": "2026-10-11T18:00:53.178287Z",
               "first_discovery_id": null,
-              "id": "65a3b33c-1fa2-4d0d-8df2-7ab51df0522e",
+              "id": "d3d69668-027e-444c-b30d-1d7ea7159ba5",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-11T13:22:37.532080Z",
+              "last_seen_at": "2026-10-11T18:00:53.178287Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-11T13:22:37.532080Z",
-              "valid_from": "2026-10-11T13:22:37.532080Z",
+              "updated_at": "2026-10-11T18:00:53.178287Z",
+              "valid_from": "2026-10-11T18:00:53.178287Z",
               "valid_to": null
             }
           },
@@ -16329,7 +16271,8 @@
               },
               "hidden": {
                 "type": "boolean",
-                "description": "Whether the host is hidden from topology views."
+                "description": "Always `false`. Kept because daemons before v0.17.23 require it when they read a host\nback; a host is hidden from topology by a tag of the Visibility group.",
+                "readOnly": true
               },
               "hostname": {
                 "type": [
@@ -16736,19 +16679,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-11T13:22:37.506372Z",
+                      "created_at": "2026-10-11T18:00:53.157565Z",
                       "first_discovery_id": null,
-                      "id": "0e2ec77c-19d4-467e-8d58-83d5785d674d",
+                      "id": "82b4e63e-2163-4fd4-9d67-b04635499ffa",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-11T13:22:37.506372Z",
+                      "last_seen_at": "2026-10-11T18:00:53.157565Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-11T13:22:37.506372Z",
-                      "valid_from": "2026-10-11T13:22:37.506372Z",
+                      "updated_at": "2026-10-11T18:00:53.157565Z",
+                      "valid_from": "2026-10-11T18:00:53.157565Z",
                       "valid_to": null
                     }
                   ],
@@ -16761,7 +16704,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Jump",
+                  "service_definition": "IoT",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -18131,19 +18074,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-11T13:22:37.527222Z",
+                  "created_at": "2026-10-11T18:00:53.173978Z",
                   "first_discovery_id": null,
-                  "id": "570720f8-0052-431c-99f8-f1676bf2e96c",
+                  "id": "1f5934f4-ce2d-42a6-bb9c-7dbd4831bf46",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-11T13:22:37.527222Z",
+                  "last_seen_at": "2026-10-11T18:00:53.173978Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-11T13:22:37.527222Z",
-                  "valid_from": "2026-10-11T13:22:37.527222Z",
+                  "updated_at": "2026-10-11T18:00:53.173978Z",
+                  "valid_from": "2026-10-11T18:00:53.173978Z",
                   "valid_to": null
                 }
               ],
@@ -18156,7 +18099,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Jump",
+              "service_definition": "IoT",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -18930,12 +18873,14 @@
             "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
             "example": {
               "created_at": "2026-01-15T10:30:00Z",
+              "description": "Which stage of delivery an asset serves.",
               "entity_types": null,
               "group_type": "Custom",
               "id": "550e8400-e29b-41d4-a716-446655440010",
               "name": "Environment",
               "ordered": true,
               "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+              "scope_computed": false,
               "updated_at": "2026-01-15T10:30:00Z"
             }
           },
@@ -21088,19 +21033,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-11T13:22:37.506954Z",
+          "created_at": "2026-10-11T18:00:53.158005Z",
           "first_discovery_id": null,
-          "id": "ed78e5db-4841-4e37-baf1-13cf714f4877",
+          "id": "7503c5a2-cc50-4468-a683-26e8e4444d62",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-11T13:22:37.506954Z",
+          "last_seen_at": "2026-10-11T18:00:53.158005Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-11T13:22:37.506954Z",
-          "valid_from": "2026-10-11T13:22:37.506954Z",
+          "updated_at": "2026-10-11T18:00:53.158005Z",
+          "valid_from": "2026-10-11T18:00:53.158005Z",
           "valid_to": null
         }
       },
@@ -21710,10 +21655,6 @@
             ],
             "description": "Free-text notes about the host."
           },
-          "hidden": {
-            "type": "boolean",
-            "description": "Hide the host from topology views without deleting it."
-          },
           "hostname": {
             "type": [
               "string",
@@ -21832,7 +21773,6 @@
         "example": {
           "credential_assignments": [],
           "description": "Primary web server",
-          "hidden": false,
           "hostname": "web-server-01.local",
           "interfaces": [],
           "ip_addresses": [
@@ -21866,7 +21806,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Jump",
+              "service_definition": "IoT",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -27697,7 +27637,6 @@
           "credential_assignments": [],
           "description": "Primary web server",
           "first_discovery_id": null,
-          "hidden": false,
           "hostname": "web-server-01.local",
           "hostname_source": "Manual",
           "id": "550e8400-e29b-41d4-a716-446655440003",
@@ -27806,7 +27745,6 @@
               "virtualization_metadata",
               "virtualization_service_id",
               "virtualization_interface_id",
-              "hidden",
               "tags",
               "credential_assignments"
             ],
@@ -27824,10 +27762,6 @@
                   "null"
                 ],
                 "description": "Free-text notes about the host."
-              },
-              "hidden": {
-                "type": "boolean",
-                "description": "Whether the host is hidden from topology views."
               },
               "site_id": {
                 "type": "string",
@@ -28088,8 +28022,7 @@
           "manufacturer",
           "model",
           "sys_location",
-          "os_family",
-          "hidden"
+          "os_family"
         ]
       },
       "HostOs": {
@@ -28303,7 +28236,8 @@
           },
           "hidden": {
             "type": "boolean",
-            "description": "Whether the host is hidden from topology views."
+            "description": "Always `false`. Kept because daemons before v0.17.23 require it when they read a host\nback; a host is hidden from topology by a tag of the Visibility group.",
+            "readOnly": true
           },
           "hostname": {
             "type": [
@@ -28710,19 +28644,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-11T13:22:37.505756Z",
+                  "created_at": "2026-10-11T18:00:53.157072Z",
                   "first_discovery_id": null,
-                  "id": "3b6016eb-9b79-43be-abee-eedf83460037",
+                  "id": "afadd49e-064f-4c8b-b507-565db176b296",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-11T13:22:37.505756Z",
+                  "last_seen_at": "2026-10-11T18:00:53.157072Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-11T13:22:37.505756Z",
-                  "valid_from": "2026-10-11T13:22:37.505756Z",
+                  "updated_at": "2026-10-11T18:00:53.157072Z",
+                  "valid_from": "2026-10-11T18:00:53.157072Z",
                   "valid_to": null
                 }
               ],
@@ -28735,7 +28669,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Jump",
+              "service_definition": "IoT",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -32150,7 +32084,8 @@
                 },
                 "hidden": {
                   "type": "boolean",
-                  "description": "Whether the host is hidden from topology views."
+                  "description": "Always `false`. Kept because daemons before v0.17.23 require it when they read a host\nback; a host is hidden from topology by a tag of the Visibility group.",
+                  "readOnly": true
                 },
                 "hostname": {
                   "type": [
@@ -32557,19 +32492,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-11T13:22:37.495128Z",
+                        "created_at": "2026-10-11T18:00:53.149521Z",
                         "first_discovery_id": null,
-                        "id": "85ceef75-2edc-4cf8-b216-61ef19dadb53",
+                        "id": "89786402-55cd-430c-b46b-9bdefed9f6c8",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-11T13:22:37.495128Z",
+                        "last_seen_at": "2026-10-11T18:00:53.149521Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-11T13:22:37.495128Z",
-                        "valid_from": "2026-10-11T13:22:37.495128Z",
+                        "updated_at": "2026-10-11T18:00:53.149521Z",
+                        "valid_from": "2026-10-11T18:00:53.149521Z",
                         "valid_to": null
                       }
                     ],
@@ -32582,7 +32517,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Jump",
+                    "service_definition": "IoT",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -32731,19 +32666,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-11T13:22:37.526345Z",
+                    "created_at": "2026-10-11T18:00:53.173305Z",
                     "first_discovery_id": null,
-                    "id": "06f2fbda-519f-4662-80c0-5b03eeb170e9",
+                    "id": "cdf07975-5d2a-4e4b-86b1-dc40ab532d56",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-11T13:22:37.526345Z",
+                    "last_seen_at": "2026-10-11T18:00:53.173305Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-11T13:22:37.526345Z",
-                    "valid_from": "2026-10-11T13:22:37.526345Z",
+                    "updated_at": "2026-10-11T18:00:53.173305Z",
+                    "valid_from": "2026-10-11T18:00:53.173305Z",
                     "valid_to": null
                   }
                 ],
@@ -32756,7 +32691,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Jump",
+                "service_definition": "IoT",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -35214,19 +35149,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-11T13:22:37.506802Z",
+              "created_at": "2026-10-11T18:00:53.157875Z",
               "first_discovery_id": null,
-              "id": "73a30e90-be1b-4545-a8b9-18f4fcdd4e7f",
+              "id": "cccb3a61-4265-4387-96df-809a9f96cd16",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-11T13:22:37.506802Z",
+              "last_seen_at": "2026-10-11T18:00:53.157875Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-11T13:22:37.506802Z",
-              "valid_from": "2026-10-11T13:22:37.506802Z",
+              "updated_at": "2026-10-11T18:00:53.157875Z",
+              "valid_from": "2026-10-11T18:00:53.157875Z",
               "valid_to": null
             }
           ],
@@ -35239,7 +35174,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Jump",
+          "service_definition": "IoT",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -36546,12 +36481,14 @@
         "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
         "example": {
           "created_at": "2026-01-15T10:30:00Z",
+          "description": "Which stage of delivery an asset serves.",
           "entity_types": null,
           "group_type": "Custom",
           "id": "550e8400-e29b-41d4-a716-446655440010",
           "name": "Environment",
           "ordered": true,
           "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+          "scope_computed": false,
           "updated_at": "2026-01-15T10:30:00Z"
         }
       },
@@ -36559,12 +36496,21 @@
         "type": "object",
         "required": [
           "name",
+          "description",
           "organization_id",
           "group_type",
           "entity_types",
-          "ordered"
+          "ordered",
+          "scope_computed"
         ],
         "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the group is for."
+          },
           "entity_types": {
             "type": [
               "array",
@@ -36573,7 +36519,7 @@
             "items": {
               "$ref": "#/components/schemas/EntityDiscriminants"
             },
-            "description": "The entity types this group's tags can be applied to. `null` allows every taggable type."
+            "description": "The entity types this group's tags can be applied to. `null` allows every taggable type the\ngroup type admits: Status leaves out types that carry a status of their own. Fixed for\nVisibility, which applies to hosts."
           },
           "group_type": {
             "$ref": "#/components/schemas/TagGroupType",
@@ -36591,15 +36537,21 @@
             "type": "string",
             "format": "uuid",
             "description": "The organization that owns this record."
+          },
+          "scope_computed": {
+            "type": "boolean",
+            "description": "Whether `entity_types` is computed from entity metadata (Status, Visibility) rather than set\nby the organization. A computed scope is read-only and never stored.",
+            "readOnly": true
           }
         }
       },
       "TagGroupType": {
         "type": "string",
-        "description": "What kind of tag group this is.\n\n`Application` and `Status` are system groups: every organization has exactly one of each, and\nthey can't be renamed, deleted or recreated. Application tags drive the application view.\nStatus tags track where an asset is on its way from planned to decommissioned. `Custom` groups\nare named by the organization.",
+        "description": "What kind of tag group this is.\n\n`Application`, `Status` and `Visibility` are system groups: every organization has exactly one\nof each, and they can't be renamed, deleted or recreated. Application tags drive the\napplication view. Status tags track where an asset is on its way from planned to\ndecommissioned, on entities that have no status of their own. A host holding a Visibility tag\nis left out of topology. `Custom` groups are named by the organization.",
         "enum": [
           "Application",
           "Status",
+          "Visibility",
           "Custom"
         ]
       },
@@ -37014,7 +36966,7 @@
       },
       "TopologyLocalOptions": {
         "type": "object",
-        "description": "Viewer settings. All but `hide_edge_types` apply to every view.",
+        "description": "Viewer settings. `hide_edge_types` and `tag_filter` are per view; the rest apply to every view.",
         "properties": {
           "bundle_edges": {
             "type": "boolean",
@@ -37070,14 +37022,21 @@
             "default": true
           },
           "tag_filter": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/TopologyTagFilter",
-                "description": "Restrict the view to entities carrying these tags."
-              }
-            ],
-            "default": {
-              "hidden_tag_ids": {}
+            "type": "object",
+            "description": "Tags whose entities are left out, per view. A view with no entry hides nothing by tag.",
+            "default": {},
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TopologyTagFilter"
+            },
+            "propertyNames": {
+              "type": "string",
+              "description": "Which topology view is being rendered",
+              "enum": [
+                "L2Physical",
+                "L3Logical",
+                "Workloads",
+                "Application"
+              ]
             }
           }
         }
@@ -37108,7 +37067,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "3f9f0dd2-9936-4091-b9ca-c4ba26fea8de",
+                  "id": "54c40908-0bdf-4b4d-ba83-6dca7c66ea24",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -37118,23 +37077,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "2bfda4bc-383c-47d0-91ec-21e58ab40084",
+                  "id": "c33c649c-3547-4679-99f8-0db071ee1f84",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "1c5892fd-02b7-4486-a924-eeb6a98f456c",
+                  "id": "4930f5b6-4cab-40b4-b9d9-bbc47a790ea6",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "76ec5d19-f050-4d29-9d51-2cc8d8e9d6bf",
+                  "id": "5e170e1c-d3b2-4a6b-a024-47ce76ebb7d7",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "2bfda4bc-383c-47d0-91ec-21e58ab40084",
+                  "id": "c33c649c-3547-4679-99f8-0db071ee1f84",
                   "rule": "ByHost"
                 }
               ]
@@ -37164,19 +37123,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "0d7b31c0-c29f-424f-a4ee-9b686ee9cb57",
+                "id": "43d30b67-7dc8-4db2-944b-e9adfd8e772d",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "e77d5f4f-931f-4f57-b7ca-710daa78d994",
+                "id": "934b2699-4302-418b-b331-f56550230dbb",
                 "rule": "ByVLAN"
               },
               {
-                "id": "b832d115-e128-43f9-bb94-d9e931c78f2f",
+                "id": "bf014389-db4d-4077-9275-da19f3d80c89",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "f2777323-5a29-4bd1-bdc2-626df5171110",
+                "id": "211a17a7-10ce-4f90-8104-686e2b42ed09",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -37197,7 +37156,7 @@
                 }
               },
               {
-                "id": "1d17cf0b-c041-4191-a812-00559adcdeb7",
+                "id": "d63dac97-7a1c-4a7d-b8db-df1111dd3c27",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -37206,15 +37165,15 @@
                 }
               },
               {
-                "id": "ee965409-a69e-4960-aa72-35b5a93195ab",
+                "id": "e007f9c3-12de-4672-ba47-a45bbc3b5674",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "adbfe9ba-e8ad-4023-98d4-a9fcc8a4baf2",
+                "id": "c17d242e-242e-41fc-a88e-8d58f26ec8a5",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "b03c406d-2e2f-4199-9155-0a3cb530cb32",
+                "id": "4c541ba7-8b7a-48b6-8595-7aa96b9df630",
                 "rule": "ByStack"
               }
             ]
@@ -37568,7 +37527,6 @@
         "required": [
           "id",
           "name",
-          "hidden",
           "tags"
         ],
         "properties": {
@@ -37596,10 +37554,6 @@
             ],
             "format": "date-time",
             "description": "Optional: expected updated_at timestamp for optimistic locking."
-          },
-          "hidden": {
-            "type": "boolean",
-            "description": "Hide the host from topology views without deleting it."
           },
           "hostname": {
             "type": [

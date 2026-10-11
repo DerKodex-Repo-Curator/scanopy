@@ -3750,19 +3750,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-11T13:22:37.431170Z",
+             *       "created_at": "2026-10-11T18:00:53.112448Z",
              *       "first_discovery_id": null,
-             *       "id": "4f48db6f-dc92-45c5-ab73-7a2e47259e1d",
+             *       "id": "5b5c1dae-6c8e-4204-9760-13ef7b73b5f5",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-11T13:22:37.431170Z",
+             *       "last_seen_at": "2026-10-11T18:00:53.112448Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-11T13:22:37.431170Z",
-             *       "valid_from": "2026-10-11T13:22:37.431170Z",
+             *       "updated_at": "2026-10-11T18:00:53.112448Z",
+             *       "valid_from": "2026-10-11T18:00:53.112448Z",
              *       "valid_to": null
              *     }
              */
@@ -4615,19 +4615,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-11T13:22:37.387721Z",
+             *               "created_at": "2026-10-11T18:00:53.088746Z",
              *               "first_discovery_id": null,
-             *               "id": "44265607-95ec-4116-9e3e-77641e6bfb70",
+             *               "id": "0928ca95-1d7a-4927-b7eb-58209b8c8b27",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-11T13:22:37.387721Z",
+             *               "last_seen_at": "2026-10-11T18:00:53.088746Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-11T13:22:37.387721Z",
-             *               "valid_from": "2026-10-11T13:22:37.387721Z",
+             *               "updated_at": "2026-10-11T18:00:53.088746Z",
+             *               "valid_from": "2026-10-11T18:00:53.088746Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4640,7 +4640,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Jump",
+             *           "service_definition": "IoT",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -4716,8 +4716,11 @@ export interface components {
                  * @description The discovery run that first observed this host. Drives the "First found by" column.
                  */
                 readonly first_discovery_id?: string | null;
-                /** @description Whether the host is hidden from topology views. */
-                hidden: boolean;
+                /**
+                 * @description Always `false`. Kept because daemons before v0.17.23 require it when they read a host
+                 *     back; a host is hidden from topology by a tag of the Visibility group.
+                 */
+                readonly hidden: boolean;
                 /** @description Hostname as resolved or reported by the host. */
                 hostname?: string | null;
                 /**
@@ -5570,19 +5573,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-11T13:22:37.422256Z",
+             *           "created_at": "2026-10-11T18:00:53.107840Z",
              *           "first_discovery_id": null,
-             *           "id": "5245d2a5-5514-49a7-93bb-3610b2a56687",
+             *           "id": "cdbbb1c5-b1e5-4a95-a73a-b89e9e939ba7",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-11T13:22:37.422256Z",
+             *           "last_seen_at": "2026-10-11T18:00:53.107840Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-11T13:22:37.422256Z",
-             *           "valid_from": "2026-10-11T13:22:37.422256Z",
+             *           "updated_at": "2026-10-11T18:00:53.107840Z",
+             *           "valid_from": "2026-10-11T18:00:53.107840Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5595,7 +5598,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Jump",
+             *       "service_definition": "IoT",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6109,12 +6112,14 @@ export interface components {
              *     optionally limited to some entity types.
              * @example {
              *       "created_at": "2026-01-15T10:30:00Z",
+             *       "description": "Which stage of delivery an asset serves.",
              *       "entity_types": null,
              *       "group_type": "Custom",
              *       "id": "550e8400-e29b-41d4-a716-446655440010",
              *       "name": "Environment",
              *       "ordered": true,
              *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+             *       "scope_computed": false,
              *       "updated_at": "2026-01-15T10:30:00Z"
              *     }
              */
@@ -6934,19 +6939,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-11T13:22:37.388514Z",
+         *       "created_at": "2026-10-11T18:00:53.089200Z",
          *       "first_discovery_id": null,
-         *       "id": "8f942043-2190-43ba-acb9-b8bef60aeef6",
+         *       "id": "aa8f4058-caf9-4ec2-b491-5fb62fb2eba6",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-11T13:22:37.388514Z",
+         *       "last_seen_at": "2026-10-11T18:00:53.089200Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-11T13:22:37.388514Z",
-         *       "valid_from": "2026-10-11T13:22:37.388514Z",
+         *       "updated_at": "2026-10-11T18:00:53.089200Z",
+         *       "valid_from": "2026-10-11T18:00:53.089200Z",
          *       "valid_to": null
          *     }
          */
@@ -7259,7 +7264,6 @@ export interface components {
          * @example {
          *       "credential_assignments": [],
          *       "description": "Primary web server",
-         *       "hidden": false,
          *       "hostname": "web-server-01.local",
          *       "interfaces": [],
          *       "ip_addresses": [
@@ -7293,7 +7297,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Jump",
+         *           "service_definition": "IoT",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -7313,8 +7317,6 @@ export interface components {
             credential_assignments?: components["schemas"]["CredentialAssignment"][];
             /** @description Free-text notes about the host. */
             description?: string | null;
-            /** @description Hide the host from topology views without deleting it. */
-            hidden?: boolean;
             /** @description Hostname as resolved or reported by the host. */
             hostname?: string | null;
             /** @description SNMP interface entries (ifTable data) - server assigns UUIDs */
@@ -9643,7 +9645,6 @@ export interface components {
          *       "credential_assignments": [],
          *       "description": "Primary web server",
          *       "first_discovery_id": null,
-         *       "hidden": false,
          *       "hostname": "web-server-01.local",
          *       "hostname_source": "Manual",
          *       "id": "550e8400-e29b-41d4-a716-446655440003",
@@ -9736,8 +9737,6 @@ export interface components {
             credential_assignments: components["schemas"]["CredentialAssignment"][];
             /** @description Free-text notes about the host. */
             description: string | null;
-            /** @description Whether the host is hidden from topology views. */
-            hidden: boolean;
             /**
              * Format: uuid
              * @description The site this entity belongs to.
@@ -9841,7 +9840,7 @@ export interface components {
          * @description Fields that hosts can be ordered/grouped by.
          * @enum {string}
          */
-        HostOrderField: "created_at" | "name" | "hostname" | "updated_at" | "virtualized_by" | "site_id" | "interface_ip" | "last_seen_at" | "mac_address" | "source" | "manufacturer" | "model" | "sys_location" | "os_family" | "hidden";
+        HostOrderField: "created_at" | "name" | "hostname" | "updated_at" | "virtualized_by" | "site_id" | "interface_ip" | "last_seen_at" | "mac_address" | "source" | "manufacturer" | "model" | "sys_location" | "os_family";
         /** @description Operating system of a host, as one source read or inferred it. */
         HostOs: {
             /** @description Release codename, such as "noble". */
@@ -10000,19 +9999,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-11T13:22:37.387018Z",
+         *               "created_at": "2026-10-11T18:00:53.088246Z",
          *               "first_discovery_id": null,
-         *               "id": "84e65c31-ad98-428d-9884-c5de7ede1e6b",
+         *               "id": "a25dc805-510c-4cfa-974a-5409d0c56644",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-11T13:22:37.387018Z",
+         *               "last_seen_at": "2026-10-11T18:00:53.088246Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-11T13:22:37.387018Z",
-         *               "valid_from": "2026-10-11T13:22:37.387018Z",
+         *               "updated_at": "2026-10-11T18:00:53.088246Z",
+         *               "valid_from": "2026-10-11T18:00:53.088246Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10025,7 +10024,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Jump",
+         *           "service_definition": "IoT",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10101,8 +10100,11 @@ export interface components {
              * @description The discovery run that first observed this host. Drives the "First found by" column.
              */
             readonly first_discovery_id?: string | null;
-            /** @description Whether the host is hidden from topology views. */
-            hidden: boolean;
+            /**
+             * @description Always `false`. Kept because daemons before v0.17.23 require it when they read a host
+             *     back; a host is hidden from topology by a tag of the Visibility group.
+             */
+            readonly hidden: boolean;
             /** @description Hostname as resolved or reported by the host. */
             hostname?: string | null;
             /**
@@ -11830,8 +11832,11 @@ export interface components {
                  * @description The discovery run that first observed this host. Drives the "First found by" column.
                  */
                 readonly first_discovery_id?: string | null;
-                /** @description Whether the host is hidden from topology views. */
-                hidden: boolean;
+                /**
+                 * @description Always `false`. Kept because daemons before v0.17.23 require it when they read a host
+                 *     back; a host is hidden from topology by a tag of the Visibility group.
+                 */
+                readonly hidden: boolean;
                 /** @description Hostname as resolved or reported by the host. */
                 hostname?: string | null;
                 /**
@@ -13192,19 +13197,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-11T13:22:37.388147Z",
+         *           "created_at": "2026-10-11T18:00:53.089069Z",
          *           "first_discovery_id": null,
-         *           "id": "3ba5d707-6e70-40d0-b245-f5a40e8e985b",
+         *           "id": "dab9a4c0-0057-44ff-9b5d-a0f217935026",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-11T13:22:37.388147Z",
+         *           "last_seen_at": "2026-10-11T18:00:53.089069Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-11T13:22:37.388147Z",
-         *           "valid_from": "2026-10-11T13:22:37.388147Z",
+         *           "updated_at": "2026-10-11T18:00:53.089069Z",
+         *           "valid_from": "2026-10-11T18:00:53.089069Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13217,7 +13222,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Jump",
+         *       "service_definition": "IoT",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13905,12 +13910,14 @@ export interface components {
          *     optionally limited to some entity types.
          * @example {
          *       "created_at": "2026-01-15T10:30:00Z",
+         *       "description": "Which stage of delivery an asset serves.",
          *       "entity_types": null,
          *       "group_type": "Custom",
          *       "id": "550e8400-e29b-41d4-a716-446655440010",
          *       "name": "Environment",
          *       "ordered": true,
          *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+         *       "scope_computed": false,
          *       "updated_at": "2026-01-15T10:30:00Z"
          *     }
          */
@@ -13932,7 +13939,13 @@ export interface components {
             readonly updated_at: string;
         };
         TagGroupBase: {
-            /** @description The entity types this group's tags can be applied to. `null` allows every taggable type. */
+            /** @description What the group is for. */
+            description: string | null;
+            /**
+             * @description The entity types this group's tags can be applied to. `null` allows every taggable type the
+             *     group type admits: Status leaves out types that carry a status of their own. Fixed for
+             *     Visibility, which applies to hosts.
+             */
             entity_types: components["schemas"]["EntityDiscriminants"][] | null;
             /**
              * @description Whether this is a system group or one the organization named. Set by the server: groups
@@ -13951,17 +13964,23 @@ export interface components {
              * @description The organization that owns this record.
              */
             organization_id: string;
+            /**
+             * @description Whether `entity_types` is computed from entity metadata (Status, Visibility) rather than set
+             *     by the organization. A computed scope is read-only and never stored.
+             */
+            readonly scope_computed: boolean;
         };
         /**
          * @description What kind of tag group this is.
          *
-         *     `Application` and `Status` are system groups: every organization has exactly one of each, and
-         *     they can't be renamed, deleted or recreated. Application tags drive the application view.
-         *     Status tags track where an asset is on its way from planned to decommissioned. `Custom` groups
-         *     are named by the organization.
+         *     `Application`, `Status` and `Visibility` are system groups: every organization has exactly one
+         *     of each, and they can't be renamed, deleted or recreated. Application tags drive the
+         *     application view. Status tags track where an asset is on its way from planned to
+         *     decommissioned, on entities that have no status of their own. A host holding a Visibility tag
+         *     is left out of topology. `Custom` groups are named by the organization.
          * @enum {string}
          */
-        TagGroupType: "Application" | "Status" | "Custom";
+        TagGroupType: "Application" | "Status" | "Visibility" | "Custom";
         /**
          * @description A lucide icon a person chose for a tag.
          *
@@ -14154,7 +14173,7 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /** @description Viewer settings. All but `hide_edge_types` apply to every view. */
+        /** @description Viewer settings. `hide_edge_types` and `tag_filter` are per view; the rest apply to every view. */
         TopologyLocalOptions: {
             /**
              * @description Collapse parallel edges between the same pair of nodes into one.
@@ -14198,11 +14217,12 @@ export interface components {
              */
             show_minimap: boolean;
             /**
-             * @default {
-             *       "hidden_tag_ids": {}
-             *     }
+             * @description Tags whose entities are left out, per view. A view with no entry hides nothing by tag.
+             * @default {}
              */
-            tag_filter: components["schemas"]["TopologyTagFilter"];
+            tag_filter: {
+                [key: string]: components["schemas"]["TopologyTagFilter"];
+            };
         };
         TopologyOptions: {
             /** @description Settings applied in the viewer, which do not change what the server returns. */
@@ -14216,7 +14236,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "07f981a0-9665-495c-abe0-07dbbc46eded",
+             *           "id": "1a0a1a14-e5c6-43cd-aac2-e9cf7fe3b651",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14226,23 +14246,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "1f3114a1-d99e-48de-b420-7b76b006a89a",
+             *           "id": "66765f22-b038-4d9f-a4b5-27f17955b18f",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "da487cc4-d74d-4cf8-9520-b546170febd7",
+             *           "id": "563d0c13-dddb-4dd1-92da-198d1e51aa54",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "191a16fb-3e69-43bb-874f-34816bf024cb",
+             *           "id": "b24fde2f-e18d-43c5-aff2-61ed0e175e94",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "1f3114a1-d99e-48de-b420-7b76b006a89a",
+             *           "id": "66765f22-b038-4d9f-a4b5-27f17955b18f",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14256,19 +14276,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "23b98dca-74a4-4afa-acef-9c01967c1c3e",
+             *         "id": "d096252f-d07c-4aa0-8bf7-23e45b191190",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "9a83395d-7871-464a-85b9-221af5438efe",
+             *         "id": "06aed331-efbc-4a42-8c98-36b27dc73137",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "dd8cfc8d-1387-470a-b69e-f87b773771e2",
+             *         "id": "bf38f9b9-4858-49c0-bc3f-b44dcc78f6dc",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "2f15e69c-6233-4d9d-bcc6-a86af8af0925",
+             *         "id": "9d55ba6c-0305-4952-8f65-1c86f93c1369",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14289,7 +14309,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "e9bc0195-1525-494c-b2b4-7e1bd0c5b44b",
+             *         "id": "f184ecf4-018c-42e9-a4f4-89a802b0e350",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14298,15 +14318,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "1bf96867-9116-4e60-ae9b-34412f220434",
+             *         "id": "67f903ca-fafc-4186-b0a7-638be19614a0",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "1f7b29e4-a070-4ea9-be67-7e9f3b53eff1",
+             *         "id": "a25fc171-b2e2-437f-a21e-99f46f74edf8",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "84fa3725-dcbc-4edf-bfb4-45f2f7345bc5",
+             *         "id": "4e34a3b5-efb6-47df-b6a2-fa6f4f155e98",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -14489,8 +14509,6 @@ export interface components {
              * @description Optional: expected updated_at timestamp for optimistic locking.
              */
             expected_updated_at?: string | null;
-            /** @description Hide the host from topology views without deleting it. */
-            hidden: boolean;
             /** @description Hostname as resolved or reported by the host. */
             hostname?: string | null;
             /**
@@ -18894,11 +18912,6 @@ export interface operations {
                 site_ids?: string[] | null;
                 /** @description Filter by specific entity IDs (for selective loading) */
                 ids?: string[] | null;
-                /**
-                 * @description Filter by the `hidden` flag. Repeat the parameter to accept both values;
-                 *     omit it for no constraint.
-                 */
-                hidden?: boolean[] | null;
                 /** @description Filter by the service virtualizing the host. Repeat for several. */
                 virtualization_service_ids?: string[] | null;
                 /**
@@ -19120,11 +19133,6 @@ export interface operations {
                 site_ids?: string[] | null;
                 /** @description Filter by specific entity IDs (for selective loading) */
                 ids?: string[] | null;
-                /**
-                 * @description Filter by the `hidden` flag. Repeat the parameter to accept both values;
-                 *     omit it for no constraint.
-                 */
-                hidden?: boolean[] | null;
                 /** @description Filter by the service virtualizing the host. Repeat for several. */
                 virtualization_service_ids?: string[] | null;
                 /**
@@ -19237,11 +19245,6 @@ export interface operations {
                 site_ids?: string[] | null;
                 /** @description Filter by specific entity IDs (for selective loading) */
                 ids?: string[] | null;
-                /**
-                 * @description Filter by the `hidden` flag. Repeat the parameter to accept both values;
-                 *     omit it for no constraint.
-                 */
-                hidden?: boolean[] | null;
                 /** @description Filter by the service virtualizing the host. Repeat for several. */
                 virtualization_service_ids?: string[] | null;
                 /**
@@ -19354,11 +19357,6 @@ export interface operations {
                 site_ids?: string[] | null;
                 /** @description Filter by specific entity IDs (for selective loading) */
                 ids?: string[] | null;
-                /**
-                 * @description Filter by the `hidden` flag. Repeat the parameter to accept both values;
-                 *     omit it for no constraint.
-                 */
-                hidden?: boolean[] | null;
                 /** @description Filter by the service virtualizing the host. Repeat for several. */
                 virtualization_service_ids?: string[] | null;
                 /**

@@ -23,6 +23,7 @@
 	// `blocked` holds the modal back while another modal is up, so it never
 	// stacks on one; `open` reports whether it is showing, so the page's other
 	// app-load modals can wait for it.
+	// eslint-disable-next-line no-useless-assignment -- `open` is bound by the parent, which reads it
 	let { blocked = false, open = $bindable(false) }: { blocked?: boolean; open?: boolean } =
 		$props();
 
