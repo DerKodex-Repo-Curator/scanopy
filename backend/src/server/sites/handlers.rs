@@ -75,9 +75,7 @@ async fn get_all_sites(
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
     for site in &mut response.data {
-        if let Some(creds) = cred_map.get(&site.id) {
-            site.base.credential_ids = creds.clone();
-        }
+        site.base.credential_ids = Some(cred_map.get(&site.id).cloned().unwrap_or_default());
     }
 
     Ok(response)
@@ -109,12 +107,14 @@ async fn get_by_id_site(
 
     // Hydrate credential_ids from junction table
     if let Some(site) = response.data_mut() {
-        site.base.credential_ids = state
-            .services
-            .credential_service
-            .get_credential_ids_for_site(&id)
-            .await
-            .map_err(|e| ApiError::internal_error(&e.to_string()))?;
+        site.base.credential_ids = Some(
+            state
+                .services
+                .credential_service
+                .get_credential_ids_for_site(&id)
+                .await
+                .map_err(|e| ApiError::internal_error(&e.to_string()))?,
+        );
     }
 
     Ok(response)
@@ -141,16 +141,18 @@ async fn create_site(
     let organization_id = auth.organization_id();
 
     // Validate referenced credentials belong to the caller's org before any
-    // writes — the credential_ids are caller-supplied and are synced to the
-    // site→credential junction below (which is later read to hand credential
-    // secrets to daemons), so an unchecked foreign id would leak another
-    // tenant's secret.
+    // writes — the credential_ids are caller-supplied and the site service syncs
+    // them to the site→credential junction (which is later read to hand
+    // credential secrets to daemons), so an unchecked foreign id would leak
+    // another tenant's secret. Omitted, the service assigns the site-wide defaults.
     let org_id = organization_id.ok_or_else(ApiError::organization_required)?;
-    state
-        .services
-        .credential_service
-        .validate_ids_in_org(&site.base.credential_ids, org_id)
-        .await?;
+    if let Some(credential_ids) = &site.base.credential_ids {
+        state
+            .services
+            .credential_service
+            .validate_ids_in_org(credential_ids, org_id)
+            .await?;
+    }
 
     let response = create_handler::<Site>(
         State(state.clone()),
@@ -160,14 +162,6 @@ async fn create_site(
     .await?;
 
     if let Some(site) = response.data() {
-        // Sync credentials to junction table
-        state
-            .services
-            .credential_service
-            .set_site_credentials(&site.id, &site.base.credential_ids)
-            .await
-            .map_err(|e| ApiError::internal_error(&e.to_string()))?;
-
         let service = Site::get_service(&state);
 
         // System subnets + live-view topology row for this site.
@@ -239,15 +233,18 @@ async fn update_site(
     let credential_ids = site.base.credential_ids.clone();
 
     // Validate referenced credentials belong to the caller's org before syncing
-    // them to the site→credential junction (see create_site).
+    // them to the site→credential junction (see create_site). Omitted, the
+    // assignments stay as they are.
     let org_id = auth
         .organization_id()
         .ok_or_else(ApiError::organization_required)?;
-    state
-        .services
-        .credential_service
-        .validate_ids_in_org(&credential_ids, org_id)
-        .await?;
+    if let Some(credential_ids) = &credential_ids {
+        state
+            .services
+            .credential_service
+            .validate_ids_in_org(credential_ids, org_id)
+            .await?;
+    }
 
     let mut response = update_handler::<Site>(
         State(state.clone()),
@@ -257,17 +254,27 @@ async fn update_site(
     )
     .await?;
 
-    // Sync credentials to junction table
-    state
-        .services
-        .credential_service
-        .set_site_credentials(&id, &credential_ids)
-        .await
-        .map_err(|e| ApiError::internal_error(&e.to_string()))?;
+    let credential_ids = match credential_ids {
+        Some(credential_ids) => {
+            state
+                .services
+                .credential_service
+                .set_site_credentials(&id, &credential_ids)
+                .await
+                .map_err(|e| ApiError::internal_error(&e.to_string()))?;
+            credential_ids
+        }
+        None => state
+            .services
+            .credential_service
+            .get_credential_ids_for_site(&id)
+            .await
+            .map_err(|e| ApiError::internal_error(&e.to_string()))?,
+    };
 
     // Hydrate credential_ids on the response
     if let Some(site) = response.data_mut() {
-        site.base.credential_ids = credential_ids;
+        site.base.credential_ids = Some(credential_ids);
     }
 
     Ok(response)

@@ -51,20 +51,28 @@ impl CrudService<Site> for SiteService {
         Some(&self.entity_tag_service)
     }
 
-    /// A new site starts with the organization's site-wide default credentials (SNMP `public`).
-    async fn create(&self, entity: Site, authentication: AuthenticatedEntity) -> Result<Site> {
-        let created = self.create_base(entity, authentication).await?;
-        match self.credential_service.get() {
-            Some(credentials) => {
+    /// Creates the site and its credential assignments. A request that names no credentials
+    /// (`credential_ids` omitted) starts with the organization's site-wide defaults (SNMP
+    /// `public`); a list, even an empty one, is assigned exactly.
+    async fn create(&self, mut entity: Site, authentication: AuthenticatedEntity) -> Result<Site> {
+        let Some(credentials) = self.credential_service.get() else {
+            tracing::warn!("Credential service not set; the site is created without credentials");
+            return self.create_base(entity, authentication).await;
+        };
+        if entity.base.credential_ids.is_none() {
+            entity.base.credential_ids = Some(
                 credentials
-                    .assign_defaults_to_site(created.base.organization_id, created.id)
-                    .await?;
-            }
-            None => tracing::warn!(
-                site_id = %created.id,
-                "Credential service not set; the site starts without default credentials"
-            ),
+                    .site_default_credential_ids(entity.base.organization_id)
+                    .await?,
+            );
         }
+        let created = self.create_base(entity, authentication).await?;
+        credentials
+            .set_site_credentials(
+                &created.id,
+                created.base.credential_ids.as_deref().unwrap_or_default(),
+            )
+            .await?;
         Ok(created)
     }
 }

@@ -99,7 +99,7 @@ async fn a_new_organization_holds_each_seeded_default_once() {
 }
 
 #[tokio::test]
-async fn a_new_site_is_assigned_only_the_site_wide_defaults() {
+async fn a_new_site_without_named_credentials_gets_the_site_wide_defaults() {
     let (_storage, services, _container) = test_services().await;
     let organization_id = new_org(&services).await;
 
@@ -118,6 +118,21 @@ async fn a_new_site_is_assigned_only_the_site_wide_defaults() {
         assigned,
         vec![snmp_default(&services, organization_id).await.id]
     );
+
+    // A request that names its credentials, even none, is taken as it is.
+    let mut without = site(&organization_id);
+    without.base.credential_ids = Some(vec![]);
+    let created = services
+        .site_service
+        .create(without, AuthenticatedEntity::System)
+        .await
+        .unwrap();
+    let assigned = services
+        .credential_service
+        .get_credential_ids_for_site(&created.id)
+        .await
+        .unwrap();
+    assert!(assigned.is_empty());
 }
 
 #[tokio::test]

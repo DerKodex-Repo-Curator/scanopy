@@ -132,9 +132,17 @@ impl CollectionSource {
         }
     }
 
+    /// Whether this source runs only with a credential: every integration does, and the network
+    /// scan and the daemon host never need one.
+    pub fn requires_credential(&self) -> bool {
+        match self {
+            Self::NetworkScan | Self::DaemonHost => false,
+            Self::Integration(_) => true,
+        }
+    }
+
     /// Whether this source is an integration with a seeded default credential, so it runs on new
-    /// sites or daemons until the user unassigns it. The network scan and the daemon host need no
-    /// credential at all.
+    /// sites or daemons until the user unassigns it.
     pub fn seeded_by_default(&self) -> bool {
         match self {
             Self::NetworkScan | Self::DaemonHost => false,
@@ -464,6 +472,8 @@ pub struct CollectedDataEntry {
 pub struct CollectedDataSourceEntry {
     pub id: &'static str,
     pub name: &'static str,
+    /// [`CollectionSource::requires_credential`].
+    pub requires_credential: bool,
     /// [`CollectionSource::seeded_by_default`].
     pub seeded_by_default: bool,
 }
@@ -482,6 +492,7 @@ pub fn all_collected_data() -> Vec<CollectedDataEntry> {
                 .map(|source| CollectedDataSourceEntry {
                     id: source.id(),
                     name: source.name(),
+                    requires_credential: source.requires_credential(),
                     seeded_by_default: source.seeded_by_default(),
                 })
                 .collect(),

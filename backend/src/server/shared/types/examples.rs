@@ -105,7 +105,7 @@ pub fn site() -> Site {
             name: "Home Site".to_string(),
             organization_id: ids::ORGANIZATION,
             tags: vec![],
-            credential_ids: vec![],
+            credential_ids: Some(vec![]),
             stale_after_hours: None,
         },
         effective_stale_after_hours: DEFAULT_STALE_AFTER_HOURS,
