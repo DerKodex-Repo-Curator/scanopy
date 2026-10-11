@@ -69,6 +69,9 @@ pub enum LockKey {
     Organization(Uuid),
     /// Serialize creating an organization's tag groups and reordering any group's tags.
     TagGroups { organization_id: Uuid },
+    /// Serialize the once-per-version release announcement across containers
+    /// starting at the same time. One server-wide key.
+    ReleaseAnnouncement,
 }
 
 impl LockKey {
@@ -92,6 +95,7 @@ impl LockKey {
             LockKey::ApiKey(id) => format!("api-key:{id}"),
             LockKey::Organization(id) => format!("organization:{id}"),
             LockKey::TagGroups { organization_id } => format!("tag-groups:{organization_id}"),
+            LockKey::ReleaseAnnouncement => "release-announcement".to_string(),
         }
     }
 

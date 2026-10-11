@@ -133,6 +133,10 @@ export const queryKeys = {
 		all: ['organizations'] as const,
 		current: () => [...queryKeys.organizations.all, 'current'] as const
 	},
+	releaseNotes: {
+		all: ['releaseNotes'] as const,
+		unseen: () => [...queryKeys.releaseNotes.all, 'unseen'] as const
+	},
 	daemons: {
 		all: ['daemons'] as const,
 		detail: (id: string) => [...queryKeys.daemons.all, 'detail', id] as const

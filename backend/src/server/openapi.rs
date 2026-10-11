@@ -87,6 +87,8 @@ pub mod tags {
     pub const INTERNAL: &str = "internal";
     /// Entity metadata registry.
     pub const METADATA: &str = "metadata";
+    /// Release notes for the version this server runs.
+    pub const RELEASE_NOTES: &str = "release-notes";
     /// Search across every entity type.
     pub const SEARCH: &str = "search";
     /// Version and compatibility checking.
@@ -335,6 +337,7 @@ Resources are scoped to your **organization** and **site(s)**:
         (name = tags::GITHUB, description = "GitHub integration endpoints."),
         (name = tags::INTERNAL, description = "Internal endpoints for system operations. Not part of the public API."),
         (name = tags::METADATA, description = "Entity metadata registry. Schema information for all entity types in the system."),
+        (name = tags::RELEASE_NOTES, description = "Release notes for the version this server runs, and which of them the caller has seen."),
         (name = tags::SEARCH, description = "Search every entity type the caller can list, by text and tags."),
         (name = tags::SYSTEM, description = "System information endpoints. Version and compatibility checking."),
     )

@@ -22,6 +22,9 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+/// The version this binary was built as.
+const RUNNING_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate, PartialEq, Eq, Hash, ToSchema)]
 pub struct UserBase {
     /// The user's email address, also their login identifier.
@@ -89,6 +92,11 @@ pub struct UserBase {
     /// invalidates all other sessions ("log out everywhere"). Never client-facing.
     #[serde(skip)]
     pub session_epoch: i64,
+    /// The newest release whose notes the user has dismissed. Server-owned: a
+    /// new user starts at the running version, and only `POST /release-notes/seen`
+    /// moves it. `None` for a user created before release notes existed.
+    #[serde(skip)]
+    pub release_notes_seen_version: Option<String>,
 }
 
 impl Default for UserBase {
@@ -114,6 +122,7 @@ impl Default for UserBase {
             email_settings: EmailSettings::default(),
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
+            release_notes_seen_version: None,
         }
     }
 }
@@ -150,6 +159,7 @@ impl UserBase {
             email_settings: EmailSettings::default(),
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
+            release_notes_seen_version: Some(RUNNING_VERSION.to_string()),
         }
     }
 
@@ -183,6 +193,7 @@ impl UserBase {
             email_settings: EmailSettings::default(),
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
+            release_notes_seen_version: Some(RUNNING_VERSION.to_string()),
         }
     }
 }
@@ -288,6 +299,7 @@ impl Storable for User {
                     email_settings,
                     display_settings,
                     session_epoch,
+                    release_notes_seen_version,
                     ..
                 },
         } = self.clone();
@@ -316,6 +328,7 @@ impl Storable for User {
                 "email_settings",
                 "display_settings",
                 "session_epoch",
+                "release_notes_seen_version",
             ],
             vec![
                 SqlValue::Uuid(id),
@@ -339,6 +352,7 @@ impl Storable for User {
                 SqlValue::EmailSettings(email_settings),
                 SqlValue::DisplaySettings(display_settings),
                 SqlValue::I64(session_epoch),
+                SqlValue::OptionalString(release_notes_seen_version),
             ],
         ))
     }
@@ -393,6 +407,7 @@ impl Storable for User {
                     .and_then(|v| serde_json::from_value(v).ok())
                     .unwrap_or_default(),
                 session_epoch: row.try_get("session_epoch").unwrap_or(0),
+                release_notes_seen_version: row.get("release_notes_seen_version"),
             },
         })
     }
@@ -468,6 +483,7 @@ impl Entity for User {
         base.pending_email = stored.pending_email.clone();
         base.email_unsubscribe_token = stored.email_unsubscribe_token;
         base.session_epoch = stored.session_epoch;
+        base.release_notes_seen_version = stored.release_notes_seen_version.clone();
     }
 }
 
@@ -500,6 +516,7 @@ mod tests {
                 pending_email: Some(EmailAddress::new_unchecked("new@example.com")),
                 email_unsubscribe_token: Some(Uuid::new_v4()),
                 session_epoch: 2,
+                release_notes_seen_version: Some("0.18.0".to_string()),
                 ..UserBase::default()
             },
         }

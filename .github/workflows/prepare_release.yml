@@ -1,5 +1,15 @@
 name: Prepare Release
 
+# Run it twice per release, with the same version:
+#
+# 1. While `dev` has no backend/release-notes/vX.Y.Z.md, it bumps the version on
+#    release/vX.Y.Z, generates the release notes, and opens a PR into dev. Edit
+#    the notes (and their `email` flag) in that PR and merge it. Running again
+#    before the merge regenerates the notes onto the same PR.
+# 2. Once the notes are on dev, it creates the release, which fires release.yml
+#    and builds the images with those notes embedded. Re-running after a failed
+#    build does the same again, as before.
+
 on:
   workflow_dispatch:
     inputs:
@@ -15,72 +25,254 @@ on:
         options:
           - backward-compatible
           - downtime
+      announce_by_email:
+        description: 'Email the release notes to users when servers upgrade (auto: minor and major releases only). Used when the notes are generated.'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - 'yes'
+          - 'no'
 
 permissions: {}
 
 jobs:
   prepare-release:
-    name: Bump Version and Create Release
+    name: Prepare Notes or Create Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+      pull-requests: write
+
     steps:
     - uses: actions/checkout@v7
       with:
         ref: dev
         fetch-depth: 0
-    
+        fetch-tags: true
+        token: ${{ secrets.RELEASE_TOKEN }}
+
     - name: Validate version format
       run: |
         if [[ ! "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
           echo "❌ Invalid version format. Use semver (e.g., 0.11.3)"
           exit 1
         fi
-    
+
+    - name: Choose phase
+      id: phase
+      run: |
+        NOTES_FILE="backend/release-notes/v${{ inputs.version }}.md"
+        echo "notes_file=$NOTES_FILE" >> $GITHUB_OUTPUT
+        if [ -f "$NOTES_FILE" ]; then
+          echo "Release notes are on dev: creating the release"
+          echo "phase=release" >> $GITHUB_OUTPUT
+        else
+          echo "No release notes on dev yet: generating them for review"
+          echo "phase=notes" >> $GITHUB_OUTPUT
+        fi
+
+    # ── Phase 1: notes for review ────────────────────────────────────────────
+
+    - name: Switch to the release branch
+      if: steps.phase.outputs.phase == 'notes'
+      run: git checkout -B "release/v${{ inputs.version }}"
+
+    - name: Get previous release tag
+      id: prev_tag
+      if: steps.phase.outputs.phase == 'notes'
+      env:
+        TAG: v${{ inputs.version }}
+      run: |
+        # The newest tag that sorts before this version. The tag itself doesn't exist yet.
+        PREV_TAG=$( { git tag -l 'v*'; echo "$TAG"; } | sort -uV | grep -B1 -x "$TAG" | head -1)
+        if [ "$PREV_TAG" = "$TAG" ]; then
+          PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+        fi
+        echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+        echo "Previous tag: $PREV_TAG"
+
+    - name: Collect commits since the previous release
+      id: diff
+      if: steps.phase.outputs.phase == 'notes'
+      run: |
+        PREV_TAG="${{ steps.prev_tag.outputs.prev_tag }}"
+        COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges "$PREV_TAG"..HEAD | head -100)
+        MERGES=$(git log --pretty=format:"%s" --merges "$PREV_TAG"..HEAD \
+          | grep -oE '#[0-9]+' | sort -u | tr '\n' ' ' || true)
+
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "commits<<$EOF" >> $GITHUB_OUTPUT
+        echo "$COMMITS" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "Related PRs: $MERGES" >> $GITHUB_OUTPUT
+        echo "$EOF" >> $GITHUB_OUTPUT
+
+    - name: Generate release notes with AI
+      id: ai_notes
+      if: steps.phase.outputs.phase == 'notes'
+      run: .github/scripts/claude-generate.sh
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        JSON_SCHEMA: '{"type":"object","properties":{"title":{"type":"string","description":"A short title for the release"},"notes":{"type":"string","description":"The release notes in markdown"}},"required":["title","notes"],"additionalProperties":false}'
+        PROMPT: |
+          Write the release notes described below and return them in the `notes` field, with a title in the `title` field.
+
+          You are a technical writer creating release notes for Scanopy, a network discovery and topology visualization tool. Write concise, user-focused release notes. Aim for quality over coverage — a shorter changelog that users actually read is better than an exhaustive one they skip. The notes appear in the app, in an email to users, and on the website changelog.
+
+          Title requirements:
+          - 3-6 words summarizing the key changes. NOT promotional. No version number. Examples: "Topology Sharing & Demo Mode", "Performance Improvements & Bug Fixes", "Enhanced Network Discovery"
+
+          Format requirements:
+          - Do NOT include a top-level title heading (e.g., "# Scanopy vX.Y.Z Release Notes"). The title is returned separately.
+          - Do NOT include images or image references. The notes are text and links only.
+          - If the changes have a clear theme or focus (e.g., "This release is all about topology navigation"), start with 1-2 sentences summarizing it before the first ## section. Keep it conversational and brief. If there's no cohesive theme, skip this and go straight to the sections.
+          - Use markdown with ## headers for sections: New Features, Improvements, Bug Fixes (only include sections with content)
+          - Each item should be a bullet point starting with an action verb (Add, Introduce, Improve, Fix, etc.)
+          - Each item should be 1 sentence explaining the user-facing benefit. Write for an end-user, not a developer — describe what they can now do or what got better, not how it was implemented internally.
+          - Format PR/issue references as markdown links: ([#123](https://github.com/scanopy/scanopy/pull/123))
+          - Combine related commits into single items
+
+          CRITICAL — Deduplication rules:
+          - If a feature is NEW in this release, do NOT list its related improvements, polish, or bug fixes as separate items. Those are part of shipping the feature — fold them into the New Features entry or omit them entirely. Only list improvements/fixes for EXISTING features that users already had before this release.
+          - Multiple commits touching the same feature should be ONE bullet point, not several.
+
+          Brevity rules:
+          - Aim for 3-6 New Features, 3-6 Improvements, and 3-6 Bug Fixes maximum. Fewer is fine. Not every commit needs representation.
+          - Skip trivial fixes, minor UI polish, and internal changes that users won't notice.
+          - Avoid implementation details. Bad: "Gate controls based on FirstDiscoveryCompleted milestone instead of rebuild". Good: "Hide advanced controls until your first scan completes, so the UI is less overwhelming for new users".
+
+          Example of good release note items:
+          - Add topology sharing, allowing you to share network maps via direct link or embed code ([#95](https://github.com/scanopy/scanopy/pull/95)).
+          - Improve subnet layout so large networks render without overlapping nodes ([#107](https://github.com/scanopy/scanopy/pull/107)).
+          - Fix duplicate host entries that could appear after re-running network discovery ([#108](https://github.com/scanopy/scanopy/pull/108)).
+
+          Do NOT include:
+          - Version bump commits (chore: bump version)
+          - Merge commits
+          - CI/CD or workflow changes
+          - Test-only changes
+          - Internal refactoring unless user-visible
+          - Improvements or fixes to features that are brand new in this same release
+
+          ---
+
+          Generate release notes for Scanopy v${{ inputs.version }}.
+          Previous version: ${{ steps.prev_tag.outputs.prev_tag }}
+          Repository: https://github.com/scanopy/scanopy
+
+          Commits since last release:
+          ${{ steps.diff.outputs.commits }}
+
+    - name: Decide whether the release emails users
+      id: email
+      if: steps.phase.outputs.phase == 'notes'
+      env:
+        CHOICE: ${{ inputs.announce_by_email }}
+        VERSION: ${{ inputs.version }}
+        PREV_TAG: ${{ steps.prev_tag.outputs.prev_tag }}
+      run: |
+        case "$CHOICE" in
+          yes) EMAIL=true ;;
+          no) EMAIL=false ;;
+          *)
+            # A minor or major bump emails; a patch shows in the app only.
+            PREV="${PREV_TAG#v}"
+            if [ "${VERSION%.*}" != "${PREV%.*}" ]; then EMAIL=true; else EMAIL=false; fi
+            ;;
+        esac
+        echo "email=$EMAIL" >> $GITHUB_OUTPUT
+        echo "email: $EMAIL"
+
     - name: Install Rust
+      if: steps.phase.outputs.phase == 'notes'
       uses: dtolnay/rust-toolchain@1.90.0
-    
-    - name: Update version in Cargo.toml and package.json
+
+    - name: Bump version and write the notes file
+      if: steps.phase.outputs.phase == 'notes'
+      env:
+        VERSION: ${{ inputs.version }}
+        NOTES_FILE: ${{ steps.phase.outputs.notes_file }}
+        TITLE: ${{ fromJSON(steps.ai_notes.outputs.structured_output || '{}').title }}
+        RAW_NOTES: ${{ fromJSON(steps.ai_notes.outputs.structured_output || '{}').notes }}
+        EMAIL: ${{ steps.email.outputs.email }}
       run: |
-        VERSION="${{ inputs.version }}"
-        
-        echo "Current Cargo.toml version:"
-        grep "^version" backend/Cargo.toml | head -1
-        
-        # Update backend/Cargo.toml
         sed -i "s/^version = .*/version = \"$VERSION\"/" backend/Cargo.toml
-        
-        echo "Updated Cargo.toml version:"
-        grep "^version" backend/Cargo.toml | head -1
-        
-        # Update Cargo.lock
-        cd backend && cargo check --quiet && cd ..
-        
-        # Update ui/package.json
-        cd ui
-        npm version $VERSION --no-git-tag-version --allow-same-version
-        cd ..
-    
-    - name: Commit version bump
+        (cd backend && cargo check --quiet)
+        (cd ui && npm version "$VERSION" --no-git-tag-version --allow-same-version)
+
+        # Strip any h1 headings the AI might have added (the title is in frontmatter).
+        NOTES=$(printf '%s\n' "$RAW_NOTES" | sed '/^# /d')
+        # Single-quoted YAML scalar: a literal apostrophe is doubled.
+        TITLE=$(printf '%s' "$TITLE" | tr '\n' ' ' | sed "s/'/''/g")
+        mkdir -p backend/release-notes
+        {
+          echo "---"
+          echo "version: ${VERSION}"
+          echo "date: $(date -u +%Y-%m-%d)"
+          echo "title: '${TITLE}'"
+          echo "email: ${EMAIL}"
+          echo "---"
+          echo ""
+          printf '%s\n' "$NOTES"
+        } > "$NOTES_FILE"
+        cat "$NOTES_FILE"
+
+    - name: Open the release notes PR
+      if: steps.phase.outputs.phase == 'notes'
+      env:
+        GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        VERSION: ${{ inputs.version }}
+        NOTES_FILE: ${{ steps.phase.outputs.notes_file }}
+        EMAIL: ${{ steps.email.outputs.email }}
       run: |
+        BRANCH="release/v${VERSION}"
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        
-        git add backend/Cargo.toml backend/Cargo.lock ui/package.json ui/package-lock.json
-        
-        if git diff --staged --quiet; then
-          echo "Version already at ${{ inputs.version }}, skipping commit"
-        else
-          git commit -m "chore: bump version to ${{ inputs.version }}"
-          git push origin dev
+        git add backend/Cargo.toml backend/Cargo.lock ui/package.json ui/package-lock.json "$NOTES_FILE"
+        git commit -m "chore: release notes and version bump for v${VERSION}"
+        git push --force origin "$BRANCH"
+
+        if [ -n "$(gh pr list --head "$BRANCH" --base dev --state open --json number -q '.[].number')" ]; then
+          echo "Updated the open PR for $BRANCH"
+          exit 0
         fi
+
+        if [ "$EMAIL" = "true" ]; then
+          EMAIL_LINE="\`email: true\`: servers that upgrade to v${VERSION} email these notes to every user, together with the notes of each release since the last emailed one."
+        else
+          EMAIL_LINE="\`email: false\`: the notes show in the app only. Set it to \`true\` to email them."
+        fi
+        {
+          echo "Release notes for v${VERSION}. Servers embed this file at build time: it fills the in-app release notes modal and the release email."
+          echo ""
+          echo "- [ ] Edit \`${NOTES_FILE}\` until it reads right"
+          echo "- [ ] Check the \`email\` flag. ${EMAIL_LINE}"
+          echo ""
+          echo "After merging, run **Prepare Release** again with version \`${VERSION}\` to create the release and build it."
+        } > pr_body.md
+        gh pr create --base dev --head "$BRANCH" \
+          --title "Release notes for v${VERSION}" \
+          --body-file pr_body.md
+
+    # ── Phase 2: create the release ──────────────────────────────────────────
+
     - name: Create release
+      if: steps.phase.outputs.phase == 'release'
       env:
         GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         DEPLOY_MODE: ${{ inputs.deploy_mode }}
       run: |
         TAG="v${{ inputs.version }}"
+
+        # The version bump arrives with the notes PR.
+        CARGO_VERSION=$(grep -m1 '^version = ' backend/Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+        if [ "$CARGO_VERSION" != "${{ inputs.version }}" ]; then
+          echo "❌ backend/Cargo.toml on dev is $CARGO_VERSION, not ${{ inputs.version }}. Merge the release notes PR first."
+          exit 1
+        fi
+
         # Create as a draft first so the release.published event doesn't fire
         # until after the Deploy-Mode marker is in the body. Otherwise
         # release.yml reads a stale event payload and the marker is missed.

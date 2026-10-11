@@ -20,6 +20,11 @@
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import BillingPlanModal from '$lib/features/billing/BillingPlanModal.svelte';
 	import DaemonPromptModal from '$lib/features/daemons/components/DaemonPromptModal.svelte';
+	import ReleaseNotesModal from '$lib/features/release-notes/ReleaseNotesModal.svelte';
+	import {
+		useUnseenReleaseNotesQuery,
+		useMarkReleaseNotesSeenMutation
+	} from '$lib/features/release-notes/queries';
 	import { useConfigQuery, isLicenseSigningAvailable } from '$lib/shared/stores/config-query';
 	import {
 		useOrganizationQuery,
@@ -242,6 +247,32 @@
 		}
 	});
 
+	// App-load modals show at most one per page load, in this order: the billing
+	// gate (forced Settings), plan selection, trial expiry, the daemon prompt,
+	// release notes. A lower one waits until everything above it has had its say.
+	let trialModalOpen = $state(false);
+	let higherModalShownThisLoad = $state(false);
+	$effect(() => {
+		if (isBillingBlocking || showBillingModal || trialModalOpen) {
+			higherModalShownThisLoad = true;
+		}
+	});
+	// Set when the URL named a modal at load; the user came for that one.
+	let deepLinkOpened = $state(false);
+
+	// Whether this org should see the daemon prompt: a new org with a site and
+	// no daemon that hasn't answered the prompt.
+	let daemonPromptWanted = $derived(
+		!isSelfHostedPlanLocked &&
+			!isViewer &&
+			(organization?.onboarding?.includes('OrgCreated') ?? false) &&
+			!organization?.onboarding?.includes('FirstDaemonRegistered') &&
+			!daemonPromptResponded &&
+			hasSite &&
+			daemonsQuery.isSuccess &&
+			daemonsQuery.data?.length === 0
+	);
+
 	// Auto-show daemon prompt for new orgs that haven't installed a daemon yet.
 	// Centralizes logic that previously lived in each registration path.
 	let daemonPromptShown = $state(false);
@@ -250,18 +281,50 @@
 			appInitialized &&
 			!daemonPromptShown &&
 			!showBillingModal &&
-			!isSelfHostedPlanLocked &&
+			!trialModalOpen &&
 			$modalState.name === null &&
-			!isViewer &&
-			organization?.onboarding?.includes('OrgCreated') &&
-			!organization?.onboarding?.includes('FirstDaemonRegistered') &&
-			!daemonPromptResponded &&
-			hasSite &&
-			daemonsQuery.isSuccess &&
-			daemonsQuery.data?.length === 0
+			daemonPromptWanted
 		) {
 			daemonPromptShown = true;
 			openModal('daemon-prompt');
+		}
+	});
+
+	// Release notes: the releases since the user last dismissed them. Last in
+	// the order, so it waits until the daemon prompt's inputs have loaded.
+	const unseenReleaseNotesQuery = useUnseenReleaseNotesQuery({
+		enabled: () => isAuthenticated && mainAppAvailable
+	});
+	const markReleaseNotesSeenMutation = useMarkReleaseNotesSeenMutation();
+	let hasUnseenReleaseNotes = $derived((unseenReleaseNotesQuery.data?.releases.length ?? 0) > 0);
+	let showReleaseNotes = $derived($modalState.name === 'release-notes' && hasUnseenReleaseNotes);
+	let releaseNotesShown = $state(false);
+	$effect(() => {
+		if (
+			appInitialized &&
+			!releaseNotesShown &&
+			!deepLinkOpened &&
+			!higherModalShownThisLoad &&
+			!daemonPromptShown &&
+			!isSelfHostedPlanLocked &&
+			$modalState.name === null &&
+			sitesQuery.isSuccess &&
+			daemonsQuery.isSuccess &&
+			!daemonPromptWanted &&
+			hasUnseenReleaseNotes
+		) {
+			releaseNotesShown = true;
+			openModal('release-notes');
+		}
+	});
+	// A `?modal=release-notes` link with nothing unseen has nothing to show.
+	$effect(() => {
+		if (
+			$modalState.name === 'release-notes' &&
+			unseenReleaseNotesQuery.isSuccess &&
+			!hasUnseenReleaseNotes
+		) {
+			closeModal();
 		}
 	});
 
@@ -284,6 +347,7 @@
 		// SSE managers connect from the mainAppAvailable effect once the org loads.
 		appInitialized = true;
 		initModalFromUrl();
+		deepLinkOpened = $modalState.name !== null;
 
 		// Block billing modal deep-link in non-cloud environments
 		if (!billingEnabled && $modalState.name === 'billing-plan') {
@@ -401,7 +465,10 @@
 		</main>
 	</div>
 
-	<TrialExpiryModal />
+	<TrialExpiryModal
+		blocked={isBillingBlocking || showBillingModal || $modalState.name !== null}
+		bind:open={trialModalOpen}
+	/>
 
 	<!-- Searches routes a locked org is rejected from, so only with the main app. -->
 	{#if mainAppAvailable}
@@ -454,6 +521,15 @@
 		}}
 		onSkip={() => {
 			daemonPromptResponseMutation.mutate('dismissed');
+			closeModal();
+		}}
+	/>
+
+	<ReleaseNotesModal
+		isOpen={showReleaseNotes}
+		notes={unseenReleaseNotesQuery.data}
+		onClose={() => {
+			markReleaseNotesSeenMutation.mutate();
 			closeModal();
 		}}
 	/>

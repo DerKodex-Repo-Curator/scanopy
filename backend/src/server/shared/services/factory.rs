@@ -1,5 +1,6 @@
 use crate::server::auth::email_validation::SesEmailValidator;
 use crate::server::license::service::LicenseService;
+use crate::server::release_notes::service::ReleaseNotesService;
 use crate::server::{
     auth::{oidc::OidcService, service::AuthService},
     billing::service::{BillingService, BillingServiceParams},
@@ -12,7 +13,10 @@ use crate::server::{
     digest::service::DiscoveryDigestService,
     discovery::service::DiscoveryService,
     email::{
-        feedback::EmailFeedbackService, logging::LoggingEmailProvider, service::EmailService,
+        feedback::EmailFeedbackService,
+        logging::LoggingEmailProvider,
+        rate_limit::{self, RateLimitedTransport},
+        service::EmailService,
         smtp::SmtpEmailProvider,
     },
     hosts::service::HostService,
@@ -90,6 +94,7 @@ pub struct ServiceFactory {
     pub interface_neighbor_service: Arc<InterfaceNeighborService>,
     pub vlan_service: Arc<VlanService>,
     pub discovery_digest_service: Arc<DiscoveryDigestService>,
+    pub release_notes_service: Arc<ReleaseNotesService>,
     /// Present only when a license key applies (self-hosted commercial). A
     /// keyless deployment (community or cloud) has no license service —
     /// licensing is "not required".
@@ -379,6 +384,9 @@ impl ServiceFactory {
         let email_validator = SesEmailValidator::from_config(&config)?.map(Arc::new);
         let public_url = config.public_url.clone();
         let deployment_type = crate::server::config::get_deployment_type(&config);
+        let email_quota = rate_limit::per_second(config.smtp_max_per_second);
+        // The release email takes half, so other email keeps the rest while it goes out.
+        let bulk_email_quota = rate_limit::per_second(config.smtp_max_per_second / 2);
 
         // A configured email log directory wins over SMTP: it is a
         // testing transport you explicitly turn on, so it has to work with no
@@ -389,7 +397,10 @@ impl ServiceFactory {
                 "SCANOPY_EMAIL_LOG_DIR is set: emails will be logged and written to disk, not delivered"
             );
             Some(Arc::new(EmailService::new(
-                Box::new(LoggingEmailProvider::new(Some(email_log_dir.clone()))),
+                Box::new(RateLimitedTransport::new(
+                    Box::new(LoggingEmailProvider::new(Some(email_log_dir.clone()))),
+                    email_quota,
+                )),
                 user_service.clone(),
                 organization_service.clone(),
                 host_service.clone(),
@@ -420,7 +431,10 @@ impl ServiceFactory {
                         trusted_ca.as_deref(),
                     ) {
                         Ok(smtp_provider) => Some(Arc::new(EmailService::new(
-                            Box::new(smtp_provider),
+                            Box::new(RateLimitedTransport::new(
+                                Box::new(smtp_provider),
+                                email_quota,
+                            )),
                             user_service.clone(),
                             organization_service.clone(),
                             host_service.clone(),
@@ -464,6 +478,13 @@ impl ServiceFactory {
                 }
             }
         };
+
+        let release_notes_service = Arc::new(ReleaseNotesService::new(
+            storage.release_announcements.clone(),
+            user_service.clone(),
+            email_service.clone(),
+            bulk_email_quota,
+        ));
 
         let email_feedback_service = config
             .email_feedback_sns_topic_arn
@@ -562,6 +583,7 @@ impl ServiceFactory {
             interface_neighbor_service,
             vlan_service,
             discovery_digest_service,
+            release_notes_service,
             license_service,
             trusted_ca,
         };
@@ -621,8 +643,9 @@ impl ServiceFactory {
             interface_neighbor_service: _, // not a Subscriber: bespoke service, no EventBusService impl
             vlan_service,
             discovery_digest_service,
-            license_service: _, // not a Subscriber: bespoke service, no EventBusService impl
-            trusted_ca: _,      // not a service; shared TLS roots
+            release_notes_service: _, // not a Subscriber: run at boot and by its handlers
+            license_service: _,       // not a Subscriber: bespoke service, no EventBusService impl
+            trusted_ca: _,            // not a service; shared TLS roots
         } = self;
 
         ServiceCollector::new()

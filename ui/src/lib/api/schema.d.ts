@@ -2569,6 +2569,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/release-notes/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss release notes
+         * @description Marks every release up to the version this server runs as seen by the
+         *     caller, on every device.
+         */
+        post: operations["mark_release_notes_seen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/release-notes/unseen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List unseen release notes
+         * @description The releases newer than the last one the caller dismissed, up to the
+         *     version this server runs.
+         */
+        get: operations["get_unseen_release_notes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/search": {
         parameters: {
             query?: never;
@@ -6261,6 +6303,28 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_UnseenReleaseNotes: {
+            /** @description The releases the caller hasn't dismissed. */
+            data?: {
+                /** @description The full changelog, present when older unseen releases were left out. */
+                changelog_url?: string | null;
+                /** @description Newest first. Empty when there is nothing new. */
+                releases: components["schemas"]["ReleaseNoteResponse"][];
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_UpgradeArtifacts: {
             /** @description Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method. */
             data?: {
@@ -9272,6 +9336,8 @@ export interface components {
             discovery_digest: boolean;
             /** @description Send getting-started guidance. */
             product_onboarding?: boolean;
+            /** @description Send the release notes when this server upgrades. */
+            product_updates?: boolean;
             /** @description Send trial reminders and plan-usage warnings. */
             trial_and_usage?: boolean;
         };
@@ -12757,6 +12823,21 @@ export interface components {
             /** @description Must be `true` — records that the user accepted the terms of service. */
             terms_accepted: boolean;
         };
+        /** @description One release's notes. */
+        ReleaseNoteResponse: {
+            /**
+             * Format: date
+             * @description The day the release was prepared.
+             */
+            date: string;
+            /** @description The notes, as HTML rendered from the reviewed markdown, without raw HTML. */
+            html: string;
+            title: string;
+            /** @description This release on the public changelog. */
+            url: string;
+            /** @description The release, as semver (e.g. `0.18.0`). */
+            version: string;
+        };
         RequestEmailChangeRequest: {
             /**
              * Format: password
@@ -14382,6 +14463,13 @@ export interface components {
              *     [`UnmatchedNeighbour`].
              */
             remote_host_id: string;
+        };
+        /** @description The releases the caller hasn't dismissed. */
+        UnseenReleaseNotes: {
+            /** @description The full changelog, present when older unseen releases were left out. */
+            changelog_url?: string | null;
+            /** @description Newest first. Empty when there is nothing new. */
+            releases: components["schemas"]["ReleaseNoteResponse"][];
         };
         /**
          * @description Request type for updating a host with its children.
@@ -20971,6 +21059,64 @@ export interface operations {
             };
             /** @description Port not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    mark_release_notes_seen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dismissed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_unseen_release_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unseen releases */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_UnseenReleaseNotes"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

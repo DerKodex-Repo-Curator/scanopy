@@ -42,6 +42,13 @@ impl<T: Storable> StorableFilter<T> {
         Self::new()
     }
 
+    /// Every row of `T`, unscoped, for a job that runs once for the whole
+    /// server: the release announcement reads every recorded version and
+    /// emails every user.
+    pub fn new_for_server_wide_job() -> Self {
+        Self::new()
+    }
+
     pub fn new_from_site_ids(site_ids: &[Uuid]) -> Self {
         Self::new().site_ids(site_ids)
     }

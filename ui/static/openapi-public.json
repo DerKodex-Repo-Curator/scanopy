@@ -8919,6 +8919,80 @@
         ]
       }
     },
+    "/api/v1/release-notes/seen": {
+      "post": {
+        "tags": [
+          "release-notes"
+        ],
+        "summary": "Dismiss release notes",
+        "description": "Marks every release up to the version this server runs as seen by the\ncaller, on every device.",
+        "operationId": "mark_release_notes_seen",
+        "responses": {
+          "200": {
+            "description": "Dismissed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/release-notes/unseen": {
+      "get": {
+        "tags": [
+          "release-notes"
+        ],
+        "summary": "List unseen release notes",
+        "description": "The releases newer than the last one the caller dismissed, up to the\nversion this server runs.",
+        "operationId": "get_unseen_release_notes",
+        "responses": {
+          "200": {
+            "description": "Unseen releases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UnseenReleaseNotes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v1/services": {
       "get": {
         "tags": [
@@ -19221,6 +19295,54 @@
           }
         }
       },
+      "ApiResponse_UnseenReleaseNotes": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "The releases the caller hasn't dismissed.",
+            "required": [
+              "releases"
+            ],
+            "properties": {
+              "changelog_url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The full changelog, present when older unseen releases were left out."
+              },
+              "releases": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReleaseNoteResponse"
+                },
+                "description": "Newest first. Empty when there is nothing new."
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
       "ApiResponse_UpgradeArtifacts": {
         "type": "object",
         "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
@@ -26655,6 +26777,10 @@
           "product_onboarding": {
             "type": "boolean",
             "description": "Send getting-started guidance."
+          },
+          "product_updates": {
+            "type": "boolean",
+            "description": "Send the release notes when this server upgrades."
           },
           "trial_and_usage": {
             "type": "boolean",
@@ -34167,6 +34293,39 @@
           }
         }
       },
+      "ReleaseNoteResponse": {
+        "type": "object",
+        "description": "One release's notes.",
+        "required": [
+          "version",
+          "date",
+          "title",
+          "html",
+          "url"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "The day the release was prepared."
+          },
+          "html": {
+            "type": "string",
+            "description": "The notes, as HTML rendered from the reviewed markdown, without raw HTML."
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "This release on the public changelog."
+          },
+          "version": {
+            "type": "string",
+            "description": "The release, as semver (e.g. `0.18.0`)."
+          }
+        }
+      },
       "RequestEmailChangeRequest": {
         "type": "object",
         "required": [
@@ -37380,6 +37539,29 @@
           }
         }
       },
+      "UnseenReleaseNotes": {
+        "type": "object",
+        "description": "The releases the caller hasn't dismissed.",
+        "required": [
+          "releases"
+        ],
+        "properties": {
+          "changelog_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The full changelog, present when older unseen releases were left out."
+          },
+          "releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseNoteResponse"
+            },
+            "description": "Newest first. Empty when there is nothing new."
+          }
+        }
+      },
       "UpdateHostRequest": {
         "type": "object",
         "description": "Request type for updating a host with its children.\nUses the same input types as CreateHostRequest.\nServer will sync children (create new, update existing, delete removed) only if provided.",
@@ -38622,6 +38804,10 @@
     {
       "name": "metadata",
       "description": "Entity metadata registry. Schema information for all entity types in the system."
+    },
+    {
+      "name": "release-notes",
+      "description": "Release notes for the version this server runs, and which of them the caller has seen."
     },
     {
       "name": "search",
