@@ -171,7 +171,7 @@ impl ReleaseNotesService {
     /// Record the running version and send its release email, once per
     /// version across every container. Never fails startup: errors are logged.
     pub async fn announce_running_version(&self) {
-        let claimed = match self.claim().await {
+        let claimed = match self.claim(self.email_service.is_some()).await {
             Ok(claimed) => claimed,
             Err(e) => {
                 tracing::error!(error = %e, version = %self.running, "Could not record the server version");
@@ -189,17 +189,26 @@ impl ReleaseNotesService {
     /// and the notes to email when this call recorded it and the release asks
     /// for an email. Serialized by an advisory lock, so of several containers
     /// starting together exactly one records the version.
-    async fn claim(&self) -> Result<Option<(ReleaseAnnouncement, Shown<'static>)>> {
+    ///
+    /// A release that asks for an email is left unrecorded while `email_ready`
+    /// is false, so the first boot with email configured still sends it.
+    async fn claim(
+        &self,
+        email_ready: bool,
+    ) -> Result<Option<(ReleaseAnnouncement, Shown<'static>)>> {
         let guard = self
             .storage
             .session_lock(LockKey::ReleaseAnnouncement, DEFAULT_LOCK_TIMEOUT)
             .await?;
-        let result = self.claim_locked().await;
+        let result = self.claim_locked(email_ready).await;
         guard.release().await?;
         result
     }
 
-    async fn claim_locked(&self) -> Result<Option<(ReleaseAnnouncement, Shown<'static>)>> {
+    async fn claim_locked(
+        &self,
+        email_ready: bool,
+    ) -> Result<Option<(ReleaseAnnouncement, Shown<'static>)>> {
         let recorded = self
             .storage
             .get_all(StorableFilter::new_for_server_wide_job())
@@ -209,6 +218,13 @@ impl ReleaseNotesService {
             Plan::Nothing => return Ok(None),
             Plan::Record(email) => email,
         };
+        if email.is_some() && !email_ready {
+            tracing::warn!(
+                version = %self.running,
+                "Email is not configured; the release email waits for a start with email configured"
+            );
+            return Ok(None);
+        }
         let row = self
             .storage
             .create(&ReleaseAnnouncement::new(ReleaseAnnouncementBase {
@@ -396,7 +412,7 @@ mod tests {
             .unwrap();
 
         let services: Vec<_> = (0..8).map(|_| service(&storage, "0.19.0")).collect();
-        let claims = futures::future::join_all(services.iter().map(|s| s.claim())).await;
+        let claims = futures::future::join_all(services.iter().map(|s| s.claim(true))).await;
         let claimed = claims
             .into_iter()
             .map(|claim| claim.unwrap())
@@ -411,7 +427,36 @@ mod tests {
             .unwrap();
         assert_eq!(recorded.len(), 2);
 
-        assert!(service(&storage, "0.19.0").claim().await.unwrap().is_none());
+        assert!(
+            service(&storage, "0.19.0")
+                .claim(true)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    /// A start without email configured leaves an emailed release pending, so
+    /// the next start with email sends it instead of finding it recorded.
+    #[tokio::test]
+    async fn an_emailed_release_waits_for_email_to_be_configured() {
+        let (storage, _container) = test_storage().await;
+        storage
+            .release_announcements
+            .create(&row("0.18.0", true))
+            .await
+            .unwrap();
+        let service = service(&storage, "0.19.0");
+
+        assert!(service.claim(false).await.unwrap().is_none());
+        let recorded = storage
+            .release_announcements
+            .get_all(StorableFilter::new_for_server_wide_job())
+            .await
+            .unwrap();
+        assert_eq!(recorded.len(), 1, "0.19.0 stays unrecorded");
+
+        assert!(service.claim(true).await.unwrap().is_some());
     }
 
     /// Dismissing advances the user to the running version, and the stored
