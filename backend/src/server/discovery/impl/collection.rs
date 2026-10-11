@@ -214,7 +214,6 @@ impl CollectedData {
             source: _,
             virtualization_service_id: _,
             virtualization_interface_id: _,
-            hidden: _,
             tags: _,
             management_url: _,
             chassis_id: _,
