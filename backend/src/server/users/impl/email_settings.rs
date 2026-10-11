@@ -25,6 +25,9 @@ pub struct EmailSettings {
     /// Send trial reminders and plan-usage warnings.
     #[serde(default = "default_true")]
     pub trial_and_usage: bool,
+    /// Send the release notes when this server upgrades.
+    #[serde(default = "default_true")]
+    pub product_updates: bool,
 }
 
 fn default_true() -> bool {
@@ -38,6 +41,7 @@ impl Default for EmailSettings {
             product_onboarding: true,
             daemon_alerts: true,
             trial_and_usage: true,
+            product_updates: true,
         }
     }
 }
@@ -58,6 +62,7 @@ impl EmailSettings {
             EmailCategory::ProductOnboarding => self.product_onboarding,
             EmailCategory::DaemonAlerts => self.daemon_alerts,
             EmailCategory::TrialAndUsage => self.trial_and_usage,
+            EmailCategory::ProductUpdates => self.product_updates,
         }
     }
 
@@ -92,6 +97,7 @@ impl EmailSettings {
             EmailCategory::ProductOnboarding => Some(&mut self.product_onboarding),
             EmailCategory::DaemonAlerts => Some(&mut self.daemon_alerts),
             EmailCategory::TrialAndUsage => Some(&mut self.trial_and_usage),
+            EmailCategory::ProductUpdates => Some(&mut self.product_updates),
         }
     }
 }

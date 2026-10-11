@@ -117,6 +117,11 @@ pub struct ServerCli {
     #[arg(long)]
     smtp_port: Option<u16>,
 
+    /// Most emails this server sends per second. Set it below your relay's sending limit; Amazon
+    /// SES production accounts start at 14 per second. Release announcements use half of it.
+    #[arg(long)]
+    smtp_max_per_second: Option<u32>,
+
     /// ARN of the SNS topic that delivers SES bounce and complaint notifications.
     #[arg(long)]
     email_feedback_sns_topic_arn: Option<String>,
@@ -201,6 +206,9 @@ pub struct ServerConfig {
     /// SMTP port, 465 (implicit TLS) by default. Ports other than 465 use
     /// STARTTLS (e.g. 587, 25).
     pub smtp_port: Option<u16>,
+    /// Emails sent per second by this process, across every email. Bulk sends
+    /// take half (`EmailService::bulk_limiter`), so other emails keep the rest.
+    pub smtp_max_per_second: u32,
     /// Directory the logging email transport writes rendered emails to
     /// (`SCANOPY_EMAIL_LOG_DIR`). Setting it selects that transport ahead of
     /// SMTP, so nothing is actually delivered — it exists to
@@ -408,6 +416,7 @@ impl Default for ServerConfig {
             smtp_email: None,
             smtp_relay: None,
             smtp_port: Some(465),
+            smtp_max_per_second: 10,
             email_log_dir: None,
             email_feedback_sns_topic_arn: None,
             aws_region: None,
@@ -480,6 +489,9 @@ impl ServerConfig {
         }
         if let Some(smtp_port) = cli_args.smtp_port {
             figment = figment.merge(("smtp_port", smtp_port));
+        }
+        if let Some(smtp_max_per_second) = cli_args.smtp_max_per_second {
+            figment = figment.merge(("smtp_max_per_second", smtp_max_per_second));
         }
         if let Some(topic_arn) = cli_args.email_feedback_sns_topic_arn {
             figment = figment.merge(("email_feedback_sns_topic_arn", topic_arn));

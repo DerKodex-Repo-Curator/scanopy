@@ -27,6 +27,15 @@
 /// each one ends with this single consistent pointer to the Billing page.
 pub const BILLING_DETAILS_TAGLINE: &str = "Visit your Billing page for full details.";
 
+/// Escape text for an HTML element body or a quoted attribute.
+pub(super) fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
 /// 20-space indent for section-level tags (`<tr>`, `<!-- … -->`).
 const SECTION: &str = "                    ";
 /// 28-space indent for inline children inside a content `<td>`.

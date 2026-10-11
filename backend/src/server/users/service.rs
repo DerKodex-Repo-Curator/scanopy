@@ -174,6 +174,24 @@ impl UserService {
         Ok(true)
     }
 
+    /// Whether this server has any user at all. A server without one is a
+    /// fresh install.
+    pub async fn any_exist(&self) -> Result<bool> {
+        self.user_storage
+            .exists(StorableFilter::<User>::new_for_server_wide_job())
+            .await
+    }
+
+    /// Record that `user` has seen the release notes up to `version`.
+    pub async fn mark_release_notes_seen(&self, mut user: User, version: &str) -> Result<()> {
+        if user.base.release_notes_seen_version.as_deref() == Some(version) {
+            return Ok(());
+        }
+        user.base.release_notes_seen_version = Some(version.to_string());
+        self.update(&mut user, AuthenticatedEntity::System).await?;
+        Ok(())
+    }
+
     pub async fn get_organization_owners(&self, organization_id: &Uuid) -> Result<Vec<User>> {
         let filter = StorableFilter::<User>::new_from_org_id(organization_id)
             .user_permissions(&UserOrgPermissions::Owner);

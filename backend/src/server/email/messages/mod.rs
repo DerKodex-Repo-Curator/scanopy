@@ -37,6 +37,7 @@ mod payment_recovered;
 mod plan_changed;
 mod plan_limit_approaching;
 mod plan_limit_reached;
+mod release_notes;
 mod self_hosted_license_ended;
 mod self_hosted_license_resumed;
 mod self_hosted_payment_failed;
@@ -92,6 +93,7 @@ pub use payment_recovered::PaymentRecovered;
 pub use plan_changed::PlanChanged;
 pub use plan_limit_approaching::PlanLimitApproaching;
 pub use plan_limit_reached::PlanLimitReached;
+pub use release_notes::ReleaseNotes;
 pub use self_hosted_license_ended::SelfHostedLicenseEnded;
 pub use self_hosted_license_resumed::SelfHostedLicenseResumed;
 pub use self_hosted_payment_failed::SelfHostedPaymentFailed;
@@ -136,6 +138,8 @@ pub enum EmailCategory {
     ProductOnboarding,
     /// Per-discovery-session digests.
     DiscoveryDigest,
+    /// What changed in a new Scanopy release.
+    ProductUpdates,
 }
 
 impl EmailCategory {
@@ -151,7 +155,8 @@ impl EmailCategory {
             Self::TrialAndUsage
             | Self::DaemonAlerts
             | Self::ProductOnboarding
-            | Self::DiscoveryDigest => true,
+            | Self::DiscoveryDigest
+            | Self::ProductUpdates => true,
         }
     }
 
@@ -175,6 +180,8 @@ impl EmailCategory {
             // Every link leads into the locked app, and the org's scans run
             // on its own server.
             Self::DiscoveryDigest => false,
+            // Its own server announces its own releases.
+            Self::ProductUpdates => false,
         }
     }
 
@@ -188,6 +195,7 @@ impl EmailCategory {
             Self::DaemonSetup | Self::DaemonAlerts => "daemon",
             Self::Invitation | Self::ProductOnboarding => "onboarding",
             Self::DiscoveryDigest => "digest",
+            Self::ProductUpdates => "product",
         }
     }
 }
@@ -222,6 +230,7 @@ impl TypeMetadataProvider for EmailCategory {
             Self::Invitation => "Invitations",
             Self::ProductOnboarding => "Product onboarding",
             Self::DiscoveryDigest => "Discovery digest",
+            Self::ProductUpdates => "Product updates",
         }
     }
 
@@ -909,6 +918,17 @@ mod tests {
                 limit: 10,
                 plan_name: "Pro",
                 has_overage: false,
+            },
+        );
+        let note = crate::server::release_notes::catalog::ReleaseNote::parse(
+            "---\nversion: 0.18.0\ndate: 2026-10-11\ntitle: 'Faster discovery'\nemail: true\n---\n\n- Fix a thing\n",
+        )
+        .unwrap();
+        f(
+            "release_notes",
+            &ReleaseNotes {
+                notes: &[&note],
+                truncated: true,
             },
         );
 

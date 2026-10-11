@@ -20,6 +20,12 @@
 
 	const DISMISS_KEY = 'trial_expiry_modal';
 
+	// `blocked` holds the modal back while another modal is up, so it never
+	// stacks on one; `open` reports whether it is showing, so the page's other
+	// app-load modals can wait for it.
+	let { blocked = false, open = $bindable(false) }: { blocked?: boolean; open?: boolean } =
+		$props();
+
 	const organizationQuery = useOrganizationQuery();
 	const configQuery = useConfigQuery();
 
@@ -44,8 +50,12 @@
 			!hasPendingQuote.current &&
 			trialDaysLeft !== null &&
 			trialDaysLeft <= 1 &&
-			!dismissedTodayState
+			!dismissedTodayState &&
+			!blocked
 	);
+	$effect(() => {
+		open = isOpen;
+	});
 
 	let title = $derived(
 		trialDaysLeft !== null && trialDaysLeft <= 0

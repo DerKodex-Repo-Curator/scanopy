@@ -24,6 +24,7 @@ pub mod openapi;
 pub mod organizations;
 pub mod ports;
 pub mod posthog;
+pub mod release_notes;
 pub mod search;
 pub mod services;
 pub mod shared;

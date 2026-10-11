@@ -19,6 +19,8 @@
 		settings_email_daemonAlertsDescription,
 		settings_email_trialLabel,
 		settings_email_trialDescription,
+		settings_email_productUpdatesLabel,
+		settings_email_productUpdatesDescription,
 		settings_email_requiredLabel,
 		settings_email_requiredDescription,
 		settings_email_updated
@@ -37,7 +39,8 @@
 		discovery_digest: true,
 		product_onboarding: true,
 		daemon_alerts: true,
-		trial_and_usage: true
+		trial_and_usage: true,
+		product_updates: true
 	};
 
 	const organizationQuery = useOrganizationQuery();
@@ -63,7 +66,8 @@
 				discovery_digest: value.discovery_digest,
 				product_onboarding: value.product_onboarding,
 				daemon_alerts: value.daemon_alerts,
-				trial_and_usage: value.trial_and_usage
+				trial_and_usage: value.trial_and_usage,
+				product_updates: value.product_updates
 			};
 			try {
 				await updateSelfMutation.mutateAsync({ ...user, email_settings });
@@ -87,6 +91,7 @@
 			product_onboarding: settings?.product_onboarding ?? DEFAULTS.product_onboarding,
 			daemon_alerts: settings?.daemon_alerts ?? DEFAULTS.daemon_alerts,
 			trial_and_usage: settings?.trial_and_usage ?? DEFAULTS.trial_and_usage,
+			product_updates: settings?.product_updates ?? DEFAULTS.product_updates,
 			required_emails: true
 		});
 		suppressSave = false;
@@ -162,6 +167,19 @@
 									id="email-trial-and-usage"
 									label={settings_email_trialLabel()}
 									helpText={settings_email_trialDescription()}
+									{field}
+								/>
+							{/snippet}
+						</form.Field>
+					{/if}
+
+					{#if categoryApplies('product_updates')}
+						<form.Field name="product_updates" listeners={{ onChange: scheduleSave }}>
+							{#snippet children(field)}
+								<Checkbox
+									id="email-product-updates"
+									label={settings_email_productUpdatesLabel()}
+									helpText={settings_email_productUpdatesDescription()}
 									{field}
 								/>
 							{/snippet}

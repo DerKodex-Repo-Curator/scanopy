@@ -155,6 +155,14 @@ fn get_entity_deserializers() -> HashMap<&'static str, DeserializeFn> {
     );
 
     map.insert(
+        crate::server::release_notes::storage::ReleaseAnnouncement::table_name(),
+        Box::new(|row| {
+            crate::server::release_notes::storage::ReleaseAnnouncement::from_row(row)?;
+            Ok(())
+        }),
+    );
+
+    map.insert(
         Invite::table_name(),
         Box::new(|row| {
             Invite::from_row(row)?;

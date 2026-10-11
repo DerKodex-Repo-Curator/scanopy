@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{Email, EmailCategory, links};
+use super::{Email, EmailCategory, compose::html_escape, links};
 use crate::server::{
     digest::payload::{
         AffectedHostCard, DiscoveryDigestPayload, EntityFreshness, InterfaceSummary,
@@ -522,12 +522,4 @@ fn tags_interfaces(
             logo_url: None,
         })
         .collect()
-}
-
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
 }

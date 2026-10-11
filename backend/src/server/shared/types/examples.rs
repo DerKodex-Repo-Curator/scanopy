@@ -410,6 +410,7 @@ pub fn user() -> User {
             email_settings: Default::default(),
             display_settings: Default::default(),
             session_epoch: 0,
+            release_notes_seen_version: None,
         },
     }
 }

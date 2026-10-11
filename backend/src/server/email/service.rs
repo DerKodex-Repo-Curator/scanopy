@@ -15,10 +15,10 @@ use super::messages::{
     InvoiceFinalizationFailed, InvoiceIssued, InvoiceOverdue, OidcLinked, OidcUnlinked,
     OrganizationDeleted, PasswordChanged, PasswordReset, PaymentActionRequired, PaymentFailed,
     PaymentMethodAdded, PaymentMethodRemoved, PaymentRecovered, PlanChanged, PlanLimitApproaching,
-    PlanLimitReached, SelfHostedLicenseEnded, SelfHostedLicenseResumed, SelfHostedPaymentFailed,
-    SelfHostedPlanChanged, SelfHostedTrialEnding, SelfHostedWelcome, SubscriptionCancelled,
-    SubscriptionPaused, SubscriptionReactivated, SubscriptionResumed, TrialConverted, TrialEnding,
-    TrialExpired, TrialStarted, UsageSummary, Verification, links,
+    PlanLimitReached, ReleaseNotes, SelfHostedLicenseEnded, SelfHostedLicenseResumed,
+    SelfHostedPaymentFailed, SelfHostedPlanChanged, SelfHostedTrialEnding, SelfHostedWelcome,
+    SubscriptionCancelled, SubscriptionPaused, SubscriptionReactivated, SubscriptionResumed,
+    TrialConverted, TrialEnding, TrialExpired, TrialStarted, UsageSummary, Verification, links,
 };
 use super::transport::EmailTransport;
 use crate::server::{
@@ -295,6 +295,14 @@ impl EmailService {
             },
         )
         .await
+    }
+
+    pub async fn send_release_notes(
+        &self,
+        to: EmailAddress,
+        email: &ReleaseNotes<'_>,
+    ) -> Result<()> {
+        self.dispatch(to, email).await
     }
 
     pub async fn send_verification_email(

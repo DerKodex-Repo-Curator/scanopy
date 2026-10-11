@@ -212,6 +212,14 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Record this version and, if its release notes ask for it, email them.
+    // Containers starting together contend on an advisory lock, so this runs
+    // once per version per database. Logs failures; never blocks startup.
+    let release_notes = state.services.release_notes_service.clone();
+    tokio::spawn(async move {
+        release_notes.announce_running_version().await;
+    });
+
     // Snapshot retention sweep (daily). Deletes snapshots past the per-plan
     // retention window; the FK cascade reaps closed entity rows + topology
     // rows tied to each deleted snapshot.
