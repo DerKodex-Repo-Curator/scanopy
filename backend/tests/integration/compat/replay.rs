@@ -53,12 +53,11 @@ impl ReplayContext {
                     serde_json::json!(self.daemon_id.to_string()),
                 );
             }
-            // Fixtures are captured from daemons that predate the site rename.
-            if obj.contains_key("network_id") {
-                obj.insert(
-                    "network_id".to_string(),
-                    serde_json::json!(self.site_id.to_string()),
-                );
+            // Daemons before v0.17.22 send the site as `network_id`; later ones as `site_id`.
+            for key in ["network_id", "site_id"] {
+                if obj.contains_key(key) {
+                    obj.insert(key.to_string(), serde_json::json!(self.site_id.to_string()));
+                }
             }
             if obj.contains_key("user_id") {
                 obj.insert(
