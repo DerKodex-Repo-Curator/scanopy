@@ -2769,7 +2769,7 @@
 	"topology_tutorialStep4": "Click Finish Tutorial to complete",
 	"topology_tutorialTitle": "Creating Dependencies",
 	"topology_ungroupedCount": "Ungrouped: {summary}",
-	"topology_updatedDuringScan": "Changes from the running scan are not drawn yet",
+	"topology_updatedDuringScan": "Auto-refresh is paused until the scan ends because this graph is large",
 	"topology_verifyEmailToShare": "Please verify email to share topology",
 	"topology_viewModeTooltip": "Layout locked (E to edit)",
 	"topology_viewSwitcherHint": "Try switching between views to see your network from different angles",
