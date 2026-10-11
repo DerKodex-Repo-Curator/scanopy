@@ -166,6 +166,21 @@ impl AttributeColumn for HostOsValue {
     }
 }
 
+use crate::server::interfaces::r#impl::base::FdbMacsValue;
+
+impl AttributeColumn for FdbMacsValue {
+    fn value_param(value: Option<&Self>) -> SqlValue {
+        SqlValue::OptionalFdbMacs(value.map(|v| v.0.clone()))
+    }
+
+    /// `jsonb` holding an array of MAC strings. A value this binary cannot decode reads as no
+    /// learned MACs rather than failing the interface.
+    fn read_value(row: &PgRow) -> Result<Option<Self>> {
+        let raw: Option<serde_json::Value> = row.try_get(Self::VALUE_KEY)?;
+        Ok(raw.and_then(|v| serde_json::from_value(v).ok()).map(Self))
+    }
+}
+
 use crate::server::subnets::r#impl::base::SubnetCidrValue;
 
 impl AttributeColumn for SubnetCidrValue {

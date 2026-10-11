@@ -116,6 +116,7 @@ impl Submission {
             position: 0,
             name: Some("eth0".to_string()),
             host_id: host.id,
+            ..Default::default()
         });
 
         let container_ip = IPAddress::new(IPAddressBase {
@@ -126,13 +127,10 @@ impl Submission {
             position: 1,
             name: Some("eth0".to_string()),
             host_id: host.id,
+            ..Default::default()
         });
 
-        let port = Port::new(PortBase {
-            port_type: PortType::Http,
-            host_id: host.id,
-            site_id,
-        });
+        let port = Port::new(PortBase::new(host.id, site_id, PortType::Http));
 
         // A container running under that runtime. It names the runtime as its owner, exactly as
         // a bridge subnet does — so it exercises `services_virtualization_service_id_fkey`,
@@ -534,6 +532,7 @@ fn guest(site_id: Uuid, lan_id: Uuid, last_octet: u8, owner: Option<Uuid>) -> Su
         position: 0,
         name: Some("eth0".to_string()),
         host_id: host.id,
+        ..Default::default()
     });
     Submission {
         host,

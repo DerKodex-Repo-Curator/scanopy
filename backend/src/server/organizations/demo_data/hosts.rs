@@ -844,6 +844,7 @@ pub(super) fn generate_hosts_and_services(
                 )),
                 name: Some("eth0".to_string()),
                 position: 0,
+                ip_address_source: AttributeSource::ArpReply,
             },
         };
         let docker0 = IPAddress {
@@ -867,6 +868,7 @@ pub(super) fn generate_hosts_and_services(
                 )),
                 name: Some("docker0".to_string()),
                 position: 1,
+                ip_address_source: AttributeSource::ArpReply,
             },
         };
         let host = Host {
@@ -1743,6 +1745,8 @@ pub(super) fn generate_hosts_and_services(
                 mac_address: None,
                 name: None,
                 position: 0,
+                // The management address the core switch's SNMP walk heard it advertise.
+                ip_address_source: AttributeSource::Probe(ClientProbe::Snmp),
             },
         };
         let host = Host {
@@ -2274,6 +2278,7 @@ pub(super) fn generate_hosts_and_services(
                 )),
                 name: Some("eth0".to_string()),
                 position: 0,
+                ip_address_source: AttributeSource::ArpReply,
             },
         };
         let docker0 = IPAddress {
@@ -2297,6 +2302,7 @@ pub(super) fn generate_hosts_and_services(
                 )),
                 name: Some("docker0".to_string()),
                 position: 1,
+                ip_address_source: AttributeSource::ArpReply,
             },
         };
         let host = Host {

@@ -508,6 +508,7 @@ async fn create_node_host(
         &[],
         &daemon_id,
         &host.base.site_id,
+        mapping::REPORTED,
     )?;
 
     let response = ctx

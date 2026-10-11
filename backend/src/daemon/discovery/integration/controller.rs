@@ -213,7 +213,15 @@ impl MappedClient {
             .as_deref()
             .and_then(|m| m.parse().ok())
             .map(|m| MacEvidence::new(MacEvidenceValue(m), AttributeSource::Probe(probe)));
-        let ip_address = IPAddress::discovered(site_id, subnets, ip, mac_address, None, 0)?;
+        let ip_address = IPAddress::discovered(
+            site_id,
+            subnets,
+            ip,
+            AttributeSource::Probe(probe),
+            mac_address,
+            None,
+            0,
+        )?;
 
         Some(Self {
             identity,

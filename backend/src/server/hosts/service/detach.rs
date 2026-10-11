@@ -127,7 +127,8 @@ impl HostService {
             let new_id = if ports_still_bound.contains(&port_id) {
                 self.port_service
                     .create(
-                        Port::new(PortBase::new(to.id, to.base.site_id, port.base.port_type)),
+                        Port::new(PortBase::new(to.id, to.base.site_id, port.base.port_type))
+                            .with_source(port.base.port_source),
                         authentication.clone(),
                     )
                     .await?

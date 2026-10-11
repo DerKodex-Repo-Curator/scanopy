@@ -214,6 +214,7 @@ fn interface_row(
         admin_status,
         oper_status,
         mac_address,
+        interface_source: SOURCE,
         ..Default::default()
     })
 }
@@ -225,9 +226,9 @@ mod tests {
     use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscriminants;
     use crate::server::credentials::r#impl::types::CredentialIntegration;
     use crate::server::credentials::r#impl::types::ssh_script::SshScriptScope;
-    use crate::server::discovery::r#impl::collection::{CollectionSource, undeclared_collection};
+    use crate::server::discovery::r#impl::collection::{Producer, undeclared_collection};
     use crate::server::hosts::r#impl::base::{Host, HostBase};
-    use std::collections::BTreeSet;
+    use std::collections::HashSet;
     use strum::IntoEnumIterator;
 
     fn source() -> InterfaceSource {
@@ -273,8 +274,8 @@ mod tests {
         // What the docs list as SSH's collection covers every field a script can report.
         assert_eq!(
             undeclared_collection(
-                CollectionSource::Integration(CredentialIntegration::Ssh),
-                &BTreeSet::new(),
+                Producer::Integration(CredentialIntegration::Ssh),
+                &HashSet::new(),
                 &host_data.collected_data()
             ),
             None

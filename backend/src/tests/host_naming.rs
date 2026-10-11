@@ -112,6 +112,7 @@ fn submission_at(
             .map(|m| MacEvidence::new(MacEvidenceValue(m), AttributeSource::ArpReply)),
         name: None,
         position: 0,
+        ip_address_source: AttributeSource::ArpReply,
     });
 
     Submission {

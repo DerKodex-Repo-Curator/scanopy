@@ -8,6 +8,7 @@ use crate::server::{
         entities::EntityDiscriminants,
         entity_metadata::EntityCategory,
         storage::{
+            attributed,
             snapshot::{DiscoveryTracked, FkMaps, Snapshotable},
             traits::{Entity, SqlValue, Storable},
         },
@@ -60,6 +61,7 @@ impl Storable for Port {
                 "port_number",
                 "protocol",
                 "port_type",
+                "port_source",
                 "created_at",
                 "updated_at",
                 "valid_from",
@@ -76,6 +78,7 @@ impl Storable for Port {
                 SqlValue::I32(config.number as i32),
                 SqlValue::String(protocol.to_string()),
                 SqlValue::String(port_type),
+                SqlValue::AttributeSource(self.base.port_source),
                 SqlValue::Timestamp(self.created_at),
                 SqlValue::Timestamp(self.updated_at),
                 SqlValue::Timestamp(self.valid_from),
@@ -132,6 +135,7 @@ impl Storable for Port {
                 host_id,
                 site_id,
                 port_type,
+                port_source: attributed::read_source(row, "port_source")?,
             },
         })
     }
@@ -244,6 +248,15 @@ impl Entity for Port {
 
     fn set_updated_at(&mut self, time: DateTime<Utc>) {
         self.updated_at = time;
+    }
+
+    /// A port keeps the first source that found it, so saving a host in the editor does not
+    /// relabel its discovered ports as entered by a person.
+    fn preserve_immutable_fields(&mut self, existing: &Self) {
+        self.base.port_source = existing
+            .base
+            .port_source
+            .keep_or_heal(self.base.port_source);
     }
 }
 

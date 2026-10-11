@@ -12,6 +12,7 @@ use mac_address::MacAddress;
 use semver::Version;
 use std::net::{IpAddr, Ipv4Addr};
 
+use crate::server::services::r#impl::patterns::ClientProbe;
 use crate::server::shared::attribution::AttributeSource;
 use crate::server::subnets::r#impl::base::{SubnetCidr, SubnetCidrValue};
 use crate::server::{
@@ -216,6 +217,7 @@ pub fn ip_address() -> IPAddress {
             )),
             name: Some("eth0".to_string()),
             position: 0,
+            ip_address_source: AttributeSource::ArpReply,
         },
     }
 }
@@ -236,6 +238,7 @@ pub fn port() -> Port {
             host_id: ids::HOST,
             site_id: ids::SITE,
             port_type: PortType::Http,
+            port_source: AttributeSource::PortScan,
         },
     }
 }
@@ -516,6 +519,8 @@ pub fn interface() -> Interface {
             fdb_macs: None,
             native_vlan_id: None,
             vlan_ids: None,
+            vlan_membership_source: AttributeSource::Unspecified,
+            interface_source: AttributeSource::Probe(ClientProbe::Snmp),
         },
     }
 }

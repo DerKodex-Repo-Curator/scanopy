@@ -31,6 +31,7 @@ pub mod client;
 pub mod mapping;
 pub mod types;
 
+use crate::server::shared::attribution::AttributeSource;
 use crate::server::subnets::r#impl::inference::placeable_subnet;
 use std::time::Duration;
 
@@ -437,6 +438,7 @@ async fn create_device_host(
         &[],
         &daemon_id,
         &host.base.site_id,
+        AttributeSource::Probe(ClientProbe::InstantOn),
     )?;
 
     ctx.ops

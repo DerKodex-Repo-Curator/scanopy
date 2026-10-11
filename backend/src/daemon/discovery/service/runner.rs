@@ -378,6 +378,9 @@ impl DiscoveryRunner {
             ip_address: host_ip,
             mac_address: None,
             position: 0,
+            // The daemon's own loopback, the address its own-host credentials are keyed to.
+            ip_address_source:
+                crate::server::shared::attribution::AttributeSource::DaemonSelfReport,
         });
 
         let params = crate::server::services::r#impl::base::ServiceMatchBaselineParams {
@@ -394,8 +397,15 @@ impl DiscoveryRunner {
             dns_sd: &None,
         };
 
+        // Every port here is one a daemon-host integration's probe answered on, and records that
+        // probe. The fallback is the daemon reading its own host.
         let mut host_data = match ops
-            .build_host_from_scan(params, None, self.host_naming_fallback)
+            .build_host_from_scan(
+                params,
+                None,
+                self.host_naming_fallback,
+                crate::server::shared::attribution::AttributeSource::DaemonSelfReport,
+            )
             .await?
         {
             Some(hd) => hd,
@@ -406,6 +416,7 @@ impl DiscoveryRunner {
         };
 
         host_data.host.id = self.host_id;
+        host_data.check_credential_free_collection();
 
         // Execute integrations — use localhost_ip since credentials are keyed to 127.0.0.1
         let execute_params = dispatch::ExecuteParams {

@@ -130,6 +130,7 @@ fn unplaced_far_end(
         port_name: far_end_port.name.map(str::to_string),
         port_mac: far_end_port.mac.map(str::to_string),
         vlan_id: interface.base.native_vlan_id,
+        evidence_source: evidence.evidence_source,
     })
 }
 
@@ -223,7 +224,12 @@ use crate::server::subnets::r#impl::inference::{UnplacedFarEnd, placeable_subnet
 use reciprocal::PortBinding;
 
 /// Ports neighbours advertised for one far end: each port's name and MAC, whichever were sent.
-type AdvertisedPorts = Vec<(Option<String>, Option<MacAddress>)>;
+type AdvertisedPorts = Vec<(Option<String>, Option<MacAddress>, AttributeSource)>;
+
+/// A port a neighbour advertised on a far end resolved to a device but to no port of it: the far
+/// end's host, the port's advertised name and MAC, whether a neighbour this scan walked advertised
+/// it, and what heard the advertisement.
+type AdvertisedPort = (Uuid, Option<String>, Option<String>, bool, AttributeSource);
 
 impl HostService {
     // =========================================================================
@@ -318,7 +324,7 @@ impl HostService {
         // (host, advertised port name, advertised port MAC) for far ends resolved to a device but
         // to no port of it. Collected here and acted on after the loop rather than mid-tier, so the
         // resolution pass stays a read of identities and a write of neighbours.
-        let mut advertised_ports: Vec<(Uuid, Option<String>, Option<String>, bool)> = Vec::new();
+        let mut advertised_ports: Vec<AdvertisedPort> = Vec::new();
         // (host, the system description its LLDP advertisement carried), acted on after the loop for
         // the same reason.
         let mut advertised_os: Vec<(Uuid, String)> = Vec::new();
@@ -583,6 +589,7 @@ impl HostService {
                                 port.name.map(str::to_string),
                                 port.mac.map(str::to_string),
                                 in_run,
+                                evidence.evidence_source,
                             ));
                         }
                     }
@@ -904,7 +911,7 @@ impl HostService {
     async fn record_advertised_far_end_ports(
         &self,
         site_id: Uuid,
-        advertised: Vec<(Uuid, Option<String>, Option<String>, bool)>,
+        advertised: Vec<AdvertisedPort>,
         scan_time: DateTime<Utc>,
     ) -> (Vec<Uuid>, Vec<Uuid>) {
         let mut recorded_ids = Vec::new();
@@ -912,13 +919,16 @@ impl HostService {
         let mut by_host: HashMap<Uuid, AdvertisedPorts> = HashMap::new();
         // Ports a neighbour this scan walked advertised, per host: evidence the port is still there.
         let mut in_run_keys: HashMap<Uuid, HashSet<AdvertisedPortKey>> = HashMap::new();
-        for (host_id, name, mac, in_run) in advertised {
+        for (host_id, name, mac, in_run, source) in advertised {
             let mac = mac.as_deref().and_then(|m| m.parse::<MacAddress>().ok());
             if name.is_some() || mac.is_some() {
                 if in_run && let Some(key) = AdvertisedPortKey::of(name.as_deref(), mac) {
                     in_run_keys.entry(host_id).or_default().insert(key);
                 }
-                by_host.entry(host_id).or_default().push((name, mac));
+                by_host
+                    .entry(host_id)
+                    .or_default()
+                    .push((name, mac, source));
             }
         }
 
@@ -968,7 +978,7 @@ impl HostService {
                 })
                 .collect();
 
-            for (name, mac_address) in ports {
+            for (name, mac_address, source) in ports {
                 let Some(key) = AdvertisedPortKey::of(name.as_deref(), mac_address) else {
                     continue;
                 };
@@ -990,6 +1000,7 @@ impl HostService {
                     mac_address: mac_address.map(|m| {
                         MacEvidence::new(MacEvidenceValue(m), AttributeSource::LldpChassisId)
                     }),
+                    interface_source: source,
                     ..Default::default()
                 });
                 // The scan's timestamp, not the wall clock, so the port falls inside the window
@@ -1133,8 +1144,8 @@ impl HostService {
             // The SQL filter above already restricts to exactly one learned MAC
             // (`jsonb_array_length(fdb_col) = 1`); this re-check is defense-in-depth against a
             // future filter regression, not a path a passing filter can reach.
-            let mac = match &interface.base.fdb_macs {
-                Some(macs) if macs.len() == 1 => &macs[0],
+            let mac = match interface.base.fdb_macs() {
+                Some([mac]) => mac,
                 _ => continue,
             };
 
