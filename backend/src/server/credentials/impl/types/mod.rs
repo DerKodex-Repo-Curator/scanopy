@@ -23,11 +23,13 @@ pub mod ssh_script;
 pub mod unifi;
 pub mod wake_on_lan;
 
+mod defaults;
 mod fields;
 mod integration;
 mod metadata;
 mod secrets;
 
+pub use defaults::SeededDefault;
 pub use fields::{CredentialOsFields, DAEMON_OS_FIELD, TARGET_OS_FIELD};
 pub use integration::{CredentialIntegration, InterfaceViewScope};
 pub use metadata::{

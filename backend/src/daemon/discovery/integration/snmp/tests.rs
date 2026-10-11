@@ -364,6 +364,18 @@ fn test_remap_then_convert_attaches_exos_neighbor() {
             .and_then(|c| c.lldp_sys_name.clone()),
         Some("switch-peer".to_string())
     );
+    // What the docs list as SNMP's collection covers the interface it builds.
+    assert_eq!(
+        crate::server::discovery::r#impl::collection::undeclared_in_submitted_host(
+            crate::server::credentials::r#impl::types::CredentialIntegration::Snmp,
+            &crate::server::hosts::r#impl::base::Host::new(Default::default()),
+            &[],
+            &[],
+            &[],
+            &[result]
+        ),
+        None
+    );
 }
 
 // --- macAddress(3) local ports (Westermo industrial switches) ---

@@ -183,7 +183,7 @@ impl NetworkScan {
 /// integration **once** regardless of how many credentials of that type cover the IP.
 ///
 /// SNMP now runs a single collection per host (see `execute_integrations`' dedup), so
-/// N SNMP credentials (v1/v2c/v3 + the injected "public" default) must cost the same as
+/// N SNMP credentials (v1/v2c/v3, the SNMP `public` default among them) must cost the same as
 /// one. This is used symmetrically for both the total-cost estimate and the completed-
 /// cost accrual (`scan.rs`) so `completed_cost` converges to `total_cost` and the scan
 /// ETA/progress stay accurate instead of over-counting per-credential.

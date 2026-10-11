@@ -223,8 +223,11 @@ mod tests {
     use super::*;
     use crate::daemon::discovery::integration::InterfaceViewScope;
     use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscriminants;
+    use crate::server::credentials::r#impl::types::CredentialIntegration;
     use crate::server::credentials::r#impl::types::ssh_script::SshScriptScope;
+    use crate::server::discovery::r#impl::collection::{CollectionSource, undeclared_collection};
     use crate::server::hosts::r#impl::base::{Host, HostBase};
+    use std::collections::BTreeSet;
     use strum::IntoEnumIterator;
 
     fn source() -> InterfaceSource {
@@ -267,6 +270,15 @@ mod tests {
         let host_id = host_data.host.id;
         let (applied, invalid) = apply(output, &mut host_data, source(), host_id);
         assert!(invalid.is_empty(), "{invalid:?}");
+        // What the docs list as SSH's collection covers every field a script can report.
+        assert_eq!(
+            undeclared_collection(
+                CollectionSource::Integration(CredentialIntegration::Ssh),
+                &BTreeSet::new(),
+                &host_data.collected_data()
+            ),
+            None
+        );
 
         let host = serde_json::to_value(&host_data.host.base).unwrap();
         let iface = serde_json::to_value(&host_data.interfaces[0].base).unwrap();

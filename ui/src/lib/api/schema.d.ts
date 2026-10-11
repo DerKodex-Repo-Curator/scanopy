@@ -3924,6 +3924,12 @@ export interface components {
                  */
                 readonly id: string;
                 /**
+                 * @description Whether this is the organization's seeded default for its type: identical to the
+                 *     credential every organization starts with. A default can't be deleted, and its settings
+                 *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+                 */
+                readonly is_default: boolean;
+                /**
                  * Format: date-time
                  * @description When this record was last modified.
                  */
@@ -6448,6 +6454,12 @@ export interface components {
                  */
                 readonly id: string;
                 /**
+                 * @description Whether this is the organization's seeded default for its type: identical to the
+                 *     credential every organization starts with. A default can't be deleted, and its settings
+                 *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+                 */
+                readonly is_default: boolean;
+                /**
                  * Format: date-time
                  * @description When this record was last modified.
                  */
@@ -7366,6 +7378,12 @@ export interface components {
              */
             readonly id: string;
             /**
+             * @description Whether this is the organization's seeded default for its type: identical to the
+             *     credential every organization starts with. A default can't be deleted, and its settings
+             *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+             */
+            readonly is_default: boolean;
+            /**
              * Format: date-time
              * @description When this record was last modified.
              */
@@ -7392,7 +7410,8 @@ export interface components {
              *     communities the address does not narrow to a record, which is what this is for.
              *
              *     `None` on a warning written before the id was carried, on one from a daemon that predates
-             *     it, and on the daemon's own injected "public" fallback, which has no stored row.
+             *     it, and on the `public` fallback older daemons injected themselves, which has no stored
+             *     row.
              */
             credential_id: string | null;
             /**
@@ -11582,6 +11601,12 @@ export interface components {
                  * @description Server-assigned unique identifier.
                  */
                 readonly id: string;
+                /**
+                 * @description Whether this is the organization's seeded default for its type: identical to the
+                 *     credential every organization starts with. A default can't be deleted, and its settings
+                 *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+                 */
+                readonly is_default: boolean;
                 /**
                  * Format: date-time
                  * @description When this record was last modified.

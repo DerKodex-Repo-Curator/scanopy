@@ -192,8 +192,15 @@
 	function credentialActions(credential: Credential): CardAction[] {
 		if (!canManage) return [];
 
+		const edit: CardAction = {
+			label: common_edit(),
+			icon: Edit,
+			onClick: () => handleEditCredential(credential)
+		};
+		// A default can't be deleted, only unassigned from its sites and hosts.
+		if (credential.is_default) return [edit];
 		return [
-			{ label: common_edit(), icon: Edit, onClick: () => handleEditCredential(credential) },
+			edit,
 			{
 				label: common_delete(),
 				icon: Trash2,
@@ -500,6 +507,7 @@
 			items={credentials}
 			fields={credentialFields}
 			{allowBulkDelete}
+			canDeleteItem={(item) => !item.is_default}
 			storageKey="scanopy-credentials-table-state"
 			defaults={tableDefaults}
 			onBulkDelete={handleBulkDelete}
@@ -521,7 +529,7 @@
 	onCreate={handleCredentialCreate}
 	onUpdate={handleCredentialUpdate}
 	onClose={handleCloseCredentialEditor}
-	onDelete={editingCredential
+	onDelete={editingCredential && !editingCredential.is_default
 		? () => {
 				handleDeleteCredential(editingCredential!);
 				handleCloseCredentialEditor();

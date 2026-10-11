@@ -204,6 +204,7 @@ mod tests {
         AgentInterfaces, GuestConfig, PveEnvelope,
     };
     use crate::server::credentials::r#impl::types::CredentialIntegration;
+    use crate::server::discovery::r#impl::collection::undeclared_in_submitted_host;
     use crate::server::hosts::r#impl::virtualization::ProxmoxGuestType;
     use crate::server::hosts::r#impl::virtualization::undeclared_virtualization;
     use crate::server::hosts::service::mac_identity::{MacQuality, grade};
@@ -373,6 +374,17 @@ mod tests {
         let (host, ip_addresses) = identity_host(identity, owner, presenting, &subnets, site_id);
         assert_eq!(
             undeclared_virtualization(CredentialIntegration::Proxmox, &host),
+            None
+        );
+        assert_eq!(
+            undeclared_in_submitted_host(
+                CredentialIntegration::Proxmox,
+                &host,
+                &ip_addresses,
+                &[],
+                &[],
+                &[]
+            ),
             None
         );
         assert_eq!(host.base.virtualization_service_id, Some(owner));

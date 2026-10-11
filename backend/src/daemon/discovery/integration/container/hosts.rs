@@ -212,7 +212,7 @@ impl ContainerScanner<'_> {
 
         let response = self
             .ops
-            .create_integration_host(
+            .create_scanned_integration_host(
                 self.integration,
                 host_data.host.clone(),
                 ip_addresses,
@@ -477,6 +477,7 @@ mod tests {
 
     use super::super::interfaces::tests::{container, endpoint, subnet};
     use crate::server::credentials::r#impl::types::CredentialIntegration;
+    use crate::server::discovery::r#impl::collection::undeclared_in_submitted_host;
     use crate::server::hosts::r#impl::virtualization::undeclared_virtualization;
 
     /// Every container host either runtime builds, on either network type, is a kind of
@@ -516,6 +517,20 @@ mod tests {
                 .expect("a LAN container is a host");
                 assert_eq!(
                     undeclared_virtualization(integration, &record.host),
+                    None,
+                    "{runtime:?} {network_type:?}"
+                );
+                let addresses: Vec<IPAddress> =
+                    record.addresses.iter().map(|(a, _)| a.clone()).collect();
+                assert_eq!(
+                    undeclared_in_submitted_host(
+                        integration,
+                        &record.host,
+                        &addresses,
+                        &[],
+                        &[],
+                        &[]
+                    ),
                     None,
                     "{runtime:?} {network_type:?}"
                 );

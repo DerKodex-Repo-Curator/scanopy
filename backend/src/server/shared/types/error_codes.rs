@@ -162,6 +162,14 @@ pub enum ErrorCode {
     /// `SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN`.
     EmailFeedbackRejected,
 
+    // === Credentials ===
+    /// A credential identical to the organization's default for its type, which already exists
+    CredentialDefaultExists { name: String },
+    /// The organization's default credential for a type cannot be deleted
+    CredentialDefaultDeleteForbidden { name: String },
+    /// The settings of an organization's default credential cannot change
+    CredentialDefaultSettingsLocked { name: String },
+
     // === Discovery ===
     /// Historical discovery cannot be modified via API
     DiscoveryHistoricalReadOnly,
@@ -341,6 +349,17 @@ impl ErrorCode {
             }
             Self::EmailFeedbackRejected => "Not an authentic message for the configured topic",
 
+            // Credentials
+            Self::CredentialDefaultExists { .. } => {
+                "This credential is identical to the default credential '{name}'. Use that one instead."
+            }
+            Self::CredentialDefaultDeleteForbidden { .. } => {
+                "'{name}' is a default credential and can't be deleted. Unassign it from sites and hosts instead."
+            }
+            Self::CredentialDefaultSettingsLocked { .. } => {
+                "'{name}' is a default credential. Its name, description and tags can change, but its settings can't."
+            }
+
             // Discovery
             Self::DiscoveryHistoricalReadOnly => "Historical discovery cannot be modified via API",
             Self::DiscoverySubnetSiteMismatch { .. } => "Subnet '{subnet}' is on a different site",
@@ -513,6 +532,9 @@ impl ErrorCode {
             // Domain-specific with params
             Self::HostsConsolidateFailed { reason } => Some(json_map! { "reason" => reason }),
             Self::SitesAccessDenied { site } => Some(json_map! { "site" => site }),
+            Self::CredentialDefaultExists { name }
+            | Self::CredentialDefaultDeleteForbidden { name }
+            | Self::CredentialDefaultSettingsLocked { name } => Some(json_map! { "name" => name }),
             Self::DiscoverySubnetSiteMismatch { subnet } => Some(json_map! { "subnet" => subnet }),
             Self::DiscoverySessionNotFound { id } => Some(json_map! {"id" => id}),
             Self::IpAddressOutOfRange { ip, subnet } => {

@@ -51,8 +51,10 @@
 	} from '$lib/features/credentials/components/CredentialsStep.svelte';
 	import {
 		isDaemonHostOnly as isDaemonHostOnlyTargets,
+		type Credential,
 		type IntegrationTarget
 	} from '$lib/features/credentials/types/base';
+	import { useCredentialsQuery } from '$lib/features/credentials/queries';
 	import { integrationTargetFor } from '$lib/features/credentials/utils/credentialTargets';
 	import { useDiscoveriesQuery, useUpdateDiscoveryMutation } from '$lib/features/discovery/queries';
 	import {
@@ -125,17 +127,21 @@
 	// when they go back to Setup and forward again.
 	let credentialsSeeded = $state(false);
 
-	// Daemon-host-only integrations (e.g. the Docker/Podman socket) are seeded by default into
-	// the Integrations list; they target only the daemon host (a `<uuid>@127.0.0.1` token).
-	function daemonHostOnlyTypeIds(): string[] {
-		return credentialTypes
-			.getItems()
-			.filter((t) => isDaemonHostOnlyTargets(t.metadata?.targets))
-			.map((t) => t.id);
+	// The org's default credentials whose type targets only the daemon host (the Docker and
+	// Podman sockets) are listed by default as existing rows, each targeting the daemon host (a
+	// `<uuid>@127.0.0.1` token). Setup creates none of them.
+	const credentialsQuery = useCredentialsQuery();
+	async function defaultDaemonHostCredentials(): Promise<Credential[]> {
+		const credentials = credentialsQuery.data ?? (await credentialsQuery.refetch()).data ?? [];
+		return credentials.filter(
+			(c) =>
+				c.is_default &&
+				isDaemonHostOnlyTargets(credentialTypes.getMetadata(c.credential_type.type)?.targets)
+		);
 	}
-	// Real new credentials being created. Drives the CTA count. Local sockets are
-	// ordinary credentials now, so they're created and must be counted too — this
-	// matches the creation filter (see getCredentialsForCreate / collectCredentialIds).
+	// Real new credentials being created. Drives the CTA count. Existing rows, the default
+	// sockets among them, are not created and not counted; this matches the creation filter (see
+	// getCredentialsForCreate / collectCredentialIds).
 	let unsavedCredentialCount = $derived(
 		pendingCredentials.filter((p) => !p.isExisting && !credentialIds.includes(p.credential.id))
 			.length
@@ -275,7 +281,7 @@
 	// The wizard validates the selection first, so a dropped target means an unusable one.
 	let seedCredentialRefs = $derived(
 		pendingCredentials.flatMap((p): IntegrationTarget[] => {
-			// Only persisted credentials can be referenced (sockets are created too now).
+			// Only persisted credentials can be referenced: existing ones, and new ones once created.
 			if (!credentialIds.includes(p.credential.id)) return [];
 			const target = integrationTargetFor(
 				p.credential.id,
@@ -511,7 +517,7 @@
 			if (!credentialsSeeded) {
 				credentialsSeeded = true;
 				await tick();
-				await credentialsStep?.addTypes(daemonHostOnlyTypeIds());
+				await credentialsStep?.addExistingCredentials(await defaultDaemonHostCredentials());
 			}
 		}
 	}

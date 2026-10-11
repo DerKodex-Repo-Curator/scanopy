@@ -336,22 +336,23 @@
 	}
 
 	/**
-	 * Seed the wizard with one new credential per given type id (the create-daemon
-	 * modal's daemon-host socket defaults). Types already present as a new
-	 * (non-existing) pending credential are skipped to avoid duplicates.
+	 * Seed the wizard with existing credentials (the create-daemon modal's default socket
+	 * credentials). One already listed is skipped.
 	 */
-	export function addTypes(typeIds: string[]) {
-		for (const typeId of typeIds) {
-			const alreadyPending = pendingCredentials.some(
-				(p) => !p.isExisting && p.credential.credential_type.type === typeId
-			);
-			if (!alreadyPending) handleAddCredential(typeId);
+	export function addExistingCredentials(credentials: Credential[]) {
+		for (const credential of credentials) {
+			if (!pendingCredentials.some((p) => p.credential.id === credential.id)) {
+				addExistingCredential(credential);
+			}
 		}
 	}
 
 	function handleAddExistingCredential(credentialId: string) {
 		const existing = credentialsQuery.data?.find((c) => c.id === credentialId);
-		if (!existing) return;
+		if (existing) addExistingCredential(existing);
+	}
+
+	function addExistingCredential(existing: Credential) {
 		// The picker disables these; this holds for any other path in.
 		if (daemonOsRefusal(existing, daemonOs, daemonName)) return;
 		pendingCredentials = [

@@ -355,8 +355,8 @@ mod tests {
 
     #[test]
     fn resolve_credentials_for_ip_default_from_an_older_server_carries_no_id() {
-        // A server too old to send `default_credential_id` leaves it absent, and the daemon's own
-        // injected "public" fallback has no stored row at all. Both have to stay reportable
+        // A server too old to send `default_credential_id` leaves it absent, and the `public`
+        // fallback older daemons injected has no stored row at all. Both have to stay reportable
         // without one rather than becoming un-nameable.
         let mapping = CredentialMapping {
             default_credential: Some(snmp("public")),
