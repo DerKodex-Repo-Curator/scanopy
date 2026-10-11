@@ -11,7 +11,6 @@
 	import { useConfigQuery } from '$lib/shared/stores/config-query';
 	import { emailCategories } from '$lib/shared/stores/metadata';
 	import {
-		settings_email_intro,
 		settings_email_digestLabel,
 		settings_email_digestDescription,
 		settings_email_onboardingLabel,
@@ -52,9 +51,6 @@
 	function categoryApplies(field: keyof EmailSettings): boolean {
 		return !locked || emailCategories.getMetadata(field).sent_while_self_hosted_plan_locked;
 	}
-	let anyToggleApplies = $derived(
-		!locked || (Object.keys(DEFAULTS) as (keyof EmailSettings)[]).some(categoryApplies)
-	);
 
 	// Stable literal defaults — do NOT read reactive state inside the createForm
 	// options getter (see TanStack + Svelte 5 reactivity notes). `required_emails`
@@ -118,10 +114,6 @@
 <div class="flex flex-1 flex-col">
 	<div class="flex-1 overflow-y-auto p-6">
 		<div class="space-y-6">
-			{#if anyToggleApplies}
-				<p class="text-sm text-gray-600">{settings_email_intro()}</p>
-			{/if}
-
 			<InfoCard>
 				<div class="space-y-4">
 					{#if categoryApplies('discovery_digest')}
