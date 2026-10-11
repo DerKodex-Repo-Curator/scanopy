@@ -17,6 +17,9 @@ use crate::daemon::discovery::service::lldpd;
 use crate::daemon::discovery::service::ops::DiscoveryOps;
 use crate::daemon::utils::base::DaemonUtils;
 use crate::server::bindings::r#impl::base::Binding;
+use crate::server::discovery::r#impl::collection::{
+    Producer, report_undeclared_collection, undeclared_in_submitted_host,
+};
 use crate::server::hosts::r#impl::attributes::{HostHostnameValue, HostOsValue};
 use crate::server::hosts::r#impl::base::{Host, HostBase};
 use crate::server::hosts::r#impl::name::{HostName, HostNameSources};
@@ -108,6 +111,17 @@ impl DiscoveryRunner {
 
         let mut host = Host::new(self.own_host_base(site_id));
         host.id = self.host_id;
+        report_undeclared_collection(
+            Producer::CredentialFree,
+            undeclared_in_submitted_host(
+                Producer::CredentialFree,
+                &host,
+                &ip_addresses,
+                &[],
+                &[],
+                &interfaces,
+            ),
+        );
 
         ops.create_host(
             host,
@@ -269,7 +283,8 @@ impl DiscoveryRunner {
 
         let own_port = Port::new_hostless(PortType::new_tcp(
             self.service.config_store.get_port().await?,
-        ));
+        ))
+        .with_source(AttributeSource::DaemonSelfReport);
         let own_port_id = own_port.id;
 
         let mut host = Host::new(self.own_host_base(site_id));
@@ -302,6 +317,18 @@ impl DiscoveryRunner {
         if cancel.is_cancelled() {
             return Err(anyhow::anyhow!("Discovery cancelled"));
         }
+
+        report_undeclared_collection(
+            Producer::CredentialFree,
+            undeclared_in_submitted_host(
+                Producer::CredentialFree,
+                &host,
+                &ip_addresses,
+                std::slice::from_ref(&own_port),
+                std::slice::from_ref(&daemon_service),
+                &interfaces,
+            ),
+        );
 
         ops.create_host(
             host,

@@ -3,12 +3,7 @@
 //! `DiscoveryOps` provides entity creation, service matching, and progress reporting
 //! without requiring `DiscoveryRunner` or its associated traits.
 
-use std::{
-    collections::{BTreeSet, HashSet},
-    net::IpAddr,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, net::IpAddr, sync::Arc, time::Duration};
 
 use anyhow::{Error, anyhow};
 use backon::{ExponentialBuilder, Retryable};
@@ -47,8 +42,8 @@ use crate::{
         },
         discovery::r#impl::{
             collection::{
-                CollectedData, CollectionSource, report_undeclared_collection,
-                undeclared_in_submitted_host,
+                CollectedData, Producer, present_in, report_undeclared_collection,
+                undeclared_collection, undeclared_in_submitted_host,
             },
             types::{DiscoveryType, HostNamingFallback},
         },
@@ -690,10 +685,10 @@ impl HostData {
         self
     }
 
-    /// The categories of data this host carries, for checking an integration's result against
+    /// The `(category, source)` pairs this host carries, for checking a producer's result against
     /// what it declares collecting.
-    pub fn collected_data(&self) -> BTreeSet<CollectedData> {
-        CollectedData::present_in(
+    pub fn collected_data(&self) -> HashSet<(CollectedData, AttributeSource)> {
+        present_in(
             &self.host,
             &self.ip_addresses,
             &self.ports,
@@ -701,6 +696,19 @@ impl HostData {
             &self.interfaces,
             &self.subnets,
         )
+    }
+
+    /// Check what credential-free discovery put on this host against what it declares. Run before
+    /// any integration executes against the host, so everything on it came from the scan.
+    pub fn check_credential_free_collection(&self) {
+        report_undeclared_collection(
+            Producer::CredentialFree,
+            undeclared_collection(
+                Producer::CredentialFree,
+                &HashSet::new(),
+                &self.collected_data(),
+            ),
+        );
     }
 }
 
@@ -1409,9 +1417,9 @@ impl DiscoveryOps {
         cancel: &CancellationToken,
     ) -> Result<HostResponse, Error> {
         report_undeclared_collection(
-            CollectionSource::Integration(integration),
+            Producer::Integration(integration),
             undeclared_in_submitted_host(
-                integration,
+                Producer::Integration(integration),
                 &host,
                 &ip_addresses,
                 &ports,
@@ -1685,6 +1693,9 @@ impl DiscoveryOps {
 
     /// Run service matching against all registered service definitions.
     /// Returns matched services and ports. Pure logic — no side effects.
+    ///
+    /// Every port records `port_source` as what found it, except a port a client probe answered
+    /// on, which records that probe.
     pub fn match_services(
         &self,
         host: &Host,
@@ -1692,6 +1703,7 @@ impl DiscoveryOps {
         gateway_ips: &[IpAddr],
         daemon_id: &Uuid,
         site_id: &Uuid,
+        port_source: AttributeSource,
     ) -> Result<(Vec<Service>, Vec<Port>), Error> {
         use crate::server::services::definitions::{
             docker_container::DockerContainer, open_ports::OpenPorts,
@@ -1781,6 +1793,17 @@ impl DiscoveryOps {
         });
 
         host_ports.extend(unbound_ports.into_iter().map(Port::new_hostless));
+        for port in &mut host_ports {
+            // The map has no order, so where two probes answered on one port the choice is made
+            // by name to keep it stable across scans.
+            port.base.port_source = baseline_params
+                .client_responses
+                .iter()
+                .filter(|(_, ports)| ports.contains(&port.base.port_type))
+                .map(|(probe, _)| *probe)
+                .min_by_key(|probe| probe.id())
+                .map_or(port_source, AttributeSource::Probe);
+        }
 
         Ok((services, host_ports))
     }
@@ -1791,6 +1814,7 @@ impl DiscoveryOps {
         params: ServiceMatchBaselineParams<'_>,
         hostname: Option<HostHostnameAttributed>,
         host_naming_fallback: HostNamingFallback,
+        port_source: AttributeSource,
     ) -> Result<Option<HostData>, Error> {
         let ServiceMatchBaselineParams { ip_address, .. } = params;
 
@@ -1829,8 +1853,14 @@ impl DiscoveryOps {
 
         let ip_addresses = vec![ip_address.clone()];
 
-        let (services, ports) =
-            self.match_services(&host, &params, &gateway_ips, &daemon_id, &site_id)?;
+        let (services, ports) = self.match_services(
+            &host,
+            &params,
+            &gateway_ips,
+            &daemon_id,
+            &site_id,
+            port_source,
+        )?;
 
         // Determine host name
         let best_service_name = services
@@ -2142,6 +2172,8 @@ mod tests {
             fdb_macs: None,
             native_vlan_id: None,
             vlan_ids: None,
+            vlan_membership_source: AttributeSource::Unspecified,
+            interface_source: AttributeSource::Probe(ClientProbe::Snmp),
         })
     }
 

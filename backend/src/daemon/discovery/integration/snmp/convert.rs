@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// Everything this conversion records was read from the device over SNMP.
+const SNMP: AttributeSource = AttributeSource::Probe(ClientProbe::Snmp);
+
 /// Build one candidate per LLDP neighbour record heard on this port.
 ///
 /// GH #701: previously `convert_snmp_if_entry` kept only the *first* matching record
@@ -29,6 +32,7 @@ fn lldp_candidates_for_port(
             lldp_port_desc: n.remote_port_desc.clone(),
             lldp_mgmt_addr: n.remote_mgmt_addr,
             lldp_sys_desc: n.remote_sys_desc.clone(),
+            evidence_source: SNMP,
             ..Default::default()
         })
         .collect()
@@ -48,6 +52,7 @@ fn cdp_candidates_for_port(
             cdp_port_id: n.remote_port_id.clone(),
             cdp_platform: n.remote_platform.clone(),
             cdp_address: n.remote_address,
+            evidence_source: SNMP,
             ..Default::default()
         })
         .collect()
@@ -102,21 +107,16 @@ pub(crate) fn convert_snmp_if_entry(
         admin_status: Some(IfAdminStatus::from(entry.if_admin_status.unwrap_or(1))),
         oper_status: Some(IfOperStatus::from(entry.if_oper_status.unwrap_or(1))),
         // `ifPhysAddress` for one of the device's own interfaces.
-        mac_address: entry.if_phys_address.map(|m| {
-            MacEvidence::new(
-                MacEvidenceValue(m),
-                AttributeSource::Probe(ClientProbe::Snmp),
-            )
-        }),
+        mac_address: entry
+            .if_phys_address
+            .map(|m| MacEvidence::new(MacEvidenceValue(m), SNMP)),
         ip_address_id: None, // Linked server-side via MAC matching
         ip_configured: ip_configured_if_indexes.contains(&entry.if_index),
         neighbor_candidates,
         // Bridge FDB data
-        fdb_macs: if fdb_macs.is_empty() {
-            None
-        } else {
-            Some(fdb_macs)
-        },
+        fdb_macs: (!fdb_macs.is_empty()).then(|| FdbMacs::new(FdbMacsValue(fdb_macs), SNMP)),
+        vlan_membership_source: SNMP,
+        interface_source: SNMP,
         // VLAN data: resolved to entity UUIDs by caller via vlan_number_to_uuid mapping
         native_vlan_id: vlan_membership
             .and_then(|m| m.native_vlan)

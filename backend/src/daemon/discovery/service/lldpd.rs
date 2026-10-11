@@ -44,6 +44,7 @@ use crate::daemon::discovery::service::warnings::AttemptOutcome;
 use crate::server::interface_neighbors::r#impl::base::InterfaceNeighborEvidence;
 use crate::server::interfaces::r#impl::base::Interface;
 use crate::server::lldp::{LldpChassisId, LldpPortId, canonical_mac};
+use crate::server::shared::attribution::AttributeSource;
 
 /// lldpd's compiled-in default control-socket path.
 const DEFAULT_SOCKET: &str = "/run/lldpd.socket";
@@ -297,6 +298,7 @@ pub(super) fn apply_neighbors(interfaces: &mut [Interface], neighbors: Vec<Lldpd
                 lldp_port_desc: n.port_desc,
                 lldp_mgmt_addr: n.mgmt_addr,
                 lldp_sys_desc: n.sys_desc,
+                evidence_source: AttributeSource::Lldpd,
                 ..Default::default()
             });
     }

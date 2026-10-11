@@ -246,6 +246,7 @@ const NAMING: &str = "derived by Scanopy from the host's identifiers; scripts se
 const USER_SET: &str = "set by a person in Scanopy";
 const VIRTUALIZATION: &str = "set by the hypervisor and container integrations";
 const NEIGHBOURS: &str = "neighbour data comes from LLDP, CDP and forwarding tables";
+const PROVENANCE: &str = "recorded by Scanopy from what read the value";
 const ASSET_TAG: &str = "read from ENTITY-MIB entPhysicalAssetID or set by a person in Scanopy";
 
 pub fn host_coverage() -> Vec<(&'static str, ScriptCoverage)> {
@@ -301,6 +302,8 @@ pub fn interface_coverage() -> Vec<(&'static str, ScriptCoverage)> {
         fdb_macs => NotWritable(NEIGHBOURS),
         native_vlan_id => NotWritable("VLAN membership comes from SNMP and controller integrations"),
         vlan_ids => NotWritable("VLAN membership comes from SNMP and controller integrations"),
+        vlan_membership_source => NotWritable(PROVENANCE),
+        interface_source => NotWritable(PROVENANCE),
     })
 }
 

@@ -32,7 +32,7 @@ use uuid::Uuid;
 use crate::daemon::discovery::integration::controller::{ControllerIdentity, MappedClient};
 use crate::server::interface_neighbors::r#impl::base::InterfaceNeighborEvidence;
 use crate::server::interfaces::r#impl::base::{
-    IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
+    FdbMacs, FdbMacsValue, IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
 };
 use crate::server::ip_addresses::r#impl::base::{IPAddress, IPAddressBase};
 use crate::server::lldp::{LldpChassisId, LldpPortId, canonical_mac};
@@ -42,6 +42,9 @@ use super::types::{InstantOnClient, InstantOnDevice, InstantOnPort};
 
 /// IANA ifType 6 — ethernetCsmacd. Every Instant On port we model is a physical Ethernet port.
 const IF_TYPE_ETHERNET: i32 = 6;
+
+/// The portal reporting a device it manages: everything this mapping records.
+const INSTANT_ON: AttributeSource = AttributeSource::Probe(ClientProbe::InstantOn);
 
 /// An Instant On device translated into the entities Scanopy stores.
 pub struct MappedDevice {
@@ -137,14 +140,13 @@ fn map_device(
         subnet_id: subnet.id,
         ip_address: ip,
         // The controller reporting a device it manages, not the device answering us.
-        mac_address: device_mac.as_deref().and_then(|m| m.parse().ok()).map(|m| {
-            MacEvidence::new(
-                MacEvidenceValue(m),
-                AttributeSource::Probe(ClientProbe::InstantOn),
-            )
-        }),
+        mac_address: device_mac
+            .as_deref()
+            .and_then(|m| m.parse().ok())
+            .map(|m| MacEvidence::new(MacEvidenceValue(m), INSTANT_ON)),
         name: None,
         position: 0,
+        ip_address_source: INSTANT_ON,
     });
 
     Some(MappedDevice {
@@ -190,6 +192,7 @@ fn map_interfaces(
             if_type: Some(IF_TYPE_ETHERNET),
             admin_status: Some(IfAdminStatus::Up),
             oper_status: Some(IfOperStatus::Up),
+            interface_source: INSTANT_ON,
             ..Default::default()
         }));
     }
@@ -274,6 +277,7 @@ fn port_to_interface(port: &InstantOnPort, position: usize, site_id: Uuid) -> In
         // columns hold VLAN *entity* ids, not raw tags, so recording one would mean resolving it
         // to a VLAN entity — and an access VLAN is not the membership list SNMP walks anyway.
         // `interface_data_complete().vlan_membership` is `false` to match.
+        interface_source: INSTANT_ON,
         ..Default::default()
     })
 }
@@ -339,6 +343,7 @@ fn apply_uplink(
         lldp_sys_name: parent
             .and_then(|p| p.name.clone())
             .filter(|n| !n.trim().is_empty()),
+        evidence_source: INSTANT_ON,
         ..Default::default()
     }];
 }
@@ -388,9 +393,14 @@ fn apply_client_macs(
 
         // `None` rather than an empty vec: the server's unresolved-FDB filter keys on the column
         // being non-NULL.
-        let fdb = interface.base.fdb_macs.get_or_insert_with(Vec::new);
+        let mut fdb = interface
+            .base
+            .fdb_macs()
+            .map(<[String]>::to_vec)
+            .unwrap_or_default();
         if !fdb.contains(&mac) {
             fdb.push(mac);
+            interface.base.fdb_macs = Some(FdbMacs::new(FdbMacsValue(fdb), INSTANT_ON));
         }
     }
 }
@@ -703,12 +713,12 @@ mod tests {
         let stack = find(&devices, "Core Stack");
 
         assert_eq!(
-            interface(edge, 2).base.fdb_macs.as_deref(),
+            interface(edge, 2).base.fdb_macs(),
             Some(["de:ad:be:ef:00:01".to_string()].as_slice())
         );
         // A client on a stack member's port lands on that member's interface.
         assert_eq!(
-            interface(stack, 2_001_001).base.fdb_macs.as_deref(),
+            interface(stack, 2_001_001).base.fdb_macs(),
             Some(["de:ad:be:ef:00:02".to_string()].as_slice())
         );
         // The wireless client is attached to the AP, which has no port to hold it.

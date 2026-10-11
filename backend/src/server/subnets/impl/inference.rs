@@ -35,6 +35,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use cidr::{IpCidr, Ipv4Cidr, Ipv6Cidr};
 
+use crate::server::shared::attribution::AttributeSource;
 use crate::server::subnets::r#impl::base::Subnet;
 use uuid::Uuid;
 
@@ -85,6 +86,9 @@ pub struct UnplacedFarEnd {
     pub port_mac: Option<String>,
     /// The VLAN the seeing port carries, where the bridge tables gave one.
     pub vlan_id: Option<Uuid>,
+    /// What heard the advertisement. The address and port minted for the far end record it as
+    /// their source.
+    pub evidence_source: AttributeSource,
 }
 
 /// An [`UnplacedFarEnd`] that published an address.
@@ -406,7 +410,7 @@ pub(crate) fn overlaps(a: &IpCidr, b: &IpCidr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::shared::attribution::AttributeSource;
+    use crate::server::services::r#impl::patterns::ClientProbe;
     use crate::server::subnets::r#impl::base::SubnetBase;
     use crate::server::subnets::r#impl::base::{SubnetCidr, SubnetCidrValue};
 
@@ -420,6 +424,7 @@ mod tests {
             port_name: Some("Ten-GigabitEthernet1/0/1".to_string()),
             port_mac: None,
             vlan_id,
+            evidence_source: AttributeSource::Probe(ClientProbe::Snmp),
         }
     }
 

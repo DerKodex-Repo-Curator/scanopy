@@ -586,3 +586,35 @@ fn every_source_has_a_label_with_a_probe_slot_exactly_where_it_carries_a_probe()
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// A row's source
+// ---------------------------------------------------------------------------
+
+/// An unattributed row takes the first source that reports it, and from then on keeps it whatever
+/// reports the row next, in either order.
+#[test]
+fn keep_or_heal_heals_an_unattributed_row_and_then_holds() {
+    let snmp = AttributeSource::Probe(ClientProbe::Snmp);
+    let scan = AttributeSource::PortScan;
+
+    let healed = AttributeSource::Unspecified.keep_or_heal(scan);
+    assert_eq!(healed, scan);
+    assert_eq!(healed.keep_or_heal(snmp), scan);
+    assert_eq!(snmp.keep_or_heal(scan), snmp);
+    assert_eq!(scan.keep_or_heal(AttributeSource::Unspecified), scan);
+}
+
+/// Every source has a label and a description with no `{probe}` slot left unfilled, so a method
+/// listed on the security page never reads as a template.
+#[test]
+fn every_label_and_description_fills_its_probe_slot() {
+    for source in AttributeSource::all() {
+        let (label, description) = (source.label(), source.describe());
+        assert!(!label.contains("{probe}"), "{source} labelled {label:?}");
+        assert!(
+            !description.contains("{probe}"),
+            "{source} described as {description:?}"
+        );
+    }
+}

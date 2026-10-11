@@ -31,6 +31,7 @@ use uuid::Uuid;
 use crate::server::lldp::{
     AdvertisedFarEndPort, AdvertisedIdentity, LldpChassisId, LldpPortId, is_usable_identity_address,
 };
+use crate::server::shared::attribution::AttributeSource;
 
 // ============================================================================
 // Shared evidence shape
@@ -82,6 +83,12 @@ pub struct InterfaceNeighborEvidence {
     #[serde(default)]
     #[schema(value_type = Option<String>, example = "192.168.1.1")]
     pub cdp_address: Option<IpAddr>,
+    /// What heard this record: the integration that read the device's neighbor table, or lldpd on
+    /// the daemon's own host.
+    // Named apart from every interface key, because a pre-#701 daemon's interface object is read
+    // as evidence too (see `interfaces::impl::wire`).
+    #[serde(default)]
+    pub evidence_source: AttributeSource,
 }
 
 impl InterfaceNeighborEvidence {

@@ -20,10 +20,12 @@ use crate::server::{
         service::InterfaceNeighborService,
     },
     interfaces::r#impl::base::{
-        IfAdminStatus, IfOperStatus, Interface, InterfaceBase, InterfaceDataComplete, if_type,
+        FdbMacs, FdbMacsValue, IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
+        InterfaceDataComplete, if_type,
     },
     ip_addresses::r#impl::base::{MacEvidence, MacEvidenceValue},
     lldp::LldpChassisId,
+    services::r#impl::patterns::ClientProbe,
     shared::{
         attribution::AttributeSource,
         storage::{factory::StorageFactory, filter::StorableFilter, traits::Storage},
@@ -31,6 +33,14 @@ use crate::server::{
 };
 
 use super::{host, organization, site, subnet, test_services};
+
+/// Learned MACs as an SNMP bridge-FDB walk records them.
+fn snmp_fdb(macs: Vec<String>) -> FdbMacs {
+    FdbMacs::new(
+        FdbMacsValue(macs),
+        AttributeSource::Probe(ClientProbe::Snmp),
+    )
+}
 
 /// Everything an FDB resolution test needs: a site with hosts and interfaces in it, and the
 /// two services `resolve_fdb_links` reads and writes through.
@@ -113,7 +123,7 @@ impl Lab {
             if_index: Some(if_index),
             if_descr: Some(descr.to_string()),
             if_type: Some(if_type::ETHERNET_CSMA_CD),
-            fdb_macs: Some(vec![learned_mac.to_string()]),
+            fdb_macs: Some(snmp_fdb(vec![learned_mac.to_string()])),
             admin_status: Some(IfAdminStatus::Up),
             oper_status: Some(IfOperStatus::Up),
             ..Default::default()
@@ -176,7 +186,7 @@ impl Lab {
                 mac_address: entry
                     .if_phys_address
                     .map(|m| MacEvidence::new(MacEvidenceValue(m), AttributeSource::ArpReply)),
-                fdb_macs: (!learned_macs.is_empty()).then_some(learned_macs),
+                fdb_macs: (!learned_macs.is_empty()).then(|| snmp_fdb(learned_macs)),
                 admin_status: Some(IfAdminStatus::Up),
                 oper_status: Some(IfOperStatus::Up),
                 ..Default::default()
@@ -392,10 +402,10 @@ async fn a_port_with_two_learned_macs_is_not_an_fdb_candidate() {
         if_index: Some(5),
         if_descr: Some("Gi0/5".to_string()),
         if_type: Some(if_type::ETHERNET_CSMA_CD),
-        fdb_macs: Some(vec![
+        fdb_macs: Some(snmp_fdb(vec![
             "00:1a:2b:00:10:05".to_string(),
             "00:1a:2b:00:10:06".to_string(),
-        ]),
+        ])),
         admin_status: Some(IfAdminStatus::Up),
         oper_status: Some(IfOperStatus::Up),
         ..Default::default()
@@ -444,7 +454,7 @@ async fn a_bridge_only_device_resolves_its_single_mac_port_via_resolve_fdb_links
     // stores) renders uppercase — asserted here so the value driving resolution below is provably
     // the collected one, not a hand-typed lowercase stand-in.
     assert_eq!(
-        anchor.base.fdb_macs.as_deref(),
+        anchor.base.fdb_macs(),
         Some(["00:1A:2B:00:10:03".to_string()].as_slice()),
         "the collected FDB, not a hand-typed value, is what this test resolves"
     );

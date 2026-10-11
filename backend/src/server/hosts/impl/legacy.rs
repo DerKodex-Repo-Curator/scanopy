@@ -136,6 +136,7 @@ impl LegacyIPAddress {
                     .map(|m| MacEvidence::new(MacEvidenceValue(m), AttributeSource::Unspecified)),
                 name: self.name,
                 position: 0,
+                ip_address_source: AttributeSource::Unspecified,
             },
         }
     }
@@ -182,6 +183,7 @@ impl LegacyPort {
                 site_id,
                 host_id,
                 port_type,
+                port_source: AttributeSource::Unspecified,
             },
         }
     }

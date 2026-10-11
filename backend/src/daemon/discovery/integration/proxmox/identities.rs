@@ -140,6 +140,7 @@ pub fn identity_interface(identity: &NetworkIdentity, site_id: Uuid) -> Interfac
         site_id,
         if_name: identity.interface.clone(),
         mac_address: identity_mac(identity),
+        interface_source: REPORTED,
         ..Default::default()
     })
 }
@@ -185,6 +186,7 @@ pub fn identity_host(
                 site_id,
                 subnets,
                 *ip,
+                REPORTED,
                 mac.clone(),
                 identity.interface.clone(),
                 position as i32,
@@ -256,11 +258,13 @@ mod tests {
             ip: "192.168.7.200".parse().unwrap(),
             mac: Some("3a:5e:01:aa:bb:cc".to_string()),
             interface: Some("mv-snmp4".to_string()),
+            source: AttributeSource::GuestAgent,
         });
         reported.push(GuestAddress {
             ip: "192.168.7.201".parse().unwrap(),
             mac: None,
             interface: Some("wg0".to_string()),
+            source: AttributeSource::GuestAgent,
         });
         (nics, reported)
     }

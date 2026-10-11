@@ -210,8 +210,7 @@ impl HostService {
                 .all(|c| !c.base.evidence.has_lldp_data() && !c.base.evidence.has_cdp_data())
                 && interface
                     .base
-                    .fdb_macs
-                    .as_ref()
+                    .fdb_macs()
                     .is_some_and(|macs| macs.len() == 1));
         if !mac_bound {
             return Ok(PortBinding::Stands);

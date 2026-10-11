@@ -4483,6 +4483,9 @@ export interface components {
              *           "if_index": 1,
              *           "if_name": "Gi0/1",
              *           "if_type": 6,
+             *           "interface_source": {
+             *             "Probe": "Snmp"
+             *           },
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "ip_configured": true,
              *           "last_discovery_id": null,
@@ -4496,7 +4499,8 @@ export interface components {
              *           "speed_bps": 1000000000,
              *           "updated_at": "2026-01-15T10:30:00Z",
              *           "valid_from": "2026-01-15T10:30:00Z",
-             *           "valid_to": null
+             *           "valid_to": null,
+             *           "vlan_membership_source": "Unspecified"
              *         }
              *       ],
              *       "ip_addresses": [
@@ -4506,6 +4510,7 @@ export interface components {
              *           "host_id": "550e8400-e29b-41d4-a716-446655440003",
              *           "id": "550e8400-e29b-41d4-a716-446655440005",
              *           "ip_address": "192.168.1.100",
+             *           "ip_address_source": "ArpReply",
              *           "last_discovery_id": null,
              *           "last_seen_at": "2026-01-15T10:30:00Z",
              *           "lineage_id": null,
@@ -4566,6 +4571,7 @@ export interface components {
              *           "last_seen_at": "2026-01-15T10:30:00Z",
              *           "lineage_id": null,
              *           "number": 80,
+             *           "port_source": "PortScan",
              *           "protocol": "Tcp",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Http",
@@ -4837,6 +4843,7 @@ export interface components {
              *       "host_id": "550e8400-e29b-41d4-a716-446655440003",
              *       "id": "550e8400-e29b-41d4-a716-446655440005",
              *       "ip_address": "192.168.1.100",
+             *       "ip_address_source": "ArpReply",
              *       "last_discovery_id": null,
              *       "last_seen_at": "2026-01-15T10:30:00Z",
              *       "lineage_id": null,
@@ -5235,6 +5242,7 @@ export interface components {
              *       "last_seen_at": "2026-01-15T10:30:00Z",
              *       "lineage_id": null,
              *       "number": 80,
+             *       "port_source": "PortScan",
              *       "protocol": "Tcp",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Http",
@@ -6833,7 +6841,7 @@ export interface components {
          *     that do carry a [`ClientProbe`] keep it under their own name, `{"Probe":"Snmp"}`, which tells them
          *     apart from each other and from every bare name.
          */
-        AttributeSource: "Unspecified" | "OwnAddress" | "ServiceMatch" | "LldpNeighbourAddress" | "CipVendorId" | "SysDescrMatch" | "SysObjectIdMatch" | "LldpSysDescMatch" | "SshBannerMatch" | "HttpServerMatch" | "DnsSdDeviceInfoMatch" | "DnsSdAirPlayMatch" | "DnsSdInstanceName" | "DnsSdHostname" | "LldpChassisId" | "ReverseDns" | "ForwardingTable" | "ArpReply" | "DaemonSelfReport" | "ProfinetDcp" | "ContainerRuntimeInfo" | "HypervisorConfig" | "GuestAgent" | "SshScript" | {
+        AttributeSource: "Unspecified" | "OwnAddress" | "ServiceMatch" | "LldpNeighbourAddress" | "CipVendorId" | "SysDescrMatch" | "SysObjectIdMatch" | "LldpSysDescMatch" | "SshBannerMatch" | "HttpServerMatch" | "DnsSdDeviceInfoMatch" | "DnsSdAirPlayMatch" | "DnsSdInstanceName" | "DnsSdHostname" | "LldpChassisId" | "Lldpd" | "ReverseDns" | "ForwardingTable" | "ArpReply" | "IcmpEcho" | "PortScan" | "DaemonSelfReport" | "ProfinetDcp" | "ContainerRuntimeInfo" | "HypervisorConfig" | "GuestAgent" | "SshScript" | {
             /** @description A value the thing emitted about itself, over whatever transport [`ClientProbe`] names. */
             Probe: components["schemas"]["ClientProbe"];
         } | {
@@ -9398,6 +9406,11 @@ export interface components {
             /** @description Viewer may export the diagram as an editable Visio (VSDX) file. */
             vsdx_export: boolean;
         };
+        FdbMacs: {
+            /** @description MAC addresses the switch learned on this port. A port with one learned MAC can be resolved to a neighbor link; several indicate an uplink. */
+            fdb_macs?: string[];
+            fdb_macs_source?: components["schemas"]["AttributeSource"];
+        };
         /**
          * @description Definition of a form field for dynamic UI rendering.
          *
@@ -9857,6 +9870,9 @@ export interface components {
          *           "if_index": 1,
          *           "if_name": "Gi0/1",
          *           "if_type": 6,
+         *           "interface_source": {
+         *             "Probe": "Snmp"
+         *           },
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "ip_configured": true,
          *           "last_discovery_id": null,
@@ -9870,7 +9886,8 @@ export interface components {
          *           "speed_bps": 1000000000,
          *           "updated_at": "2026-01-15T10:30:00Z",
          *           "valid_from": "2026-01-15T10:30:00Z",
-         *           "valid_to": null
+         *           "valid_to": null,
+         *           "vlan_membership_source": "Unspecified"
          *         }
          *       ],
          *       "ip_addresses": [
@@ -9880,6 +9897,7 @@ export interface components {
          *           "host_id": "550e8400-e29b-41d4-a716-446655440003",
          *           "id": "550e8400-e29b-41d4-a716-446655440005",
          *           "ip_address": "192.168.1.100",
+         *           "ip_address_source": "ArpReply",
          *           "last_discovery_id": null,
          *           "last_seen_at": "2026-01-15T10:30:00Z",
          *           "lineage_id": null,
@@ -9940,6 +9958,7 @@ export interface components {
          *           "last_seen_at": "2026-01-15T10:30:00Z",
          *           "lineage_id": null,
          *           "number": 80,
+         *           "port_source": "PortScan",
          *           "protocol": "Tcp",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Http",
@@ -10267,6 +10286,7 @@ export interface components {
          *       "host_id": "550e8400-e29b-41d4-a716-446655440003",
          *       "id": "550e8400-e29b-41d4-a716-446655440005",
          *       "ip_address": "192.168.1.100",
+         *       "ip_address_source": "ArpReply",
          *       "last_discovery_id": null,
          *       "last_seen_at": "2026-01-15T10:30:00Z",
          *       "lineage_id": null,
@@ -10339,6 +10359,8 @@ export interface components {
              * @example 192.168.1.10
              */
             ip_address: string;
+            /** @description What found this address on the host. */
+            ip_address_source?: components["schemas"]["AttributeSource"];
             /** @description Human-facing name for this IP address. */
             name: string | null;
             /**
@@ -10625,14 +10647,8 @@ export interface components {
              */
             readonly valid_to?: string | null;
         };
-        InterfaceBase: components["schemas"]["MacEvidence"] & {
+        InterfaceBase: components["schemas"]["MacEvidence"] & components["schemas"]["FdbMacs"] & {
             admin_status?: null | components["schemas"]["IfAdminStatus"];
-            /**
-             * @description Bridge FDB: learned MAC addresses on this switch port.
-             *     Single-MAC ports can be resolved to neighbor links server-side.
-             *     Multi-MAC ports indicate uplinks where LLDP/CDP is the better source.
-             */
-            fdb_macs?: string[] | null;
             /**
              * Format: uuid
              * @description The host this entity belongs to.
@@ -10672,6 +10688,8 @@ export interface components {
              *     for lack of a number would drop the row from resolution and from the map.
              */
             if_type?: number | null;
+            /** @description What reported this interface. */
+            interface_source?: components["schemas"]["AttributeSource"];
             /**
              * Format: uuid
              * @description FK to IPAddress entity - this port's IP assignment (must be on same host).
@@ -10724,6 +10742,11 @@ export interface components {
             speed_bps?: number | null;
             /** @description Tagged VLAN entity IDs on this port (resolved from Q-BRIDGE dot1qVlanCurrentEgressPorts) */
             vlan_ids?: string[] | null;
+            /**
+             * @description What read `native_vlan_id` and `vlan_ids`. One source for both, because they are read
+             *     together and kept or replaced together.
+             */
+            vlan_membership_source?: components["schemas"]["AttributeSource"];
         };
         /**
          * @description Which groups of per-interface data the daemon read in full during a scan.
@@ -10848,6 +10871,11 @@ export interface components {
             cdp_platform?: string | null;
             /** @description Remote port ID from CDP */
             cdp_port_id?: string | null;
+            /**
+             * @description What heard this record: the integration that read the device's neighbor table, or lldpd on
+             *     the daemon's own host.
+             */
+            evidence_source?: components["schemas"]["AttributeSource"];
             lldp_chassis_id?: null | components["schemas"]["LldpChassisId"];
             /**
              * @description Remote management IP from LLDP neighbor (lldpRemManAddr). IPv4 or IPv6.
@@ -12400,6 +12428,7 @@ export interface components {
          *       "last_seen_at": "2026-01-15T10:30:00Z",
          *       "lineage_id": null,
          *       "number": 80,
+         *       "port_source": "PortScan",
          *       "protocol": "Tcp",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Http",
@@ -12462,6 +12491,11 @@ export interface components {
              * @description The host this entity belongs to.
              */
             host_id: string;
+            /**
+             * @description What found this port open. Not part of the port's identity: equality and hashing compare
+             *     `port_type` alone.
+             */
+            port_source?: components["schemas"]["AttributeSource"];
             /**
              * Format: uuid
              * @description The site this entity belongs to.

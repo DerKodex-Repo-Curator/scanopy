@@ -16572,6 +16572,9 @@
                   "if_index": 1,
                   "if_name": "Gi0/1",
                   "if_type": 6,
+                  "interface_source": {
+                    "Probe": "Snmp"
+                  },
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "ip_configured": true,
                   "last_discovery_id": null,
@@ -16585,7 +16588,8 @@
                   "speed_bps": 1000000000,
                   "updated_at": "2026-01-15T10:30:00Z",
                   "valid_from": "2026-01-15T10:30:00Z",
-                  "valid_to": null
+                  "valid_to": null,
+                  "vlan_membership_source": "Unspecified"
                 }
               ],
               "ip_addresses": [
@@ -16595,6 +16599,7 @@
                   "host_id": "550e8400-e29b-41d4-a716-446655440003",
                   "id": "550e8400-e29b-41d4-a716-446655440005",
                   "ip_address": "192.168.1.100",
+                  "ip_address_source": "ArpReply",
                   "last_discovery_id": null,
                   "last_seen_at": "2026-01-15T10:30:00Z",
                   "lineage_id": null,
@@ -16655,6 +16660,7 @@
                   "last_seen_at": "2026-01-15T10:30:00Z",
                   "lineage_id": null,
                   "number": 80,
+                  "port_source": "PortScan",
                   "protocol": "Tcp",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Http",
@@ -16841,6 +16847,7 @@
               "host_id": "550e8400-e29b-41d4-a716-446655440003",
               "id": "550e8400-e29b-41d4-a716-446655440005",
               "ip_address": "192.168.1.100",
+              "ip_address_source": "ArpReply",
               "last_discovery_id": null,
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
@@ -17581,6 +17588,7 @@
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
               "number": 80,
+              "port_source": "PortScan",
               "protocol": "Tcp",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Http",
@@ -20542,6 +20550,13 @@
           },
           {
             "type": "string",
+            "description": "An LLDP neighbour the `lldpd` service on the daemon's own host heard on one of its ports.\nDistinct from [`Self::LldpChassisId`], which is the identity a neighbour advertised: this\nnames the listener that recorded the adjacency.",
+            "enum": [
+              "Lldpd"
+            ]
+          },
+          {
+            "type": "string",
             "description": "Reverse DNS. A known speaker that is not the subject.",
             "enum": [
               "ReverseDns"
@@ -20559,6 +20574,20 @@
             "description": "We broadcast an ARP request for a specific address and something replied claiming it.",
             "enum": [
               "ArpReply"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "We sent an ICMP echo request to the address and it answered.",
+            "enum": [
+              "IcmpEcho"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "We opened a TCP connection to a port, or a UDP probe to it was answered. Stamps the port,\nand the address of a host found only this way.",
+            "enum": [
+              "PortScan"
             ]
           },
           {
@@ -26979,6 +27008,21 @@
           }
         }
       },
+      "FdbMacs": {
+        "type": "object",
+        "properties": {
+          "fdb_macs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MAC addresses the switch learned on this port. A port with one learned MAC can be resolved to a neighbor link; several indicate an uplink."
+          },
+          "fdb_macs_source": {
+            "$ref": "#/components/schemas/AttributeSource"
+          }
+        }
+      },
       "FieldDefinition": {
         "type": "object",
         "description": "Definition of a form field for dynamic UI rendering.\n\nOne definition serves every dynamic form: credential types and discovery scan settings both\nbuild these, and the frontend renders them through the same switch. Reaches the UI through\nbuild-time fixtures (`credential-types.json`, `integrations.json`, `scan-settings.json`) and,\nfor the generated TypeScript union, through the OpenAPI schema.",
@@ -28506,6 +28550,9 @@
               "if_index": 1,
               "if_name": "Gi0/1",
               "if_type": 6,
+              "interface_source": {
+                "Probe": "Snmp"
+              },
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "ip_configured": true,
               "last_discovery_id": null,
@@ -28519,7 +28566,8 @@
               "speed_bps": 1000000000,
               "updated_at": "2026-01-15T10:30:00Z",
               "valid_from": "2026-01-15T10:30:00Z",
-              "valid_to": null
+              "valid_to": null,
+              "vlan_membership_source": "Unspecified"
             }
           ],
           "ip_addresses": [
@@ -28529,6 +28577,7 @@
               "host_id": "550e8400-e29b-41d4-a716-446655440003",
               "id": "550e8400-e29b-41d4-a716-446655440005",
               "ip_address": "192.168.1.100",
+              "ip_address_source": "ArpReply",
               "last_discovery_id": null,
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
@@ -28589,6 +28638,7 @@
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
               "number": 80,
+              "port_source": "PortScan",
               "protocol": "Tcp",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Http",
@@ -28962,6 +29012,7 @@
           "host_id": "550e8400-e29b-41d4-a716-446655440003",
           "id": "550e8400-e29b-41d4-a716-446655440005",
           "ip_address": "192.168.1.100",
+          "ip_address_source": "ArpReply",
           "last_discovery_id": null,
           "last_seen_at": "2026-01-15T10:30:00Z",
           "lineage_id": null,
@@ -29001,6 +29052,10 @@
                 "type": "string",
                 "description": "IPv4 or IPv6 address.",
                 "example": "192.168.1.10"
+              },
+              "ip_address_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What found this address on the host."
               },
               "name": {
                 "type": [
@@ -29589,6 +29644,10 @@
             "description": "MAC address, usually from SNMP `ifPhysAddress`, with the evidence for it."
           },
           {
+            "$ref": "#/components/schemas/FdbMacs",
+            "description": "Bridge FDB: learned MAC addresses on this switch port, with what read them.\nSingle-MAC ports can be resolved to neighbor links server-side.\nMulti-MAC ports indicate uplinks where LLDP/CDP is the better source."
+          },
+          {
             "type": "object",
             "required": [
               "host_id",
@@ -29605,16 +29664,6 @@
                     "description": "SNMP ifAdminStatus: 1=up, 2=down, 3=testing, or `None` where nothing read it.\n\nOptional rather than defaulting to `Up`: an advertisement carries no status, and recording\none as up would be a claim nothing made."
                   }
                 ]
-              },
-              "fdb_macs": {
-                "type": [
-                  "array",
-                  "null"
-                ],
-                "items": {
-                  "type": "string"
-                },
-                "description": "Bridge FDB: learned MAC addresses on this switch port.\nSingle-MAC ports can be resolved to neighbor links server-side.\nMulti-MAC ports indicate uplinks where LLDP/CDP is the better source."
               },
               "host_id": {
                 "type": "string",
@@ -29657,6 +29706,10 @@
                 ],
                 "format": "int32",
                 "description": "SNMP ifType - IANAifType integer (6=ethernet, 24=loopback, etc.), where one was read.\n\n`None` is *unknown*, never a type. Everything that filters on this must treat unknown as\nincluded — a port at the far end of a cable is physical by construction, and excluding it\nfor lack of a number would drop the row from resolution and from the map."
+              },
+              "interface_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What reported this interface."
               },
               "ip_address_id": {
                 "type": [
@@ -29719,6 +29772,10 @@
                   "format": "uuid"
                 },
                 "description": "Tagged VLAN entity IDs on this port (resolved from Q-BRIDGE dot1qVlanCurrentEgressPorts)"
+              },
+              "vlan_membership_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What read `native_vlan_id` and `vlan_ids`. One source for both, because they are read\ntogether and kept or replaced together."
               }
             }
           }
@@ -29911,6 +29968,10 @@
               "null"
             ],
             "description": "Remote port ID from CDP"
+          },
+          "evidence_source": {
+            "$ref": "#/components/schemas/AttributeSource",
+            "description": "What heard this record: the integration that read the device's neighbor table, or lldpd on\nthe daemon's own host."
           },
           "lldp_chassis_id": {
             "oneOf": [
@@ -32359,6 +32420,9 @@
                     "if_index": 1,
                     "if_name": "Gi0/1",
                     "if_type": 6,
+                    "interface_source": {
+                      "Probe": "Snmp"
+                    },
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "ip_configured": true,
                     "last_discovery_id": null,
@@ -32372,7 +32436,8 @@
                     "speed_bps": 1000000000,
                     "updated_at": "2026-01-15T10:30:00Z",
                     "valid_from": "2026-01-15T10:30:00Z",
-                    "valid_to": null
+                    "valid_to": null,
+                    "vlan_membership_source": "Unspecified"
                   }
                 ],
                 "ip_addresses": [
@@ -32382,6 +32447,7 @@
                     "host_id": "550e8400-e29b-41d4-a716-446655440003",
                     "id": "550e8400-e29b-41d4-a716-446655440005",
                     "ip_address": "192.168.1.100",
+                    "ip_address_source": "ArpReply",
                     "last_discovery_id": null,
                     "last_seen_at": "2026-01-15T10:30:00Z",
                     "lineage_id": null,
@@ -32442,6 +32508,7 @@
                     "last_seen_at": "2026-01-15T10:30:00Z",
                     "lineage_id": null,
                     "number": 80,
+                    "port_source": "PortScan",
                     "protocol": "Tcp",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Http",
@@ -33566,6 +33633,7 @@
           "last_seen_at": "2026-01-15T10:30:00Z",
           "lineage_id": null,
           "number": 80,
+          "port_source": "PortScan",
           "protocol": "Tcp",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Http",
@@ -33591,6 +33659,10 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "The host this entity belongs to."
+              },
+              "port_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What found this port open. Not part of the port's identity: equality and hashing compare\n`port_type` alone."
               },
               "site_id": {
                 "type": "string",

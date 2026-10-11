@@ -145,6 +145,7 @@ async fn ip_on(services: &ServiceFactory, site_id: Uuid, subnet_id: Uuid, addres
         mac_address: None,
         name: None,
         position: 0,
+        ..Default::default()
     });
     services
         .ip_address_service

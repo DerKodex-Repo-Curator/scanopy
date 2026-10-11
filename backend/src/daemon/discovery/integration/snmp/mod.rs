@@ -65,7 +65,8 @@ use crate::{
         hosts::r#impl::base::{Host, HostBase},
         interface_neighbors::r#impl::base::InterfaceNeighborEvidence,
         interfaces::r#impl::base::{
-            IfAdminStatus, IfOperStatus, Interface, InterfaceBase, InterfaceDataComplete, if_type,
+            FdbMacs, FdbMacsValue, IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
+            InterfaceDataComplete, if_type,
         },
         ip_addresses::r#impl::base::{IPAddress, IPAddressBase},
         ip_addresses::r#impl::base::{MacEvidence, MacEvidenceValue},
@@ -1078,6 +1079,8 @@ impl DiscoveryIntegration for SnmpIntegration {
                         )
                     }),
                     position: 0,
+                    // The device's own ipAddrTable.
+                    ip_address_source: AttributeSource::Probe(ClientProbe::Snmp),
                 }));
             }
 
@@ -1135,6 +1138,7 @@ impl DiscoveryIntegration for SnmpIntegration {
                         ip_address: loopback_ip,
                         mac_address: None,
                         position: 0,
+                        ip_address_source: AttributeSource::Probe(ClientProbe::Snmp),
                     }));
                 }
             }
@@ -1169,6 +1173,7 @@ impl DiscoveryIntegration for SnmpIntegration {
                         AttributeSource::ForwardingTable,
                     )),
                     position: 0,
+                    ip_address_source: AttributeSource::ForwardingTable,
                 });
 
                 // An ARP entry carries an address and nothing else. The host stays unnamed: the

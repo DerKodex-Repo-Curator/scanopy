@@ -22,7 +22,7 @@ use uuid::Uuid;
 use crate::daemon::discovery::integration::controller::{ControllerIdentity, MappedClient};
 use crate::server::interface_neighbors::r#impl::base::InterfaceNeighborEvidence;
 use crate::server::interfaces::r#impl::base::{
-    IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
+    FdbMacs, FdbMacsValue, IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
 };
 use crate::server::ip_addresses::r#impl::base::{IPAddress, IPAddressBase};
 use crate::server::lldp::{LldpChassisId, LldpPortId, canonical_mac};
@@ -32,6 +32,9 @@ use super::types::{UnifiDevice, UnifiPort, UnifiStation};
 
 /// IANA ifType 6 — ethernetCsmacd. Every UniFi port we model is a physical Ethernet port.
 const IF_TYPE_ETHERNET: i32 = 6;
+
+/// The controller reporting a device it manages: everything this mapping records.
+const UNIFI: AttributeSource = AttributeSource::Probe(ClientProbe::UnifiController);
 
 /// A UniFi device translated into the entities Scanopy stores.
 pub struct MappedDevice {
@@ -111,14 +114,13 @@ fn map_device(
         subnet_id: subnet.id,
         ip_address: ip,
         // The controller reporting a device it manages, not the device answering us.
-        mac_address: device_mac.as_deref().and_then(|m| m.parse().ok()).map(|m| {
-            MacEvidence::new(
-                MacEvidenceValue(m),
-                AttributeSource::Probe(ClientProbe::UnifiController),
-            )
-        }),
+        mac_address: device_mac
+            .as_deref()
+            .and_then(|m| m.parse().ok())
+            .map(|m| MacEvidence::new(MacEvidenceValue(m), UNIFI)),
         name: None,
         position: 0,
+        ip_address_source: UNIFI,
     });
 
     Some(MappedDevice {
@@ -171,12 +173,8 @@ fn map_interfaces(
                 .as_deref()
                 .and_then(canonical_mac)
                 .and_then(|m| m.parse().ok())
-                .map(|m| {
-                    MacEvidence::new(
-                        MacEvidenceValue(m),
-                        AttributeSource::Probe(ClientProbe::UnifiController),
-                    )
-                }),
+                .map(|m| MacEvidence::new(MacEvidenceValue(m), UNIFI)),
+            interface_source: UNIFI,
             ..Default::default()
         }));
     }
@@ -207,12 +205,7 @@ fn port_to_interface(port: &UnifiPort, site_id: Uuid, device_mac: Option<&str>) 
     let mac_address = port_mac
         .filter(|m| device_mac != Some(m.as_str()))
         .and_then(|m| m.parse().ok())
-        .map(|m| {
-            MacEvidence::new(
-                MacEvidenceValue(m),
-                AttributeSource::Probe(ClientProbe::UnifiController),
-            )
-        });
+        .map(|m| MacEvidence::new(MacEvidenceValue(m), UNIFI));
 
     let fdb_macs: Vec<String> = port
         .mac_table
@@ -243,7 +236,8 @@ fn port_to_interface(port: &UnifiPort, site_id: Uuid, device_mac: Option<&str>) 
         mac_address,
         // `None` rather than an empty vec: the server's unresolved-FDB filter keys on the
         // column being non-NULL.
-        fdb_macs: (!fdb_macs.is_empty()).then_some(fdb_macs),
+        fdb_macs: (!fdb_macs.is_empty()).then(|| FdbMacs::new(FdbMacsValue(fdb_macs), UNIFI)),
+        interface_source: UNIFI,
         ..Default::default()
     })
 }
@@ -282,6 +276,7 @@ fn apply_uplink(interfaces: &mut [Interface], device: &UnifiDevice) {
             .uplink_device_name
             .clone()
             .filter(|n| !n.trim().is_empty()),
+        evidence_source: UNIFI,
         ..Default::default()
     }];
 }
@@ -321,6 +316,7 @@ fn apply_downlinks(
                 .get(&child_mac)
                 .and_then(|child| child.name.clone())
                 .filter(|n| !n.trim().is_empty()),
+            evidence_source: UNIFI,
             ..Default::default()
         }];
     }
@@ -359,6 +355,7 @@ fn apply_lldp_table(interfaces: &mut [Interface], device: &UnifiDevice) {
                 .filter(|p| !p.is_empty())
                 .map(LldpPortId::from_identifier_str),
             lldp_sys_name: sys_name,
+            evidence_source: UNIFI,
             ..Default::default()
         }];
     }
@@ -780,11 +777,11 @@ mod tests {
         let devices = map(USW_UPLINK);
         let switch = find(&devices, "Core Switch");
         assert_eq!(
-            interface(switch, 1).base.fdb_macs,
-            Some(vec!["aa:bb:cc:00:00:01".to_string()])
+            interface(switch, 1).base.fdb_macs(),
+            Some(["aa:bb:cc:00:00:01".to_string()].as_slice())
         );
         assert_eq!(
-            interface(switch, 2).base.fdb_macs.as_ref().map(Vec::len),
+            interface(switch, 2).base.fdb_macs().map(<[String]>::len),
             Some(2)
         );
         assert_eq!(interface(switch, 3).base.fdb_macs, None);

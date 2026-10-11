@@ -269,3 +269,44 @@ async fn the_same_guarantees_hold_for_cdp() {
         Some("core-switch-01".to_string())
     );
 }
+
+/// What heard a record is stored with it, so the record reads back with the source it was
+/// submitted with, including one that carries a probe.
+#[tokio::test]
+async fn a_candidates_evidence_source_survives_storage() {
+    use crate::server::services::r#impl::patterns::ClientProbe;
+    use crate::server::shared::attribution::AttributeSource;
+
+    let lab = Lab::new().await;
+    let switch = lab.host("switch-sourced").await;
+    let port = lab.port(switch.id, 1, "Gi0/1").await;
+
+    let heard = |source: AttributeSource, chassis: &str| InterfaceNeighborEvidence {
+        evidence_source: source,
+        ..lldp_evidence(chassis)
+    };
+    lab.interface_neighbor_service
+        .replace_candidates_from_discovery(
+            lab.site_id,
+            port.id,
+            vec![
+                heard(
+                    AttributeSource::Probe(ClientProbe::Snmp),
+                    "00:1a:2b:00:10:00",
+                ),
+                heard(AttributeSource::Lldpd, "00:1a:2b:00:10:01"),
+            ],
+            complete(),
+        )
+        .await
+        .unwrap();
+
+    let mut sources: Vec<String> = lab
+        .candidates(port.id)
+        .await
+        .iter()
+        .map(|c| c.base.evidence.evidence_source.to_string())
+        .collect();
+    sources.sort();
+    assert_eq!(sources, vec!["Lldpd", "Probe(Snmp)"]);
+}

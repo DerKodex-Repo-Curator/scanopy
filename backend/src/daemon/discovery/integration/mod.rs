@@ -41,7 +41,7 @@ use crate::{
         },
         credentials::r#impl::types::CredentialIntegration,
         discovery::r#impl::{
-            collection::{CollectionSource, report_undeclared_collection, undeclared_collection},
+            collection::{Producer, report_undeclared_collection, undeclared_collection},
             types::HostNamingFallback,
         },
         ports::r#impl::base::PortType,
@@ -490,10 +490,10 @@ where
     let surviving = surviving_collection(outcome, scratch, committed);
 
     if let Some(collection) = surviving.host_data {
-        let source = CollectionSource::Integration(ctx.integration);
+        let producer = Producer::Integration(ctx.integration);
         report_undeclared_collection(
-            source,
-            undeclared_collection(source, &collected_before, &collection.collected_data()),
+            producer,
+            undeclared_collection(producer, &collected_before, &collection.collected_data()),
         );
         *host_data = collection;
     }

@@ -7,7 +7,9 @@ use crate::server::ip_addresses::r#impl::base::MacEvidenceValue;
 use crate::server::shared::attribution::Attributed;
 use crate::server::shared::storage::attributed;
 use crate::server::{
-    interfaces::r#impl::base::{IfAdminStatus, IfOperStatus, Interface, InterfaceBase},
+    interfaces::r#impl::base::{
+        FdbMacsValue, IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
+    },
     shared::{
         entities::EntityDiscriminants,
         entity_metadata::EntityCategory,
@@ -88,10 +90,13 @@ impl Storable for Interface {
                     fdb_macs,
                     native_vlan_id,
                     vlan_ids,
+                    vlan_membership_source,
+                    interface_source,
                 },
         } = self.clone();
 
         let [mac_value, mac_source] = attributed::optional_params(&mac_address);
+        let [fdb_value, fdb_source] = attributed::optional_params(&fdb_macs);
 
         let columns = vec![
             "id",
@@ -110,8 +115,11 @@ impl Storable for Interface {
             "ip_address_id",
             "ip_configured",
             "fdb_macs",
+            "fdb_macs_source",
             "native_vlan_id",
             "vlan_ids",
+            "vlan_membership_source",
+            "interface_source",
             "created_at",
             "updated_at",
             "valid_from",
@@ -138,9 +146,12 @@ impl Storable for Interface {
             mac_source,
             SqlValue::OptionalUuid(ip_address_id),
             SqlValue::Bool(ip_configured),
-            SqlValue::OptionalFdbMacs(fdb_macs),
+            fdb_value,
+            fdb_source,
             SqlValue::OptionalUuid(native_vlan_id),
             SqlValue::OptionVecUuid(vlan_ids),
+            SqlValue::AttributeSource(vlan_membership_source),
+            SqlValue::AttributeSource(interface_source),
             SqlValue::Timestamp(created_at),
             SqlValue::Timestamp(updated_at),
             SqlValue::Timestamp(valid_from),
@@ -195,17 +206,15 @@ impl Storable for Interface {
                 ip_address_id: row.get("ip_address_id"),
                 ip_configured: row.get("ip_configured"),
                 neighbor_candidates: Vec::new(),
-                fdb_macs: row
-                    .try_get::<Option<serde_json::Value>, _>("fdb_macs")
-                    .ok()
-                    .flatten()
-                    .and_then(|v| serde_json::from_value(v).ok()),
+                fdb_macs: attributed::read_optional::<FdbMacsValue>(row)?,
                 native_vlan_id: row.get("native_vlan_id"),
                 vlan_ids: row
                     .try_get::<Option<serde_json::Value>, _>("vlan_ids")
                     .ok()
                     .flatten()
                     .and_then(|v| serde_json::from_value(v).ok()),
+                vlan_membership_source: attributed::read_source(row, "vlan_membership_source")?,
+                interface_source: attributed::read_source(row, "interface_source")?,
             },
         };
         interface.display_name = Some(interface.display_name());
@@ -270,6 +279,10 @@ impl Entity for Interface {
             Attributed::apply(&mut merged, incoming);
         }
         self.base.mac_address = merged;
+        self.base.interface_source = existing
+            .base
+            .interface_source
+            .keep_or_heal(self.base.interface_source);
         // Keep a previously-captured if_name if the current scan happens to lack it
         // (partial SNMP response, or device that stopped reporting ifXTable). Losing
         // if_name silently breaks tier-1 matching on the next scan.
@@ -561,12 +574,19 @@ mod tests {
 #[cfg(test)]
 mod preserve_uncollected_tests {
     use crate::server::interfaces::r#impl::base::{
-        Interface, InterfaceBase, InterfaceDataComplete,
+        FdbMacs, FdbMacsValue, Interface, InterfaceBase, InterfaceDataComplete,
     };
+    use crate::server::services::r#impl::patterns::ClientProbe;
+    use crate::server::shared::attribution::AttributeSource;
 
     fn with_fdb(mac: Option<&str>) -> Interface {
         Interface::new(InterfaceBase {
-            fdb_macs: mac.map(|m| vec![m.to_string()]),
+            fdb_macs: mac.map(|m| {
+                FdbMacs::new(
+                    FdbMacsValue(vec![m.to_string()]),
+                    AttributeSource::Probe(ClientProbe::Snmp),
+                )
+            }),
             ..Default::default()
         })
     }

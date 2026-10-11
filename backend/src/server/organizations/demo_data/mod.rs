@@ -359,6 +359,7 @@ fn create_host(
             mac_address: None,
             name: Some("eth0".to_string()),
             position: 0,
+            ip_address_source: AttributeSource::ArpReply,
         },
     };
     let host = Host {
@@ -618,7 +619,7 @@ fn create_service(
     let service_definition = ServiceDefinitionRegistry::find_by_id(service_def_id)?;
 
     let (bindings, port) = if let Some(pt) = port_type {
-        let port = Port::new_hostless(pt);
+        let port = Port::new_hostless(pt).with_source(AttributeSource::PortScan);
         let binding = Binding::new_port_serviceless(port.id, Some(ip_address.id));
         (vec![binding], Some(port))
     } else {
@@ -671,7 +672,7 @@ fn create_service_with_id(
     let service_definition = ServiceDefinitionRegistry::find_by_id(service_def_id)?;
 
     let (bindings, port) = if let Some(pt) = port_type {
-        let port = Port::new_hostless(pt);
+        let port = Port::new_hostless(pt).with_source(AttributeSource::PortScan);
         let binding = Binding::new_port_serviceless(port.id, Some(ip_address.id));
         (vec![binding], Some(port))
     } else {
@@ -724,8 +725,9 @@ fn create_container_service(
 ) -> Option<(Service, Option<Port>)> {
     let service_definition = ServiceDefinitionRegistry::find_by_id(service_def_id)?;
 
+    // The Docker integration reads a container's published ports from the engine.
     let (bindings, port) = if let Some(pt) = port_type {
-        let port = Port::new_hostless(pt);
+        let port = Port::new_hostless(pt).with_source(AttributeSource::Probe(ClientProbe::Docker));
         let binding = Binding::new_port_serviceless(port.id, Some(ip_address.id));
         (vec![binding], Some(port))
     } else {

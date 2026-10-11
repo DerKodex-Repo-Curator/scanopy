@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 
+use crate::server::shared::attribution::AttributeSource;
 use anyhow::{Error, Result};
 use bollard::models::{ContainerInspectResponse, ContainerSummary};
 use uuid::Uuid;
@@ -454,6 +455,8 @@ impl ContainerScanner<'_> {
             &[],
             daemon_id,
             &host.base.site_id,
+            // The ports the runtime says the container publishes.
+            AttributeSource::Probe(self.runtime.client_probe()),
         )?;
 
         let address_ids: Vec<Uuid> = addresses.iter().map(|(a, _)| a.id).collect();
@@ -462,7 +465,10 @@ impl ContainerScanner<'_> {
         let published_ports = host_ip_to_host_ports
             .into_values()
             .flatten()
-            .map(Port::new_hostless)
+            .map(|port_type| {
+                Port::new_hostless(port_type)
+                    .with_source(AttributeSource::Probe(self.runtime.client_probe()))
+            })
             .collect();
 
         Ok((services, ports, published_ports))

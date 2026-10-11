@@ -288,8 +288,8 @@ pub fn generate_ui_data_fixtures(output_dir: &Path) {
     let integrations = all_integrations();
     write_fixture(&integrations, output_dir, "integrations.json");
 
-    // Each category of collected data with the sources that declare it, for the website security
-    // page. Synced like integrations.json.
+    // Each category of collected data with its credential-free methods and the integrations that
+    // collect it, for the website security page. Synced like integrations.json.
     let collected_data = all_collected_data();
     write_fixture(&collected_data, output_dir, "collected-data.json");
 

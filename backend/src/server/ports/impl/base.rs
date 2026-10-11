@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::server::shared::attribution::AttributeSource;
 use crate::server::shared::entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants};
 use crate::server::shared::types::{
     Color, Icon,
@@ -46,6 +47,10 @@ pub struct PortBase {
     #[serde(flatten)]
     #[schema(required)]
     pub port_type: PortType,
+    /// What found this port open. Not part of the port's identity: equality and hashing compare
+    /// `port_type` alone.
+    #[serde(default)]
+    pub port_source: AttributeSource,
 }
 
 impl PortBase {
@@ -54,16 +59,13 @@ impl PortBase {
             host_id,
             site_id,
             port_type,
+            port_source: AttributeSource::Unspecified,
         }
     }
 
     /// Create a PortBase without host/site (will be set by server)
     pub fn new_hostless(port_type: PortType) -> Self {
-        Self {
-            host_id: Uuid::nil(),
-            site_id: Uuid::nil(),
-            port_type,
-        }
+        Self::new(Uuid::nil(), Uuid::nil(), port_type)
     }
 }
 
@@ -200,6 +202,12 @@ impl Port {
 
     pub fn port_type(&self) -> PortType {
         self.base.port_type
+    }
+
+    /// Record what found this port open.
+    pub fn with_source(mut self, source: AttributeSource) -> Self {
+        self.base.port_source = source;
+        self
     }
 
     /// Set the host_id and site_id (for hostless ports that get resolved later)

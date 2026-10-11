@@ -166,15 +166,12 @@ pub fn ip_address(site_id: &Uuid, subnet_id: &Uuid) -> IPAddress {
         position: 0,
         name: Some("eth0".to_string()),
         host_id: Uuid::nil(), // Placeholder - tests will set correct host_id
+        ..Default::default()
     })
 }
 
 pub fn port(site_id: &Uuid, host_id: &Uuid) -> Port {
-    Port::new(PortBase {
-        port_type: PortType::default(),
-        host_id: *host_id,
-        site_id: *site_id,
-    })
+    Port::new(PortBase::new(*host_id, *site_id, PortType::default()))
 }
 
 pub fn subnet(site_id: &Uuid) -> Subnet {

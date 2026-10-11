@@ -1143,11 +1143,11 @@ fn runtime_payload(
     use crate::server::ports::r#impl::base::{Port, PortBase, PortType};
 
     let ip = arp(lab, "192.168.4.126", ens18());
-    let port = Port::new(PortBase {
-        port_type: PortType::new_tcp(2375),
-        host_id: Uuid::nil(),
-        site_id: lab.site_id,
-    });
+    let port = Port::new(PortBase::new(
+        Uuid::nil(),
+        lab.site_id,
+        PortType::new_tcp(2375),
+    ));
     let mut runtime = service(lab, "Docker");
     runtime.base.bindings = vec![Binding::new_port_serviceless(port.id, Some(ip.id))];
     let mut services = vec![runtime];
@@ -1419,11 +1419,11 @@ fn swept_with_service(
     use crate::server::ports::r#impl::base::{Port, PortBase, PortType};
 
     let address = arp(lab, ip, mac);
-    let port = Port::new(PortBase {
-        port_type: PortType::new_tcp(port),
-        host_id: Uuid::nil(),
-        site_id: lab.site_id,
-    });
+    let port = Port::new(PortBase::new(
+        Uuid::nil(),
+        lab.site_id,
+        PortType::new_tcp(port),
+    ));
     let mut found = service(lab, definition);
     found.base.bindings = vec![Binding::new_port_serviceless(port.id, Some(address.id))];
     (vec![address], vec![port], vec![found])

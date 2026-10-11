@@ -509,6 +509,7 @@ mod tests {
             mac_address: None,
             name: None,
             position: 0,
+            ..Default::default()
         });
 
         let by_chassis_id = by_chassis.id;

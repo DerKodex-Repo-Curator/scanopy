@@ -399,6 +399,7 @@ impl IPAddressInput {
                     .map(|m| MacEvidence::new(MacEvidenceValue(m), AttributeSource::Manual)),
                 name: self.name,
                 position: self.position.unwrap_or(0),
+                ip_address_source: AttributeSource::Manual,
             },
         }
     }
@@ -452,6 +453,8 @@ impl PortInput {
                     number: self.number,
                     protocol: self.protocol,
                 }),
+                // Ports reach this path only through the API, so this one was entered.
+                port_source: AttributeSource::Manual,
             },
         }
     }
@@ -693,6 +696,8 @@ impl InterfaceInput {
                 fdb_macs: None,
                 native_vlan_id: None,
                 vlan_ids: None,
+                vlan_membership_source: AttributeSource::Unspecified,
+                interface_source: AttributeSource::Manual,
             },
         }
     }
