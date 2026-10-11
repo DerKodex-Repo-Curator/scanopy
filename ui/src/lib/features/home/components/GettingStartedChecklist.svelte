@@ -41,7 +41,7 @@
 		gettingStarted_havingTrouble,
 		gettingStarted_inviteTeamMembers,
 		gettingStarted_scanningNetwork,
-		gettingStarted_setupSnmpCredentials,
+		gettingStarted_setupInterfaceDiscovery,
 		gettingStarted_createTags,
 		gettingStarted_title,
 		gettingStarted_whileYouWait
@@ -189,12 +189,12 @@
 	function getInAppSuggestions(): Array<{ label: string; action: () => void; completed: boolean }> {
 		const suggestions: Array<{ label: string; action: () => void; completed: boolean }> = [];
 		suggestions.push({
-			label: gettingStarted_setupSnmpCredentials(),
+			label: gettingStarted_setupInterfaceDiscovery(),
 			action: () => {
 				onNavigate('credentials');
 				openModal('credential-editor');
 			},
-			completed: onboarding.includes('FirstSnmpCredentialCreated')
+			completed: onboarding.includes('FirstInterfaceCredentialCreated')
 		});
 		suggestions.push({
 			label: gettingStarted_createTags(),

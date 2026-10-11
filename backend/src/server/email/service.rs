@@ -935,7 +935,7 @@ impl EmailService {
     // Onboarding emails
     // ========================================================================
 
-    /// Send discovery guide email (Free or Paid variant based on `is_free`)
+    /// Send the discovery guide email.
     pub async fn send_discovery_guide_email(
         &self,
         to: EmailAddress,
@@ -953,7 +953,7 @@ impl EmailService {
     }
 
     /// Send discovery guide email for an organization after first daemon registration.
-    /// Determines free/paid variant from org plan and looks up owner email.
+    /// Looks up the owner email.
     pub async fn send_discovery_guide_for_org(
         &self,
         org_id: Uuid,

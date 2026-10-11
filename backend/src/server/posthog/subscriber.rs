@@ -246,7 +246,7 @@ impl Subscriber<OnboardingOperation> for PosthogService {
             OnboardingOperationDiscriminants::FirstTagCreated,
             OnboardingOperationDiscriminants::FirstDependencyCreated,
             OnboardingOperationDiscriminants::FirstUserApiKeyCreated,
-            OnboardingOperationDiscriminants::FirstSnmpCredentialCreated,
+            OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated,
             OnboardingOperationDiscriminants::FirstCredentialCreated,
             OnboardingOperationDiscriminants::InviteSent,
             OnboardingOperationDiscriminants::InviteAccepted,

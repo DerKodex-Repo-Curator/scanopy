@@ -11,7 +11,7 @@
 		common_dependenciesLabel,
 		common_presentedBy,
 		hosts_virtualization_containerHosts,
-		inspector_dockerService
+		topology_containerService
 	} from '$lib/paraglide/messages';
 	import InspectorSection from '../shared/InspectorSection.svelte';
 	import InspectorSubsection from '../shared/InspectorSubsection.svelte';
@@ -272,7 +272,7 @@
 					{#if svcVirtData.mode === 'single'}
 						{#if svcVirtData.containerizer}
 							<span class="text-tertiary mb-1 block text-xs font-medium"
-								>{inspector_dockerService()}</span
+								>{topology_containerService()}</span
 							>
 							<div class="card card-static">
 								<EntityDisplayWrapper

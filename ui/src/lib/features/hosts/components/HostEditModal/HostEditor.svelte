@@ -39,6 +39,7 @@
 		common_delete,
 		common_deleting,
 		common_details,
+		common_credentials,
 		common_editName,
 		common_interfaces,
 		common_ipAddresses,
@@ -51,7 +52,7 @@
 		hosts_createHost,
 		hosts_editor_basicInfo,
 		hosts_editor_interfacesDesc,
-		hosts_editor_snmpTabDesc,
+		hosts_editor_credentialsTabDesc,
 		hosts_editor_updateHost,
 		hosts_editor_workloadsDesc,
 		hosts_interfaces_subtitle,
@@ -304,9 +305,9 @@
 		},
 		{
 			id: 'snmp',
-			label: 'Credentials',
+			label: common_credentials(),
 			icon: entities.getIconComponent('Credential'),
-			description: hosts_editor_snmpTabDesc(),
+			description: hosts_editor_credentialsTabDesc(),
 			disabled: !isEditing && furthestReached < 1
 		},
 		...(isEditing

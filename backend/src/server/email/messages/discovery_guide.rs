@@ -1,10 +1,20 @@
+use crate::server::credentials::r#impl::integrations::{all_integrations, join_oxford};
+
 use super::{Body, Content, Email, EmailCategory, links};
 
-/// Post-daemon-registration walkthrough; the free/paid variant differs in
-/// copy and CTA based on whether the org is on the Free plan.
+/// Post-daemon-registration walkthrough.
 pub struct DiscoveryGuide<'a> {
     pub daemon_name: &'a str,
     pub site_name: &'a str,
+}
+
+impl DiscoveryGuide<'_> {
+    /// Every integration, by name. Lists all of them rather than the org's own: the email goes
+    /// out when the first daemon registers, before the org has added a credential.
+    fn integration_names() -> String {
+        let names: Vec<String> = all_integrations().into_iter().map(|i| i.name).collect();
+        join_oxford(&names)
+    }
 }
 
 impl Email for DiscoveryGuide<'_> {
@@ -31,15 +41,16 @@ impl Email for DiscoveryGuide<'_> {
                         self.daemon_name, self.site_name
                     ))
                     .paragraph("Here's what happens next:")
-                    .raw(
+                    .raw(&format!(
 r#"                            <ul style="margin: 0 0 20px 0; padding-left: 20px; font-size: 16px; line-height: 28px; color: #4a4a4a;">
                                 <li><strong>Self-report:</strong> The daemon host's own services and IP addresses are mapped automatically.</li>
                                 <li><strong>Site scan:</strong> Scanopy scans your local subnets for other hosts, ports, and services.</li>
                                 <li><strong>Topology:</strong> Once discovery finishes, your interactive topology map will be ready.</li>
-                                <li><strong>Docker discovery:</strong> If your daemon has access to the Docker socket, it'll also discover all your containers — images, ports, networks, and labels — automatically.</li>
+                                <li><strong>Integrations:</strong> Add a credential and discovery also reads from {}.</li>
                             </ul>
 "#,
-                    ),
+                        Self::integration_names()
+                    )),
             )
             .cta(links::APP_HOME, "Open Scanopy")
             .render()

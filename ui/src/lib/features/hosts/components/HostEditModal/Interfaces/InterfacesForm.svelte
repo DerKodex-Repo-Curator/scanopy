@@ -13,6 +13,7 @@
 		common_interfaces
 	} from '$lib/paraglide/messages';
 	import EntityMetadataSection from '$lib/shared/components/forms/EntityMetadataSection.svelte';
+	import { interfaceIntegrationsList } from '$lib/shared/stores/metadata';
 
 	interface Props {
 		interfaces: Interface[];
@@ -53,7 +54,7 @@
 			{:else if interfaces.length === 0}
 				<EntityConfigEmpty
 					title={hosts_noInterfaces()}
-					subtitle={hosts_interfaces_emptySubtitle()}
+					subtitle={hosts_interfaces_emptySubtitle({ integrations: interfaceIntegrationsList() })}
 				/>
 			{:else}
 				<EntityConfigEmpty

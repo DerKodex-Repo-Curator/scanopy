@@ -188,7 +188,7 @@ pub fn all_integrations() -> Vec<Integration> {
 
 /// Oxford-comma join: `["a"] -> "a"`, `["a","b"] -> "a and b"`,
 /// `["a","b","c"] -> "a, b, and c"`.
-fn join_oxford(items: &[String]) -> String {
+pub(crate) fn join_oxford(items: &[String]) -> String {
     match items {
         [] => String::new(),
         [a] => a.clone(),

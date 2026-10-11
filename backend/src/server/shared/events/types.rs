@@ -643,7 +643,12 @@ pub enum OnboardingOperation {
     #[serde(alias = "FirstGroupCreated")]
     FirstDependencyCreated,
     FirstUserApiKeyCreated,
-    FirstSnmpCredentialCreated,
+    /// A credential for an integration that reports interfaces
+    /// (`CredentialIntegration::reports_interfaces`). Persisted as `FirstSnmpCredentialCreated`
+    /// before every interface-reporting integration counted, hence the alias.
+    #[serde(alias = "FirstSnmpCredentialCreated")]
+    #[strum_discriminants(serde(alias = "FirstSnmpCredentialCreated"))]
+    FirstInterfaceCredentialCreated,
     FirstApplicationTagCreated,
     FirstCredentialCreated,
     FirstSnapshotCreated {

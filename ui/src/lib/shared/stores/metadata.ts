@@ -40,6 +40,7 @@ import {
 	type ColorStyle
 } from '../utils/styling';
 import { metaName, metaDescription } from '$lib/i18n/metadata';
+import { joinList } from '$lib/i18n/list';
 import type { TagProps } from '$lib/shared/components/data/types';
 
 export type Color = components['schemas']['Color'];
@@ -609,11 +610,21 @@ export interface CredentialIntegrationMetadata {
 	has_logo?: boolean;
 	logo_ext?: string;
 	logo_needs_white_background?: boolean;
+	/** Whether a successful collection adds interfaces to the hosts it reaches. */
+	reports_interfaces?: boolean;
 }
 export const credentialIntegrations = createTypeMetadataHelpers<
 	'credential_integrations',
 	CredentialIntegrationMetadata
 >('credential_integrations');
+/** The integrations that report interfaces, by translated name, as an "A, B, or C" list. */
+export const interfaceIntegrationsList = () =>
+	joinList(
+		(credentialIntegrations.getItems() ?? [])
+			.filter((i) => i.metadata.reports_interfaces)
+			.map((i) => credentialIntegrations.getName(i.id)),
+		'disjunction'
+	);
 export const containerTypes = createTypeMetadataHelpers<'container_types', ContainerTypeMetadata>(
 	'container_types'
 );
