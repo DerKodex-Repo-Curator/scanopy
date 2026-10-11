@@ -36,8 +36,8 @@ impl EventBusService<Interface> for InterfaceService {
         &self.event_bus
     }
 
-    fn get_network_id(&self, entity: &Interface) -> Option<Uuid> {
-        Some(entity.base.network_id)
+    fn get_site_id(&self, entity: &Interface) -> Option<Uuid> {
+        Some(entity.base.site_id)
     }
 
     fn get_organization_id(&self, _entity: &Interface) -> Option<Uuid> {
@@ -104,6 +104,23 @@ impl InterfaceService {
         Ok(result)
     }
 
+    /// VLAN ID → IDs of the live interfaces serving it, as native VLAN or member VLAN. VLANs no
+    /// interface serves are absent from the map.
+    pub async fn get_ids_for_vlans(&self, vlan_ids: &[Uuid]) -> Result<HashMap<Uuid, Vec<Uuid>>> {
+        if vlan_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let filter = StorableFilter::<Interface>::new()
+            .serving_vlans(vlan_ids)
+            .live();
+        let interfaces = self
+            .storage
+            .get_all_ordered(filter, "host_id ASC, if_index ASC")
+            .await?;
+        Ok(group_ids_by_vlan(&interfaces, vlan_ids))
+    }
+
     /// Validate FK relationships for an Interface.
     ///
     /// Validates:
@@ -133,9 +150,9 @@ impl InterfaceService {
             }
 
             // Validate MAC address consistency if both have MAC addresses
-            if let (Some(if_entry_mac), Some(ip_address_mac)) =
+            if let (Some(interface_mac), Some(ip_address_mac)) =
                 (&entry.base.mac_address, &ip_address.base.mac_address)
-                && if_entry_mac != ip_address_mac
+                && interface_mac != ip_address_mac
             {
                 return Err(ValidationError::new(
                     "ip_address_id references an Interface with a different MAC address",
@@ -221,7 +238,7 @@ impl InterfaceService {
         // `preserve_uncollected_data` above honors it for `fdb_macs`/VLAN membership.
         self.interface_neighbor_service
             .replace_candidates_from_discovery(
-                persisted.base.network_id,
+                persisted.base.site_id,
                 persisted.id,
                 submitted_candidates,
                 collected,
@@ -319,6 +336,28 @@ pub(crate) fn match_existing_interface(
     }
 
     None
+}
+
+/// Group `interfaces` under each of `vlan_ids` they serve, as native VLAN or member VLAN, keeping
+/// the input order. An interface listing a VLAN both ways appears under it once; VLANs outside
+/// `vlan_ids` are ignored.
+fn group_ids_by_vlan(interfaces: &[Interface], vlan_ids: &[Uuid]) -> HashMap<Uuid, Vec<Uuid>> {
+    let wanted: HashSet<Uuid> = vlan_ids.iter().copied().collect();
+    let mut result: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for interface in interfaces {
+        let served: HashSet<Uuid> = interface
+            .base
+            .native_vlan_id
+            .iter()
+            .chain(interface.base.vlan_ids.iter().flatten())
+            .copied()
+            .filter(|id| wanted.contains(id))
+            .collect();
+        for vlan_id in served {
+            result.entry(vlan_id).or_default().push(interface.id);
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -585,5 +624,27 @@ mod tests {
             "the SNMP row's identity must survive the merge"
         );
         assert_eq!(persisted[0].base.if_index, Some(7));
+    }
+
+    #[test]
+    fn interfaces_group_under_native_and_member_vlans_once_each() {
+        let (vlan_a, vlan_b, unrequested) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+
+        // Native A, also listing A and an unrequested VLAN as members.
+        let mut trunk = make_iface(1, Some("Gi1/0/1"), None);
+        trunk.base.native_vlan_id = Some(vlan_a);
+        trunk.base.vlan_ids = Some(vec![vlan_a, vlan_b, unrequested]);
+        // Access port on B only.
+        let mut access = make_iface(2, Some("Gi1/0/2"), None);
+        access.base.native_vlan_id = Some(vlan_b);
+        // Serves nothing requested.
+        let mut other = make_iface(3, Some("Gi1/0/3"), None);
+        other.base.native_vlan_id = Some(unrequested);
+
+        let grouped = group_ids_by_vlan(&[trunk.clone(), access.clone(), other], &[vlan_a, vlan_b]);
+
+        assert_eq!(grouped.get(&vlan_a), Some(&vec![trunk.id]));
+        assert_eq!(grouped.get(&vlan_b), Some(&vec![trunk.id, access.id]));
+        assert!(!grouped.contains_key(&unrequested));
     }
 }

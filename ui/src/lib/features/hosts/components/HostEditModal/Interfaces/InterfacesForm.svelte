@@ -13,6 +13,7 @@
 		common_interfaces
 	} from '$lib/paraglide/messages';
 	import EntityMetadataSection from '$lib/shared/components/forms/EntityMetadataSection.svelte';
+	import { interfaceIntegrationsList } from '$lib/shared/stores/metadata';
 
 	interface Props {
 		interfaces: Interface[];
@@ -22,13 +23,13 @@
 	let { interfaces, targetEntityId = $bindable(null) }: Props = $props();
 
 	// Sorted by if_index, with ports that never had one read sorting last.
-	let sortedIfEntries = $derived(
+	let sortedInterfaces = $derived(
 		[...interfaces].sort((a, b) => (a.if_index ?? Infinity) - (b.if_index ?? Infinity))
 	);
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
-	<ListConfigEditor items={sortedIfEntries} bind:targetEntityId>
+	<ListConfigEditor items={sortedInterfaces} bind:targetEntityId>
 		<svelte:fragment slot="list" let:items let:onEdit let:highlightedIndex>
 			<ListManager
 				label={common_interfaces({ count: items.length })}
@@ -53,7 +54,7 @@
 			{:else if interfaces.length === 0}
 				<EntityConfigEmpty
 					title={hosts_noInterfaces()}
-					subtitle={hosts_interfaces_emptySubtitle()}
+					subtitle={hosts_interfaces_emptySubtitle({ integrations: interfaceIntegrationsList() })}
 				/>
 			{:else}
 				<EntityConfigEmpty

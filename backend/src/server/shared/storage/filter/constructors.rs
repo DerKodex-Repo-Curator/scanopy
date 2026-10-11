@@ -42,15 +42,15 @@ impl<T: Storable> StorableFilter<T> {
         Self::new()
     }
 
-    /// Every row of `T`, unscoped — for the one-shot Brevo domain-classification
-    /// backfill, which iterates all users. Ephemeral release code: remove with
-    /// `BrevoService::backfill_domain_classifications` next release.
-    pub fn new_for_brevo_backfill() -> Self {
+    /// Every row of `T`, unscoped, for a job that runs once for the whole
+    /// server: the release announcement reads every recorded version and
+    /// emails every user.
+    pub fn new_for_server_wide_job() -> Self {
         Self::new()
     }
 
-    pub fn new_from_network_ids(network_ids: &[Uuid]) -> Self {
-        Self::new().network_ids(network_ids)
+    pub fn new_from_site_ids(site_ids: &[Uuid]) -> Self {
+        Self::new().site_ids(site_ids)
     }
 
     pub fn new_from_entity_id(entity_id: &Uuid) -> Self {
@@ -79,6 +79,10 @@ impl<T: Storable> StorableFilter<T> {
 
     pub fn new_from_email_verification_token(token: &str) -> Self {
         Self::new().email_verification_token(token)
+    }
+
+    pub fn new_from_email_unsubscribe_token(token: &Uuid) -> Self {
+        Self::new().email_unsubscribe_token(token)
     }
 
     pub fn new_from_host_ids(host_ids: &[Uuid]) -> Self {
@@ -129,16 +133,8 @@ impl<T: Storable> StorableFilter<T> {
         Self::new().historical_session(session_id)
     }
 
-    pub fn new_for_unresolved_fdb_in_network(network_id: Uuid) -> Self {
-        Self::new().unresolved_fdb_in_network(network_id)
-    }
-
-    pub fn new_without_brevo_company_id() -> Self {
-        Self::new().without_brevo_company_id()
-    }
-
-    pub fn new_with_brevo_company_id() -> Self {
-        Self::new().with_brevo_company_id()
+    pub fn new_for_unresolved_fdb_in_site(site_id: Uuid) -> Self {
+        Self::new().unresolved_fdb_in_site(site_id)
     }
 
     pub fn new_with_stripe_customer_id(id: &str) -> Self {
@@ -170,5 +166,20 @@ impl<T: Storable> StorableFilter<T> {
 
     pub fn new_for_active_daemons() -> Self {
         Self::new().standby(false).is_unreachable(false)
+    }
+}
+
+impl<T: crate::server::shared::storage::traits::Entity> StorableFilter<T> {
+    /// Every row of `T` the caller may list: site-keyed entities on the caller's sites, the sites
+    /// themselves narrowed to those sites, and everything else across the caller's organization.
+    pub fn new_for_access(site_ids: &[Uuid], organization_id: &Uuid) -> Self {
+        if T::is_site_keyed() {
+            Self::new_from_site_ids(site_ids)
+        } else if T::table_name() == "sites" {
+            // Sites are org-scoped but should be filtered to only those the user has access to
+            Self::new_from_entity_ids(site_ids)
+        } else {
+            Self::new_from_org_id(organization_id)
+        }
     }
 }

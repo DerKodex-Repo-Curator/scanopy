@@ -3,8 +3,7 @@
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { isBillingPlanActive, isPlanLapsed } from '$lib/features/organizations/types';
 	import SettingsModal from '$lib/features/settings/SettingsModal.svelte';
-	import SupportModal from '$lib/features/support/SupportModal.svelte';
-	import { billingPlans, entities } from '$lib/shared/stores/metadata';
+	import { billingPlans, entities, entityCategories } from '$lib/shared/stores/metadata';
 	import { useActiveSessionsQuery } from '$lib/features/discovery/queries';
 	import { useApiKeysQuery } from '$lib/features/daemon_api_keys/queries';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
@@ -21,21 +20,27 @@
 		ChevronDown,
 		History,
 		Settings,
-		LifeBuoy,
 		ArrowUpCircle,
 		Clock,
-		Home
+		Home,
+		Search
 	} from 'lucide-svelte';
+	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
+	import { GLOBAL_SEARCH_KEY, globalSearchOpen } from '$lib/features/search/results';
 	import { onMount } from 'svelte';
 	import type { Component } from 'svelte';
 	import type { UserOrgPermissions } from '$lib/features/users/types';
 	import type { SubTab } from '$lib/shared/components/layout/ContentSubTabs.svelte';
 	import {
-		common_demo,
 		common_upgrade,
 		billing_trialPill,
 		billing_trialPillOneDay,
-		billing_trialPillToday
+		billing_trialPillToday,
+		globalSearch_openWithShortcut,
+		globalSearch_searchAll,
+		globalSearch_placeholder,
+		daemons_legacyKeyHelp,
+		common_settings
 	} from '$lib/paraglide/messages';
 	import {
 		getTrialDaysLeft,
@@ -52,7 +57,7 @@
 	import TopologyTab from '$lib/features/topology/components/TopologyTab.svelte';
 	import DiscoveryScheduledTab from '$lib/features/discovery/components/tabs/DiscoveryScheduledTab.svelte';
 	import DiscoveryHistoryTab from '$lib/features/discovery/components/tabs/DiscoveryHistoryTab.svelte';
-	import NetworksTab from '$lib/features/networks/components/NetworksTab.svelte';
+	import SitesTab from '$lib/features/sites/components/SitesTab.svelte';
 	import SubnetTab from '$lib/features/subnets/components/SubnetTab.svelte';
 	import VlanTab from '$lib/features/vlans/components/VlanTab.svelte';
 	import HostTab from '$lib/features/hosts/components/HostTab.svelte';
@@ -62,8 +67,8 @@
 	import UserTab from '$lib/features/users/components/UserTab.svelte';
 	import UserApiKeyTab from '$lib/features/user_api_keys/components/UserApiKeyTab.svelte';
 	import TagTab from '$lib/features/tags/components/TagTab.svelte';
+	import TagGroupTab from '$lib/features/tags/components/TagGroupTab.svelte';
 	import CredentialsTab from '$lib/features/credentials/components/CredentialsTab.svelte';
-	import Tag from '$lib/shared/components/data/Tag.svelte';
 
 	import HomeTab from '$lib/features/home/components/HomeTab.svelte';
 
@@ -106,8 +111,8 @@
 		settingsInitialTab?: string;
 		settingsDismissible?: boolean;
 		/** Org is locked out of the main app (licensed self-hosted plan on a
-		 * billing-enabled server): hide main navigation. Settings and Support
-		 * stay available. */
+		 * billing-enabled server): hide main navigation. Settings stays
+		 * available, with Support as one of its tabs. */
 		mainAppLocked?: boolean;
 		/** Config and org have loaded and the org is not locked. Main-app queries
 		 * wait for this rather than for `!mainAppLocked`, which is also true
@@ -159,8 +164,6 @@
 	let isReadOnly = $derived(
 		userPermissions === 'Viewer' || (organization != null && isPlanLapsed(organization))
 	);
-
-	let showSupport = $state(false);
 
 	// Show notification on settings only when trialing without payment method
 	// Free plan users don't need a payment method, so no dot for them.
@@ -226,14 +229,11 @@
 		daemonStatus = s.connectionStatus;
 	});
 
-	// Sync settings/support modal state from modal registry (for deep-link opens)
+	// Sync settings modal state from modal registry (for deep-link opens)
 	$effect(() => {
 		if ($modalState.name === 'settings' && !showSettings) {
 			settingsInitialTab = $modalState.tab ?? 'account';
 			showSettings = true;
-		}
-		if ($modalState.name === 'support' && !showSupport) {
-			showSupport = true;
 		}
 	});
 
@@ -264,6 +264,144 @@
 	const SIDEBAR_STORAGE_KEY = 'scanopy-sidebar-collapsed';
 
 	// Base navigation config (before filtering)
+	/**
+	 * The sidebar item each entity type gets inside its section. Which section it sits in, and where,
+	 * comes from the entity metadata (`category` and declaration order), the same order the global
+	 * search lists its groups in. An entity with no item here (a host's ports, say) has no tab.
+	 */
+	const entityNavItems: Partial<Record<EntityDiscriminants, NavItem>> = {
+		Site: {
+			id: entityUIConfig.Site!.tabId,
+			label: TAB_LABELS[entityUIConfig.Site!.tabId],
+			icon: entities.getIconComponent('Site'),
+			entityType: 'Site',
+			component: SitesTab
+		},
+		Vlan: {
+			id: entityUIConfig.Vlan!.tabId,
+			label: TAB_LABELS[entityUIConfig.Vlan!.tabId],
+			icon: entities.getIconComponent('Vlan'),
+			entityType: 'Vlan',
+			component: VlanTab
+		},
+		Subnet: {
+			id: entityUIConfig.Subnet!.tabId,
+			label: TAB_LABELS[entityUIConfig.Subnet!.tabId],
+			icon: entities.getIconComponent('Subnet'),
+			entityType: 'Subnet',
+			component: SubnetTab
+		},
+		Host: {
+			id: entityUIConfig.Host!.tabId,
+			label: TAB_LABELS[entityUIConfig.Host!.tabId],
+			icon: entities.getIconComponent('Host'),
+			entityType: 'Host',
+			component: HostTab
+		},
+		Service: {
+			id: entityUIConfig.Service!.tabId,
+			label: TAB_LABELS[entityUIConfig.Service!.tabId],
+			icon: entities.getIconComponent('Service'),
+			entityType: 'Service',
+			component: ServiceTab
+		},
+		Discovery: {
+			id: 'discovery',
+			label: TAB_LABELS['discovery'],
+			icon: entities.getIconComponent('Discovery'),
+			subTabs: [
+				{
+					id: entityUIConfig.Discovery!.tabId,
+					label: TAB_LABELS[entityUIConfig.Discovery!.tabId],
+					icon: entities.getIconComponent('Discovery'),
+					component: DiscoveryScheduledTab
+				},
+				{
+					id: 'discovery-history',
+					label: TAB_LABELS['discovery-history'],
+					icon: History as IconComponent,
+					component: DiscoveryHistoryTab
+				}
+			]
+		},
+		// Legacy daemon API keys are a sub-tab of Daemons, not an item of their own.
+		Daemon: {
+			id: 'daemons-group',
+			label: TAB_LABELS[entityUIConfig.Daemon!.tabId],
+			icon: entities.getIconComponent('Daemon'),
+			subTabs: [
+				{
+					id: entityUIConfig.Daemon!.tabId,
+					label: TAB_LABELS[entityUIConfig.Daemon!.tabId],
+					icon: entities.getIconComponent('Daemon'),
+					component: DaemonTab
+				},
+				{
+					id: entityUIConfig.DaemonApiKey!.tabId,
+					label: TAB_LABELS[entityUIConfig.DaemonApiKey!.tabId],
+					subtitle: daemons_legacyKeyHelp(),
+					icon: entities.getIconComponent('DaemonApiKey'),
+					component: ApiKeyTab,
+					requiredPermissions: ['Member', 'Admin', 'Owner'] as UserOrgPermissions[]
+				}
+			]
+		},
+		// Tag groups are a sub-tab of Tags: groups exist to order and scope tags.
+		Tag: {
+			id: 'tags-group',
+			label: TAB_LABELS[entityUIConfig.Tag!.tabId],
+			icon: entities.getIconComponent('Tag'),
+			subTabs: [
+				{
+					id: entityUIConfig.Tag!.tabId,
+					label: TAB_LABELS[entityUIConfig.Tag!.tabId],
+					icon: entities.getIconComponent('Tag'),
+					component: TagTab
+				},
+				{
+					id: entityUIConfig.TagGroup!.tabId,
+					label: TAB_LABELS[entityUIConfig.TagGroup!.tabId],
+					icon: entities.getIconComponent('TagGroup'),
+					component: TagGroupTab
+				}
+			]
+		},
+		User: {
+			id: entityUIConfig.User!.tabId,
+			label: TAB_LABELS[entityUIConfig.User!.tabId],
+			icon: entities.getIconComponent('User'),
+			entityType: 'User',
+			component: UserTab,
+			requiredPermissions: ['Admin', 'Owner']
+		},
+		UserApiKey: {
+			id: entityUIConfig.UserApiKey!.tabId,
+			label: TAB_LABELS[entityUIConfig.UserApiKey!.tabId],
+			icon: entities.getIconComponent('UserApiKey'),
+			entityType: 'UserApiKey',
+			component: UserApiKeyTab,
+			requiredPermissions: ['Member', 'Admin', 'Owner']
+		},
+		Credential: {
+			id: entityUIConfig.Credential!.tabId,
+			label: TAB_LABELS[entityUIConfig.Credential!.tabId],
+			icon: entities.getIconComponent('Credential'),
+			entityType: 'Credential',
+			component: CredentialsTab
+		}
+	};
+
+	/** One section per entity category that has items, in category order, items in entity order. */
+	const entitySections: NavSection[] = entityCategories.getItems().flatMap((category) => {
+		const items = entities
+			.getItems()
+			.filter((entity) => entity.category === category.id)
+			.flatMap((entity) => entityNavItems[entity.id as EntityDiscriminants] ?? []);
+		return items.length > 0
+			? [{ id: category.id, label: entityCategories.getName(category.id), items }]
+			: [];
+	});
+
 	const baseNavConfig: NavConfig = [
 		{
 			id: 'home',
@@ -278,144 +416,14 @@
 			entityType: 'Topology',
 			component: TopologyTab
 		},
-		{
-			id: 'discover',
-			label: 'Discover',
-			items: [
-				{
-					id: 'discovery',
-					label: TAB_LABELS['discovery'],
-					icon: entities.getIconComponent('Discovery'),
-					subTabs: [
-						{
-							id: entityUIConfig.Discovery!.tabId,
-							label: TAB_LABELS[entityUIConfig.Discovery!.tabId],
-							icon: entities.getIconComponent('Discovery'),
-							component: DiscoveryScheduledTab
-						},
-						{
-							id: 'discovery-history',
-							label: TAB_LABELS['discovery-history'],
-							icon: History as IconComponent,
-							component: DiscoveryHistoryTab
-						}
-					]
-				},
-				{
-					id: 'daemons-group',
-					label: TAB_LABELS[entityUIConfig.Daemon!.tabId],
-					icon: entities.getIconComponent('Daemon'),
-					subTabs: [
-						{
-							id: entityUIConfig.Daemon!.tabId,
-							label: TAB_LABELS[entityUIConfig.Daemon!.tabId],
-							icon: entities.getIconComponent('Daemon'),
-							component: DaemonTab
-						},
-						{
-							id: entityUIConfig.DaemonApiKey!.tabId,
-							label: TAB_LABELS[entityUIConfig.DaemonApiKey!.tabId],
-							icon: entities.getIconComponent('DaemonApiKey'),
-							component: ApiKeyTab,
-							requiredPermissions: ['Member', 'Admin', 'Owner'] as UserOrgPermissions[]
-						}
-					]
-				}
-			]
-		},
-		{
-			id: 'assets',
-			label: 'Assets',
-			items: [
-				{
-					id: entityUIConfig.Network!.tabId,
-					label: TAB_LABELS[entityUIConfig.Network!.tabId],
-					icon: entities.getIconComponent('Network'),
-					entityType: 'Network',
-					component: NetworksTab
-				},
-				{
-					id: entityUIConfig.Vlan!.tabId,
-					label: TAB_LABELS[entityUIConfig.Vlan!.tabId],
-					icon: entities.getIconComponent('Vlan'),
-					entityType: 'Vlan',
-					component: VlanTab
-				},
-				{
-					id: entityUIConfig.Subnet!.tabId,
-					label: TAB_LABELS[entityUIConfig.Subnet!.tabId],
-					icon: entities.getIconComponent('Subnet'),
-					entityType: 'Subnet',
-					component: SubnetTab
-				},
-				{
-					id: entityUIConfig.Host!.tabId,
-					label: TAB_LABELS[entityUIConfig.Host!.tabId],
-					icon: entities.getIconComponent('Host'),
-					entityType: 'Host',
-					component: HostTab
-				},
-				{
-					id: entityUIConfig.Service!.tabId,
-					label: TAB_LABELS[entityUIConfig.Service!.tabId],
-					icon: entities.getIconComponent('Service'),
-					entityType: 'Service',
-					component: ServiceTab
-				}
-			]
-		},
-		{
-			id: 'platform',
-			label: 'Platform',
-			items: [
-				{
-					id: entityUIConfig.Tag!.tabId,
-					label: TAB_LABELS[entityUIConfig.Tag!.tabId],
-					icon: entities.getIconComponent('Tag'),
-					entityType: 'Tag',
-					component: TagTab
-				},
-				{
-					id: entityUIConfig.User!.tabId,
-					label: TAB_LABELS[entityUIConfig.User!.tabId],
-					icon: entities.getIconComponent('User'),
-					entityType: 'User',
-					component: UserTab,
-					requiredPermissions: ['Admin', 'Owner']
-				},
-				{
-					id: entityUIConfig.UserApiKey!.tabId,
-					label: TAB_LABELS[entityUIConfig.UserApiKey!.tabId],
-					icon: entities.getIconComponent('UserApiKey'),
-					entityType: 'UserApiKey',
-					component: UserApiKeyTab,
-					requiredPermissions: ['Member', 'Admin', 'Owner']
-				},
-				{
-					id: entityUIConfig.Credential!.tabId,
-					label: TAB_LABELS[entityUIConfig.Credential!.tabId],
-					icon: entities.getIconComponent('Credential'),
-					entityType: 'Credential',
-					component: CredentialsTab
-				}
-			]
-		},
+		...entitySections,
 		{
 			id: 'settings',
-			label: 'Settings',
+			label: common_settings(),
 			icon: Settings as IconComponent,
 			position: 'bottom',
 			onClick: async () => {
 				showSettings = true;
-			}
-		},
-		{
-			id: 'support',
-			label: 'Support',
-			icon: LifeBuoy,
-			position: 'bottom',
-			onClick: async () => {
-				showSupport = true;
 			}
 		}
 	];
@@ -705,6 +713,9 @@
 		'text-secondary hover:text-primary flex w-full items-center rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors hover:bg-gray-100/50 dark:hover:bg-gray-800/50';
 
 	const baseClasses = 'flex w-full items-center rounded-lg font-medium transition-colors';
+
+	/** The palette's shortcut as this platform spells it. */
+	const searchShortcut = GLOBAL_SEARCH_KEY;
 </script>
 
 <div
@@ -718,7 +729,7 @@
 			<button
 				onclick={toggleCollapse}
 				class="text-tertiary hover:text-secondary flex w-full items-center rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-				style="height: 2rem; padding: 0.375rem 0.75rem;"
+				style="height: 38px; padding: 0.375rem 0.75rem;"
 				aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 			>
 				<Menu class="h-5 w-5 flex-shrink-0" />
@@ -727,10 +738,27 @@
 					<h1 class="text-primary ml-1.5 text-sm font-bold">Scanopy</h1>
 				{/if}
 			</button>
-			{#if !collapsed && isDemoOrg}
-				<div class="mt-2 flex justify-center">
-					<Tag label={common_demo()} color="Yellow" />
-				</div>
+			<!-- Global search. Collapsed, the bar shrinks to its icon and the shortcut moves to the
+			     tooltip, the way every other collapsed sidebar item keeps its label. -->
+			{#if mainAppAvailable && !mainAppLocked}
+				<!-- Styled as the search input it opens, like every other search box: same border,
+				     height and key chip. -->
+				<button
+					type="button"
+					onclick={() => globalSearchOpen.set(true)}
+					class="{collapsed
+						? `${inactiveButtonClass} justify-center rounded-lg`
+						: 'input-field text-muted hover:border-gray-400 dark:hover:border-gray-500'} toolbar-control mt-2 flex w-full items-center gap-2 px-3"
+					title={collapsed ? globalSearch_openWithShortcut({ shortcut: searchShortcut }) : ''}
+					aria-label={globalSearch_placeholder()}
+					aria-keyshortcuts={searchShortcut}
+				>
+					<Search class="text-tertiary h-4 w-4 flex-shrink-0" />
+					{#if !collapsed}
+						<span class="flex-1 truncate text-left">{globalSearch_searchAll()}</span>
+						<KbdKey key={searchShortcut} size="sm" />
+					{/if}
+				</button>
 			{/if}
 		</div>
 
@@ -934,4 +962,3 @@
 	dismissible={settingsDismissible}
 	{licensedPlanPending}
 />
-<SupportModal isOpen={showSupport} name="support" onClose={() => (showSupport = false)} />

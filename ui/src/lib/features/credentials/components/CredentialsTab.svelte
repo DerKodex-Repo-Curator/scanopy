@@ -7,19 +7,20 @@
 		useBulkDeleteCredentialsMutation
 	} from '../queries';
 	import CredentialEditModal from './CredentialEditModal.svelte';
-	import TabHeader from '$lib/shared/components/layout/TabHeader.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import type { Credential } from '../types/base';
 	import type { CredentialOrderField } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
+	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import {
-		defineFields,
 		entityRef,
 		type CardAction,
 		type CardFieldItem
 	} from '$lib/shared/components/data/types';
-	import type { Network } from '$lib/features/networks/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
+	import type { Site } from '$lib/features/sites/types';
 	import { Plus, Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -38,7 +39,7 @@
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import type { TabProps } from '$lib/shared/types';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
-	import { useNetworksQuery } from '$lib/features/networks/queries';
+	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import type { Host } from '$lib/features/hosts/types/base';
 	import { hostDisplayName } from '$lib/features/hosts/host-display-name';
@@ -49,21 +50,18 @@
 		common_create,
 		common_created,
 		common_delete,
-		common_description,
 		common_edit,
-		common_name,
 		common_type,
 		common_updated,
 		credentials_bulkDeleteConfirm,
 		credentials_bulkDeleteImpact,
-		credentials_daemonOs,
 		credentials_deleteImpact,
 		credentials_emptySubtitle,
 		credentials_subtitle,
 		credentials_unofficialApi,
 		common_credentials,
 		common_hosts,
-		common_networks,
+		common_sites,
 		common_notApplicable,
 		common_noEntityYet,
 		common_tags,
@@ -108,9 +106,9 @@
 	const tagsQuery = useTagsQuery();
 	let tagsData = $derived(tagsQuery.data ?? []);
 
-	// Networks for delete impact preview
-	const networksQuery = useNetworksQuery();
-	let networksData = $derived(networksQuery.data ?? []);
+	// Sites for delete impact preview
+	const sitesQuery = useSitesQuery();
+	let sitesData = $derived(sitesQuery.data ?? []);
 
 	// Derived state
 	let credentials = $derived(credentialsQuery.data ?? []);
@@ -118,7 +116,7 @@
 	// Which hosts a credential is assigned to is already on the credential —
 	// `host_assignments` is hydrated from the same `host_credentials` junction
 	// table that produces the host's `credential_assignments`. So the impact
-	// counts need no host data at all, and the card's host chips only need those
+	// counts need no host data at all, and the hosts column's chips only need those
 	// ids resolved to names.
 	//
 	// This was `useHostsQuery({ limit: 0 })`: every host in the organisation,
@@ -137,8 +135,8 @@
 		return assignedHostsData.filter((h) => ids.has(h.id));
 	}
 
-	function networksForCredential(credential: Credential): Network[] {
-		return networksData.filter((n) => (n.credential_ids ?? []).includes(credential.id));
+	function sitesForCredential(credential: Credential): Site[] {
+		return sitesData.filter((n) => (n.credential_ids ?? []).includes(credential.id));
 	}
 
 	/** The scopes a credential's type can target at all. */
@@ -155,10 +153,10 @@
 	/**
 	 * "Not applicable" is not the same as "none assigned".
 	 *
-	 * A Docker socket credential cannot target networks at all, which is a
-	 * different statement from a SNMP credential that targets networks and
-	 * happens to have none. The card drew that distinction and the table should
-	 * too, so an out-of-scope assignment column says so rather than sitting empty.
+	 * A Docker socket credential cannot target sites at all, which is a
+	 * different statement from a SNMP credential that targets sites and
+	 * happens to have none, so an out-of-scope assignment column says so rather
+	 * than sitting empty.
 	 */
 	function assignmentItems(applicable: boolean, items: CardFieldItem[]): CardFieldItem[] {
 		if (applicable) return items;
@@ -190,7 +188,7 @@
 		showCredentialEditor = true;
 	}
 
-	/** Row actions for table mode, matching what the card offers. */
+	/** Row actions. */
 	function credentialActions(credential: Credential): CardAction[] {
 		if (!canManage) return [];
 
@@ -211,16 +209,14 @@
 	}
 
 	async function handleDeleteCredential(credential: Credential) {
-		const affectedNetworks = networksData.filter((n) =>
-			(n.credential_ids ?? []).includes(credential.id)
-		);
+		const affectedSites = sitesData.filter((n) => (n.credential_ids ?? []).includes(credential.id));
 		const affectedHostCount = (credential.host_assignments ?? []).length;
 		let message: string = common_confirmDeleteName({ name: credential.name });
-		if (affectedNetworks.length > 0 || affectedHostCount > 0) {
+		if (affectedSites.length > 0 || affectedHostCount > 0) {
 			message +=
 				'\n\n' +
 				credentials_deleteImpact({
-					networkCount: affectedNetworks.length,
+					siteCount: affectedSites.length,
 					hostCount: affectedHostCount
 				});
 		}
@@ -247,7 +243,7 @@
 	}
 
 	async function handleBulkDelete(ids: string[]) {
-		const affectedNetworks = networksData.filter((n) =>
+		const affectedSites = sitesData.filter((n) =>
 			(n.credential_ids ?? []).some((id) => ids.includes(id))
 		);
 		// Distinct hosts across the selected credentials — a host assigned two of
@@ -258,11 +254,11 @@
 				.flatMap((c) => (c.host_assignments ?? []).map((a) => a.host_id))
 		).size;
 		let message: string = credentials_bulkDeleteConfirm({ count: ids.length });
-		if (affectedNetworks.length > 0 || affectedHostCount > 0) {
+		if (affectedSites.length > 0 || affectedHostCount > 0) {
 			message +=
 				'\n\n' +
 				credentials_bulkDeleteImpact({
-					networkCount: affectedNetworks.length,
+					siteCount: affectedSites.length,
 					hostCount: affectedHostCount
 				});
 		}
@@ -280,13 +276,22 @@
 		return credential.tags;
 	}
 
-	// Define field configuration for the DataTableControls
-	const credentialFields = defineFields<Credential, CredentialOrderField>(
+	const tableDefaults: TableDefaults<CredentialOrderField | 'credential_type'> = {
+		group: 'credential_type',
+		sort: { field: 'name', direction: 'asc' }
+	};
+
+	// The registry's credential fields are all the credential's own, so the lookup holds nothing.
+	const lookup = collectionLookup({});
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every CredentialOrderField value must be listed.
+	const credentialFields = defineRegistryFields<Credential, CredentialOrderField>(
+		'Credential',
+		() => lookup,
 		{
 			// Identity field: grouping by it would render a header per credential.
 			name: {
-				label: common_name(),
-				type: 'string',
 				searchable: true,
 				groupable: false,
 				display: { primary: true, width: 220 }
@@ -298,8 +303,6 @@
 			{
 				// Set only on credentials that read files or sockets on the daemon; empty otherwise.
 				key: 'daemon_os',
-				label: credentials_daemonOs(),
-				type: 'string',
 				filterable: true,
 				groupable: true,
 				sortable: true,
@@ -329,8 +332,7 @@
 						return [
 							{
 								id: typeId,
-								label: credentialTypes.getName(typeId),
-								color: credentialTypes.getColorHelper(typeId).color,
+								...credentialTypes.getTag(typeId),
 								icon: credentialTypes.getIconComponent(typeId)
 							}
 						];
@@ -375,27 +377,25 @@
 					}
 				}
 			},
-			{ key: 'description', label: common_description(), type: 'string', searchable: true },
+			{ key: 'description', searchable: true },
 			{
-				// Assignments were card-only, so the credentials table could not show
-				// what a credential actually applies to.
-				key: 'assigned_networks',
-				label: common_networks(),
+				key: 'assigned_sites',
+				label: common_sites(),
 				type: 'array',
 				searchable: true,
-				// Credentials share networks, so this filters. Hosts are near-unique per credential,
+				// Credentials share sites, so this filters. Hosts are near-unique per credential,
 				// so search covers those.
 				filterable: true,
-				getValue: (item: Credential) => networksForCredential(item).map((n) => n.name),
+				getValue: (item: Credential) => sitesForCredential(item).map((n) => n.name),
 				display: {
 					getItems: (item: Credential) =>
 						assignmentItems(
-							targetsFor(item).includes('Network'),
-							networksForCredential(item).map((network) => ({
-								id: network.id,
-								label: network.name,
-								color: entities.getColorHelper('Network').color,
-								entityRef: entityRef('Network', network.id, network)
+							targetsFor(item).includes('Site'),
+							sitesForCredential(item).map((site) => ({
+								id: site.id,
+								label: site.name,
+								color: entities.getColorHelper('Site').color,
+								entityRef: entityRef('Site', site.id, site)
 							}))
 						)
 				}
@@ -448,11 +448,10 @@
 				display: {
 					// Off by default: the target set is a property of the credential *type*, so it repeats
 					// down the column for every credential of the same type and earns its width
-					// only when someone is actually filtering by it. Still filterable, and still shown
-					// on the cards. An array, so it neither sorts nor groups.
+					// only when someone is actually filtering by it. Still filterable. An array, so
+					// it neither sorts nor groups.
 					hiddenByDefault: true,
-					// Same chip props the card uses, so a target reads identically in
-					// both views rather than falling back to undifferentiated grey.
+					// Coloured chips per target rather than undifferentiated grey.
 					getItems: (item: Credential) => {
 						const meta = credentialTypes.getMetadata(getCredentialTypeId(item));
 						return (meta?.targets ?? []).map((target: string) => ({
@@ -474,17 +473,16 @@
 	);
 </script>
 
-<div class="space-y-6">
-	<TabHeader title={common_credentials()} subtitle={credentials_subtitle()}>
-		<svelte:fragment slot="actions">
-			{#if canManage}
-				<button class="btn-primary flex items-center" onclick={handleCreateCredential}>
-					<Plus class="h-5 w-5" />{common_create()}
-				</button>
-			{/if}
-		</svelte:fragment>
-	</TabHeader>
+<!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
+{#snippet toolbarActions()}
+	{#if canManage}
+		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateCredential}>
+			<Plus class="h-5 w-5" />{common_create()}
+		</button>
+	{/if}
+{/snippet}
 
+<div class="space-y-6">
 	{#if isLoading}
 		<Loading />
 	{:else if credentials.length === 0}
@@ -496,18 +494,19 @@
 		/>
 	{:else}
 		<DataControls
+			title={common_credentials()}
+			subtitle={credentials_subtitle()}
+			{toolbarActions}
 			items={credentials}
 			fields={credentialFields}
 			{allowBulkDelete}
 			storageKey="scanopy-credentials-table-state"
+			defaults={tableDefaults}
 			onBulkDelete={handleBulkDelete}
-			entityType={allowBulkDelete ? 'Credential' : undefined}
+			entityType="Credential"
+			canEditTags={allowBulkDelete}
 			getItemTags={getCredentialTags}
 			getItemId={(item) => item.id}
-			getIcon={(credential) => ({
-				icon: credentialTypes.getIconComponent(getCredentialTypeId(credential)),
-				color: credentialTypes.getColorHelper(getCredentialTypeId(credential)).icon
-			})}
 			onCsvExport={handleCsvExport}
 			getActions={credentialActions}
 			entityLabel={common_credentials()}

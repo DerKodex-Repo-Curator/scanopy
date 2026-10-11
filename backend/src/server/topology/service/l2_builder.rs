@@ -67,11 +67,8 @@ impl ViewBuilder for L2Builder {
                 continue;
             }
 
-            let label = Some(format!(
-                "{} ↔ {}",
-                source_entry.display_name(),
-                target_entry.display_name()
-            ));
+            let endpoint_labels = [source_entry.display_name(), target_entry.display_name()];
+            let label = Some(endpoint_labels.join(" ↔ "));
 
             edges.push(Edge {
                 id: Uuid::new_v4(),
@@ -83,6 +80,7 @@ impl ViewBuilder for L2Builder {
                     protocol: DiscoveryProtocol::default(),
                 },
                 label,
+                endpoint_labels: Some(endpoint_labels),
                 source_handle: EdgeHandle::Bottom,
                 target_handle: EdgeHandle::Top,
                 is_multi_hop: false,
@@ -233,7 +231,7 @@ impl ViewBuilder for L2Builder {
         }
 
         // 5. Apply element rules (ByTag already has L2Physical in applicable_views)
-        let if_entry_lookup: std::collections::HashMap<
+        let interface_lookup: std::collections::HashMap<
             Uuid,
             &crate::server::interfaces::r#impl::base::Interface,
         > = ctx.interfaces.iter().map(|e| (e.id, e)).collect();
@@ -252,7 +250,7 @@ impl ViewBuilder for L2Builder {
                         *host_id,
                         &tag_lookups,
                     );
-                    let interface = if_entry_lookup.get(&node.id);
+                    let interface = interface_lookup.get(&node.id);
                     let native_vlan_id = interface.and_then(|e| e.base.native_vlan_id);
                     let resolved_vlan = native_vlan_id.and_then(|vid| ctx.get_vlan_by_id(vid));
                     Some(ElementMatchData {
@@ -260,6 +258,7 @@ impl ViewBuilder for L2Builder {
                         tag_ids,
                         element_entity: EntityDiscriminants::Interface,
                         virtualizer_service_id: None,
+                        virtualizer_role: None,
                         deployment_group: None,
                         native_vlan_id,
                         vlan_number: resolved_vlan.map(|v| v.base.vlan_number),
@@ -503,7 +502,7 @@ mod tests {
         ];
 
         let address = IPAddress::new(IPAddressBase {
-            network_id: Uuid::nil(),
+            site_id: Uuid::nil(),
             host_id: by_address.id,
             subnet_id: Uuid::new_v4(),
             ip_address: "10.0.0.7".parse().unwrap(),
@@ -770,7 +769,7 @@ mod tests {
         let h2 = make_host("switch-2");
 
         let ie1 = make_if_entry(h1.id, 1, 6);
-        let ie2 = make_if_entry(h2.id, 1, 6);
+        let ie2 = make_if_entry(h2.id, 2, 6);
         let neighbours = vec![neighbor_row(ie1.id, Neighbor::Interface(ie2.id))];
 
         let hosts = vec![h1, h2];
@@ -819,6 +818,24 @@ mod tests {
         // 1 PhysicalLink edge
         assert_eq!(edges.len(), 1);
         assert!(matches!(edges[0].edge_type, EdgeType::PhysicalLink { .. }));
+
+        // Each end carries its own interface's name, in source/target order, and `label`
+        // still joins the two for the exports.
+        let name_of = |id: Uuid| {
+            interfaces
+                .iter()
+                .find(|i| i.id == id)
+                .map(Interface::display_name)
+                .unwrap()
+        };
+        let [source_label, target_label] = edges[0].endpoint_labels.clone().unwrap();
+        assert_eq!(source_label, name_of(edges[0].source));
+        assert_eq!(target_label, name_of(edges[0].target));
+        assert_ne!(source_label, target_label);
+        assert_eq!(
+            edges[0].label.as_deref(),
+            Some(format!("{source_label} ↔ {target_label}").as_str())
+        );
     }
 
     /// An LLDP neighbour that identifies the remote device but not the remote port used to
@@ -973,7 +990,7 @@ mod tests {
     }
 
     /// The neighbour may name a device that this topology does not contain — a host on another
-    /// network, or one filtered out. Drawing to it would leave an edge with no node.
+    /// site, or one filtered out. Drawing to it would leave an edge with no node.
     #[test]
     fn a_neighbor_host_outside_the_topology_draws_no_edge() {
         let h1 = make_host("switch-1");

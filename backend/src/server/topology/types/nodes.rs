@@ -37,6 +37,7 @@ impl Node {
             node_type: NodeType::Element {
                 container_id,
                 host_id,
+                entity_id: element.entity_id(id, host_id),
                 element,
                 inline_groups: Vec::new(),
             },
@@ -221,7 +222,32 @@ impl TypeMetadataProvider for ContainerType {
             "collapsed_by_default": collapsed_by_default,
             "padding": { "top": padding_top, "left": 25, "bottom": 25, "right": 25 },
             "collapsed_size": { "width": collapsed_width, "height": collapsed_height },
+            "entity_type": self.entity_type(),
         })
+    }
+}
+
+impl ContainerType {
+    /// The type of entity a container of this type stands for, named by its `entity_id`. `None`
+    /// for groupings, which stand for no single entity.
+    pub fn entity_type(&self) -> Option<EntityDiscriminants> {
+        match self {
+            ContainerType::Subnet => Some(EntityDiscriminants::Subnet),
+            ContainerType::Host => Some(EntityDiscriminants::Host),
+            ContainerType::Application => Some(EntityDiscriminants::Tag),
+            ContainerType::VLAN => Some(EntityDiscriminants::Vlan),
+            ContainerType::Hypervisor | ContainerType::ContainerRuntime => {
+                Some(EntityDiscriminants::Service)
+            }
+            ContainerType::ServiceCategory
+            | ContainerType::ApplicationUngrouped
+            | ContainerType::Root
+            | ContainerType::NestedTag
+            | ContainerType::NestedServiceCategory
+            | ContainerType::Stack
+            | ContainerType::TrunkPort
+            | ContainerType::PortOpStatus => None,
+        }
     }
 }
 
@@ -252,6 +278,19 @@ impl Default for ElementEntityType {
         Self::IPAddress {
             subnet_id: Uuid::nil(),
             ip_address_id: None,
+        }
+    }
+}
+
+impl ElementEntityType {
+    /// The id of the entity an element of this type stands for, given the element node's id
+    /// (which is the service or host id for those element types) and its host.
+    pub fn entity_id(&self, node_id: Uuid, host_id: Uuid) -> Option<Uuid> {
+        match self {
+            ElementEntityType::IPAddress { ip_address_id, .. } => *ip_address_id,
+            ElementEntityType::Service {} => Some(node_id),
+            ElementEntityType::Host {} => Some(host_id),
+            ElementEntityType::Interface { interface_id } => Some(*interface_id),
         }
     }
 }
@@ -321,6 +360,11 @@ pub enum NodeType {
         host_id: Uuid,
         #[serde(flatten)]
         element: ElementEntityType,
+        /// The entity this element stands for, of the type `element_type` names: the frontend's
+        /// one lookup from a card to what it describes. `None` only for an IP address element with
+        /// no known address.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        entity_id: Option<Uuid>,
         /// Visual grouping metadata for services inlined on this element.
         /// Populated by element rules (e.g., Docker containers on a VM host
         /// get InlineGroups with Header/Member roles for dotted-border rendering).
@@ -483,6 +527,7 @@ mod tests {
         let node_type = NodeType::Element {
             container_id,
             host_id,
+            entity_id: None,
             element: ElementEntityType::IPAddress {
                 subnet_id,
                 ip_address_id: Some(iface_id),
@@ -507,6 +552,7 @@ mod tests {
         let node_type = NodeType::Element {
             container_id,
             host_id,
+            entity_id: None,
             element: ElementEntityType::Service {},
             inline_groups: Vec::new(),
         };
@@ -530,6 +576,7 @@ mod tests {
         let node_type = NodeType::Element {
             container_id,
             host_id,
+            entity_id: None,
             element: ElementEntityType::IPAddress {
                 subnet_id,
                 ip_address_id: None,
@@ -634,6 +681,7 @@ mod tests {
         let node_type = NodeType::Element {
             container_id,
             host_id,
+            entity_id: None,
             element: ElementEntityType::Interface { interface_id },
             inline_groups: Vec::new(),
         };
@@ -671,6 +719,7 @@ mod tests {
         let node_type = NodeType::Element {
             container_id,
             host_id,
+            entity_id: None,
             element: ElementEntityType::Host {},
             inline_groups: Vec::new(),
         };

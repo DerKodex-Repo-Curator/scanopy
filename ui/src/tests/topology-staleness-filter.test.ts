@@ -7,13 +7,13 @@ import {
 	presentFilterValues
 } from '$lib/features/topology/interactions';
 import type { RenderableTopology } from '$lib/features/topology/types/base';
-import type { Network } from '$lib/features/networks/types';
+import type { Site } from '$lib/features/sites/types';
 
 const HOUR_MS = 60 * 60 * 1000;
 const NOW = new Date('2026-07-22T12:00:00Z').getTime();
-const NETWORK_ID = 'net-1';
+const SITE_ID = 'net-1';
 
-const network = { id: NETWORK_ID, effective_stale_after_hours: 24 * 28 } as Network;
+const site = { id: SITE_ID, effective_stale_after_hours: 24 * 28 } as Site;
 
 function seenHoursAgo(h: number) {
 	return new Date(NOW - h * HOUR_MS).toISOString();
@@ -29,18 +29,18 @@ function buildTopology(): RenderableTopology {
 	const discovery = { type: 'Discovery' };
 	return {
 		id: 'topo-1',
-		network_id: NETWORK_ID,
+		site_id: SITE_ID,
 		hosts: [
 			{
 				id: 'stale-host',
-				network_id: NETWORK_ID,
+				site_id: SITE_ID,
 				last_seen_at: seenHoursAgo(24 * 45),
 				source: discovery,
 				tags: []
 			},
 			{
 				id: 'fresh-host',
-				network_id: NETWORK_ID,
+				site_id: SITE_ID,
 				last_seen_at: seenHoursAgo(1),
 				source: discovery,
 				tags: []
@@ -50,7 +50,7 @@ function buildTopology(): RenderableTopology {
 			{
 				id: 'svc-on-stale-host',
 				host_id: 'stale-host',
-				network_id: NETWORK_ID,
+				site_id: SITE_ID,
 				last_seen_at: seenHoursAgo(1),
 				source: discovery,
 				tags: []
@@ -58,7 +58,7 @@ function buildTopology(): RenderableTopology {
 			{
 				id: 'svc-itself-stale',
 				host_id: 'fresh-host',
-				network_id: NETWORK_ID,
+				site_id: SITE_ID,
 				last_seen_at: seenHoursAgo(24 * 45),
 				source: discovery,
 				tags: []
@@ -69,16 +69,30 @@ function buildTopology(): RenderableTopology {
 				id: 'svc-on-stale-host',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'stale-host'
+				host_id: 'stale-host',
+				entity_id: 'svc-on-stale-host'
 			},
 			{
 				id: 'svc-itself-stale',
 				node_type: 'Element',
 				element_type: 'Service',
-				host_id: 'fresh-host'
+				host_id: 'fresh-host',
+				entity_id: 'svc-itself-stale'
 			},
-			{ id: 'stale-host', node_type: 'Element', element_type: 'Host', host_id: 'stale-host' },
-			{ id: 'fresh-host', node_type: 'Element', element_type: 'Host', host_id: 'fresh-host' }
+			{
+				id: 'stale-host',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'stale-host',
+				entity_id: 'stale-host'
+			},
+			{
+				id: 'fresh-host',
+				node_type: 'Element',
+				element_type: 'Host',
+				host_id: 'fresh-host',
+				entity_id: 'fresh-host'
+			}
 		],
 		edges: [],
 		subnets: [],
@@ -111,7 +125,7 @@ describe('topology staleness filter', () => {
 			'Workloads',
 			{ Service: { Staleness: ['stale'] } },
 			[],
-			network
+			site
 		);
 		// It is an element node, so it resolves to node-space by id...
 		expect(get(tagHiddenNodeIds).has('svc-itself-stale')).toBe(true);
@@ -128,14 +142,14 @@ describe('topology staleness filter', () => {
 		(topo as any).ports = [
 			{
 				id: 'port-1',
-				network_id: NETWORK_ID,
+				site_id: SITE_ID,
 				host_id: 'fresh-host',
 				source: { type: 'Discovery' },
 				tags: []
 			}
 		];
 
-		updateTagFilter(topo, undefined, 'Workloads', undefined, ['Port'], network);
+		updateTagFilter(topo, undefined, 'Workloads', undefined, ['Port'], site);
 
 		expect(get(hiddenEntityIds).has('port-1')).toBe(true);
 		expect(get(tagHiddenNodeIds).has('port-1')).toBe(false);
@@ -148,7 +162,7 @@ describe('topology staleness filter', () => {
 			'Workloads',
 			{ Service: { Staleness: ['stale'] } },
 			[],
-			network
+			site
 		);
 		expect(get(tagHiddenNodeIds).has('svc-itself-stale')).toBe(true);
 	});
@@ -162,7 +176,7 @@ describe('topology staleness filter', () => {
 			'Workloads',
 			{ Service: { Staleness: ['stale'] } },
 			[],
-			network
+			site
 		);
 		expect(get(tagHiddenNodeIds).has('svc-on-stale-host')).toBe(false);
 	});
@@ -176,7 +190,7 @@ describe('topology staleness filter', () => {
 			'Workloads',
 			{ Service: { Staleness: ['current'] } },
 			[],
-			network
+			site
 		);
 		const hidden = get(tagHiddenNodeIds);
 		expect(hidden.has('svc-on-stale-host')).toBe(true);
@@ -190,7 +204,7 @@ describe('topology staleness filter', () => {
 			'Workloads',
 			{ Host: { Staleness: ['stale'] } },
 			[],
-			network
+			site
 		);
 		const hidden = get(tagHiddenNodeIds);
 		expect(hidden.has('stale-host')).toBe(true);
@@ -200,7 +214,7 @@ describe('topology staleness filter', () => {
 	// A filter whose entities all share one value can only show everything or
 	// hide everything, so the panel drops the group. Both values present here.
 	it('reports both staleness values as present when the set is mixed', () => {
-		updateTagFilter(buildTopology(), undefined, 'Workloads', {}, [], network);
+		updateTagFilter(buildTopology(), undefined, 'Workloads', {}, [], site);
 		const present = get(presentFilterValues).Service?.Staleness ?? [];
 		expect([...present].sort()).toEqual(['current', 'stale']);
 	});
@@ -211,13 +225,13 @@ describe('topology staleness filter', () => {
 		topo.services.forEach((s) => {
 			(s as { last_seen_at: string }).last_seen_at = seenHoursAgo(24 * 45);
 		});
-		updateTagFilter(topo, undefined, 'Workloads', {}, [], network);
+		updateTagFilter(topo, undefined, 'Workloads', {}, [], site);
 		expect(get(presentFilterValues).Service?.Staleness).toEqual(['stale']);
 	});
 
-	// Without the network the window is unknown, so nothing can be judged —
+	// Without the site the window is unknown, so nothing can be judged —
 	// the filter must not silently hide (or keep) everything.
-	it('hides nothing when the network is not supplied', () => {
+	it('hides nothing when the site is not supplied', () => {
 		updateTagFilter(
 			buildTopology(),
 			undefined,
@@ -241,8 +255,8 @@ function buildContainerTopology(): RenderableTopology {
 	const fresh = seenHoursAgo(1);
 	Object.assign(topo, {
 		ip_addresses: [
-			{ id: 'ip-stale', host_id: 'stale-host', network_id: NETWORK_ID, last_seen_at: stale },
-			{ id: 'ip-fresh', host_id: 'fresh-host', network_id: NETWORK_ID, last_seen_at: fresh }
+			{ id: 'ip-stale', host_id: 'stale-host', site_id: SITE_ID, last_seen_at: stale },
+			{ id: 'ip-fresh', host_id: 'fresh-host', site_id: SITE_ID, last_seen_at: fresh }
 		],
 		nodes: [
 			{
@@ -250,14 +264,16 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'IPAddress',
 				host_id: 'stale-host',
-				ip_address_id: 'ip-stale'
+				ip_address_id: 'ip-stale',
+				entity_id: 'ip-stale'
 			},
 			{
 				id: 'n-ip-fresh',
 				node_type: 'Element',
 				element_type: 'IPAddress',
 				host_id: 'fresh-host',
-				ip_address_id: 'ip-fresh'
+				ip_address_id: 'ip-fresh',
+				entity_id: 'ip-fresh'
 			},
 			{
 				id: 'c-stale-host',
@@ -276,6 +292,7 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'stale-host',
+				entity_id: 'svc-on-stale-host',
 				container_id: 'c-stale-host'
 			},
 			{
@@ -283,6 +300,7 @@ function buildContainerTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'fresh-host',
+				entity_id: 'svc-itself-stale',
 				container_id: 'c-fresh-host'
 			}
 		]
@@ -298,7 +316,7 @@ describe('staleness filter on addresses and containers', () => {
 			'L3Logical',
 			{ IPAddress: { Staleness: ['stale'] } },
 			[],
-			network
+			site
 		);
 		const hidden = get(tagHiddenNodeIds);
 		expect(hidden.has('n-ip-stale')).toBe(true);
@@ -306,7 +324,7 @@ describe('staleness filter on addresses and containers', () => {
 	});
 
 	it('offers the IP address filter when stale and current addresses are both present', () => {
-		updateTagFilter(buildContainerTopology(), undefined, 'L3Logical', {}, [], network);
+		updateTagFilter(buildContainerTopology(), undefined, 'L3Logical', {}, [], site);
 		expect([...(get(presentFilterValues).IPAddress?.Staleness ?? [])].sort()).toEqual([
 			'current',
 			'stale'
@@ -321,7 +339,7 @@ describe('staleness filter on addresses and containers', () => {
 			'Workloads',
 			{ Host: { Staleness: ['stale'] } },
 			[],
-			network
+			site
 		);
 		const hidden = get(tagHiddenNodeIds);
 		expect(hidden.has('c-stale-host')).toBe(true);
@@ -339,10 +357,8 @@ describe('staleness filter on addresses and containers', () => {
  */
 describe('hidden values stay offerable once the server stops sending them', () => {
 	it('keeps a hidden value represented even when no entity carries it', () => {
-		// One interface, linked via its own resolved-adjacency row (GH #701: a port's neighbour is
-		// a `Vec` on the topology bundle, not a scalar field on the interface). `Unlinked` is
-		// hidden, so the server sent none — exactly the state after a server-side LinkState filter
-		// runs.
+		// One interface, stamped linked by the backend. `Unlinked` is hidden, so the server sent
+		// none — exactly the state after a server-side LinkState filter runs.
 		const topology = {
 			id: 'topo-1',
 			nodes: [],
@@ -351,10 +367,8 @@ describe('hidden values stay offerable once the server stops sending them', () =
 			services: [],
 			ip_addresses: [],
 			subnets: [],
-			interfaces: [{ id: 'if-1' }],
-			neighbours: [
-				{ id: 'row-1', interface_id: 'if-1', neighbor: { type: 'Interface', id: 'if-2' } }
-			]
+			interfaces: [{ id: 'if-1', filter_values: { LinkState: 'Linked' } }],
+			neighbours: []
 		} as unknown as RenderableTopology;
 
 		updateTagFilter(topology, undefined, 'L2Physical', {

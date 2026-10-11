@@ -49,6 +49,18 @@ export function hasLicensedPlan(organization: Organization): boolean {
 }
 
 /**
+ * The org is locked out of this app: it holds a licensed self-hosted plan on a
+ * billing-enabled (cloud) server, so it runs Scanopy on its own server and gets
+ * only Settings here. Mirrors `EmailService::self_hosted_plan_locked`.
+ */
+export function isSelfHostedPlanLocked(
+	organization: Organization | null | undefined,
+	billingEnabled: boolean
+): boolean {
+	return billingEnabled && organization != null && hasLicensedPlan(organization);
+}
+
+/**
  * A genuine paid subscription is live. Stricter than {@link isBillingPlanActive}
  * (which is the permissive hard-gate predicate): this gates the
  * "Subscription activated successfully!" toast so it doesn't fire for

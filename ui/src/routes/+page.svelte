@@ -5,6 +5,7 @@
 	import AppBanners from '$lib/shared/components/feedback/AppBanners.svelte';
 	import TrialExpiryModal from '$lib/shared/components/feedback/TrialExpiryModal.svelte';
 	import Sidebar from '$lib/shared/components/layout/Sidebar.svelte';
+	import GlobalSearch from '$lib/shared/components/layout/GlobalSearch.svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import { discoverySSEManager } from '$lib/features/discovery/queries';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
@@ -16,14 +17,24 @@
 	} from '$lib/features/topology/queries';
 	import { get } from 'svelte/store';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
+	import { useSitesQuery } from '$lib/features/sites/queries';
 	import BillingPlanModal from '$lib/features/billing/BillingPlanModal.svelte';
 	import DaemonPromptModal from '$lib/features/daemons/components/DaemonPromptModal.svelte';
+	import ReleaseNotesModal from '$lib/features/release-notes/ReleaseNotesModal.svelte';
+	import {
+		useUnseenReleaseNotesQuery,
+		useMarkReleaseNotesSeenMutation
+	} from '$lib/features/release-notes/queries';
 	import { useConfigQuery, isLicenseSigningAvailable } from '$lib/shared/stores/config-query';
 	import {
 		useOrganizationQuery,
 		useDaemonPromptResponseMutation
 	} from '$lib/features/organizations/queries';
-	import { hasLicensedPlan, isBillingPlanActive } from '$lib/features/organizations/types';
+	import {
+		hasLicensedPlan,
+		isBillingPlanActive,
+		isSelfHostedPlanLocked as isSelfHostedPlanLockedFor
+	} from '$lib/features/organizations/types';
 	import { billingPlans } from '$lib/shared/stores/metadata';
 	import { licenseTabVisible } from '$lib/features/settings/license-tab';
 	import { reopenSettingsAfterBilling } from '$lib/features/billing/stores';
@@ -64,8 +75,8 @@
 	// within milliseconds and the License tab flickers out of the tab list.
 	let licensedPlanJustPicked = $state(false);
 	let isSelfHostedPlanLocked = $derived(
-		billingEnabled &&
-			(licensedPlanJustPicked || (organization != null && hasLicensedPlan(organization)))
+		(billingEnabled && licensedPlanJustPicked) ||
+			isSelfHostedPlanLockedFor(organization, billingEnabled)
 	);
 	$effect(() => {
 		if (licensedPlanJustPicked && organization != null && hasLicensedPlan(organization)) {
@@ -93,6 +104,14 @@
 		billingEnabled &&
 			((needsPlanSelection && !planJustActivated) || $modalState.name === 'billing-plan')
 	);
+
+	// A self-hosted signup that picks a cloud plan gets its site from the plan
+	// webhook, so the daemon prompt waits (polling) until that site exists.
+	const sitesQuery = useSitesQuery({
+		enabled: () => isAuthenticated && mainAppAvailable,
+		pollWhileEmpty: () => planJustActivated
+	});
+	let hasSite = $derived((sitesQuery.data?.length ?? 0) > 0);
 
 	// Daemon prompt: driven by modal registry
 	let showDaemonPrompt = $derived($modalState.name === 'daemon-prompt');
@@ -207,7 +226,7 @@
 
 	// A URL deep link (initModalFromUrl) can name a main-app modal, and the org may
 	// load after it opened. While locked, only the settings and billing modals stay.
-	const LOCKED_ORG_MODALS = ['settings', 'billing-plan', 'payment-method', 'support'];
+	const LOCKED_ORG_MODALS = ['settings', 'billing-plan', 'payment-method'];
 	$effect(() => {
 		const name = $modalState.name;
 		if (isSelfHostedPlanLocked && name && !LOCKED_ORG_MODALS.includes(name)) {
@@ -228,6 +247,32 @@
 		}
 	});
 
+	// App-load modals show at most one per page load, in this order: the billing
+	// gate (forced Settings), plan selection, trial expiry, the daemon prompt,
+	// release notes. A lower one waits until everything above it has had its say.
+	let trialModalOpen = $state(false);
+	let higherModalShownThisLoad = $state(false);
+	$effect(() => {
+		if (isBillingBlocking || showBillingModal || trialModalOpen) {
+			higherModalShownThisLoad = true;
+		}
+	});
+	// Set when the URL named a modal at load; the user came for that one.
+	let deepLinkOpened = $state(false);
+
+	// Whether this org should see the daemon prompt: a new org with a site and
+	// no daemon that hasn't answered the prompt.
+	let daemonPromptWanted = $derived(
+		!isSelfHostedPlanLocked &&
+			!isViewer &&
+			(organization?.onboarding?.includes('OrgCreated') ?? false) &&
+			!organization?.onboarding?.includes('FirstDaemonRegistered') &&
+			!daemonPromptResponded &&
+			hasSite &&
+			daemonsQuery.isSuccess &&
+			daemonsQuery.data?.length === 0
+	);
+
 	// Auto-show daemon prompt for new orgs that haven't installed a daemon yet.
 	// Centralizes logic that previously lived in each registration path.
 	let daemonPromptShown = $state(false);
@@ -236,17 +281,50 @@
 			appInitialized &&
 			!daemonPromptShown &&
 			!showBillingModal &&
-			!isSelfHostedPlanLocked &&
+			!trialModalOpen &&
 			$modalState.name === null &&
-			!isViewer &&
-			organization?.onboarding?.includes('OrgCreated') &&
-			!organization?.onboarding?.includes('FirstDaemonRegistered') &&
-			!daemonPromptResponded &&
-			daemonsQuery.isSuccess &&
-			daemonsQuery.data?.length === 0
+			daemonPromptWanted
 		) {
 			daemonPromptShown = true;
 			openModal('daemon-prompt');
+		}
+	});
+
+	// Release notes: the releases since the user last dismissed them. Last in
+	// the order, so it waits until the daemon prompt's inputs have loaded.
+	const unseenReleaseNotesQuery = useUnseenReleaseNotesQuery({
+		enabled: () => isAuthenticated && mainAppAvailable
+	});
+	const markReleaseNotesSeenMutation = useMarkReleaseNotesSeenMutation();
+	let hasUnseenReleaseNotes = $derived((unseenReleaseNotesQuery.data?.releases.length ?? 0) > 0);
+	let showReleaseNotes = $derived($modalState.name === 'release-notes' && hasUnseenReleaseNotes);
+	let releaseNotesShown = $state(false);
+	$effect(() => {
+		if (
+			appInitialized &&
+			!releaseNotesShown &&
+			!deepLinkOpened &&
+			!higherModalShownThisLoad &&
+			!daemonPromptShown &&
+			!isSelfHostedPlanLocked &&
+			$modalState.name === null &&
+			sitesQuery.isSuccess &&
+			daemonsQuery.isSuccess &&
+			!daemonPromptWanted &&
+			hasUnseenReleaseNotes
+		) {
+			releaseNotesShown = true;
+			openModal('release-notes');
+		}
+	});
+	// A `?modal=release-notes` link with nothing unseen has nothing to show.
+	$effect(() => {
+		if (
+			$modalState.name === 'release-notes' &&
+			unseenReleaseNotesQuery.isSuccess &&
+			!hasUnseenReleaseNotes
+		) {
+			closeModal();
 		}
 	});
 
@@ -269,6 +347,7 @@
 		// SSE managers connect from the mainAppAvailable effect once the org loads.
 		appInitialized = true;
 		initModalFromUrl();
+		deepLinkOpened = $modalState.name !== null;
 
 		// Block billing modal deep-link in non-cloud environments
 		if (!billingEnabled && $modalState.name === 'billing-plan') {
@@ -386,7 +465,15 @@
 		</main>
 	</div>
 
-	<TrialExpiryModal />
+	<TrialExpiryModal
+		blocked={isBillingBlocking || showBillingModal || $modalState.name !== null}
+		bind:open={trialModalOpen}
+	/>
+
+	<!-- Searches routes a locked org is rejected from, so only with the main app. -->
+	{#if mainAppAvailable}
+		<GlobalSearch />
+	{/if}
 
 	<!-- Billing modal rendered last so it stacks on top of other modals -->
 	<BillingPlanModal
@@ -412,7 +499,12 @@
 			} else if ($reopenSettingsAfterBilling) {
 				reopenSettingsAfterBilling.set(false);
 				openModal('settings', { tab: 'billing' });
-			} else if (!isViewer && !daemonPromptResponded && daemonsQuery.data?.length === 0) {
+			} else if (
+				!isViewer &&
+				!daemonPromptResponded &&
+				hasSite &&
+				daemonsQuery.data?.length === 0
+			) {
 				// Mark as shown here too so the first Skip click sticks — otherwise the
 				// auto-open $effect re-fires on close (its guard was never set on this path).
 				daemonPromptShown = true;
@@ -429,6 +521,15 @@
 		}}
 		onSkip={() => {
 			daemonPromptResponseMutation.mutate('dismissed');
+			closeModal();
+		}}
+	/>
+
+	<ReleaseNotesModal
+		isOpen={showReleaseNotes}
+		notes={unseenReleaseNotesQuery.data}
+		onClose={() => {
+			markReleaseNotesSeenMutation.mutate();
 			closeModal();
 		}}
 	/>

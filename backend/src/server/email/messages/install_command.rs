@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Delivers a ready-to-run daemon install command for the recipient's OS.
 pub struct InstallCommand<'a> {
@@ -12,11 +12,7 @@ impl Email for InstallCommand<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Daemon
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
+        EmailCategory::DaemonSetup
     }
 
     fn campaign(&self) -> &'static str {

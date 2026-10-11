@@ -1,3 +1,4 @@
+pub mod dependency;
 pub mod handlers;
 pub mod service;
 pub mod subscriber;
@@ -113,6 +114,16 @@ pub fn describe_metrics() {
         "scanopy_discovery_finish_errors_total",
         Unit::Count,
         "Finished discovery sessions the server failed to record, by step (finalize_scan, history_record)"
+    );
+    describe_counter!(
+        "scanopy_dependency_requests_total",
+        Unit::Count,
+        "Outbound calls to external dependencies (OIDC, SMTP, SNS, Stripe, PostHog, license server, GitHub), by dependency and outcome"
+    );
+    describe_counter!(
+        "scanopy_email_feedback_total",
+        Unit::Count,
+        "SES bounce and complaint recipients reported over SNS, by type and bounce type"
     );
     describe_histogram!(
         "scanopy_link_resolution_duration_seconds",

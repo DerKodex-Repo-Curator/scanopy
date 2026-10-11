@@ -1,7 +1,7 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent instead of the cloud trial-ending email when the trial is for a
-/// self-hosted plan. The cloud email recaps hosts, networks, daemons and
+/// self-hosted plan. The cloud email recaps hosts, sites, daemons and
 /// services found during the trial, and those all live on the customer's own
 /// server, so the cloud org's counts are zero. What ends with this trial is
 /// the license key, so the copy is about the key.
@@ -21,13 +21,9 @@ impl Email for SelfHostedTrialEnding<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
         // Without a payment method the key stops working when the trial ends,
         // which takes the customer's server read-only.
-        EmailPreference::Required
+        EmailCategory::Billing
     }
 
     fn campaign(&self) -> &'static str {

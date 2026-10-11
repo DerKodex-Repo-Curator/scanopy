@@ -1,6 +1,58 @@
 //! OIDC providers, authorize/callback, link/login/register flows, and unlink.
 use super::*;
+use crate::server::metrics::dependency::DependencyError;
 use crate::server::openapi::tags as api_tags;
+use crate::server::shared::types::api::MetricErrorCode;
+use axum::response::{IntoResponse, Response};
+
+/// A callback failure, sent back to the frontend as a redirect carrying `?error=`.
+///
+/// Success and failure are both 303s, so the status can't tell them apart in
+/// `http_requests_total`. A failure the provider caused carries an [`ErrorCode`], which goes on
+/// the response as [`MetricErrorCode`] the way a coded `ApiError` does, and labels the request.
+pub(crate) struct ErrorRedirect {
+    redirect: Redirect,
+    code: Option<ErrorCode>,
+}
+
+impl ErrorRedirect {
+    fn to(uri: &str) -> Self {
+        Redirect::to(uri).into()
+    }
+
+    /// Code the redirect as a provider failure when `error` came from a call to the provider
+    /// (discovery, token exchange, ID token verification).
+    fn for_flow_error(self, error: &anyhow::Error, slug: &str) -> Self {
+        let code =
+            error
+                .downcast_ref::<DependencyError>()
+                .map(|_| ErrorCode::AuthOidcProviderError {
+                    provider: slug.to_string(),
+                });
+        Self { code, ..self }
+    }
+}
+
+impl From<Redirect> for ErrorRedirect {
+    fn from(redirect: Redirect) -> Self {
+        Self {
+            redirect,
+            code: None,
+        }
+    }
+}
+
+impl IntoResponse for ErrorRedirect {
+    fn into_response(self) -> Response {
+        let mut response = self.redirect.into_response();
+        if let Some(code) = self.code {
+            response
+                .extensions_mut()
+                .insert(MetricErrorCode(code.code()));
+        }
+        response
+    }
+}
 
 pub(crate) async fn list_oidc_providers(
     State(state): State<Arc<AppState>>,
@@ -83,10 +135,20 @@ pub(crate) async fn oidc_authorize(
 
     // Generate authorization URL using provider
     let (auth_url, pending_auth) = provider.authorize_url(flow).await.map_err(|e| {
-        ApiError::internal_error(&format!(
-            "Failed to generate auth URL for '{}': {}.",
-            slug, e
-        ))
+        if e.downcast_ref::<DependencyError>().is_some() {
+            tracing::error!(provider = %slug, error = %e, "OIDC authorize failed at the provider");
+            ApiError::coded(
+                StatusCode::BAD_GATEWAY,
+                ErrorCode::AuthOidcProviderError {
+                    provider: slug.clone(),
+                },
+            )
+        } else {
+            ApiError::internal_error(&format!(
+                "Failed to generate auth URL for '{}': {}.",
+                slug, e
+            ))
+        }
     })?;
 
     // Store OIDC flow state in session
@@ -116,15 +178,6 @@ pub(crate) async fn oidc_authorize(
             })?;
     }
 
-    if let Some(marketing_opt_in) = params.marketing_opt_in {
-        session
-            .insert("oidc_marketing_opt_in", marketing_opt_in)
-            .await
-            .map_err(|e| {
-                ApiError::internal_error(&format!("Failed to save marketing_opt_in: {}", e))
-            })?;
-    }
-
     Ok(Redirect::to(&auth_url))
 }
 
@@ -136,14 +189,14 @@ pub(crate) async fn oidc_callback(
     ClientIp(ip): ClientIp,
     user_agent: Option<TypedHeader<UserAgent>>,
     Query(params): Query<OidcCallbackParams>,
-) -> Result<Redirect, Redirect> {
+) -> Result<Redirect, ErrorRedirect> {
     let user_agent = user_agent.map(|u| u.to_string());
 
     // Verify OIDC is configured
     let oidc_service = match state.services.oidc_service.as_ref() {
         Some(service) => service,
         None => {
-            return Err(Redirect::to(&format!(
+            return Err(ErrorRedirect::to(&format!(
                 "/error?message={}",
                 urlencoding::encode("OIDC is not configured on this server")
             )));
@@ -152,7 +205,7 @@ pub(crate) async fn oidc_callback(
 
     // Verify provider exists
     if oidc_service.get_provider(&slug).is_none() {
-        return Err(Redirect::to(&format!(
+        return Err(ErrorRedirect::to(&format!(
             "/error?message={}",
             urlencoding::encode(&format!("OIDC provider '{}' not found", slug))
         )));
@@ -199,7 +252,7 @@ pub(crate) async fn oidc_callback(
 
     // Verify provider slug matches
     if session_slug != slug {
-        return Err(Redirect::to(&format!(
+        return Err(ErrorRedirect::to(&format!(
             "{}?error={}",
             return_url,
             urlencoding::encode("Provider mismatch in callback")
@@ -208,7 +261,7 @@ pub(crate) async fn oidc_callback(
 
     // Verify CSRF token
     if pending_auth.csrf_token != params.state {
-        return Err(Redirect::to(&format!(
+        return Err(ErrorRedirect::to(&format!(
             "{}?error={}",
             return_url,
             urlencoding::encode("Invalid security token. Please try again.")
@@ -222,19 +275,12 @@ pub(crate) async fn oidc_callback(
         .ok()
         .flatten()
         .unwrap_or(false);
-    let marketing_opt_in: bool = session
-        .get("oidc_marketing_opt_in")
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or(false);
 
     // Consume OIDC state immediately to prevent replay attacks
     let _ = session.remove::<OidcPendingAuth>("oidc_pending_auth").await;
     let _ = session.remove::<String>("oidc_provider_slug").await;
     let _ = session.remove::<String>("oidc_return_url").await;
     let _ = session.remove::<bool>("oidc_terms_accepted").await;
-    let _ = session.remove::<bool>("oidc_marketing_opt_in").await;
 
     // Parse return URL for error handling
     let return_url_parsed = Url::parse(&return_url).map_err(|_| {
@@ -287,7 +333,6 @@ pub(crate) async fn oidc_callback(
             handle_register_flow(
                 state.clone(),
                 terms_accepted_at,
-                marketing_opt_in,
                 HandleLinkFlowParams {
                     oidc_service,
                     slug: &slug,
@@ -317,7 +362,7 @@ struct HandleLinkFlowParams<'a> {
     host: String,
 }
 
-async fn handle_link_flow(params: HandleLinkFlowParams<'_>) -> Result<Redirect, Redirect> {
+async fn handle_link_flow(params: HandleLinkFlowParams<'_>) -> Result<Redirect, ErrorRedirect> {
     let HandleLinkFlowParams {
         oidc_service,
         slug,
@@ -355,7 +400,7 @@ async fn handle_link_flow(params: HandleLinkFlowParams<'_>) -> Result<Redirect, 
             return_url
                 .query_pairs_mut()
                 .append_pair("error", &format!("Failed to link OIDC account: {}", e));
-            Err(Redirect::to(return_url.as_str()))
+            Err(ErrorRedirect::to(return_url.as_str()).for_flow_error(&e, slug))
         }
     }
 }
@@ -363,7 +408,7 @@ async fn handle_link_flow(params: HandleLinkFlowParams<'_>) -> Result<Redirect, 
 async fn handle_login_flow(
     state: Arc<AppState>,
     params: HandleLinkFlowParams<'_>,
-) -> Result<Redirect, Redirect> {
+) -> Result<Redirect, ErrorRedirect> {
     let HandleLinkFlowParams {
         oidc_service,
         slug,
@@ -394,7 +439,7 @@ async fn handle_login_flow(
                     .plan
                     .unwrap_or_else(crate::server::billing::plans::get_free_plan);
                 if plan.is_demo() && !is_demo_host(&host) {
-                    return Err(Redirect::to(&format!(
+                    return Err(ErrorRedirect::to(&format!(
                         "{}?error={}",
                         return_url,
                         urlencoding::encode(
@@ -402,7 +447,7 @@ async fn handle_login_flow(
                         )
                     )));
                 } else if !plan.is_demo() && is_demo_only_host(&host) {
-                    return Err(Redirect::to(&format!(
+                    return Err(ErrorRedirect::to(&format!(
                         "{}?error={}",
                         return_url,
                         urlencoding::encode(
@@ -412,7 +457,7 @@ async fn handle_login_flow(
                 }
             } else if is_demo_only_host(&host) {
                 // Couldn't get organization - block login on demo site
-                return Err(Redirect::to(&format!(
+                return Err(ErrorRedirect::to(&format!(
                     "{}?error={}",
                     return_url,
                     urlencoding::encode(
@@ -424,7 +469,7 @@ async fn handle_login_flow(
             // Cycle session ID to prevent session fixation attacks
             if let Err(e) = session.cycle_id().await {
                 tracing::error!("Failed to cycle session ID: {}", e);
-                return Err(Redirect::to(&format!(
+                return Err(ErrorRedirect::to(&format!(
                     "{}?error={}",
                     return_url,
                     urlencoding::encode(&format!("Failed to create session: {}", e))
@@ -438,7 +483,7 @@ async fn handle_login_flow(
                 .and(session.insert("user_id", user.id).await)
             {
                 tracing::error!("Failed to save session: {}", e);
-                return Err(Redirect::to(&format!(
+                return Err(ErrorRedirect::to(&format!(
                     "{}?error={}",
                     return_url,
                     urlencoding::encode(&format!("Failed to create session: {}", e))
@@ -452,11 +497,12 @@ async fn handle_login_flow(
         }
         Err(e) => {
             tracing::error!("Failed to login via OIDC: {}", e);
-            Err(Redirect::to(&format!(
+            Err(ErrorRedirect::to(&format!(
                 "{}?error={}",
                 return_url,
                 urlencoding::encode(&format!("Failed to login: {}", e))
-            )))
+            ))
+            .for_flow_error(&e, slug))
         }
     }
 }
@@ -464,9 +510,8 @@ async fn handle_login_flow(
 async fn handle_register_flow(
     state: Arc<AppState>,
     terms_accepted_at: Option<DateTime<Utc>>,
-    marketing_opt_in: bool,
     params: HandleLinkFlowParams<'_>,
-) -> Result<Redirect, Redirect> {
+) -> Result<Redirect, ErrorRedirect> {
     let HandleLinkFlowParams {
         oidc_service,
         slug,
@@ -480,13 +525,11 @@ async fn handle_register_flow(
     } = params;
 
     // Process pending invite if present
-    let (org_id, permissions, network_ids) = match process_pending_invite(&state, &session).await {
-        Ok(Some((org_id, permissions, network_ids))) => {
-            (Some(org_id), Some(permissions), network_ids)
-        }
+    let (org_id, permissions, site_ids) = match process_pending_invite(&state, &session).await {
+        Ok(Some((org_id, permissions, site_ids))) => (Some(org_id), Some(permissions), site_ids),
         Ok(_) => (None, None, vec![]),
         Err(e) => {
-            return Err(Redirect::to(&format!(
+            return Err(ErrorRedirect::to(&format!(
                 "{}?error={}",
                 return_url,
                 urlencoding::encode(&format!("Failed to process invite: {}", e))
@@ -509,7 +552,7 @@ async fn handle_register_flow(
         }
         ProvisionOrg::New(pending_setup)
     } else {
-        return Err(Redirect::to(&format!(
+        return Err(ErrorRedirect::to(&format!(
             "{}?error={}&error_code=org_setup_info_missing",
             return_url,
             urlencoding::encode("Organization setup information missing")
@@ -527,7 +570,7 @@ async fn handle_register_flow(
                 permissions,
                 ip,
                 user_agent,
-                network_ids,
+                site_ids,
             },
             OidcRegisterParams {
                 terms_accepted_at,
@@ -535,7 +578,6 @@ async fn handle_register_flow(
                 provider_slug: slug,
                 code,
                 deployment_type: get_deployment_type(&state.config),
-                marketing_opt_in,
             },
         )
         .await
@@ -545,7 +587,7 @@ async fn handle_register_flow(
                 OidcRegisterResult::NewUser(user) => user,
                 OidcRegisterResult::ExistingUser(user) => user,
                 OidcRegisterResult::EmailAlreadyExists => {
-                    return Err(Redirect::to(&format!(
+                    return Err(ErrorRedirect::to(&format!(
                         "{}?error={}&error_code=user_email_in_use",
                         return_url,
                         urlencoding::encode(
@@ -558,7 +600,7 @@ async fn handle_register_flow(
             // Cycle session ID to prevent session fixation attacks
             if let Err(e) = session.cycle_id().await {
                 tracing::error!("Failed to cycle session ID: {}", e);
-                return Err(Redirect::to(&format!(
+                return Err(ErrorRedirect::to(&format!(
                     "{}?error={}",
                     return_url,
                     urlencoding::encode(&format!("Failed to create session: {}", e))
@@ -572,14 +614,14 @@ async fn handle_register_flow(
                 .and(session.insert("user_id", user.id).await)
             {
                 tracing::error!("Failed to save session: {}", e);
-                return Err(Redirect::to(&format!(
+                return Err(ErrorRedirect::to(&format!(
                     "{}?error={}",
                     return_url,
                     urlencoding::encode(&format!("Failed to create session: {}", e))
                 )));
             }
 
-            // If this is a new org, create network/topology
+            // If this is a new org, create site/topology
             if let ProvisionOrg::New(setup) = provision_org
                 && let Err(e) = apply_pending_setup(&state, &user, setup).await
             {
@@ -600,11 +642,12 @@ async fn handle_register_flow(
         Err(e) => {
             tracing::error!("Failed to register via OIDC: {}", e);
             let error_msg = format!("Failed to register: {}", e);
-            Err(Redirect::to(&format!(
+            Err(ErrorRedirect::to(&format!(
                 "{}?error={}",
                 return_url,
                 urlencoding::encode(&error_msg),
-            )))
+            ))
+            .for_flow_error(&e, slug))
         }
     }
 }
@@ -658,4 +701,36 @@ pub(crate) async fn unlink_oidc_account(
         .map_err(|e| ApiError::internal_error(&format!("Failed to unlink OIDC: {}", e)))?;
 
     Ok(Json(ApiResponse::success(updated_user)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::metrics::dependency::{Dependency, DependencyOutcome};
+
+    /// A sign-in that failed at the provider used to record exactly what a successful one
+    /// did (303, `error_code="none"`). It now carries the provider-failure code.
+    #[test]
+    fn a_provider_failure_labels_the_redirect_and_other_failures_do_not() {
+        let provider_failure: anyhow::Error = DependencyError::new(
+            Dependency::Oidc,
+            DependencyOutcome::Auth,
+            "Server returned error response: invalid_client".to_string(),
+        )
+        .into();
+        let response = ErrorRedirect::to("/login?error=x")
+            .for_flow_error(&provider_failure, "google")
+            .into_response();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.extensions().get::<MetricErrorCode>().map(|c| c.0),
+            Some("auth_oidc_provider_error")
+        );
+
+        let other_failure = anyhow::anyhow!("Failed to process invite");
+        let response = ErrorRedirect::to("/login?error=x")
+            .for_flow_error(&other_failure, "google")
+            .into_response();
+        assert!(response.extensions().get::<MetricErrorCode>().is_none());
+    }
 }

@@ -13,13 +13,13 @@ import { resolveInlineServiceIds } from '$lib/features/topology/resolvers';
  * element node must not also be counted as inlined.
  */
 
-const NETWORK_ID = 'net-1';
+const SITE_ID = 'net-1';
 
 function service(id: string, hostId: string, bindingIpIds: (string | null)[]) {
 	return {
 		id,
 		host_id: hostId,
-		network_id: NETWORK_ID,
+		site_id: SITE_ID,
 		tags: [],
 		bindings: bindingIpIds.map((ip) => ({ ip_address_id: ip }))
 	};
@@ -33,16 +33,16 @@ function service(id: string, hostId: string, bindingIpIds: (string | null)[]) {
 function buildTopology(): RenderableTopology {
 	return {
 		id: 'topo-1',
-		network_id: NETWORK_ID,
+		site_id: SITE_ID,
 		hosts: [
-			{ id: 'host-a', network_id: NETWORK_ID, tags: [] },
-			{ id: 'host-b', network_id: NETWORK_ID, tags: [] }
+			{ id: 'host-a', site_id: SITE_ID, tags: [] },
+			{ id: 'host-b', site_id: SITE_ID, tags: [] }
 		],
-		subnets: [{ id: 'subnet-1', network_id: NETWORK_ID, cidr: '10.0.0.0/24', tags: [] }],
+		subnets: [{ id: 'subnet-1', site_id: SITE_ID, cidr: '10.0.0.0/24', tags: [] }],
 		ip_addresses: [
-			{ id: 'ip-a1', network_id: NETWORK_ID, subnet_id: 'subnet-1' },
-			{ id: 'ip-a2', network_id: NETWORK_ID, subnet_id: 'subnet-1' },
-			{ id: 'ip-b1', network_id: NETWORK_ID, subnet_id: 'subnet-1' }
+			{ id: 'ip-a1', site_id: SITE_ID, subnet_id: 'subnet-1' },
+			{ id: 'ip-a2', site_id: SITE_ID, subnet_id: 'subnet-1' },
+			{ id: 'ip-b1', site_id: SITE_ID, subnet_id: 'subnet-1' }
 		],
 		services: [
 			// Bound to one specific IP on host-a.
@@ -62,7 +62,12 @@ function buildTopology(): RenderableTopology {
 		entity_tags: [],
 		name: 'test',
 		nodes: [
-			{ id: 'container-outer', node_type: 'Container', container_type: 'Subnet' },
+			{
+				id: 'container-outer',
+				node_type: 'Container',
+				container_type: 'Subnet',
+				entity_id: 'container-outer'
+			},
 			{
 				id: 'container-inner',
 				node_type: 'Container',
@@ -75,6 +80,7 @@ function buildTopology(): RenderableTopology {
 				element_type: 'IPAddress',
 				host_id: 'host-a',
 				ip_address_id: 'ip-a1',
+				entity_id: 'ip-a1',
 				container_id: 'container-outer'
 			},
 			{
@@ -83,6 +89,7 @@ function buildTopology(): RenderableTopology {
 				element_type: 'IPAddress',
 				host_id: 'host-b',
 				ip_address_id: 'ip-b1',
+				entity_id: 'ip-b1',
 				container_id: 'container-inner'
 			},
 			{
@@ -90,6 +97,7 @@ function buildTopology(): RenderableTopology {
 				node_type: 'Element',
 				element_type: 'Service',
 				host_id: 'host-b',
+				entity_id: 'svc-standalone',
 				container_id: 'container-inner'
 			}
 		],

@@ -16,7 +16,17 @@
     "Probe",
     "Authored",
     "Manual",
-    "SshScript"
+    "SshScript",
+    "SysDescrMatch",
+    "SysObjectIdMatch",
+    "LldpSysDescMatch",
+    "SshBannerMatch",
+    "HttpServerMatch",
+    "DnsSdDeviceInfoMatch",
+    "DnsSdAirPlayMatch",
+    "ContainerRuntimeInfo",
+    "HypervisorConfig",
+    "GuestAgent"
   ],
   "AuthenticatedEntity": [
     "User",
@@ -105,7 +115,12 @@
     "Zmtp",
     "Bacula",
     "BeszelAgent",
-    "H323"
+    "H323",
+    "Proxmox"
+  ],
+  "ContainerNetworkType": [
+    "MacVlan",
+    "IpVlan"
   ],
   "CredentialQueryPayloadDiscriminants": [
     "Snmp",
@@ -118,7 +133,8 @@
     "Unknown",
     "Gnmi",
     "Ssh",
-    "WakeOnLan"
+    "WakeOnLan",
+    "Proxmox"
   ],
   "CredentialType": [
     "SnmpV2c",
@@ -134,7 +150,8 @@
     "Gnmi",
     "SshPassword",
     "SshKey",
-    "WakeOnLan"
+    "WakeOnLan",
+    "ProxmoxApiToken"
   ],
   "DaemonMode": [
     "ServerPoll",
@@ -217,7 +234,7 @@
     "Organization",
     "Invite",
     "Share",
-    "Network",
+    "Site",
     "DaemonApiKey",
     "UserApiKey",
     "User",
@@ -246,14 +263,66 @@
     "Unknown",
     "Inferred"
   ],
+  "HostOsFamily": [
+    "Linux",
+    "Windows",
+    "MacOs",
+    "Ios",
+    "TvOs",
+    "AudioOs",
+    "FreeBsd",
+    "OpenBsd",
+    "NetBsd",
+    "Solaris",
+    "Aix",
+    "HpUx",
+    "Irix",
+    "Tru64",
+    "OpenVms",
+    "ZOs",
+    "IbmI",
+    "UnixWare",
+    "OpenServer",
+    "NetWare",
+    "PalmOs",
+    "Esxi",
+    "CiscoIos",
+    "CiscoIosXe",
+    "CiscoIosXr",
+    "CiscoNxOs",
+    "CiscoCatOs",
+    "CiscoAsa",
+    "CiscoFtd",
+    "Junos",
+    "ScreenOs",
+    "ArubaOs",
+    "Comware",
+    "ProCurve",
+    "AristaEos",
+    "RouterOs",
+    "HuaweiVrp",
+    "IronWare",
+    "BrocadeNetworkOs",
+    "BayRs",
+    "PanOs",
+    "FortiOs",
+    "SonicOs",
+    "GaiaOs",
+    "Ipso",
+    "DataOntap",
+    "Ecos"
+  ],
   "HostVirtualization": [
     "Proxmox",
     "VCenter",
-    "ESXi"
+    "ESXi",
+    "Docker",
+    "Podman",
+    "NetworkIdentity"
   ],
   "IntegrationTarget": [
     "DaemonHost",
-    "Network",
+    "Site",
     "Hosts"
   ],
   "LldpChassisId": [
@@ -286,7 +355,7 @@
     "FirstTopologyRebuild",
     "FirstDiscoveryCompleted",
     "FirstHostDiscovered",
-    "SecondNetworkCreated",
+    "SecondSiteCreated",
     "FirstTagCreated",
     "FirstDependencyCreated",
     "FirstUserApiKeyCreated",
@@ -304,6 +373,10 @@
   "OsFamily": [
     "Unix",
     "Windows"
+  ],
+  "ProxmoxGuestType": [
+    "Qemu",
+    "Lxc"
   ],
   "RunType": [
     "Scheduled",

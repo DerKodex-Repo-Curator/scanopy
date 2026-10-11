@@ -6,6 +6,7 @@ import {
 	sortableFields,
 	groupableFields,
 	serverOrderViolations,
+	defaultOrderingViolations,
 	type SortState
 } from '$lib/shared/components/data/controls/sorting';
 import {
@@ -351,5 +352,60 @@ describe('boolean grouping', () => {
 
 		expect(yes).toEqual({ start: 30, count: 12 });
 		expect(no).toEqual({ start: 0, count: 30 });
+	});
+});
+
+describe('defaultOrderingViolations', () => {
+	const site: FieldConfig<Row> = {
+		key: 'site',
+		label: 'Site',
+		type: 'string',
+		groupable: true,
+		sortable: true,
+		getValue: (r) => r.name
+	};
+	const hiddenSite: FieldConfig<Row> = { ...site, display: { hiddenByDefault: true } };
+
+	it('accepts a default on a groupable, sortable column that renders by default', () => {
+		const defaults = { group: 'site', sort: { field: 'site', direction: 'asc' as const } };
+		expect(defaultOrderingViolations([site], defaults, false)).toEqual([]);
+	});
+
+	it('flags a default on a column hidden until the user shows it', () => {
+		// The list orders by rendered columns only, so the tab would open ungrouped.
+		const defaults = { group: 'site', sort: { field: 'site', direction: 'asc' as const } };
+		expect(defaultOrderingViolations([hiddenSite], defaults, false)).toHaveLength(2);
+	});
+
+	it('flags a default on a missing field, or one that cannot group', () => {
+		expect(defaultOrderingViolations([nameField], { group: 'name' }, false)).toHaveLength(1);
+		expect(
+			defaultOrderingViolations([site], { sort: { field: 'gone', direction: 'asc' } }, false)
+		).toHaveLength(1);
+	});
+
+	it('flags a client-side default on a server-paginated list', () => {
+		expect(defaultOrderingViolations([site], { group: 'site' }, true)).toHaveLength(1);
+	});
+});
+
+describe('a field with its own compare', () => {
+	// Ranks by a fixed order, the way a tag group column ranks its tags.
+	const rank = ['Planned', 'Active', 'Retired'];
+	const field: FieldConfig<Row> = {
+		key: 'name',
+		label: 'Status',
+		type: 'string',
+		sortable: true,
+		getValue: (r) => r.name,
+		compare: (a, b) => rank.indexOf(a.name!) - rank.indexOf(b.name!)
+	};
+	const rows = [row({ name: null }), row({ name: 'Retired' }), row({ name: 'Planned' })];
+	const names = (direction: 'asc' | 'desc') =>
+		sortItems(rows, [field], { field: 'name', direction }).map((r) => r.name);
+
+	it('keeps rows without a value last in both directions, as the server does', () => {
+		expect(names('asc')).toEqual(['Planned', 'Retired', null]);
+		expect(names('desc')).toEqual(['Retired', 'Planned', null]);
 	});
 });

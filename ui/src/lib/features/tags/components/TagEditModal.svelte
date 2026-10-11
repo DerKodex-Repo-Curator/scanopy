@@ -13,7 +13,11 @@
 	import { pushError } from '$lib/shared/stores/feedback';
 	import TextInput from '$lib/shared/components/forms/input/TextInput.svelte';
 	import TextArea from '$lib/shared/components/forms/input/TextArea.svelte';
-	import Checkbox from '$lib/shared/components/forms/input/Checkbox.svelte';
+	import IconPicker from '$lib/shared/components/forms/IconPicker.svelte';
+	import TagGroupSelect from './TagGroupSelect.svelte';
+	import { useCreateTagGroupMutation, useTagGroupsQuery } from '../queries';
+	import { createDefaultTagGroup } from '../types/base';
+	import tagIconsFixture from '$lib/data/tag-icons.json';
 	import {
 		common_cancel,
 		common_color,
@@ -22,15 +26,17 @@
 		common_delete,
 		common_deleting,
 		common_description,
-		common_details,
 		common_editName,
+		common_icon,
 		common_name,
 		common_saving,
 		common_update,
-		common_application,
-		tags_applicationHelp,
 		tags_createTag,
 		tags_descriptionPlaceholder,
+		tags_tagGroup,
+		tags_tagGroupHelp,
+		tags_tagGroupPlaceholder,
+		tags_iconApplicationFixed,
 		tags_tagNamePlaceholder
 	} from '$lib/paraglide/messages';
 
@@ -55,6 +61,11 @@
 	// TanStack Query for organization
 	const organizationQuery = useOrganizationQuery();
 	let organization = $derived(organizationQuery.data);
+
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+	const createTagGroupMutation = useCreateTagGroupMutation();
+	const tagIconNames: string[] = tagIconsFixture;
 
 	let loading = $state(false);
 	let deleting = $state(false);
@@ -99,10 +110,40 @@
 		}
 	}));
 
+	// The group and icon are source of truth here and synced into the form: switching to the
+	// Application group clears the icon programmatically, which the form store alone would not show.
+	let selectedGroupId = $state<string | null>(null);
+	let selectedGroup = $derived(tagGroups.find((group) => group.id === selectedGroupId) ?? null);
+	let isApplicationGroup = $derived(selectedGroup?.group_type === 'Application');
+	let selectedIcon = $state<string | null>(null);
+
+	function handleGroupChange(groupId: string | null) {
+		selectedGroupId = groupId;
+		form.setFieldValue('tag_group_id', groupId);
+		if (tagGroups.find((group) => group.id === groupId)?.group_type === 'Application')
+			handleIconChange(null);
+	}
+
+	// A group typed into the picker is created, then chosen.
+	async function handleGroupCreate(name: string) {
+		if (!organization) return;
+		const group = createDefaultTagGroup(organization.id);
+		group.name = name;
+		const created = await createTagGroupMutation.mutateAsync(group);
+		handleGroupChange(created.id);
+	}
+
+	function handleIconChange(icon: string | null) {
+		selectedIcon = icon;
+		form.setFieldValue('icon', icon);
+	}
+
 	// Reset form when modal opens
 	function handleOpen() {
 		const defaults = getDefaultValues();
 		form.reset(defaults);
+		selectedGroupId = defaults.tag_group_id ?? null;
+		selectedIcon = defaults.icon ?? null;
 	}
 
 	async function handleSubmit() {
@@ -120,7 +161,14 @@
 		}
 	}
 
-	let colorHelper = $derived(createColorHelper(form.state.values.color));
+	// Mirrored from the form store: form.state.values is not tracked by $derived.
+	let colorValue = $state(createDefaultTag('').color);
+	$effect(() => {
+		return form.store.subscribe(() => {
+			colorValue = form.state.values.color;
+		});
+	});
+	let colorHelper = $derived(createColorHelper(colorValue));
 </script>
 
 <GenericModal
@@ -128,6 +176,7 @@
 	{title}
 	{name}
 	entityId={tag?.id}
+	{form}
 	size="xl"
 	{onClose}
 	onOpen={handleOpen}
@@ -149,8 +198,6 @@
 			<div class="space-y-8">
 				<!-- Tag Details Section -->
 				<div class="space-y-4">
-					<h3 class="text-primary text-lg font-medium">{common_details()}</h3>
-
 					<form.Field
 						name="name"
 						validators={{
@@ -184,42 +231,66 @@
 						{/snippet}
 					</form.Field>
 
-					<!-- Application Group -->
-					<form.Field name="is_application">
-						{#snippet children(field)}
-							<Checkbox
-								label={common_application()}
-								helpText={tags_applicationHelp()}
-								{field}
-								id="is_application"
+					<!-- Tag group. Held in $state: choosing Application clears the icon, a
+					     programmatic write TanStack Form would not re-render. -->
+					<form.Field name="tag_group_id">
+						<div class="space-y-2">
+							<label for="tag_group" class="text-secondary block text-sm font-medium">
+								{tags_tagGroup()}
+							</label>
+							<TagGroupSelect
+								id="tag_group"
+								value={selectedGroupId}
+								groups={tagGroups}
+								placeholder={tags_tagGroupPlaceholder()}
+								onChange={handleGroupChange}
+								onCreate={handleGroupCreate}
 							/>
-						{/snippet}
+							<p class="text-tertiary text-xs">
+								{selectedGroup?.description || tags_tagGroupHelp()}
+							</p>
+						</div>
 					</form.Field>
 
-					<!-- Color Selector -->
-					<form.Field name="color">
-						{#snippet children(field)}
-							<div class="space-y-2">
-								<div class="text-secondary block text-sm font-medium">{common_color()}</div>
-								<div class="flex flex-wrap gap-1.5">
-									{#each AVAILABLE_COLORS as color (color)}
-										{@const ch = createColorHelper(color)}
-										<button
-											type="button"
-											onclick={() => field.handleChange(color)}
-											class="group relative h-7 w-7 rounded-md border-2 transition-all hover:scale-110"
-											class:border-gray-500={field.state.value !== color}
-											class:border-white={field.state.value === color}
-											class:ring-2={field.state.value === color}
-											class:ring-white={field.state.value === color}
-											style="background-color: {ch.rgb};"
-											title={color}
-										></button>
-									{/each}
+					<!-- Icon and colour side by side: the icon grid is tall, and stacked it pushed the
+					     colour swatches below the fold. -->
+					<div class="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+						<form.Field name="icon">
+							<IconPicker
+								id="icon"
+								label={common_icon()}
+								value={isApplicationGroup ? null : selectedIcon}
+								icons={tagIconNames}
+								disabled={isApplicationGroup}
+								helpText={isApplicationGroup ? tags_iconApplicationFixed() : ''}
+								onChange={handleIconChange}
+							/>
+						</form.Field>
+
+						<form.Field name="color">
+							{#snippet children(field)}
+								<div class="space-y-2">
+									<div class="text-secondary block text-sm font-medium">{common_color()}</div>
+									<div class="flex flex-wrap gap-1.5">
+										{#each AVAILABLE_COLORS as color (color)}
+											{@const ch = createColorHelper(color)}
+											<button
+												type="button"
+												onclick={() => field.handleChange(color)}
+												class="group relative h-7 w-7 rounded-md border-2 transition-all hover:scale-110"
+												class:border-gray-500={field.state.value !== color}
+												class:border-white={field.state.value === color}
+												class:ring-2={field.state.value === color}
+												class:ring-white={field.state.value === color}
+												style="background-color: {ch.rgb};"
+												title={color}
+											></button>
+										{/each}
+									</div>
 								</div>
-							</div>
-						{/snippet}
-					</form.Field>
+							{/snippet}
+						</form.Field>
+					</div>
 				</div>
 			</div>
 		</div>

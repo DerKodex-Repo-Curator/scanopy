@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Sent instead of the cloud cancelled / trial-expired emails when the
 /// subscription that ended was for a self-hosted plan. Those emails describe
@@ -37,10 +37,6 @@ impl Email for SelfHostedLicenseEnded<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

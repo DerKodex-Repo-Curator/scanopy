@@ -47,12 +47,23 @@ jobs:
       - name: Generate UI fixtures before container build
         run: make generate-fixtures
 
-      # Best-effort per source: a failed download keeps the committed copy.
-      # Runs before the tests so the classifier's floor + ground-truth
-      # invariants validate refreshed data before it is committed or baked
+      # Best-effort: a failed download keeps the committed copy. Runs before
+      # the tests so refreshed data is tested before it is committed or baked
       # into the Docker images.
-      - name: Refresh vendored data (oui.csv + domain-classification)
+      - name: Refresh vendored data (oui.csv)
         run: backend/scripts/refresh-vendored-data.sh
+
+      # Pull the test images up front, retrying a rate-limited registry (a homeassistant pull hit
+      # toomanyrequests on the v0.17.21 release), so a transient limit can't fail the test run.
+      - name: Pre-pull test images
+        run: |
+          for attempt in 1 2 3 4 5; do
+            docker compose -f docker-compose.test.yml pull --ignore-buildable && exit 0
+            echo "Image pull failed (attempt $attempt); retrying in $((attempt * 30))s"
+            sleep $((attempt * 30))
+          done
+          echo "Image pull failed after 5 attempts" >&2
+          exit 1
 
       - name: Run all tests
         run: |
@@ -78,7 +89,7 @@ jobs:
           git add backend/Cargo.toml backend/Cargo.lock ui/package.json ui/package-lock.json
           git add backend/src/tests/scanopy.sql backend/src/tests/daemon_config.json ui/static/services.json ui/static/schema.mermaid ui/static/schema-er.mermaid ui/static/entity-metadata.json
           git add backend/tests/integration/compat/fixtures/
-          git add backend/assets/oui.csv backend/assets/domain-classification/
+          git add backend/assets/oui.csv
 
           if git diff --staged --quiet; then
             echo "No fixture changes to commit"
@@ -90,7 +101,7 @@ jobs:
           fi
 
       - name: Upload generated UI fixtures
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-fixtures
           path: ui/src/lib/data/*.json
@@ -101,7 +112,7 @@ jobs:
       # rust-builder stage; the standalone UI build (build-ui) has no Rust
       # toolchain, so it needs them as an artifact.
       - name: Upload generated service logos
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-logos
           path: ui/static/logos/services/
@@ -344,7 +355,7 @@ jobs:
           test -f build/index.html || (echo "UI build produced no index.html" && exit 1)
 
       - name: Upload UI build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-build
           path: ui/build/
@@ -409,7 +420,7 @@ jobs:
           file ${{ matrix.binary }}
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.binary }}
           path: ${{ matrix.binary }}
@@ -529,7 +540,7 @@ jobs:
           fileType: pecoff
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.binary }}
           path: ${{ matrix.binary }}
@@ -582,7 +593,7 @@ jobs:
 
       - name: Upload MSI artifact
         if: matrix.target == 'x86_64-pc-windows-msvc'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: scanopy-daemon-windows-amd64.msi
           path: scanopy-daemon-windows-amd64.msi
@@ -653,7 +664,7 @@ jobs:
           path: ui/src/lib/data/
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v4
@@ -674,7 +685,7 @@ jobs:
             org.opencontainers.image.licenses=AGPL-3.0-only
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./backend/Dockerfile
@@ -726,7 +737,7 @@ jobs:
         uses: docker/setup-qemu-action@v4
       
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v4
@@ -747,7 +758,7 @@ jobs:
             org.opencontainers.image.licenses=AGPL-3.0-only
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/Dockerfile.daemon
@@ -796,7 +807,7 @@ jobs:
         uses: actions/download-artifact@v8
 
       - name: Upload binaries to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           # `scanopy-daemon-*/scanopy-daemon-*` already matches the MSI artifact
           # (scanopy-daemon-windows-amd64.msi/scanopy-daemon-windows-amd64.msi). A

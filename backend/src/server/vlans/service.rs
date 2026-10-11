@@ -1,4 +1,5 @@
 use crate::server::{
+    interfaces::service::InterfaceService,
     shared::{
         events::bus::EventBus,
         services::traits::{CrudService, EventBusService},
@@ -9,6 +10,7 @@ use crate::server::{
         },
         types::entities::EntitySource,
     },
+    tags::entity_tags::EntityTagService,
     vlans::r#impl::{base::Vlan, subnet_vlans::SubnetVlanStorage},
 };
 use anyhow::Result;
@@ -19,7 +21,9 @@ use uuid::Uuid;
 pub struct VlanService {
     storage: Arc<GenericPostgresStorage<Vlan>>,
     event_bus: Arc<EventBus>,
+    entity_tag_service: Arc<EntityTagService>,
     pub subnet_vlan_storage: Arc<SubnetVlanStorage>,
+    interface_service: Arc<InterfaceService>,
 }
 
 impl EventBusService<Vlan> for VlanService {
@@ -27,29 +31,13 @@ impl EventBusService<Vlan> for VlanService {
         &self.event_bus
     }
 
-    fn get_network_id(&self, entity: &Vlan) -> Option<Uuid> {
-        Some(entity.base.network_id)
+    fn get_site_id(&self, entity: &Vlan) -> Option<Uuid> {
+        Some(entity.base.site_id)
     }
 
     fn get_organization_id(&self, entity: &Vlan) -> Option<Uuid> {
         Some(entity.base.organization_id)
     }
-}
-
-/// Helper: hydrate associated subnet IDs for a batch of VLANs.
-async fn hydrate_subnet_ids_for_batch(
-    subnet_vlan_storage: &SubnetVlanStorage,
-    vlans: &mut [Vlan],
-) -> Result<()> {
-    if vlans.is_empty() {
-        return Ok(());
-    }
-    let ids: Vec<Uuid> = vlans.iter().map(|v| v.id).collect();
-    let subnets_map = subnet_vlan_storage.get_for_vlans(&ids).await?;
-    for vlan in vlans.iter_mut() {
-        vlan.base.subnet_ids = subnets_map.get(&vlan.id).cloned().unwrap_or_default();
-    }
-    Ok(())
 }
 
 #[async_trait]
@@ -58,19 +46,15 @@ impl CrudService<Vlan> for VlanService {
         &self.storage
     }
 
-    fn entity_tag_service(
-        &self,
-    ) -> Option<&Arc<crate::server::tags::entity_tags::EntityTagService>> {
-        None
+    fn entity_tag_service(&self) -> Option<&Arc<EntityTagService>> {
+        Some(&self.entity_tag_service)
     }
 
     async fn get_by_id(&self, id: &Uuid) -> Result<Option<Vlan>, anyhow::Error> {
         match self.storage().get_by_id(id).await? {
             Some(mut vlan) => {
-                vlan.base.subnet_ids = self
-                    .subnet_vlan_storage
-                    .get_subnet_ids_for_vlan(&vlan.id)
-                    .await?;
+                self.hydrate_links(std::slice::from_mut(&mut vlan)).await?;
+                self.hydrate_tags(&mut vlan).await?;
                 Ok(Some(vlan))
             }
             None => Ok(None),
@@ -79,7 +63,8 @@ impl CrudService<Vlan> for VlanService {
 
     async fn get_all(&self, filter: StorableFilter<Vlan>) -> Result<Vec<Vlan>, anyhow::Error> {
         let mut vlans = self.storage().get_all(filter).await?;
-        hydrate_subnet_ids_for_batch(&self.subnet_vlan_storage, &mut vlans).await?;
+        self.hydrate_links(&mut vlans).await?;
+        self.bulk_hydrate_tags(&mut vlans, None).await?;
         Ok(vlans)
     }
 
@@ -89,10 +74,8 @@ impl CrudService<Vlan> for VlanService {
     ) -> Result<Unique<Vlan>, anyhow::Error> {
         match self.storage().get_unique(filter).await? {
             Unique::One(mut vlan) => {
-                vlan.base.subnet_ids = self
-                    .subnet_vlan_storage
-                    .get_subnet_ids_for_vlan(&vlan.id)
-                    .await?;
+                self.hydrate_links(std::slice::from_mut(&mut vlan)).await?;
+                self.hydrate_tags(&mut vlan).await?;
                 Ok(Unique::One(vlan))
             }
             Unique::None => Ok(Unique::None),
@@ -113,7 +96,8 @@ impl CrudService<Vlan> for VlanService {
         order_by: &str,
     ) -> Result<PaginatedResult<Vlan>, anyhow::Error> {
         let mut paginated = self.storage().get_paginated(filter, order_by).await?;
-        hydrate_subnet_ids_for_batch(&self.subnet_vlan_storage, &mut paginated.items).await?;
+        self.hydrate_links(&mut paginated.items).await?;
+        self.bulk_hydrate_tags(&mut paginated.items, None).await?;
         Ok(paginated)
     }
 }
@@ -122,13 +106,33 @@ impl VlanService {
     pub fn new(
         storage: Arc<GenericPostgresStorage<Vlan>>,
         event_bus: Arc<EventBus>,
+        entity_tag_service: Arc<EntityTagService>,
         subnet_vlan_storage: Arc<SubnetVlanStorage>,
+        interface_service: Arc<InterfaceService>,
     ) -> Self {
         Self {
             storage,
             event_bus,
+            entity_tag_service,
             subnet_vlan_storage,
+            interface_service,
         }
+    }
+
+    /// Fill each VLAN's read-only `subnet_ids` (from the `subnet_vlans` junction) and
+    /// `interface_ids` (interfaces naming it as native or member VLAN). Both read live links.
+    async fn hydrate_links(&self, vlans: &mut [Vlan]) -> Result<()> {
+        if vlans.is_empty() {
+            return Ok(());
+        }
+        let ids: Vec<Uuid> = vlans.iter().map(|v| v.id).collect();
+        let mut subnets_map = self.subnet_vlan_storage.get_for_vlans(&ids).await?;
+        let mut interfaces_map = self.interface_service.get_ids_for_vlans(&ids).await?;
+        for vlan in vlans.iter_mut() {
+            vlan.base.subnet_ids = subnets_map.remove(&vlan.id).unwrap_or_default();
+            vlan.base.interface_ids = interfaces_map.remove(&vlan.id).unwrap_or_default();
+        }
+        Ok(())
     }
 
     /// Upsert a VLAN from discovery. Creates if new, updates name if changed.
@@ -141,7 +145,7 @@ impl VlanService {
     /// each new row (legacy callers + tests).
     pub async fn upsert_from_discovery(
         &self,
-        network_id: Uuid,
+        site_id: Uuid,
         organization_id: Uuid,
         vlan_number: u16,
         name: String,
@@ -149,8 +153,8 @@ impl VlanService {
     ) -> Result<Vlan> {
         use crate::server::shared::storage::snapshot::DiscoveryTracked;
 
-        // SCD2: natural-key match (network_id + vlan_number) against live rows.
-        let filter = StorableFilter::<Vlan>::new_from_uuid_column("network_id", &network_id)
+        // SCD2: natural-key match (site_id + vlan_number) against live rows.
+        let filter = StorableFilter::<Vlan>::new_from_uuid_column("site_id", &site_id)
             .u16_column("vlan_number", vlan_number)
             .live();
 
@@ -174,10 +178,12 @@ impl VlanService {
             vlan_number,
             name,
             description: None,
-            network_id,
+            site_id,
             organization_id,
             source: EntitySource::Discovery,
             subnet_ids: Vec::new(),
+            interface_ids: Vec::new(),
+            tags: Vec::new(),
         });
         if let Some(ctx) = scan_ctx {
             vlan.originate_scan_timestamps(ctx.scan_time);

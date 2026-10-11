@@ -17,7 +17,7 @@
 	import { isPlanLapsed, isBillingPlanActive } from '$lib/features/organizations/types';
 	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
 	import { isLicenseSigningAvailable, useConfigQuery } from '$lib/shared/stores/config-query';
-	import { openModal } from '$lib/shared/stores/modal-registry';
+	import { modalState, openModal } from '$lib/shared/stores/modal-registry';
 	import { canPay } from '$lib/shared/utils/trial';
 	import InlineInfo from '$lib/shared/components/feedback/InlineInfo.svelte';
 	import { formatDate } from '$lib/shared/utils/formatting';
@@ -64,9 +64,9 @@
 						rate: p.metadata.rate,
 						trial_days: p.metadata.trial_days,
 						seat_cents: p.metadata.seat_cents,
-						network_cents: p.metadata.network_cents,
+						site_cents: p.metadata.site_cents,
 						included_seats: p.metadata.included_seats,
-						included_networks: p.metadata.included_networks,
+						included_sites: p.metadata.included_sites,
 						// Checkout validates the full plan config; self-hosted plans carry an org cap.
 						included_orgs: p.metadata.included_orgs ?? null,
 						host_cents: p.metadata.host_cents ?? null,
@@ -127,8 +127,17 @@
 				? 'cloud'
 				: null;
 	});
+	// An opener can ask for a tab (Settings → License asks for Cloud), which wins
+	// over the current plan's.
+	let requestedHosting = $derived(
+		$modalState.name === name
+			? (($modalState.entityData?.hosting as PlanPickerHosting | undefined) ?? null)
+			: null
+	);
 	let initialHosting = $derived<PlanPickerHosting>(
-		!signingAvailable ? 'cloud' : (planHosting ?? $onboardingStore.hosting ?? 'cloud')
+		!signingAvailable
+			? 'cloud'
+			: (requestedHosting ?? planHosting ?? $onboardingStore.hosting ?? 'cloud')
 	);
 
 	// `triggerUpgrade` refuses before opening this, but two routes reach it
@@ -177,6 +186,9 @@
 
 			// Backend decides: new subscriber → checkout URL, existing → plan change message
 			const result = await checkoutMutation.mutateAsync(plan);
+			// The signup's hosting choice has opened the picker on its tab; from here
+			// the org's own plan does that.
+			onboardingStore.clearHosting();
 			if (result?.startsWith('http')) {
 				// First-time checkout: open Stripe in a new tab and close the modal. This
 				// tab converges once the checkout webhook activates the plan.

@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use semver::Version;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
 
 use crate::server::license::types::LicenseKeyType;
 use crate::server::{
-    billing::types::base::{BillingPlan, PlanStatus},
+    billing::types::base::BillingPlan,
     organizations::r#impl::base::{Organization, OrganizationBase},
     shared::{
         entities::EntityDiscriminants,
@@ -15,16 +15,6 @@ use crate::server::{
         storage::traits::{Entity, SqlValue, Storable},
     },
 };
-
-/// CSV row representation for Organization export (excludes sensitive billing data)
-#[derive(Serialize)]
-pub struct OrganizationCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub plan_status: Option<PlanStatus>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Organization {
     const HAS_SCD2: bool = false;
@@ -72,7 +62,6 @@ impl Storable for Organization {
                     discount_save_offer_percent_off,
                     discount_save_offer_active_until,
                     next_renewal_at,
-                    brevo_company_id,
                     license_entitlement,
                     license_entitlement_at,
                     notifications,
@@ -82,6 +71,7 @@ impl Storable for Organization {
                     license_key_version,
                     license_key_issued_at,
                     license_key_type,
+                    license_server_version,
                     // Computed on read from the two fields above, so it has no
                     // column and nothing to write. Named rather than swallowed
                     // by a `..` rest pattern: this destructuring is what forces
@@ -112,7 +102,6 @@ impl Storable for Organization {
                 "discount_save_offer_percent_off",
                 "discount_save_offer_active_until",
                 "next_renewal_at",
-                "brevo_company_id",
                 "license_entitlement",
                 "license_entitlement_at",
                 "notifications",
@@ -122,6 +111,7 @@ impl Storable for Organization {
                 "license_key_version",
                 "license_key_issued_at",
                 "license_key_type",
+                "license_server_version",
             ],
             vec![
                 SqlValue::Uuid(id),
@@ -143,7 +133,6 @@ impl Storable for Organization {
                 SqlValue::OptionalI64(discount_save_offer_percent_off),
                 SqlValue::OptionTimestamp(discount_save_offer_active_until),
                 SqlValue::OptionTimestamp(next_renewal_at),
-                SqlValue::OptionalString(brevo_company_id),
                 SqlValue::OptionalString(license_entitlement),
                 SqlValue::OptionTimestamp(license_entitlement_at),
                 SqlValue::OrgNotifications(notifications),
@@ -158,6 +147,7 @@ impl Storable for Organization {
                 SqlValue::I64(license_key_version),
                 SqlValue::OptionTimestamp(license_key_issued_at),
                 SqlValue::OptionalString(license_key_type.map(|t| t.to_string())),
+                SqlValue::OptionalString(license_server_version.map(|v| v.to_string())),
             ],
         ))
     }
@@ -210,7 +200,6 @@ impl Storable for Organization {
                     .try_get("discount_save_offer_active_until")
                     .unwrap_or(None),
                 next_renewal_at: row.try_get("next_renewal_at").unwrap_or(None),
-                brevo_company_id: row.get("brevo_company_id"),
                 license_entitlement: row.try_get("license_entitlement").unwrap_or(None),
                 license_entitlement_at: row.try_get("license_entitlement_at").unwrap_or(None),
                 notifications: row
@@ -233,6 +222,13 @@ impl Storable for Organization {
                     .ok()
                     .flatten()
                     .and_then(|s| s.parse::<LicenseKeyType>().ok()),
+                // Written only from a parsed `Version`, so a value that fails
+                // to parse back is treated as never reported.
+                license_server_version: row
+                    .try_get::<Option<String>, _>("license_server_version")
+                    .ok()
+                    .flatten()
+                    .and_then(|s| Version::parse(&s).ok()),
                 // Derived from the two fields above, never read from a column:
                 // `to_params` does not write it. Filled in below, because the
                 // rule lives on `Organization` rather than being copied here.
@@ -262,18 +258,6 @@ impl Entity for Organization {
         self.created_at = time;
     }
 
-    type CsvRow = OrganizationCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        OrganizationCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            plan_status: self.base.plan_status,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Organization
     }
@@ -283,10 +267,10 @@ impl Entity for Organization {
     const ENTITY_DESCRIPTION: &'static str = "Manage organization settings.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::OrganizationsAndUsers
+        EntityCategory::Platform
     }
 
-    fn network_id(&self) -> Option<Uuid> {
+    fn site_id(&self) -> Option<Uuid> {
         None
     }
 
@@ -310,8 +294,6 @@ impl Entity for Organization {
         self.base.next_renewal_at = existing.base.next_renewal_at;
         // Onboarding state is server-managed
         self.base.onboarding = existing.base.onboarding.clone();
-        // Brevo company ID is server-managed
-        self.base.brevo_company_id = existing.base.brevo_company_id.clone();
         // License state is server-managed. The key version is never
         // serialized, so a PUT body always carries the default and would
         // otherwise reset it (reviving retired online keys).
@@ -323,5 +305,23 @@ impl Entity for Organization {
         self.base.license_entitlement_at = existing.base.license_entitlement_at;
         self.base.license_key_issued_at = existing.base.license_key_issued_at;
         self.base.license_key_type = existing.base.license_key_type;
+        self.base.license_server_version = existing.base.license_server_version.clone();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `from_row` drops onboarding values it cannot parse, so a renamed milestone without an alias
+    /// silently un-onboards every org that reached it under the old name.
+    #[test]
+    fn a_milestone_persisted_under_its_former_name_still_parses() {
+        let parsed: OnboardingOperationDiscriminants =
+            serde_json::from_value(serde_json::json!("FirstSnmpCredentialCreated")).unwrap();
+        assert_eq!(
+            parsed,
+            OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated
+        );
     }
 }

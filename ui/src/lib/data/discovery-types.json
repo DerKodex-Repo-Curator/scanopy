@@ -46,7 +46,7 @@
   {
     "id": "Unified",
     "name": "Unified",
-    "description": "Unified discovery combining self-report, network scanning, and Docker container detection",
+    "description": "Unified discovery combining self-report, network scanning, and integrations",
     "category": null,
     "icon": "radar",
     "color": "Green",

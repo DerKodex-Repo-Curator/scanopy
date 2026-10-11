@@ -13,7 +13,8 @@ use crate::server::{
     },
     tags::entity_tags::EntityTagService,
     users::r#impl::{
-        base::User, network_access::UserNetworkAccessStorage, permissions::UserOrgPermissions,
+        base::User, email_settings::EmailSettings, permissions::UserOrgPermissions,
+        site_access::UserSiteAccessStorage,
     },
 };
 use anyhow::Error;
@@ -25,7 +26,7 @@ use uuid::Uuid;
 
 pub struct UserService {
     user_storage: Arc<GenericPostgresStorage<User>>,
-    network_access_storage: Arc<UserNetworkAccessStorage>,
+    site_access_storage: Arc<UserSiteAccessStorage>,
     event_bus: Arc<EventBus>,
 }
 
@@ -34,7 +35,7 @@ impl EventBusService<User> for UserService {
         &self.event_bus
     }
 
-    fn get_network_id(&self, _entity: &User) -> Option<Uuid> {
+    fn get_site_id(&self, _entity: &User) -> Option<Uuid> {
         None
     }
     fn get_organization_id(&self, entity: &User) -> Option<Uuid> {
@@ -65,8 +66,8 @@ impl CrudService<User> for UserService {
             ));
         }
 
-        // Capture network_ids before creating the user (since they're stored in junction table)
-        let network_ids = user.base.network_ids.clone();
+        // Capture site_ids before creating the user (since they're stored in junction table)
+        let site_ids = user.base.site_ids.clone();
 
         let user = if user.id() == Uuid::nil() {
             User::new(user.base)
@@ -75,9 +76,9 @@ impl CrudService<User> for UserService {
         };
         let created = self.user_storage.create(&user).await?;
 
-        // Persist network_ids to the junction table
-        if !network_ids.is_empty() {
-            self.set_network_ids(&created.id, &network_ids).await?;
+        // Persist site_ids to the junction table
+        if !site_ids.is_empty() {
+            self.set_site_ids(&created.id, &site_ids).await?;
         }
 
         let trigger_stale = created.triggers_staleness(None);
@@ -85,7 +86,7 @@ impl CrudService<User> for UserService {
         if let Some(scope) = EntityScope::from_ids(
             created.id,
             created.clone().into(),
-            self.get_network_id(&created),
+            self.get_site_id(&created),
             self.get_organization_id(&created),
         ) {
             self.event_bus()
@@ -107,12 +108,12 @@ impl CrudService<User> for UserService {
 impl UserService {
     pub fn new(
         user_storage: Arc<GenericPostgresStorage<User>>,
-        network_access_storage: Arc<UserNetworkAccessStorage>,
+        site_access_storage: Arc<UserSiteAccessStorage>,
         event_bus: Arc<EventBus>,
     ) -> Self {
         Self {
             user_storage,
-            network_access_storage,
+            site_access_storage,
             event_bus,
         }
     }
@@ -134,6 +135,63 @@ impl UserService {
             .at_most_one()
     }
 
+    /// Look up the user whose one-click unsubscribe link carries `token`.
+    pub async fn get_by_unsubscribe_token(&self, token: &Uuid) -> Result<Option<User>> {
+        self.user_storage
+            .get_unique(StorableFilter::<User>::new_from_email_unsubscribe_token(
+                token,
+            ))
+            .await?
+            .at_most_one()
+    }
+
+    /// The token for `user`'s one-click unsubscribe links. Minted and stored
+    /// the first time a user needs one, then reused, so every link the user
+    /// has received keeps working.
+    pub async fn ensure_unsubscribe_token(&self, user: &User) -> Result<Uuid> {
+        if let Some(token) = user.base.email_unsubscribe_token {
+            return Ok(token);
+        }
+        let token = Uuid::new_v4();
+        let mut updated = user.clone();
+        updated.base.email_unsubscribe_token = Some(token);
+        self.update(&mut updated, AuthenticatedEntity::System)
+            .await?;
+        Ok(token)
+    }
+
+    /// Apply `change` to `user`'s email settings and store the result when it
+    /// changed anything. Returns whether it did.
+    pub async fn update_email_settings(
+        &self,
+        mut user: User,
+        change: impl FnOnce(&mut EmailSettings) -> bool + Send,
+    ) -> Result<bool> {
+        if !change(&mut user.base.email_settings) {
+            return Ok(false);
+        }
+        self.update(&mut user, AuthenticatedEntity::System).await?;
+        Ok(true)
+    }
+
+    /// Whether this server has any user at all. A server without one is a
+    /// fresh install.
+    pub async fn any_exist(&self) -> Result<bool> {
+        self.user_storage
+            .exists(StorableFilter::<User>::new_for_server_wide_job())
+            .await
+    }
+
+    /// Record that `user` has seen the release notes up to `version`.
+    pub async fn mark_release_notes_seen(&self, mut user: User, version: &str) -> Result<()> {
+        if user.base.release_notes_seen_version.as_deref() == Some(version) {
+            return Ok(());
+        }
+        user.base.release_notes_seen_version = Some(version.to_string());
+        self.update(&mut user, AuthenticatedEntity::System).await?;
+        Ok(())
+    }
+
     pub async fn get_organization_owners(&self, organization_id: &Uuid) -> Result<Vec<User>> {
         let filter = StorableFilter::<User>::new_from_org_id(organization_id)
             .user_permissions(&UserOrgPermissions::Owner);
@@ -141,31 +199,31 @@ impl UserService {
         self.user_storage.get_all(filter).await
     }
 
-    /// Returns all users with access to `network_id` within `organization_id`.
+    /// Returns all users with access to `site_id` within `organization_id`.
     ///
     /// Access is the union of:
-    /// - Users with an explicit row in the `user_network_access` junction.
-    /// - Org Owners and Admins, who have implicit access to every network in
+    /// - Users with an explicit row in the `user_site_access` junction.
+    /// - Org Owners and Admins, who have implicit access to every site in
     ///   their organization regardless of the junction table.
     ///
     /// Deduplicates users that fall into both sets. The org-id parameter is
     /// required so the implicit set is scoped — junction rows alone don't
     /// carry the org context the way `User.organization_id` does.
-    pub async fn get_users_with_network_access(
+    pub async fn get_users_with_site_access(
         &self,
-        network_id: &Uuid,
+        site_id: &Uuid,
         organization_id: &Uuid,
     ) -> Result<Vec<User>> {
         let explicit_user_ids = self
-            .network_access_storage
-            .get_user_ids_for_network(network_id)
+            .site_access_storage
+            .get_user_ids_for_site(site_id)
             .await?;
 
         let explicit = if explicit_user_ids.is_empty() {
             Vec::new()
         } else {
             // The users table's PK is `id`; the `user_id` column lives on the
-            // user_network_access junction. Filter on entity ids.
+            // user_site_access junction. Filter on entity ids.
             let filter = StorableFilter::<User>::new_from_entity_ids(&explicit_user_ids);
             self.user_storage.get_all(filter).await?
         };
@@ -185,49 +243,45 @@ impl UserService {
         Ok(out)
     }
 
-    /// Get network_ids for a user from the user_network_access junction table
-    pub async fn get_network_ids(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
-        self.network_access_storage.get_for_user(user_id).await
+    /// Get site_ids for a user from the user_site_access junction table
+    pub async fn get_site_ids(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.site_access_storage.get_for_user(user_id).await
     }
 
-    /// Set network_ids for a user - replaces all existing entries in user_network_access
-    pub async fn set_network_ids(&self, user_id: &Uuid, network_ids: &[Uuid]) -> Result<()> {
-        self.network_access_storage
-            .save_for_user(user_id, network_ids)
+    /// Set site_ids for a user - replaces all existing entries in user_site_access
+    pub async fn set_site_ids(&self, user_id: &Uuid, site_ids: &[Uuid]) -> Result<()> {
+        self.site_access_storage
+            .save_for_user(user_id, site_ids)
             .await
     }
 
-    /// Add a network_id to a user's access
-    pub async fn add_network_access(&self, user_id: &Uuid, network_id: &Uuid) -> Result<()> {
-        self.network_access_storage
-            .add_network(user_id, network_id)
-            .await
+    /// Add a site_id to a user's access
+    pub async fn add_site_access(&self, user_id: &Uuid, site_id: &Uuid) -> Result<()> {
+        self.site_access_storage.add_site(user_id, site_id).await
     }
 
-    /// Remove a network_id from a user's access
-    pub async fn remove_network_access(&self, user_id: &Uuid, network_id: &Uuid) -> Result<()> {
-        self.network_access_storage
-            .remove_network(user_id, network_id)
-            .await
+    /// Remove a site_id from a user's access
+    pub async fn remove_site_access(&self, user_id: &Uuid, site_id: &Uuid) -> Result<()> {
+        self.site_access_storage.remove_site(user_id, site_id).await
     }
 
-    /// Hydrate network_ids for a single user
-    pub async fn hydrate_network_ids(&self, user: &mut User) -> Result<()> {
-        user.base.network_ids = self.network_access_storage.get_for_user(&user.id).await?;
+    /// Hydrate site_ids for a single user
+    pub async fn hydrate_site_ids(&self, user: &mut User) -> Result<()> {
+        user.base.site_ids = self.site_access_storage.get_for_user(&user.id).await?;
         Ok(())
     }
 
-    /// Hydrate network_ids for multiple users (batch operation)
-    pub async fn hydrate_network_ids_batch(&self, users: &mut [User]) -> Result<()> {
+    /// Hydrate site_ids for multiple users (batch operation)
+    pub async fn hydrate_site_ids_batch(&self, users: &mut [User]) -> Result<()> {
         if users.is_empty() {
             return Ok(());
         }
 
         let user_ids: Vec<Uuid> = users.iter().map(|u| u.id).collect();
-        let mut network_map = self.network_access_storage.get_for_users(&user_ids).await?;
+        let mut site_map = self.site_access_storage.get_for_users(&user_ids).await?;
 
         for user in users.iter_mut() {
-            user.base.network_ids = network_map.remove(&user.id).unwrap_or_default();
+            user.base.site_ids = site_map.remove(&user.id).unwrap_or_default();
         }
 
         Ok(())

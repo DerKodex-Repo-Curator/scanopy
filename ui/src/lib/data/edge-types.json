@@ -8,6 +8,26 @@
     "color": "Amber",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "host_id",
+          "label": "Host",
+          "many": false,
+          "path": [
+            {
+              "entity": "Host",
+              "key": "host_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        }
+      ],
       "has_end_marker": false,
       "has_start_marker": false,
       "is_dependency_edge": false,
@@ -27,6 +47,65 @@
     "color": "Amber",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "hypervisor_service_id",
+          "label": "Hypervisor",
+          "many": false,
+          "path": [
+            {
+              "entity": "Service",
+              "key": "hypervisor_service_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        }
+      ],
+      "has_end_marker": false,
+      "has_start_marker": false,
+      "is_dependency_edge": false,
+      "is_host_edge": false,
+      "is_physical_edge": false,
+      "selection_scope": {
+        "type": "segment"
+      }
+    }
+  },
+  {
+    "id": "NetworkIdentity",
+    "name": "Network Identity",
+    "description": null,
+    "category": null,
+    "icon": "fingerprint-pattern",
+    "color": "Teal",
+    "metadata": {
+      "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "identities_service_id",
+          "label": "Identity Service",
+          "many": false,
+          "path": [
+            {
+              "entity": "Service",
+              "key": "identities_service_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        }
+      ],
       "has_end_marker": false,
       "has_start_marker": false,
       "is_dependency_edge": false,
@@ -46,6 +125,80 @@
     "color": "Blue",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "host_id",
+          "label": "Host",
+          "many": false,
+          "path": [
+            {
+              "entity": "Host",
+              "key": "host_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": false
+        },
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "service_id",
+          "label": "Runtime",
+          "many": false,
+          "path": [
+            {
+              "entity": "Service",
+              "key": "service_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        },
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "containerized_service_ids",
+          "label": "Containers",
+          "many": true,
+          "path": [
+            {
+              "entity": "Service",
+              "key": "containerized_service_ids",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": false
+        },
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "subnet_ids",
+          "label": "Bridge Subnets",
+          "many": true,
+          "path": [
+            {
+              "entity": "Subnet",
+              "key": "subnet_ids",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": false
+        }
+      ],
       "has_end_marker": false,
       "has_start_marker": false,
       "is_dependency_edge": false,
@@ -65,6 +218,26 @@
     "color": "Blue",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "service_id",
+          "label": "Service",
+          "many": false,
+          "path": [
+            {
+              "entity": "Service",
+              "key": "service_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        }
+      ],
       "has_end_marker": false,
       "has_start_marker": false,
       "is_dependency_edge": false,
@@ -84,6 +257,26 @@
     "color": "Rose",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "dependency_id",
+          "label": "Dependency",
+          "many": false,
+          "path": [
+            {
+              "entity": "Dependency",
+              "key": "dependency_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        }
+      ],
       "has_end_marker": true,
       "has_start_marker": false,
       "is_dependency_edge": true,
@@ -103,6 +296,26 @@
     "color": "Rose",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "dependency_id",
+          "label": "Dependency",
+          "many": false,
+          "path": [
+            {
+              "entity": "Dependency",
+              "key": "dependency_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        }
+      ],
       "has_end_marker": true,
       "has_start_marker": false,
       "is_dependency_edge": true,
@@ -122,6 +335,57 @@
     "color": "Teal",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "source_entity_id",
+          "label": "From Interface",
+          "many": false,
+          "path": [
+            {
+              "entity": "Interface",
+              "key": "source_entity_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        },
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "target_entity_id",
+          "label": "To Interface",
+          "many": false,
+          "path": [
+            {
+              "entity": "Interface",
+              "key": "target_entity_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        },
+        {
+          "field": "protocol",
+          "format": {
+            "fixture": "discovery_protocols",
+            "type": "Metadata"
+          },
+          "id": "protocol",
+          "label": "Protocol",
+          "many": false,
+          "path": [],
+          "source_field": null,
+          "summary": false
+        }
+      ],
       "has_end_marker": false,
       "has_start_marker": false,
       "is_dependency_edge": false,
@@ -141,6 +405,57 @@
     "color": "Amber",
     "metadata": {
       "edge_style": "Bezier",
+      "fields": [
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "source_host_id",
+          "label": "From Host",
+          "many": false,
+          "path": [
+            {
+              "entity": "Host",
+              "key": "source_host_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        },
+        {
+          "field": null,
+          "format": {
+            "type": "Entity"
+          },
+          "id": "target_host_id",
+          "label": "To Host",
+          "many": false,
+          "path": [
+            {
+              "entity": "Host",
+              "key": "target_host_id",
+              "type": "Parent"
+            }
+          ],
+          "source_field": null,
+          "summary": true
+        },
+        {
+          "field": "protocol",
+          "format": {
+            "fixture": "discovery_protocols",
+            "type": "Metadata"
+          },
+          "id": "protocol",
+          "label": "Protocol",
+          "many": false,
+          "path": [],
+          "source_field": null,
+          "summary": false
+        }
+      ],
       "has_end_marker": false,
       "has_start_marker": false,
       "is_dependency_edge": false,

@@ -9,14 +9,14 @@
 	import {
 		topology_l2EmptyTitle,
 		topology_l2EmptyDescription,
-		topology_l2EmptySnmpHint,
-		home_nudges_snmpAction
+		topology_l2EmptyNeighborHint,
+		credentials_createCredential
 	} from '$lib/paraglide/messages';
 
 	let {
-		hasSnmpCredential = false
+		hasInterfaceCredential = false
 	}: {
-		hasSnmpCredential?: boolean;
+		hasInterfaceCredential?: boolean;
 	} = $props();
 </script>
 
@@ -28,13 +28,13 @@
 		<p class="text-secondary text-sm">
 			{topology_l2EmptyDescription()}
 		</p>
-		{#if !hasSnmpCredential}
+		{#if !hasInterfaceCredential}
 			<div class="border-primary/10 w-full border-t pt-3">
 				<p class="text-secondary/70 mb-2 text-xs">
-					{topology_l2EmptySnmpHint()}
+					{topology_l2EmptyNeighborHint()}
 				</p>
 				<button class="btn btn-sm btn-primary" onclick={() => openModal('credential-editor')}>
-					{home_nudges_snmpAction()}
+					{credentials_createCredential()}
 				</button>
 			</div>
 		{/if}

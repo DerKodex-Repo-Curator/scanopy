@@ -34,6 +34,8 @@ pub enum Feature {
     ConfluenceExport,
     PdfExport,
     HtmlExport,
+    DrawioExport,
+    VsdxExport,
     ScheduledDiscovery,
     DiscoveryIntegrations,
     CsvExport,
@@ -69,6 +71,8 @@ impl HasId for Feature {
             Feature::ConfluenceExport => "confluence_export",
             Feature::PdfExport => "pdf_export",
             Feature::HtmlExport => "html_export",
+            Feature::DrawioExport => "drawio_export",
+            Feature::VsdxExport => "vsdx_export",
             Feature::ScheduledDiscovery => "scheduled_discovery",
             Feature::DiscoveryIntegrations => "discovery_integrations",
             Feature::CsvExport => "csv_export",
@@ -135,6 +139,8 @@ impl TypeMetadataProvider for Feature {
             | Feature::ConfluenceExport
             | Feature::PdfExport
             | Feature::HtmlExport
+            | Feature::DrawioExport
+            | Feature::VsdxExport
             | Feature::Embeds
             | Feature::ShareViews
             | Feature::RemoveCreatedWith
@@ -184,6 +190,8 @@ impl TypeMetadataProvider for Feature {
             Feature::ConfluenceExport => "Confluence Export",
             Feature::PdfExport => "PDF Export",
             Feature::HtmlExport => "HTML Export",
+            Feature::DrawioExport => "draw.io Export",
+            Feature::VsdxExport => "Visio Export",
             Feature::ScheduledDiscovery => "Scheduled Discovery",
             Feature::DiscoveryIntegrations => "Discovery Integrations",
             Feature::CsvExport => "CSV Export",
@@ -243,9 +251,15 @@ impl TypeMetadataProvider for Feature {
             Feature::HtmlExport => {
                 "Export network diagrams as self-contained HTML pages for offline viewing"
             }
+            Feature::DrawioExport => {
+                "Export network diagrams as editable draw.io files with shapes, groups and connectors"
+            }
+            Feature::VsdxExport => {
+                "Export network diagrams as editable Visio (VSDX) files with shapes, groups and connectors"
+            }
             Feature::ScheduledDiscovery => "Schedule automatic network discovery scans",
             Feature::DiscoveryIntegrations => {
-                "Discover Docker containers and query network devices via SNMP"
+                "Add credentials so discovery also collects from network devices, controllers, hypervisors, container runtimes and hosts"
             }
             Feature::CsvExport => {
                 "Download host, service, and network data as CSV for use in spreadsheets and other tools"

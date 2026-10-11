@@ -25,6 +25,7 @@ use scanopy::server::{
 };
 use tower::ServiceBuilder;
 use tower_http::{
+    compression::CompressionLayer,
     cors::{AllowOrigin, CorsLayer},
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
@@ -211,6 +212,14 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Record this version and, if its release notes ask for it, email them.
+    // Containers starting together contend on an advisory lock, so this runs
+    // once per version per database. Logs failures; never blocks startup.
+    let release_notes = state.services.release_notes_service.clone();
+    tokio::spawn(async move {
+        release_notes.announce_running_version().await;
+    });
+
     // Snapshot retention sweep (daily). Deletes snapshots past the per-plan
     // retention window; the FK cascade reaps closed entity rows + topology
     // rows tied to each deleted snapshot.
@@ -242,6 +251,25 @@ async fn main() -> anyhow::Result<()> {
                 interval.tick().await;
                 if let Err(e) = airgap_email.warn_expiring_airgap_keys().await {
                     tracing::error!(error = %e, "Air-gapped licence expiry sweep failed");
+                }
+            }
+        });
+    }
+
+    // Online license keys that stopped checking in (daily). Check-ins only
+    // reach Scanopy Cloud, so the sweep runs there. Ratcheted per silence, so
+    // each stop is reported once.
+    if deployment_type == DeploymentType::Cloud {
+        let silence_organizations = state.services.organization_service.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+            loop {
+                interval.tick().await;
+                if let Err(e) = silence_organizations
+                    .report_silent_license_check_ins(chrono::Utc::now())
+                    .await
+                {
+                    tracing::error!(error = %e, "License check-in silence sweep failed");
                 }
             }
         });
@@ -388,6 +416,10 @@ async fn main() -> anyhow::Result<()> {
         ServiceBuilder::new()
             .layer(client_ip_source.into_extension())
             .layer(TraceLayer::new_for_http())
+            // Gzip for clients that accept it. The default predicate leaves SSE streams, images
+            // and tiny bodies alone. The topology bundle is the reason: repetitive JSON several
+            // megabytes long on a large site.
+            .layer(CompressionLayer::new())
             .layer(cors)
             .layer(session_store)
             .layer(middleware::from_fn_with_state(
@@ -446,7 +478,8 @@ async fn main() -> anyhow::Result<()> {
     let public_share_app = public_share_app
         .with_state(state.clone())
         .layer(public_cors)
-        .layer(cache_headers.clone());
+        .layer(cache_headers.clone())
+        .layer(CompressionLayer::new());
 
     // Permissive CORS for health check (marketing site, uptime monitors, etc.)
     let health_cors = CorsLayer::new()
@@ -538,26 +571,6 @@ async fn main() -> anyhow::Result<()> {
             .initialize_products(get_purchasable_plans())
             .await?;
         tracing::info!(target: LOG_TARGET, "  Billing service initialized");
-    }
-
-    // Sync existing organizations to Brevo if configured
-    if let Some(brevo_service) = state.services.brevo_service.clone() {
-        tracing::info!(target: LOG_TARGET, "  Spawning Brevo organization sync task");
-        let org_sync_service = brevo_service.clone();
-        tokio::spawn(async move {
-            if let Err(e) = org_sync_service.sync_existing_organizations().await {
-                tracing::error!(target: LOG_TARGET, error = %e, "Failed to sync existing organizations to Brevo");
-            }
-        });
-
-        // Ephemeral release code — remove next release: one-shot backfill of
-        // email-domain-classification contact attributes for existing users.
-        tracing::info!(target: LOG_TARGET, "  Spawning Brevo domain-classification backfill task");
-        tokio::spawn(async move {
-            if let Err(e) = brevo_service.backfill_domain_classifications().await {
-                tracing::error!(target: LOG_TARGET, error = %e, "Failed to backfill Brevo domain classifications");
-            }
-        });
     }
 
     // Reconcile self-hosted org plan(s) to the license entitlement. An offline

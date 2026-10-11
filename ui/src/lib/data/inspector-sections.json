@@ -1,0 +1,112 @@
+[
+  {
+    "id": "Identity",
+    "name": "Selected",
+    "description": "The entity you selected",
+    "category": null,
+    "icon": "crosshair",
+    "color": "Gray",
+    "metadata": {
+      "shown_entity": null
+    }
+  },
+  {
+    "id": "Services",
+    "name": "Services",
+    "description": "Services on this host, and on the hosts it presents or runs",
+    "category": null,
+    "icon": "layers",
+    "color": "Fuchsia",
+    "metadata": {
+      "shown_entity": "Service"
+    }
+  },
+  {
+    "id": "Dependencies",
+    "name": "Dependencies",
+    "description": "Dependencies this service is part of",
+    "category": null,
+    "icon": "waypoints",
+    "color": "Rose",
+    "metadata": {
+      "shown_entity": "Dependency"
+    }
+  },
+  {
+    "id": "HostDetail",
+    "name": "Host",
+    "description": "The host this element belongs to",
+    "category": null,
+    "icon": "server",
+    "color": "Amber",
+    "metadata": {
+      "shown_entity": "Host"
+    }
+  },
+  {
+    "id": "Virtualization",
+    "name": "Runs on",
+    "description": "The hypervisor, container runtime or guest that this host runs under",
+    "category": null,
+    "icon": "monitor-cog",
+    "color": "Amber",
+    "metadata": {
+      "shown_entity": "Service"
+    }
+  },
+  {
+    "id": "OtherInterfaces",
+    "name": "IP addresses",
+    "description": "Every address this host holds",
+    "category": null,
+    "icon": "map-pin",
+    "color": "Emerald",
+    "metadata": {
+      "shown_entity": "IPAddress"
+    }
+  },
+  {
+    "id": "PortBindings",
+    "name": "Port bindings",
+    "description": "Ports this service listens on",
+    "category": null,
+    "icon": "binary",
+    "color": "Sky",
+    "metadata": {
+      "shown_entity": null
+    }
+  },
+  {
+    "id": "ElementSummary",
+    "name": "Contents",
+    "description": "What this box holds, counted by type",
+    "category": null,
+    "icon": "package-open",
+    "color": "Gray",
+    "metadata": {
+      "shown_entity": null
+    }
+  },
+  {
+    "id": "DependencySummary",
+    "name": "Crossing dependencies",
+    "description": "Dependencies with members both inside and outside this box",
+    "category": null,
+    "icon": "waypoints",
+    "color": "Rose",
+    "metadata": {
+      "shown_entity": "Dependency"
+    }
+  },
+  {
+    "id": "Application",
+    "name": "Application",
+    "description": "The application this service belongs to",
+    "category": null,
+    "icon": "component",
+    "color": "Purple",
+    "metadata": {
+      "shown_entity": "Tag"
+    }
+  }
+]

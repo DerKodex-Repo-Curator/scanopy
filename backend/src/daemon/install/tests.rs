@@ -223,6 +223,34 @@ fn a_second_daemon_is_moved_off_the_port_the_first_one_listens_on() {
     assert_eq!(next_free_port(&installed, DEFAULT_NAME), default_port);
 }
 
+/// A `config.json` written before the site rename (`network_id`, a `"scope":"Network"` target) is
+/// discovered with its identity, and discovery leaves the file as it was.
+#[test]
+fn an_install_from_before_the_site_rename_is_discovered_untouched() {
+    let base = tempfile::tempdir().unwrap();
+    let id = Uuid::new_v4();
+    let path = base.path().join("config.json");
+    let raw = serde_json::json!({
+        "name": "edge-01",
+        "id": id,
+        "daemon_api_key": "key-a",
+        "daemon_port": 60074,
+        "network_id": Uuid::new_v4(),
+        "integration_targets": [{ "scope": "Network", "credential_id": Uuid::new_v4() }],
+    })
+    .to_string();
+    std::fs::write(&path, &raw).unwrap();
+
+    let found = installed_in(base.path());
+
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].name.as_deref(), Some("edge-01"));
+    assert_eq!(found[0].daemon_id, Some(id));
+    assert_eq!(found[0].api_key.as_deref(), Some("key-a"));
+    assert_eq!(found[0].daemon_port, Some(60074));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), raw);
+}
+
 fn uninstall_args(name: Option<&str>, all: bool) -> UninstallArgs {
     UninstallArgs {
         name: name.map(str::to_string),
@@ -336,4 +364,60 @@ fn ambiguous_target_prompt_names_connected_and_never_connected_installs() {
         "{}",
         lines[0]
     );
+}
+
+#[test]
+fn restart_resolves_a_selector_or_the_only_install() {
+    let installed = [
+        installed_entry(DEFAULT_NAME, Some("edge-01")),
+        installed_entry("scanopy-daemon-2", Some("edge-02")),
+    ];
+    let id = installed[1].daemon_id.unwrap().to_string();
+
+    assert_eq!(
+        restart_target(&installed, Some(&id)).unwrap().slot,
+        "scanopy-daemon-2"
+    );
+    assert_eq!(
+        restart_target(&installed[..1], None).unwrap().slot,
+        DEFAULT_NAME
+    );
+}
+
+#[test]
+fn restart_refuses_to_guess_and_lists_what_is_installed() {
+    let installed = [
+        installed_entry(DEFAULT_NAME, Some("edge-01")),
+        installed_entry("scanopy-daemon-2", Some("edge-02")),
+    ];
+
+    for selector in [Some("edge-99"), None] {
+        let error = restart_target(&installed, selector)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("edge-01") && error.contains("scanopy-daemon-2"),
+            "{selector:?}: {error}"
+        );
+    }
+    assert!(restart_target(&[], None).is_err());
+}
+
+#[test]
+fn retired_binaries_are_swept_and_nothing_else_is() {
+    let dir = tempfile::tempdir().unwrap();
+    let bin = dir.path().join(BINARY_FILE_NAME);
+    let retired = retired_binary_path(&bin);
+    // The single retired name older installers used, a uniquely named retirement, and files the
+    // sweep must leave alone.
+    let legacy_retired = bin.with_extension("old");
+    let unrelated = dir.path().join("other-tool.old");
+    for path in [&bin, &retired, &legacy_retired, &unrelated] {
+        std::fs::write(path, b"x").unwrap();
+    }
+
+    assert!(remove_retired_binaries(&bin).is_empty());
+
+    assert!(bin.exists() && unrelated.exists());
+    assert!(!retired.exists() && !legacy_retired.exists());
 }

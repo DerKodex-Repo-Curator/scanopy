@@ -1,9 +1,9 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, PausableCategory, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Notifies that a daemon was put on standby after 30 days without a discovery.
 pub struct DaemonStandby<'a> {
     pub daemon_name: &'a str,
-    pub network_name: &'a str,
+    pub site_name: &'a str,
 }
 
 impl Email for DaemonStandby<'_> {
@@ -12,11 +12,7 @@ impl Email for DaemonStandby<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Daemon
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::DaemonAlerts)
+        EmailCategory::DaemonAlerts
     }
 
     fn campaign(&self) -> &'static str {
@@ -31,7 +27,7 @@ impl Email for DaemonStandby<'_> {
                     .paragraph("Hi there,")
                     .paragraph(&format!(
                         r#"Your daemon <strong>{}</strong> on <strong>{}</strong> has been placed on <a href="https://scanopy.net/docs/reference/daemon-status/" style="color: #2563eb; text-decoration: none;">standby</a> because it hasn't completed a discovery session in over 30 days. While on standby, scheduled discoveries targeting this daemon will be skipped."#,
-                        self.daemon_name, self.network_name
+                        self.daemon_name, self.site_name
                     ))
                     .paragraph("To resume:")
                     .raw(&format!(

@@ -1,6 +1,7 @@
 pub mod api;
 pub mod color;
 pub mod entities;
+pub mod entity_field;
 pub mod error_codes;
 pub mod examples;
 pub mod field_definition;

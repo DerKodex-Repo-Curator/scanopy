@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use semver::Version;
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -14,27 +13,16 @@ use crate::server::{
     },
 };
 
-/// CSV row representation for Daemon export (excludes sensitive url field)
-#[derive(Serialize)]
-pub struct DaemonCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub mode: String,
-    pub version: Option<String>,
-    pub host_id: Uuid,
-    pub network_id: Uuid,
-    pub user_id: Uuid,
-    pub last_seen: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 impl Storable for Daemon {
     const HAS_SCD2: bool = false;
     type BaseData = DaemonBase;
 
     fn table_name() -> &'static str {
         "daemons"
+    }
+
+    fn search_predicates() -> &'static [&'static str] {
+        &["daemons.name ILIKE {}", "daemons.url ILIKE {}"]
     }
 
     fn new(base: Self::BaseData) -> Self {
@@ -59,7 +47,7 @@ impl Storable for Daemon {
             updated_at,
             base:
                 Self::BaseData {
-                    network_id,
+                    site_id,
                     host_id,
                     last_seen,
                     mode,
@@ -82,7 +70,7 @@ impl Storable for Daemon {
                 "created_at",
                 "updated_at",
                 "last_seen",
-                "network_id",
+                "site_id",
                 "host_id",
                 "url",
                 "name",
@@ -100,7 +88,7 @@ impl Storable for Daemon {
                 SqlValue::Timestamp(created_at),
                 SqlValue::Timestamp(updated_at),
                 SqlValue::OptionTimestamp(last_seen),
-                SqlValue::Uuid(network_id),
+                SqlValue::Uuid(site_id),
                 SqlValue::Uuid(host_id),
                 SqlValue::String(url),
                 SqlValue::String(name),
@@ -152,7 +140,7 @@ impl Storable for Daemon {
                 url: row.get("url"),
                 last_seen: row.get("last_seen"),
                 host_id: row.get("host_id"),
-                network_id: row.get("network_id"),
+                site_id: row.get("site_id"),
                 name: row.get("name"),
                 mode,
                 tags: Vec::new(), // Hydrated from entity_tags junction table
@@ -185,23 +173,6 @@ impl Entity for Daemon {
         self.created_at = time;
     }
 
-    type CsvRow = DaemonCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        DaemonCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            mode: format!("{:?}", self.base.mode),
-            version: self.base.version.as_ref().map(|v| v.to_string()),
-            host_id: self.base.host_id,
-            network_id: self.base.network_id,
-            user_id: self.base.user_id,
-            last_seen: self.base.last_seen,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Daemon
     }
@@ -212,11 +183,11 @@ impl Entity for Daemon {
         "Daemons are scanning agents that connect to the server to perform network discovery.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::DiscoveryAndDaemons
+        EntityCategory::Discover
     }
 
-    fn network_id(&self) -> Option<Uuid> {
-        Some(self.base.network_id)
+    fn site_id(&self) -> Option<Uuid> {
+        Some(self.base.site_id)
     }
 
     fn organization_id(&self) -> Option<Uuid> {
@@ -244,11 +215,11 @@ impl Entity for Daemon {
         // can move); the update handler rejects changing it in DaemonPoll mode, where it is
         // unused. Everything below is genuinely server-owned.
         //
-        // network_id is the tenancy boundary — the daemon's key, host, seeded loopback and
+        // site_id is the tenancy boundary — the daemon's key, host, seeded loopback and
         // discovery jobs were all created against it. mode decides polling enrolment and the
         // shape of the daemon's own on-disk config. Both are also overwritten by the daemon's
         // handshake (see daemons/service/processing.rs), so a user edit would silently revert.
-        self.base.network_id = existing.base.network_id;
+        self.base.site_id = existing.base.site_id;
         self.base.mode = existing.base.mode;
         // host_id is the daemon's own Host record, created at provision time.
         self.base.host_id = existing.base.host_id;
@@ -273,10 +244,10 @@ mod tests {
     use super::*;
     use crate::server::daemons::r#impl::base::{DaemonBase, DaemonMode};
 
-    fn daemon(mode: DaemonMode, network_id: Uuid) -> Daemon {
+    fn daemon(mode: DaemonMode, site_id: Uuid) -> Daemon {
         Daemon::new(DaemonBase {
             host_id: Uuid::new_v4(),
-            network_id,
+            site_id,
             url: "https://edge.corp:60073".to_string(),
             last_seen: None,
             mode,
@@ -293,13 +264,13 @@ mod tests {
     }
 
     /// The daemon update endpoint accepts a whole `Daemon` body, so this guard is what stops a
-    /// caller moving a daemon to another network (its tenancy boundary), flipping its mode
+    /// caller moving a daemon to another site (its tenancy boundary), flipping its mode
     /// (which decides polling enrolment), or re-pointing its 1:1 key binding. Editable fields
     /// must still get through.
     #[test]
     fn update_cannot_change_identity_or_server_managed_fields() {
-        let network = Uuid::new_v4();
-        let existing = daemon(DaemonMode::ServerPoll, network);
+        let site = Uuid::new_v4();
+        let existing = daemon(DaemonMode::ServerPoll, site);
 
         let mut request = existing.clone();
         // Fields a caller may legitimately edit.
@@ -308,7 +279,7 @@ mod tests {
         request.base.user_id = Uuid::new_v4();
         request.base.tags = vec![Uuid::new_v4()];
         // Fields a caller must not be able to touch.
-        request.base.network_id = Uuid::new_v4();
+        request.base.site_id = Uuid::new_v4();
         request.base.mode = DaemonMode::DaemonPoll;
         request.base.host_id = Uuid::new_v4();
         request.base.api_key_id = Some(Uuid::new_v4());
@@ -322,7 +293,7 @@ mod tests {
         assert_ne!(request.base.user_id, existing.base.user_id);
         assert_eq!(request.base.tags.len(), 1);
 
-        assert_eq!(request.base.network_id, network);
+        assert_eq!(request.base.site_id, site);
         assert_eq!(request.base.mode, DaemonMode::ServerPoll);
         assert_eq!(request.base.host_id, existing.base.host_id);
         assert_eq!(request.base.api_key_id, existing.base.api_key_id);

@@ -80,14 +80,21 @@ pub fn server_hide_sets(options: &TopologyOptions) -> HashMap<EntityDiscriminant
 
     for view in TopologyView::iter() {
         let config = view.element_config();
-        for (entity, filters) in &config.metadata_filters {
-            let server_filters: Vec<_> = filters
-                .iter()
+        // Each entity a server filter covers, once per view.
+        let mut server_entities: Vec<EntityDiscriminants> = config
+            .metadata_filters
+            .iter()
+            .filter(|f| f.applies == FilterApplication::Server)
+            .flat_map(|f| f.entities.iter().copied())
+            .collect();
+        server_entities.sort_unstable_by_key(|e| e.to_string());
+        server_entities.dedup();
+
+        for entity in &server_entities {
+            let server_filters: Vec<_> = config
+                .filters_for(*entity)
                 .filter(|f| f.applies == FilterApplication::Server)
                 .collect();
-            if server_filters.is_empty() {
-                continue;
-            }
 
             let entry = out.entry(*entity).or_default();
             entry.rendering_views += 1;
@@ -136,6 +143,17 @@ pub fn interfaces_with_neighbours<'a>(
     neighbours: impl Iterator<Item = &'a InterfaceNeighborRow>,
 ) -> HashSet<Uuid> {
     neighbours.map(|row| row.interface_id).collect()
+}
+
+impl FilterValueContext {
+    /// The context for a bundle, built from its resolved neighbour rows. One context serves both
+    /// the server-side filter and the values stamped on the entities, so the two cannot disagree.
+    pub fn from_neighbours(neighbours: &[InterfaceNeighborRow]) -> Self {
+        Self {
+            interfaces_referenced_as_neighbours: referenced_neighbour_interfaces(neighbours.iter()),
+            interfaces_with_neighbours: interfaces_with_neighbours(neighbours.iter()),
+        }
+    }
 }
 
 /// Drop entities of one type that every rendering view hides, tallied by the filter responsible.
@@ -206,13 +224,6 @@ mod tests {
         }
     }
 
-    fn ctx(neighbours: &[InterfaceNeighborRow]) -> FilterValueContext {
-        FilterValueContext {
-            interfaces_referenced_as_neighbours: referenced_neighbour_interfaces(neighbours.iter()),
-            interfaces_with_neighbours: interfaces_with_neighbours(neighbours.iter()),
-        }
-    }
-
     fn total(dropped: &BTreeMap<MetadataFilterType, usize>) -> usize {
         dropped.values().sum()
     }
@@ -233,7 +244,7 @@ mod tests {
             interface(unlinked),
         ];
         let neighbours = vec![neighbor_row(linked_out, Neighbor::Interface(linked_in))];
-        let ctx = ctx(&neighbours);
+        let ctx = FilterValueContext::from_neighbours(&neighbours);
 
         let dropped = retain_visible(
             &mut interfaces,
@@ -242,7 +253,7 @@ mod tests {
         );
 
         // Attributed to the filter that did it, not just counted: this is what lets an emptied
-        // view name the control responsible instead of reporting the network as empty.
+        // view name the control responsible instead of reporting the site as empty.
         assert_eq!(
             dropped,
             BTreeMap::from([(MetadataFilterType::LinkState, 1)])

@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { isApplicationTag, tagIcon, tagTooltip } from '$lib/features/tags/groups';
 	import { get } from 'svelte/store';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { Eye, EyeOff, X, Crosshair, ArrowDown } from 'lucide-svelte';
 	import { useSvelteFlow } from '@xyflow/svelte';
+	import { focusNodes } from '$lib/features/topology/viewport-fit';
 	import {
 		selectedNodes,
 		previewEdges,
@@ -17,6 +19,7 @@
 	import {
 		getNodeSelectionIds,
 		resolveDependencyTargets,
+		resolveEditDependencyTargets,
 		resolveTagTarget,
 		type DependencyTarget
 	} from '../../../resolvers';
@@ -28,6 +31,7 @@
 	import TagPickerInline from '$lib/features/tags/components/TagPickerInline.svelte';
 	import {
 		useTagsQuery,
+		useTagGroupsQuery,
 		useBulkAddTagMutation,
 		useBulkRemoveTagMutation
 	} from '$lib/features/tags/queries';
@@ -38,9 +42,8 @@
 	} from '$lib/features/dependencies/queries';
 	import type { Dependency } from '$lib/features/dependencies/types/base';
 	import EdgeStyleForm from '$lib/features/dependencies/components/DependencyEditModal/EdgeStyleForm.svelte';
-	import { computeOptimalHandles } from '../../../layout/elk-layout';
+	import { computeOptimalHandles } from '../../../layout/handle-picking';
 	import { dependencyTypes, concepts } from '$lib/shared/stores/metadata';
-	import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 	import {
 		commonTagsHeader,
 		formatEntityCounts,
@@ -115,7 +118,8 @@
 
 	let isEditMode = $derived(editingDependency !== null);
 
-	const { fitView, getInternalNode } = useSvelteFlow();
+	const flow = useSvelteFlow();
+	const { getInternalNode } = flow;
 	const PREVIEW_STORAGE_KEY = 'scanopy_topology_group_preview';
 
 	const bulkAddTagMutation = useBulkAddTagMutation();
@@ -168,8 +172,8 @@
 		for (const node of nodes) {
 			const data = node.data as TopologyNode | undefined;
 			if (!data) continue;
-			const target = resolveTagTarget(node.id, data);
-			if (!target) continue;
+			const target = resolveTagTarget(data);
+			if (target?.entityType !== 'Host' && target?.entityType !== 'Service') continue;
 			let set = byType.get(target.entityType);
 			if (!set) {
 				set = new SvelteSet();
@@ -208,6 +212,8 @@
 	});
 
 	// Merge topology entity_tags with tags query cache for newly created tags
+	const tagGroupsQuery = useTagGroupsQuery();
+	let orgTagGroups = $derived(tagGroupsQuery.data ?? []);
 	const tagsQuery = useTagsQuery();
 	let topoEntityTags = $derived.by(() => {
 		const topoTags = topology?.entity_tags ?? [];
@@ -216,13 +222,21 @@
 		return [...topoTags, ...cachedTags.filter((t) => !topoIds.has(t.id))];
 	});
 
-	let appTagIds = $derived(topoEntityTags.filter((t) => t.is_application).map((t) => t.id));
+	let appTagIds = $derived(
+		topoEntityTags
+			.filter((t) => isApplicationTag(t, topology?.application_group_id))
+			.map((t) => t.id)
+	);
 
 	let appTagSet = $derived(new Set(appTagIds));
 
 	// Filtered tag lists for pickers
-	let nonAppTags = $derived(topoEntityTags.filter((t) => !t.is_application));
-	let appTags = $derived(topoEntityTags.filter((t) => t.is_application));
+	let nonAppTags = $derived(
+		topoEntityTags.filter((t) => !isApplicationTag(t, topology?.application_group_id))
+	);
+	let appTags = $derived(
+		topoEntityTags.filter((t) => isApplicationTag(t, topology?.application_group_id))
+	);
 
 	// Common app tags across selected services (for app picker selectedTagIds).
 	// Always derived from services — app-group tagging only applies to services.
@@ -464,7 +478,7 @@
 		updated_at: '',
 		dependency_type: DEFAULT_DEP_TYPE,
 		source: { type: 'Manual' as const },
-		network_id: '',
+		site_id: '',
 		tags: []
 	});
 
@@ -479,30 +493,7 @@
 		(() => {
 			if (!topology) return [];
 			if (editingDependency) {
-				// Edit mode: one service-type target per dep member, no host/IP disambiguation.
-				const members = editingDependency.members;
-				const serviceIds: string[] =
-					members.type === 'Services'
-						? [...members.service_ids]
-						: members.binding_ids
-								.map((bid) => {
-									const svc = topology.services.find((s) => s.bindings.some((b) => b.id === bid));
-									return svc?.id;
-								})
-								.filter((id): id is string => !!id);
-				return serviceIds
-					.filter((sid) => !removedServiceIds.has(sid))
-					.map((sid): DependencyTarget => {
-						const svc = topology.services.find((s) => s.id === sid);
-						const host = svc ? topology.hosts.find((h) => h.id === svc.host_id) : undefined;
-						return {
-							type: 'service',
-							serviceId: sid,
-							elementId: sid,
-							label: svc?.name ?? '',
-							hostName: host ? hostDisplayName(host) : ''
-						};
-					});
+				return resolveEditDependencyTargets(editingDependency, nodes, topology, removedServiceIds);
 			}
 			return resolveDependencyTargets(nodes, topology);
 		})()
@@ -610,7 +601,7 @@
 				previewEdges.set([]);
 				onDone?.();
 			} else {
-				const newDependency = createEmptyDependencyFormData(topology.network_id);
+				const newDependency = createEmptyDependencyFormData(topology.site_id);
 				newDependency.name = v.name.trim();
 				newDependency.dependency_type = v.dependency_type;
 				newDependency.color = dependencyColor;
@@ -869,7 +860,10 @@
 				<button
 					class="btn-icon p-1"
 					onclick={() =>
-						fitView({ nodes: nodes.map((n) => ({ id: n.id })), padding: 0.5, duration: 300 })}
+						focusNodes(
+							flow,
+							nodes.map((n) => n.id)
+						)}
 					title={topology_focusSelection()}
 				>
 					<Crosshair class="h-4 w-4" />
@@ -916,7 +910,13 @@
 					<span>{inspector_createGroupingRuleFromTag()}</span>
 					{#each recentlyAddedTags as tag (tag?.id)}
 						{#if tag}
-							<Tag label={tag.name} color={tag.color} />
+							<Tag
+								label={tag.name}
+								color={tag.color}
+								icon={tagIcon(tag, topology?.application_group_id)}
+								title={tagTooltip(tag, orgTagGroups)}
+								isShiny={isApplicationTag(tag, topology?.application_group_id)}
+							/>
 						{/if}
 					{/each}
 				</button>
@@ -963,7 +963,8 @@
 									onAdd={handleAddAppTag}
 									onRemove={handleRemoveAppTag}
 									availableTags={appAvailableTags}
-									allowCreate={false}
+									allowCreate={!hasAppTag}
+									createAsApplication={true}
 									hideAddButton={appState.type === 'ungrouped' && !ungroupedDismissed}
 								/>
 							</div>
@@ -1053,13 +1054,12 @@
 								size="sm"
 								fullWidth={true}
 							/>
-							{#if $activeView !== 'L3Logical'}
-								<p class="text-tertiary mt-1 text-xs">
-									{field.state.value === 'Bindings'
-										? dependencies_withPortsL3Hint()
-										: dependencies_servicesOnlyL3Hint()}
-								</p>
-							{/if}
+							<!-- Only reached in a view that doesn't draw bindings, so both hints point to L3. -->
+							<p class="text-tertiary mt-1 text-xs">
+								{field.state.value === 'Bindings'
+									? dependencies_withPortsL3Hint()
+									: dependencies_servicesOnlyL3Hint()}
+							</p>
 						{/snippet}
 					</form.Field>
 				{/if}

@@ -201,14 +201,6 @@ impl SubnetVlanStorage {
         Ok(records.iter().map(|r| r.vlan_id()).collect())
     }
 
-    /// Get all subnet IDs linked to a VLAN (live links only).
-    pub async fn get_subnet_ids_for_vlan(&self, vlan_id: &Uuid) -> Result<Vec<Uuid>> {
-        let filter =
-            StorableFilter::<SubnetVlanRecord>::new_from_uuid_column("vlan_id", vlan_id).live();
-        let records = self.storage.get_all(filter).await?;
-        Ok(records.iter().map(|r| r.subnet_id()).collect())
-    }
-
     /// Batch get: VLAN ID → subnet IDs for multiple VLANs (live links only).
     pub async fn get_for_vlans(&self, vlan_ids: &[Uuid]) -> Result<HashMap<Uuid, Vec<Uuid>>> {
         if vlan_ids.is_empty() {

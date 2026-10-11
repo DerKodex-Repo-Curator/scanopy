@@ -16,7 +16,7 @@ use async_trait::async_trait;
 
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::daemon::discovery::service::warnings::AttemptOutcome;
@@ -59,12 +59,6 @@ impl DiscoveryIntegration for SshIntegration {
 
     fn estimated_seconds(&self) -> u32 {
         5
-    }
-
-    /// A script reports the interfaces its author chose to print. Narrower than an ifTable walk,
-    /// so SNMP's row wins where both describe one interface.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::PhysicalPortsOnly
     }
 
     /// Backstop only; the script's own timeout is enforced inside `execute`.

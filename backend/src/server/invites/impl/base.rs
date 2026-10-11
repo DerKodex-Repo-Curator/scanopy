@@ -20,19 +20,6 @@ use crate::server::{
     users::r#impl::permissions::UserOrgPermissions,
 };
 
-/// CSV row representation for Invite export (excludes sensitive url field)
-#[derive(Serialize)]
-pub struct InviteCsvRow {
-    pub id: Uuid,
-    pub organization_id: Uuid,
-    pub permissions: String,
-    pub created_by: Uuid,
-    pub send_to: Option<String>,
-    pub expires_at: DateTime<Utc>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default, ToSchema, Validate,
 )]
@@ -41,8 +28,8 @@ pub struct InviteBase {
     pub organization_id: Uuid,
     /// Role the invited user gets on acceptance.
     pub permissions: UserOrgPermissions,
-    /// The networks this entity applies to.
-    pub network_ids: Vec<Uuid>,
+    /// The sites this entity applies to.
+    pub site_ids: Vec<Uuid>,
     /// Link the recipient follows to accept the invite.
     pub url: String,
     /// User who sent the invite.
@@ -89,7 +76,7 @@ impl Invite {
         created_by: Uuid,
         expiration_hours: i64,
         permissions: UserOrgPermissions,
-        network_ids: Vec<Uuid>,
+        site_ids: Vec<Uuid>,
         send_to: Option<EmailAddress>,
     ) -> Self {
         let now = Utc::now();
@@ -100,7 +87,7 @@ impl Invite {
             base: InviteBase {
                 organization_id,
                 permissions,
-                network_ids,
+                site_ids,
                 url,
                 created_by,
                 expires_at: now + chrono::Duration::hours(expiration_hours),
@@ -148,7 +135,7 @@ impl Storable for Invite {
                 "id",
                 "organization_id",
                 "permissions",
-                "network_ids",
+                "site_ids",
                 "url",
                 "created_by",
                 "created_at",
@@ -160,7 +147,7 @@ impl Storable for Invite {
                 SqlValue::Uuid(self.id),
                 SqlValue::Uuid(self.base.organization_id),
                 SqlValue::UserOrgPermissions(self.base.permissions),
-                SqlValue::UuidArray(self.base.network_ids.clone()),
+                SqlValue::UuidArray(self.base.site_ids.clone()),
                 SqlValue::String(self.base.url.clone()),
                 SqlValue::Uuid(self.base.created_by),
                 SqlValue::Timestamp(self.created_at),
@@ -190,7 +177,7 @@ impl Storable for Invite {
             base: InviteBase {
                 organization_id: row.get("organization_id"),
                 permissions,
-                network_ids: row.get("network_ids"),
+                site_ids: row.get("site_ids"),
                 url: row.get("url"),
                 created_by: row.get("created_by"),
                 expires_at: row.get("expires_at"),
@@ -217,21 +204,6 @@ impl Entity for Invite {
         self.created_at = time;
     }
 
-    type CsvRow = InviteCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        InviteCsvRow {
-            id: self.id,
-            organization_id: self.base.organization_id,
-            permissions: format!("{:?}", self.base.permissions),
-            created_by: self.base.created_by,
-            send_to: self.base.send_to.as_ref().map(|e| e.to_string()),
-            expires_at: self.base.expires_at,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Invite
     }
@@ -242,10 +214,10 @@ impl Entity for Invite {
         "Organization invitations. Invite users to join your organization.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::OrganizationsAndUsers
+        EntityCategory::Platform
     }
 
-    fn network_id(&self) -> Option<Uuid> {
+    fn site_id(&self) -> Option<Uuid> {
         None
     }
 

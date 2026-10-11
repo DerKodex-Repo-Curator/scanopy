@@ -1,7 +1,16 @@
 <script lang="ts">
 	import GenericModal from '$lib/shared/components/layout/GenericModal.svelte';
 	import ModalHeaderIcon from '$lib/shared/components/layout/ModalHeaderIcon.svelte';
-	import { User, Building2, CreditCard, KeyRound, Mail, Settings, Monitor } from 'lucide-svelte';
+	import {
+		User,
+		Building2,
+		CreditCard,
+		KeyRound,
+		Mail,
+		Settings,
+		Monitor,
+		LifeBuoy
+	} from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { hasLicensedPlan } from '$lib/features/organizations/types';
@@ -17,6 +26,7 @@
 	import LicenseTab from './LicenseTab.svelte';
 	import EmailTab from './EmailTab.svelte';
 	import SystemTab from './SystemTab.svelte';
+	import SupportTab from './SupportTab.svelte';
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
 	import AppBanners from '$lib/shared/components/feedback/AppBanners.svelte';
 	import {
@@ -26,7 +36,9 @@
 		common_license,
 		common_organization,
 		common_settings,
+		common_support,
 		common_system,
+		settings_billing_ownerHoldsLicense,
 		settings_billing_ownerMustResolve
 	} from '$lib/paraglide/messages';
 
@@ -98,7 +110,8 @@
 			notification: billingNeedsAttention
 		},
 		{ id: 'license', label: common_license(), icon: KeyRound },
-		{ id: 'system', label: common_system(), icon: Monitor }
+		{ id: 'system', label: common_system(), icon: Monitor },
+		{ id: 'support', label: common_support(), icon: LifeBuoy }
 	]);
 
 	// Filter tabs based on permissions
@@ -161,8 +174,7 @@
 <!-- Declared out here, not as a child of the modal, so it can be passed
      conditionally. While this modal gates the app, the page behind it is covered
      and this has no close button, so the app's banners have nowhere else to go.
-     Passing `undefined` when dismissible keeps "has banners" a truthful signal:
-     GenericModal stands its title row down on exactly that. -->
+     The title row stands down with them, so the banners take its place. -->
 {#snippet bannersSnippet()}
 	<AppBanners />
 {/snippet}
@@ -176,6 +188,7 @@
 	onOpen={handleOpen}
 	preventCloseOnClickOutside={!dismissible}
 	showCloseButton={dismissible}
+	showTitleRow={dismissible}
 	banners={dismissible ? undefined : bannersSnippet}
 	tabs={visibleTabs}
 	{activeTab}
@@ -192,7 +205,12 @@
 			<!-- Billing-blocked org (past_due / paused / self-hosted plan): only an
 			     owner can see the Billing tab, so tell everyone else why they're held here. -->
 			<div class="shrink-0 px-6 pt-6">
-				<InlineWarning title="" body={settings_billing_ownerMustResolve()} />
+				<InlineWarning
+					title=""
+					body={org != null && hasLicensedPlan(org)
+						? settings_billing_ownerHoldsLicense()
+						: settings_billing_ownerMustResolve()}
+				/>
 			</div>
 		{/if}
 		{#if activeTab === 'account'}
@@ -207,6 +225,8 @@
 			<LicenseTab onClose={handleClose} {dismissible} />
 		{:else if activeTab === 'system'}
 			<SystemTab />
+		{:else if activeTab === 'support'}
+			<SupportTab onClose={handleClose} {dismissible} />
 		{/if}
 	</div>
 </GenericModal>

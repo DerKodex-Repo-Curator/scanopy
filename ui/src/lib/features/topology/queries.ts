@@ -10,11 +10,7 @@ import { queryClient, queryKeys } from '$lib/api/query-client';
 import { apiClient } from '$lib/api/client';
 import { unwrapData } from '$lib/api/query-helpers';
 import type { Topology, TopologyEdge, TopologyOptions, RenderableTopology } from './types/base';
-import type { ContainerGraphRule, ElementGraphRule, ElementRule } from './types/grouping';
-import { makeGraphRule } from './types/grouping';
-import type { ContainerRule } from './types/grouping';
-import _containerRuleTypes from '$lib/data/container-rule-types.json';
-import _elementRuleTypes from '$lib/data/element-rule-types.json';
+import type { ElementGraphRule } from './types/grouping';
 import type { Organization } from '$lib/features/organizations/types';
 import { BaseSSEManager, type SSEConfig } from '$lib/shared/utils/sse';
 import throttle from 'just-throttle';
@@ -23,43 +19,42 @@ import { UNTAGGED_SENTINEL } from './interactions';
 import { getDefaultHiddenEdgeTypes } from './layout/edge-classification';
 import type { components } from '$lib/api/schema';
 import viewsJson from '$lib/data/views.json';
-import { getIrrelevantServiceCategories } from '$lib/shared/stores/metadata';
-import { common_infrastructure } from '$lib/paraglide/messages';
+import { declaredMetadataFilters, filtersFor, type HiddenMetadataValues } from './view-filters';
 
 export type TopologyView = components['schemas']['TopologyView'];
 
 /** Strip UI-only sentinel values from options before sending to the API */
 export function sanitizeOptionsForApi(options: TopologyOptions): TopologyOptions {
-	const tf = options.local?.tag_filter;
 	const isSentinel = (id: string) => id === UNTAGGED_SENTINEL;
 	return {
 		...options,
 		local: {
 			...options.local,
-			tag_filter: {
-				hidden_host_tag_ids: (tf?.hidden_host_tag_ids ?? []).filter((id) => !isSentinel(id)),
-				hidden_service_tag_ids: (tf?.hidden_service_tag_ids ?? []).filter((id) => !isSentinel(id)),
-				hidden_subnet_tag_ids: (tf?.hidden_subnet_tag_ids ?? []).filter((id) => !isSentinel(id))
-			}
+			tag_filter: Object.fromEntries(
+				Object.entries(options.local?.tag_filter ?? {}).map(([view, tf]) => [
+					view,
+					{
+						hidden_tag_ids: Object.fromEntries(
+							Object.entries(tf?.hidden_tag_ids ?? {}).map(([entityType, ids]) => [
+								entityType,
+								(ids ?? []).filter((id) => !isSentinel(id))
+							])
+						)
+					}
+				])
+			)
 		}
 	};
 }
 
-type ServiceCategory = components['schemas']['ServiceCategory'];
 type TopologyLocalOptions = components['schemas']['TopologyLocalOptions'];
+type EdgeTypeDiscriminants = components['schemas']['EdgeTypeDiscriminants'];
+type TopologyTagFilter = components['schemas']['TopologyTagFilter'];
 
 /** Get the org's use case from the query cache, defaulting to 'other' */
 export function getOrgUseCase(): string {
 	const org = queryClient.getQueryData<Organization>(queryKeys.organizations.current());
 	return org?.use_case ?? 'other';
-}
-
-/**
- * Get categories that are irrelevant for the org's use case (for grouping into
- * the "Infrastructure Services" ByServiceCategory element rule).
- */
-function getIrrelevantCategories(useCase: string): ServiceCategory[] {
-	return [...getIrrelevantServiceCategories(useCase)] as ServiceCategory[];
 }
 
 /** Scan a set of element rules for the ByServiceCategory rule flagged is_infra_rule. */
@@ -83,7 +78,7 @@ export function findInfraRuleId(
  * by looking for the ByServiceCategory rule with is_infra_rule: true.
  *
  * Reads the global store, which is hydrated out-of-band from the topology bundle
- * that drives the layout pipeline — so on a network switch it can briefly lag.
+ * that drives the layout pipeline — so on a site switch it can briefly lag.
  * Layout/auto-collapse code must use {@link getInfrastructureRuleIdForTopology}
  * with the bundle it is rendering; this store-based variant is for UI surfaces
  * (e.g. the grouping-rule editor) that have no topology in hand.
@@ -95,7 +90,7 @@ export function getInfrastructureRuleId(): string | null {
 /**
  * Infrastructure rule ID derived from a specific topology bundle's options
  * rather than the global store. Always in sync with the nodes being laid out,
- * so it stays correct across a same-view network switch.
+ * so it stays correct across a same-view site switch.
  */
 export function getInfrastructureRuleIdForTopology(
 	topology: Topology | RenderableTopology
@@ -104,35 +99,6 @@ export function getInfrastructureRuleIdForTopology(
 }
 
 const ALL_VIEWS: TopologyView[] = viewsJson.map((p) => p.id as TopologyView);
-
-/**
- * Filter values a view hides before the user has touched anything.
- *
- * Read from the generated view fixture rather than restated here, so it is the same list the
- * backend seeds a new topology's hide-set from — it used to be written out separately in both
- * places.
- *
- * These seed a topology that has never stored an opinion, and nothing else. A default in force is
- * counted by the filters-applied badge and removed by Clear all, exactly like a value the user
- * hid: a default nothing surfaces and nothing clears is a view that filters itself to empty with
- * no way back, which is what `Interface/LinkState = [Unlinked]` did in L2.
- */
-export function defaultHiddenValuesFor(view: string): Record<string, Record<string, string[]>> {
-	const meta = viewsJson.find((v) => v.id === view)?.metadata as
-		| { element_config?: { default_hidden_values?: Record<string, Record<string, string[]>> } }
-		| undefined;
-	return meta?.element_config?.default_hidden_values ?? {};
-}
-
-/** The metadata filters a view declares, keyed by entity type — from the generated view fixture. */
-export function declaredMetadataFiltersFor(
-	view: string
-): Record<string, Array<{ filter_type: string }>> {
-	const meta = viewsJson.find((v) => v.id === view)?.metadata as
-		| { element_config?: { metadata_filters?: Record<string, Array<{ filter_type: string }>> } }
-		| undefined;
-	return meta?.element_config?.metadata_filters ?? {};
-}
 
 /**
  * What one entity's hide-set becomes when its filters are cleared: every filter the view declares,
@@ -153,88 +119,62 @@ export function clearedHideSetFor(
 	existing: Record<string, string[]> | undefined
 ): Record<string, string[]> {
 	const cleared: Record<string, string[]> = {};
-	for (const filter of declaredMetadataFiltersFor(view)[entityType] ?? []) {
+	for (const filter of filtersFor(view, entityType)) {
 		cleared[filter.filter_type] = [];
 	}
 	for (const filterType of Object.keys(existing ?? {})) cleared[filterType] = [];
 	return cleared;
 }
 
-/** Default local options for a given view (UI-only, not sent to backend as rules) */
-function getDefaultLocalOptions(view: TopologyView): TopologyLocalOptions {
+/**
+ * A whole view's hide-set with every filter cleared: each entity some filter covers, and each
+ * entity with a stored entry, through `clearedHideSetFor`.
+ */
+export function clearedViewHideSet(
+	view: string,
+	existing: HiddenMetadataValues | undefined
+): HiddenMetadataValues {
+	const cleared: HiddenMetadataValues = {};
+	const entityTypes = new Set([
+		...declaredMetadataFilters(view).flatMap((f) => f.entities as string[]),
+		...Object.keys(existing ?? {})
+	]);
+	for (const entityType of entityTypes) {
+		cleared[entityType] = clearedHideSetFor(view, entityType, existing?.[entityType]);
+	}
+	return cleared;
+}
+
+/**
+ * Local options for a viewer with no saved preferences: share/embed viewers, and the store
+ * before the first topology hydrates it. Mirrors `TopologyLocalOptions::default` on the backend,
+ * with each view's hidden edge types read from the same view fixture.
+ */
+function defaultLocalOptions(): TopologyLocalOptions {
 	return {
-		hide_edge_types: getDefaultHiddenEdgeTypes(view),
+		hide_edge_types: Object.fromEntries(
+			ALL_VIEWS.map((view) => [view, getDefaultHiddenEdgeTypes(view)])
+		),
 		no_fade_edges: false,
 		bundle_edges: true,
-		tag_filter: {
-			hidden_host_tag_ids: [],
-			hidden_service_tag_ids: [],
-			hidden_subnet_tag_ids: []
-		},
+		tag_filter: {},
 		show_minimap: true
 	};
 }
 
-/** Build default per-view local options */
-function initDefaultLocalOptions(): Record<TopologyView, TopologyLocalOptions> {
-	return Object.fromEntries(ALL_VIEWS.map((p) => [p, getDefaultLocalOptions(p)])) as Record<
-		TopologyView,
-		TopologyLocalOptions
-	>;
-}
-
 /**
- * Default request options matching the backend's TopologyRequestOptions::default().
- * Container rules and hidden categories are per-view HashMaps.
- * Element rules are shared cross-view.
+ * Request options held before any topology has hydrated the store: no rules and no hides.
+ *
+ * Product defaults live on the backend (they depend on the organization's use case), and every
+ * topology row carries its own. The render pipeline waits for hydration before its first layout
+ * (`topologyOptionsHydrated`), so this placeholder is never drawn.
  */
-function defaultRequestOptions(): components['schemas']['TopologyRequestOptions'] {
-	// Build container rules per view from fixture metadata
-	const containerRules: Record<string, ContainerGraphRule[]> = {};
-	for (const p of ALL_VIEWS) {
-		containerRules[p] = _containerRuleTypes
-			.filter((r) => (r.metadata as { views?: string[] })?.views?.includes(p))
-			.map((r) => {
-				if (r.id === 'ByApplication') {
-					return makeGraphRule({ ByApplication: { tag_ids: [] } } as ContainerRule);
-				}
-				return makeGraphRule(r.id as ContainerRule);
-			});
-	}
-
-	// Element rules: one of each type (shared cross-view)
-	const seen = new Set<string>();
-	const elementRules: ElementGraphRule[] = [];
-	for (const r of _elementRuleTypes) {
-		if (!seen.has(r.id)) {
-			seen.add(r.id);
-			if (r.id === 'ByServiceCategory') {
-				const rule = makeGraphRule({
-					ByServiceCategory: {
-						categories: getIrrelevantCategories(getOrgUseCase()),
-						title: common_infrastructure(),
-						is_infra_rule: true
-					}
-				});
-				elementRules.push(rule);
-			} else if (r.id === 'ByTag') {
-				elementRules.push(makeGraphRule({ ByTag: { tag_ids: [], title: null } }));
-			} else {
-				elementRules.push(makeGraphRule(r.id as ElementRule));
-			}
-		}
-	}
-
-	const hideMetadataValues: Record<string, Record<string, Record<string, string[]>>> = {};
-	for (const p of ALL_VIEWS) {
-		hideMetadataValues[p] = structuredClone(defaultHiddenValuesFor(p));
-	}
-
+function emptyRequestOptions(): components['schemas']['TopologyRequestOptions'] {
 	return {
 		hide_entities: {},
-		hide_metadata_values: hideMetadataValues,
-		container_rules: containerRules,
-		element_rules: elementRules,
+		hide_metadata_values: {},
+		container_rules: {},
+		element_rules: [],
 		element_sort: {}
 	};
 }
@@ -263,39 +203,77 @@ export function useTopologiesQuery(enabled?: () => boolean) {
  * `snapshot_id = <id>`      → entity set as-of that snapshot's `taken_at`.
  *
  * Single endpoint, single code path. The cache key includes the snapshot id
- * so live vs snapshot data don't collide. The SSE `live_topology_updates_stream`
- * consumer invalidates this query on live-view network updates.
+ * so live vs snapshot data don't collide, and the view, since the server
+ * builds only the requested view's graph. The SSE `live_topology_updates_stream`
+ * consumer invalidates this query on live-view site updates.
  *
  * `enabled` exists so the caller can hold the fetch while the topology tab is
  * off-screen. Every tab in the app is mounted at once (inactive ones are hidden
  * with CSS), so without it this bundle — every host, service, ip-address and port
- * on the network — loads on app boot and, because it is invalidated by the
+ * on the site — loads on app boot and, because it is invalidated by the
  * discovery SSE stream, refetches on a throttle for the whole of every scan, on
  * pages that are not showing a graph. A disabled query is skipped by
  * `invalidateQueries` (which refetches active queries only) and refetches when it
  * is re-enabled and stale.
  */
 export function useTopologyDataQuery(
-	networkId: () => string | undefined,
+	siteId: () => string | undefined,
 	snapshotId: () => string | undefined,
+	view: () => TopologyView,
 	enabled?: () => boolean
 ) {
 	return createQuery(() => ({
-		queryKey: queryKeys.topology.data(networkId() ?? '', snapshotId()),
+		...topologyDataQueryOptions(siteId() ?? '', snapshotId(), view()),
+		enabled: () => !!siteId() && (enabled?.() ?? true),
+		// A held site refetches only when the user asks (see `heldTopologySites`).
+		refetchOnWindowFocus: () => !get(heldTopologySites).has(siteId() ?? '')
+	}));
+}
+
+/**
+ * How long a view's bundle stays cached once nothing reads it.
+ *
+ * Each view's bundle carries the site's whole entity set, so a cached view the user has left
+ * costs as much memory as the one on screen. A minute covers switching back and forth without a
+ * refetch, then lets the copy go.
+ */
+const TOPOLOGY_DATA_GC_MS = 60_000;
+
+/**
+ * The bundle for one view of a site. The server builds only that view's graph, so each view is
+ * its own cache entry.
+ */
+function topologyDataQueryOptions(
+	siteId: string,
+	snapshotId: string | undefined,
+	view: TopologyView
+) {
+	return {
+		queryKey: queryKeys.topology.data(siteId, snapshotId, view),
 		queryFn: async () => {
-			const network_id = networkId();
-			if (!network_id) {
-				throw new Error('No network ID provided');
+			if (!siteId) {
+				throw new Error('No site ID provided');
 			}
-			const snapshot_id = snapshotId();
 			return unwrapData(
 				await apiClient.GET('/api/v1/topology/data', {
-					params: { query: { network_id, snapshot_id } }
+					params: { query: { site_id: siteId, snapshot_id: snapshotId, view } }
 				})
 			);
 		},
-		enabled: () => !!networkId() && (enabled?.() ?? true)
-	}));
+		gcTime: TOPOLOGY_DATA_GC_MS
+	};
+}
+
+/**
+ * Load a view's bundle before switching to it, so the current graph stays on screen until the
+ * next one can replace it. Resolves at once when the bundle is already cached and fresh.
+ */
+export function loadTopologyData(
+	siteId: string,
+	snapshotId: string | undefined,
+	view: TopologyView
+) {
+	return queryClient.ensureQueryData(topologyDataQueryOptions(siteId, snapshotId, view));
 }
 
 /**
@@ -305,9 +283,9 @@ export function useTopologyDataQuery(
  * `useTopologyDataQuery` (which never sets the flag) so the milestone only fires from an
  * explicit on-tab view, never from background fetches on other tabs.
  */
-export async function markTopologyViewed(networkId: string): Promise<void> {
+export async function markTopologyViewed(siteId: string, view: TopologyView): Promise<void> {
 	await apiClient.GET('/api/v1/topology/data', {
-		params: { query: { network_id: networkId, mark_viewed: true } }
+		params: { query: { site_id: siteId, mark_viewed: true, view } }
 	});
 }
 
@@ -368,7 +346,7 @@ export function useUpdateNodePositionMutation() {
 	return createMutation(() => ({
 		mutationFn: async (params: {
 			topologyId: string;
-			networkId: string;
+			siteId: string;
 			view: TopologyView;
 			nodeId: string;
 			position: { x: number; y: number };
@@ -377,7 +355,7 @@ export function useUpdateNodePositionMutation() {
 				await apiClient.POST('/api/v1/topology/{id}/node-position', {
 					params: { path: { id: params.topologyId } },
 					body: {
-						network_id: params.networkId,
+						site_id: params.siteId,
 						view: params.view,
 						node_id: params.nodeId,
 						position: params.position
@@ -397,7 +375,7 @@ export function useUpdateNodeResizeMutation() {
 	return createMutation(() => ({
 		mutationFn: async (params: {
 			topologyId: string;
-			networkId: string;
+			siteId: string;
 			view: TopologyView;
 			nodeId: string;
 			size: { x: number; y: number };
@@ -407,7 +385,7 @@ export function useUpdateNodeResizeMutation() {
 				await apiClient.POST('/api/v1/topology/{id}/node-resize', {
 					params: { path: { id: params.topologyId } },
 					body: {
-						network_id: params.networkId,
+						site_id: params.siteId,
 						view: params.view,
 						node_id: params.nodeId,
 						size: params.size,
@@ -428,7 +406,7 @@ export function useUpdateEdgeHandlesMutation() {
 	return createMutation(() => ({
 		mutationFn: async (params: {
 			topologyId: string;
-			networkId: string;
+			siteId: string;
 			view: TopologyView;
 			edgeId: string;
 			sourceHandle: 'Top' | 'Bottom' | 'Left' | 'Right';
@@ -438,7 +416,7 @@ export function useUpdateEdgeHandlesMutation() {
 				await apiClient.POST('/api/v1/topology/{id}/edge-handles', {
 					params: { path: { id: params.topologyId } },
 					body: {
-						network_id: params.networkId,
+						site_id: params.siteId,
 						view: params.view,
 						edge_id: params.edgeId,
 						source_handle: params.sourceHandle,
@@ -459,14 +437,14 @@ import { browser } from '$app/environment';
 import { type Edge, type Node } from '@xyflow/svelte';
 
 const EXPANDED_STORAGE_KEY = 'scanopy_topology_options_expanded_state';
-const PREFERRED_NETWORK_KEY = 'scanopy_preferred_network_id';
-const SELECTED_NETWORK_KEY = 'scanopy_topology_selected_network_id';
+const PREFERRED_SITE_KEY = 'scanopy_preferred_site_id';
+const SELECTED_SITE_KEY = 'scanopy_topology_selected_site_id';
 
 // UI-only state
 export const selectedTopologyId = writable<string | null>(null);
-/** Currently selected network in the topology tab. The tab now owns the
- *  network choice (no global network selector exists yet). */
-export const selectedNetworkId = writable<string | null>(null);
+/** Currently selected site in the topology tab. The tab now owns the
+ *  site choice (no global site selector exists yet). */
+export const selectedSiteId = writable<string | null>(null);
 /** Currently selected snapshot id, or `null` for the live view. */
 export const selectedSnapshotId = writable<string | null>(null);
 export const selectedNode = writable<Node | null>(null);
@@ -542,15 +520,12 @@ export function pushTopologyParams(topologyId: string | null, view: TopologyView
 	window.history.pushState({}, '', url.toString());
 }
 
-// Single source of truth for topology options.
-// request: backend state (container_rules/hide_service_categories are per-view HashMaps)
-// perViewLocal: UI-only local options per view
-const topologyOptionsStore = writable<{
-	request: components['schemas']['TopologyRequestOptions'];
-	perViewLocal: Record<TopologyView, TopologyLocalOptions>;
-}>({
-	request: defaultRequestOptions(),
-	perViewLocal: initDefaultLocalOptions()
+// Single source of truth for topology options, saved as one value for every view.
+// Per-view settings are maps keyed by view inside it (request.container_rules,
+// local.hide_edge_types, ...); everything else applies to every view.
+const topologyOptionsStore = writable<TopologyOptions>({
+	request: emptyRequestOptions(),
+	local: defaultLocalOptions()
 });
 
 // Derived: element rules from the single store (for GroupingRuleEditor)
@@ -558,33 +533,66 @@ export const sharedElementRules = derived(topologyOptionsStore, ($store) => {
 	return ($store.request.element_rules ?? []) as ElementGraphRule[];
 });
 
-// Public derived store: projects the active view's slice of topology options
-export const topologyOptions = derived([topologyOptionsStore, activeView], ([$store, $view]) => ({
-	local: $store.perViewLocal[$view],
+export const topologyOptions = derived(topologyOptionsStore, ($store) => ({
+	local: $store.local,
 	request: {
 		...$store.request
 	}
 }));
 
-// Helper to update the active view's local options or request scalars
+/** Edge types hidden in the active view. */
+export const hiddenEdgeTypes = derived(
+	[topologyOptionsStore, activeView],
+	([$store, $view]) => $store.local.hide_edge_types[$view] ?? []
+);
+
 export function updateTopologyOptions(
 	updater: (current: TopologyOptions) => TopologyOptions
 ): void {
-	const view = get(activeView);
 	topologyOptionsStore.update((store) => {
-		const currentOpts: TopologyOptions = {
-			local: store.perViewLocal[view],
-			request: { ...store.request }
-		};
-		const updated = updater(currentOpts);
-		return {
-			request: { ...updated.request },
-			perViewLocal: {
-				...store.perViewLocal,
-				[view]: updated.local
-			}
-		};
+		const updated = updater({ local: store.local, request: { ...store.request } });
+		return { request: { ...updated.request }, local: updated.local };
 	});
+}
+
+/** The tag filter of the active view. */
+export const activeTagFilter = derived(
+	[topologyOptionsStore, activeView],
+	([$store, $view]): TopologyTagFilter => $store.local.tag_filter[$view] ?? { hidden_tag_ids: {} }
+);
+
+/** Replace the active view's tag filter, leaving other views' as they are. */
+export function updateActiveTagFilter(
+	updater: (current: TopologyTagFilter) => TopologyTagFilter
+): void {
+	const view = get(activeView);
+	updateTopologyOptions((opts) => ({
+		...opts,
+		local: {
+			...opts.local,
+			tag_filter: {
+				...opts.local.tag_filter,
+				[view]: updater(opts.local.tag_filter[view] ?? { hidden_tag_ids: {} })
+			}
+		}
+	}));
+}
+
+/** Replace the active view's hidden edge types, leaving other views' entries as they are. */
+export function updateHiddenEdgeTypes(
+	updater: (current: EdgeTypeDiscriminants[]) => EdgeTypeDiscriminants[]
+): void {
+	const view = get(activeView);
+	updateTopologyOptions((opts) => ({
+		...opts,
+		local: {
+			...opts.local,
+			hide_edge_types: {
+				...opts.local.hide_edge_types,
+				[view]: updater(opts.local.hide_edge_types[view] ?? [])
+			}
+		}
+	}));
 }
 
 /**
@@ -601,21 +609,12 @@ export function updateTopologyOptions(
  * "show everything" and is left alone.
  */
 export function showEverythingIn(view: string): void {
-	const declared = declaredMetadataFiltersFor(view);
-
 	updateTopologyOptions((opts) => {
 		const hideMeta = { ...(opts.request.hide_metadata_values ?? {}) } as Record<
 			string,
-			Record<string, Record<string, string[]>>
+			HiddenMetadataValues
 		>;
-		const cleared: Record<string, Record<string, string[]>> = {};
-		for (const entityType of new Set([
-			...Object.keys(declared),
-			...Object.keys(hideMeta[view] ?? {})
-		])) {
-			cleared[entityType] = clearedHideSetFor(view, entityType, hideMeta[view]?.[entityType]);
-		}
-		hideMeta[view] = cleared;
+		hideMeta[view] = clearedViewHideSet(view, hideMeta[view]);
 
 		const hideEntities = { ...(opts.request.hide_entities ?? {}) };
 		hideEntities[view] = [];
@@ -629,11 +628,7 @@ export function showEverythingIn(view: string): void {
 			},
 			local: {
 				...opts.local,
-				tag_filter: {
-					hidden_host_tag_ids: [],
-					hidden_service_tag_ids: [],
-					hidden_subnet_tag_ids: []
-				}
+				tag_filter: { ...opts.local.tag_filter, [view]: { hidden_tag_ids: {} } }
 			}
 		};
 	});
@@ -658,9 +653,8 @@ export function updateSharedElementRules(
  */
 function buildOptionsForApi(): TopologyOptions {
 	const store = get(topologyOptionsStore);
-	const view = get(activeView);
 	return sanitizeOptionsForApi({
-		local: store.perViewLocal[view],
+		local: store.local,
 		request: {
 			...store.request
 		}
@@ -670,7 +664,7 @@ function buildOptionsForApi(): TopologyOptions {
 /**
  * Hydrate stores from a topology's backend-stored options.
  * Called on initial topology selection and SSE updates.
- * SSE updates preserve the user's view and local options for other views.
+ * SSE updates preserve the user's local options.
  */
 let hydrating = false;
 /**
@@ -687,49 +681,15 @@ export function hydrateStoresFromTopology(
 	try {
 		const opts = topology.options;
 
-		// The active view is no longer persisted on the row — it's driven by the
-		// URL (`?view=`) with an L3Logical default (see TopologyTab) for the app,
-		// and by the explicit view prop for shares. Hydration only restores the
-		// view-agnostic request options + the active view's local options.
+		// The active view is not persisted on the row: the URL (`?view=`) drives it in the app,
+		// and the view prop does for shares. Options cover every view, so hydration does not
+		// depend on which view is active and may run before the URL view is applied.
 		if (isInitial) {
-			const request = { ...opts.request };
-
-			// Auto-populate infra rule categories if empty (new topology or migration).
-			// Only targets is_infra_rule rules with no categories — preserves user edits.
-			const elementRules = [...(request.element_rules ?? [])];
-			for (let i = 0; i < elementRules.length; i++) {
-				const rule = elementRules[i].rule;
-				if (
-					typeof rule === 'object' &&
-					'ByServiceCategory' in rule &&
-					rule.ByServiceCategory.is_infra_rule &&
-					(!rule.ByServiceCategory.categories || rule.ByServiceCategory.categories.length === 0)
-				) {
-					const useCase = getOrgUseCase();
-					elementRules[i] = {
-						...elementRules[i],
-						rule: {
-							ByServiceCategory: {
-								...rule.ByServiceCategory,
-								categories: getIrrelevantCategories(useCase),
-								title: common_infrastructure()
-							}
-						}
-					};
-					break;
-				}
-			}
-			request.element_rules = elementRules;
-
-			// Full hydration: use backend request options + default local options.
-			// When useDefaultLocal is true (share/embed), always use view defaults —
-			// the viewer has no stored preferences and the creator's shouldn't leak.
+			// When useDefaultLocal is true (share/embed), use defaults: the viewer has no
+			// stored preferences and the creator's must not leak.
 			topologyOptionsStore.set({
-				request,
-				perViewLocal: {
-					...initDefaultLocalOptions(),
-					...(useDefaultLocal ? {} : { [get(activeView)]: opts.local })
-				}
+				request: { ...opts.request },
+				local: useDefaultLocal ? defaultLocalOptions() : opts.local
 			});
 		} else {
 			// SSE update or topology switch: update request options, preserve
@@ -738,7 +698,7 @@ export function hydrateStoresFromTopology(
 			// whatever was last sent, which may be stale.
 			topologyOptionsStore.update((current) => ({
 				request: opts.request,
-				perViewLocal: current.perViewLocal
+				local: current.local
 			}));
 		}
 	} finally {
@@ -787,31 +747,32 @@ export const MINIMAP_FITVIEW_LEFT_PX = MINIMAP_WIDTH_PX + MINIMAP_OFFSET_PX + 16
 export const aggregatedEdgeOriginals = writable<Map<string, TopologyEdge[]>>(new Map());
 
 /**
- * Set a preferred network to select when topology loads.
- * Used after onboarding to ensure the scanned network's topology is shown.
+ * Set a preferred site to select when topology loads.
+ * Used after onboarding to ensure the scanned site's topology is shown.
  */
-export function setPreferredNetwork(networkId: string): void {
+export function setPreferredSite(siteId: string): void {
 	if (browser) {
-		localStorage.setItem(PREFERRED_NETWORK_KEY, networkId);
+		localStorage.setItem(PREFERRED_SITE_KEY, siteId);
 	}
 }
 
 /**
- * Get and clear the preferred network (one-time use)
+ * Get and clear the preferred site (one-time use)
  */
-export function consumePreferredNetwork(): string | null {
+export function consumePreferredSite(): string | null {
 	if (!browser) return null;
-	const preferred = localStorage.getItem(PREFERRED_NETWORK_KEY);
+	const preferred = localStorage.getItem(PREFERRED_SITE_KEY);
 	if (preferred) {
-		localStorage.removeItem(PREFERRED_NETWORK_KEY);
+		localStorage.removeItem(PREFERRED_SITE_KEY);
 	}
 	return preferred;
 }
 
+/** Drop the signed-out user's options. The next topology to load hydrates the store again. */
 export function resetTopologyOptions(): void {
 	topologyOptionsStore.set({
-		request: defaultRequestOptions(),
-		perViewLocal: initDefaultLocalOptions()
+		request: emptyRequestOptions(),
+		local: defaultLocalOptions()
 	});
 	if (browser) {
 		localStorage.removeItem(EXPANDED_STORAGE_KEY);
@@ -842,24 +803,24 @@ function saveExpandedToStorage(expanded: boolean): void {
 	}
 }
 
-/** Persist the topology tab's selected network id across reloads. */
-export function loadSelectedNetworkFromStorage(): string | null {
+/** Persist the topology tab's selected site id across reloads. */
+export function loadSelectedSiteFromStorage(): string | null {
 	if (!browser) return null;
 	try {
-		return localStorage.getItem(SELECTED_NETWORK_KEY);
+		return localStorage.getItem(SELECTED_SITE_KEY);
 	} catch (error) {
-		console.warn('Failed to load selected network from localStorage:', error);
+		console.warn('Failed to load selected site from localStorage:', error);
 		return null;
 	}
 }
 
-function saveSelectedNetworkToStorage(networkId: string | null): void {
+function saveSelectedSiteToStorage(siteId: string | null): void {
 	if (!browser) return;
 	try {
-		if (networkId) localStorage.setItem(SELECTED_NETWORK_KEY, networkId);
-		else localStorage.removeItem(SELECTED_NETWORK_KEY);
+		if (siteId) localStorage.setItem(SELECTED_SITE_KEY, siteId);
+		else localStorage.removeItem(SELECTED_SITE_KEY);
 	} catch (error) {
-		console.error('Failed to save selected network to localStorage:', error);
+		console.error('Failed to save selected site to localStorage:', error);
 	}
 }
 
@@ -896,7 +857,7 @@ function saveOptionsForCurrentTopology(): void {
 // Set up subscriptions for UI pref persistence + option-change auto-save
 let optionsInitialized = false;
 let expandedInitialized = false;
-let networkInitialized = false;
+let siteInitialized = false;
 
 if (browser) {
 	topologyOptionsStore.subscribe(() => {
@@ -913,15 +874,15 @@ if (browser) {
 		expandedInitialized = true;
 	});
 
-	selectedNetworkId.subscribe((id) => {
-		if (networkInitialized) {
-			saveSelectedNetworkToStorage(id);
+	selectedSiteId.subscribe((id) => {
+		if (siteInitialized) {
+			saveSelectedSiteToStorage(id);
 		}
-		networkInitialized = true;
+		siteInitialized = true;
 	});
 
-	// NOTE: the persisted network selection is NOT hydrated here. It is validated
-	// against the accessible networks list and applied by the init `$effect` in
+	// NOTE: the persisted site selection is NOT hydrated here. It is validated
+	// against the accessible sites list and applied by the init `$effect` in
 	// TopologyTab — hydrating a stale id here would fire a 404/403 topology fetch
 	// before validation could run.
 
@@ -950,27 +911,101 @@ if (browser) {
 // ============================================================================
 
 /**
- * Payload of the `live_topology_updates_stream` SSE: the network whose
+ * Payload of the `live_topology_updates_stream` SSE: the site whose
  * live entity set just changed. The frontend invalidates the topology +
- * snapshot lists for that network so TanStack Query refetches and xyflow
+ * snapshot lists for that site so TanStack Query refetches and xyflow
  * re-renders.
  */
 interface LiveTopologyUpdate {
-	network_id: string;
+	site_id: string;
 }
 
-// During discovery the server pings this stream ~5×/sec/network; each ping
+// During discovery the server pings this stream ~5×/sec/site; each ping
 // otherwise refetches the uncached, full-rebuild `/topology/data`. Coalesce a
 // burst of pings into at most one refetch per window (trailing edge, so the
 // final state is always fetched), while still reflecting new hosts within ~1s.
 const TOPOLOGY_INVALIDATION_THROTTLE_MS = 1000;
 
+/**
+ * Sites whose live topology keeps its drawn layout while a scan runs.
+ *
+ * A scan changes the site several times a second, and on a large site every refetch that adds a
+ * host or service is a full layout run: seconds of main-thread work and hundreds of megabytes,
+ * most of it thrown away when the next refetch lands. A held site's live bundle is not refetched
+ * on those changes; `heldTopologyUpdates` records that one arrived instead.
+ *
+ * Only the change stream is held. The user's own edits invalidate the topology queries directly
+ * and still refetch.
+ */
+export const heldTopologySites = writable<ReadonlySet<string>>(new Set());
+
+/** Held sites that changed since their layout was drawn. */
+export const heldTopologyUpdates = writable<ReadonlySet<string>>(new Set());
+
+/** Matches the live bundles (every view) of the given sites. */
+function isLiveTopologyData(key: readonly unknown[], siteIds: ReadonlySet<string>): boolean {
+	// key shape: ['topology', 'data', siteId, snapshotId | null, view]
+	return (
+		key[0] === 'topology' &&
+		key[1] === 'data' &&
+		typeof key[2] === 'string' &&
+		siteIds.has(key[2]) &&
+		key[3] == null
+	);
+}
+
+/**
+ * Live data changed for these sites. Invalidate the topology list (a live row's nodes/edges may
+ * have shifted) plus the live bundle of each site that is not held. Snapshot bundles are
+ * immutable, so their cache entries stay.
+ */
+export function invalidateLiveTopology(siteIds: ReadonlySet<string>) {
+	const held = get(heldTopologySites);
+	const heldChanged = [...siteIds].filter((id) => held.has(id));
+	if (heldChanged.length > 0) {
+		heldTopologyUpdates.update((pending) => new Set([...pending, ...heldChanged]));
+	}
+	const refetchable = new Set([...siteIds].filter((id) => !held.has(id)));
+
+	queryClient.invalidateQueries({
+		predicate: (query) => {
+			const key = query.queryKey as readonly unknown[];
+			if (key[0] !== 'topology') return false;
+			if (key[1] === 'data') return isLiveTopologyData(key, refetchable);
+			return true;
+		}
+	});
+}
+
+/** Fetch a held site's live bundle now. The site stays held. */
+export function refreshHeldTopology(siteId: string) {
+	heldTopologyUpdates.update((pending) => {
+		const next = new Set(pending);
+		next.delete(siteId);
+		return next;
+	});
+	queryClient.invalidateQueries({
+		predicate: (query) =>
+			isLiveTopologyData(query.queryKey as readonly unknown[], new Set([siteId]))
+	});
+}
+
+/** Hold or release a site. Releasing a site that changed while held fetches it once. */
+export function setTopologyHeld(siteId: string, hold: boolean) {
+	const held = get(heldTopologySites);
+	if (held.has(siteId) === hold) return;
+	heldTopologySites.set(
+		new Set(hold ? [...held, siteId] : [...held].filter((id) => id !== siteId))
+	);
+	if (!hold && get(heldTopologyUpdates).has(siteId)) refreshHeldTopology(siteId);
+}
+
 class TopologySSEManager extends BaseSSEManager<LiveTopologyUpdate> {
-	/** Network ids pinged since the last flush; drained by `flushInvalidations`. */
-	private pendingNetworkIds = new Set<string>();
+	/** Site ids pinged since the last flush; drained by `flushInvalidations`. */
+	private pendingSiteIds = new Set<string>();
 
 	/**
-	 * Trailing throttle: coalesces the pings accumulated in `pendingNetworkIds`
+	 * Trailing throttle: coalesces the pings accumulated in `pendingSiteIds`
 	 * into a single invalidation pass per window. Trailing (not leading) so the
 	 * last ping of a burst is never dropped — the view always converges.
 	 */
@@ -984,29 +1019,15 @@ class TopologySSEManager extends BaseSSEManager<LiveTopologyUpdate> {
 	);
 
 	private runInvalidations() {
-		if (this.pendingNetworkIds.size === 0) return;
-		const networkIds = this.pendingNetworkIds;
-		this.pendingNetworkIds = new Set<string>();
+		if (this.pendingSiteIds.size === 0) return;
+		const siteIds = this.pendingSiteIds;
+		this.pendingSiteIds = new Set<string>();
 
-		// Live data changed for these networks — invalidate the topology list
-		// (a live row's nodes/edges may have shifted) plus the LIVE entity
-		// bundle for each affected network. Snapshot bundles are immutable, so
-		// the predicate leaves their cache entries intact.
-		queryClient.invalidateQueries({
-			predicate: (query) => {
-				const key = query.queryKey as readonly unknown[];
-				if (key[0] !== 'topology') return false;
-				if (key[1] === 'data') {
-					// key shape: ['topology', 'data', networkId, snapshotId | null]
-					return typeof key[2] === 'string' && networkIds.has(key[2]) && key[3] == null;
-				}
-				return true;
-			}
-		});
+		invalidateLiveTopology(siteIds);
 
-		for (const networkId of networkIds) {
-			// Snapshots-for-network list (taking a snapshot would have added a row).
-			queryClient.invalidateQueries({ queryKey: queryKeys.snapshots.byNetwork(networkId) });
+		for (const siteId of siteIds) {
+			// Snapshots-for-site list (taking a snapshot would have added a row).
+			queryClient.invalidateQueries({ queryKey: queryKeys.snapshots.bySite(siteId) });
 		}
 
 		// Invalidate org cache until FirstTopologyRebuild milestone appears.
@@ -1020,7 +1041,7 @@ class TopologySSEManager extends BaseSSEManager<LiveTopologyUpdate> {
 		return {
 			url: '/api/v1/topology/stream',
 			onMessage: (update) => {
-				this.pendingNetworkIds.add(update.network_id);
+				this.pendingSiteIds.add(update.site_id);
 				this.flushInvalidations();
 			},
 			onError: (error) => {
@@ -1032,7 +1053,7 @@ class TopologySSEManager extends BaseSSEManager<LiveTopologyUpdate> {
 
 	override disconnect() {
 		this.flushInvalidations.cancel();
-		this.pendingNetworkIds.clear();
+		this.pendingSiteIds.clear();
 		super.disconnect();
 	}
 }

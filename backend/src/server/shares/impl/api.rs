@@ -56,13 +56,17 @@ pub struct ExportFeatures {
     pub pdf_export: bool,
     /// Viewer may export the diagram as standalone HTML.
     pub html_export: bool,
+    /// Viewer may export the diagram as an editable draw.io file.
+    pub drawio_export: bool,
+    /// Viewer may export the diagram as an editable Visio (VSDX) file.
+    pub vsdx_export: bool,
     /// Exports omit the Scanopy attribution line.
     pub remove_created_with: bool,
 }
 
 /// Share with topology data (returned after authentication/verification).
 ///
-/// Returns the slim topology row (`{ id, network_id, options }`) plus the
+/// Returns the slim topology row (`{ id, site_id, options }`) plus the
 /// `TopologyData` bundle (entities + the per-view graph built on request). The
 /// share viewer composes these with the same `toRenderableTopology` the app
 /// uses — no server-side merge.

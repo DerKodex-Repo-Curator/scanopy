@@ -9,19 +9,32 @@ use crate::server::{
         },
         services::traits::{CrudService, EventBusService, SnapshotMutator},
         storage::{
+            filter::StorableFilter,
             generic::GenericPostgresStorage,
             traits::{Entity, Storage},
         },
+        types::api::ValidationError,
     },
-    tags::r#impl::base::Tag,
+    tags::{
+        entity_tags::{EntityTagStorage, entities_holding_several},
+        groups::{
+            base::{TagGroup, TagGroupType},
+            service::TagGroupService,
+        },
+        r#impl::base::Tag,
+    },
 };
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct TagService {
     storage: Arc<GenericPostgresStorage<Tag>>,
+    /// The tags module's own junction storage, read to check a tag group change against existing
+    /// assignments.
+    entity_tags: Arc<EntityTagStorage>,
+    tag_group_service: Arc<TagGroupService>,
     event_bus: Arc<EventBus>,
 }
 
@@ -30,7 +43,7 @@ impl EventBusService<Tag> for TagService {
         &self.event_bus
     }
 
-    fn get_network_id(&self, _entity: &Tag) -> Option<Uuid> {
+    fn get_site_id(&self, _entity: &Tag) -> Option<Uuid> {
         None
     }
     fn get_organization_id(&self, entity: &Tag) -> Option<Uuid> {
@@ -50,6 +63,15 @@ impl CrudService<Tag> for TagService {
         None
     }
 
+    /// A tag joins the end of its group.
+    async fn create(&self, mut entity: Tag, authentication: AuthenticatedEntity) -> Result<Tag> {
+        entity.base.position = match self.group_for(&entity).await? {
+            Some(group) => self.tag_group_service.next_position(&group).await?,
+            None => None,
+        };
+        self.create_base(entity, authentication).await
+    }
+
     /// Tag rename uses per-action close-and-clone (`SnapshotMutator`) instead
     /// of in-place UPDATE: the prior field values are preserved on a closed
     /// historical row with `lineage_id` lineage; the live row keeps its id
@@ -67,6 +89,20 @@ impl CrudService<Tag> for TagService {
             .await?
             .ok_or_else(|| anyhow!("Could not find Tag {}", entity.id))?;
 
+        let group = self.group_for(entity).await?;
+        if entity.base.tag_group_id == current.base.tag_group_id {
+            entity.base.position = current.base.position;
+        } else {
+            entity.base.position = None;
+            if let Some(group) = &group {
+                self.refuse_group_already_doubled(entity, group).await?;
+                self.tag_group_service
+                    .refuse_tag_out_of_scope(entity, group)
+                    .await?;
+                entity.base.position = self.tag_group_service.next_position(group).await?;
+            }
+        }
+
         let updated = SnapshotMutator::close_and_clone(self, entity.clone()).await?;
 
         let trigger_stale = updated.triggers_staleness(Some(current));
@@ -74,7 +110,7 @@ impl CrudService<Tag> for TagService {
         if let Some(scope) = EntityScope::from_ids(
             updated.id(),
             updated.clone().into(),
-            self.get_network_id(&updated),
+            self.get_site_id(&updated),
             self.get_organization_id(&updated),
         ) {
             self.event_bus()
@@ -120,7 +156,7 @@ impl CrudService<Tag> for TagService {
         if let Some(scope) = EntityScope::from_ids(
             entity_for_event.id(),
             entity_for_event.into(),
-            self.get_network_id(&entity),
+            self.get_site_id(&entity),
             self.get_organization_id(&entity),
         ) {
             self.event_bus()
@@ -140,7 +176,100 @@ impl CrudService<Tag> for TagService {
 }
 
 impl TagService {
-    pub fn new(storage: Arc<GenericPostgresStorage<Tag>>, event_bus: Arc<EventBus>) -> Self {
-        Self { storage, event_bus }
+    pub fn new(
+        storage: Arc<GenericPostgresStorage<Tag>>,
+        entity_tags: Arc<EntityTagStorage>,
+        tag_group_service: Arc<TagGroupService>,
+        event_bus: Arc<EventBus>,
+    ) -> Self {
+        Self {
+            storage,
+            entity_tags,
+            tag_group_service,
+            event_bus,
+        }
+    }
+
+    pub fn tag_group_service(&self) -> &Arc<TagGroupService> {
+        &self.tag_group_service
+    }
+
+    /// The group `tag` names, checked to belong to the tag's organization. An application tag
+    /// draws the application icon, so it can't choose its own.
+    async fn group_for(&self, tag: &Tag) -> Result<Option<TagGroup>> {
+        let Some(group_id) = tag.base.tag_group_id else {
+            return Ok(None);
+        };
+        let group = self
+            .tag_group_service
+            .get_by_id(&group_id)
+            .await?
+            .filter(|g| g.base.organization_id == tag.base.organization_id)
+            .ok_or_else(|| ValidationError::new(format!("Tag group {group_id} not found")))?;
+        if group.base.group_type == TagGroupType::Application && tag.base.icon.is_some() {
+            return Err(ValidationError::new(
+                "Application tags use the application icon and cannot set their own",
+            )
+            .into());
+        }
+        Ok(Some(group))
+    }
+
+    /// The id of the organization's Application group, whose tags drive the application view.
+    pub async fn application_group_id(&self, organization_id: &Uuid) -> Result<Option<Uuid>> {
+        Ok(self
+            .tag_group_service
+            .system_group(organization_id, TagGroupType::Application)
+            .await?
+            .map(|g| g.id))
+    }
+
+    /// The live tags of the organization's Visibility group. A host holding any of them is left out
+    /// of topology.
+    pub async fn hiding_tag_ids(&self, organization_id: &Uuid) -> Result<Vec<Uuid>> {
+        let Some(group) = self
+            .tag_group_service
+            .system_group(organization_id, TagGroupType::Visibility)
+            .await?
+        else {
+            return Ok(vec![]);
+        };
+        Ok(self
+            .get_all(StorableFilter::<Tag>::new_from_uuid_column("tag_group_id", &group.id).live())
+            .await?
+            .into_iter()
+            .map(|t| t.id)
+            .collect())
+    }
+
+    /// Refuse to move `tag` into `group` while some entity holds both it and another tag of `group`.
+    ///
+    /// Moving it would leave that entity breaking the rule the group exists to keep, and which of
+    /// its tags should go is a person's call. So the change is refused with a count, and nothing
+    /// is removed on the person's behalf.
+    async fn refuse_group_already_doubled(&self, tag: &Tag, group: &TagGroup) -> Result<()> {
+        let siblings = self
+            .get_all(StorableFilter::<Tag>::new_from_org_id(&tag.base.organization_id).live())
+            .await?;
+        let mut group_tag_ids: Vec<Uuid> = siblings
+            .iter()
+            .filter(|t| t.id != tag.id && t.in_group(Some(group.id)))
+            .map(|t| t.id)
+            .collect();
+        if group_tag_ids.is_empty() {
+            return Ok(());
+        }
+        group_tag_ids.push(tag.id);
+
+        let rows = self.entity_tags.get_live_for_tags(&group_tag_ids).await?;
+        match entities_holding_several(&rows, &group_tag_ids) {
+            0 => Ok(()),
+            count => Err(ValidationError::new(format!(
+                "{count} {} hold more than one tag in the \"{}\" group. Remove the extra tags first.",
+                if count == 1 { "entity" } else { "entities" },
+                group.base.name
+            ))
+            .into()),
+        }
     }
 }

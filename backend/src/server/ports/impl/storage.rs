@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::{Row, postgres::PgRow};
 use uuid::Uuid;
 
@@ -14,19 +13,6 @@ use crate::server::{
         },
     },
 };
-
-/// CSV row representation for Port export
-#[derive(Serialize)]
-pub struct PortCsvRow {
-    pub id: Uuid,
-    pub port_number: u16,
-    pub protocol: String,
-    pub port_type: String,
-    pub host_id: Uuid,
-    pub network_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Port {
     type BaseData = PortBase;
@@ -70,7 +56,7 @@ impl Storable for Port {
             vec![
                 "id",
                 "host_id",
-                "network_id",
+                "site_id",
                 "port_number",
                 "protocol",
                 "port_type",
@@ -86,7 +72,7 @@ impl Storable for Port {
             vec![
                 SqlValue::Uuid(self.id),
                 SqlValue::Uuid(self.base.host_id),
-                SqlValue::Uuid(self.base.network_id),
+                SqlValue::Uuid(self.base.site_id),
                 SqlValue::I32(config.number as i32),
                 SqlValue::String(protocol.to_string()),
                 SqlValue::String(port_type),
@@ -105,7 +91,7 @@ impl Storable for Port {
     fn from_row(row: &PgRow) -> Result<Self, anyhow::Error> {
         let id: Uuid = row.get("id");
         let host_id: Uuid = row.get("host_id");
-        let network_id: Uuid = row.get("network_id");
+        let site_id: Uuid = row.get("site_id");
         let created_at: DateTime<Utc> = row.get("created_at");
         let updated_at: DateTime<Utc> = row.get("updated_at");
         let port_number: i32 = row.get("port_number");
@@ -144,7 +130,7 @@ impl Storable for Port {
             first_discovery_id: row.get("first_discovery_id"),
             base: PortBase {
                 host_id,
-                network_id,
+                site_id,
                 port_type,
             },
         })
@@ -231,22 +217,6 @@ impl Entity for Port {
         self.created_at = time;
     }
 
-    type CsvRow = PortCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        let config = self.base.port_type.config();
-        PortCsvRow {
-            id: self.id,
-            port_number: config.number,
-            protocol: format!("{:?}", config.protocol),
-            port_type: Self::port_type_string(&self.base.port_type),
-            host_id: self.base.host_id,
-            network_id: self.base.network_id,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Port
     }
@@ -257,11 +227,11 @@ impl Entity for Port {
         "Ports that have been scanned and found open on a host.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::NetworkInfrastructure
+        EntityCategory::Assets
     }
 
-    fn network_id(&self) -> Option<Uuid> {
-        Some(self.base.network_id)
+    fn site_id(&self) -> Option<Uuid> {
+        Some(self.base.site_id)
     }
 
     fn organization_id(&self) -> Option<Uuid> {

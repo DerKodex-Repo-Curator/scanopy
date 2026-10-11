@@ -1,32 +1,43 @@
 <script lang="ts">
 	import { lastSeenItems } from '$lib/shared/utils/freshness';
-	import TabHeader from '$lib/shared/components/layout/TabHeader.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
-	import { defineFields, entityRef } from '$lib/shared/components/data/types';
-	import { networkItems } from '$lib/features/networks/columns';
-	import { entities, entitySources } from '$lib/shared/stores/metadata';
+	import type { TableDefaults } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
+	import { siteItems } from '$lib/features/sites/columns';
+	import { entitySources } from '$lib/shared/stores/metadata';
 	import { entitySourceItems } from '$lib/shared/utils/entity-source';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { useNetworksQuery } from '$lib/features/networks/queries';
+	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { isUserManagedSubnet, useSubnetsQuery } from '$lib/features/subnets/queries';
-	import type { Subnet } from '$lib/features/subnets/types/base';
-	import { useVlansQuery } from '../queries';
+	import { useUpdateVlanMutation, useVlansQuery } from '../queries';
+	import VlanEditModal from './VlanEditModal.svelte';
+	import { Edit } from 'lucide-svelte';
+	import type { CardAction } from '$lib/shared/components/data/types';
+	import type { TabProps } from '$lib/shared/types';
+	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
+	import { useDiscoveriesByIds } from '$lib/features/discovery/queries';
+	import { useInterfacesByIds } from '$lib/features/interfaces/queries';
+	import { tagNames } from '$lib/features/tags/columns';
+	import { useTagsQuery } from '$lib/features/tags/queries';
+	import { discoveryRunIds, discoveryRunItems } from '$lib/features/discovery/columns';
 	import type { Vlan, VlanOrderField } from '../types/base';
 	import type { components } from '$lib/api/schema';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import {
 		common_created,
-		common_description,
+		common_edit,
+		common_firstFoundBy,
+		common_lastFoundBy,
 		common_lastSeen,
-		common_name,
-		common_network,
+		common_site,
 		common_noEntityYet,
 		common_source,
-		common_subnets,
-		common_unknownNetwork,
+		common_tags,
+		common_unknownSite,
 		common_updated,
 		common_vlans,
 		daemons_installPromptVlans,
@@ -37,9 +48,25 @@
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
 
-	// No `$props()`: unlike the sibling tabs this one declares no `TabProps`.
-	// It is view-only for every permission level, so `isReadOnly` would have
-	// nothing to gate.
+	let { isReadOnly = false }: TabProps = $props();
+
+	let showVlanEditor = $state(false);
+	let editingVlan: Vlan | null = $state(null);
+
+	// Deep-link: open the VLAN editor from the URL (fresh open and entity switch)
+	$effect(() => {
+		const result = resolveModalDeepLink(
+			$modalState,
+			'vlan-editor',
+			vlansData,
+			showVlanEditor,
+			editingVlan?.id
+		);
+		if (result) {
+			editingVlan = result;
+			showVlanEditor = true;
+		}
+	});
 
 	// Organization query for onboarding state
 	const organizationQuery = useOrganizationQuery();
@@ -47,25 +74,57 @@
 
 	// Queries
 	const vlansQuery = useVlansQuery();
-	const networksQuery = useNetworksQuery();
+	const sitesQuery = useSitesQuery();
 	// Shared full-list subnets cache — used to resolve the hydrated `subnet_ids`
 	// on each VLAN into names.
 	const subnetsQuery = useSubnetsQuery();
+	const tagsQuery = useTagsQuery();
+	const discoveryRunsQuery = useDiscoveriesByIds(() => discoveryRunIds(vlansQuery.data ?? []));
+	// The interfaces serving each VLAN, named by the hydrated `interface_ids`.
+	const interfacesQuery = useInterfacesByIds(() => [
+		...new Set((vlansQuery.data ?? []).flatMap((vlan) => vlan.interface_ids ?? []))
+	]);
 
 	// Derived data
 	let vlansData = $derived(vlansQuery.data ?? []);
-	let networksData = $derived(networksQuery.data ?? []);
+	let sitesData = $derived(sitesQuery.data ?? []);
+	let discoveryRunsData = $derived(discoveryRunsQuery.data ?? []);
+	let interfacesData = $derived(interfacesQuery.data ?? []);
+	let tagsData = $derived(tagsQuery.data ?? []);
 	let subnetsById = $derived(
 		new Map((subnetsQuery.data ?? []).filter(isUserManagedSubnet).map((s) => [s.id, s]))
 	);
 	let isLoading = $derived(vlansQuery.isPending);
 
-	function getSubnets(vlan: Vlan): Subnet[] {
-		return (vlan.subnet_ids ?? []).map((id) => subnetsById.get(id)).filter((s): s is Subnet => !!s);
+	const updateVlanMutation = useUpdateVlanMutation();
+
+	/** Row actions. VLANs are discovered, so editing is the only action. */
+	function vlanActions(vlan: Vlan): CardAction[] {
+		if (isReadOnly) return [];
+		return [{ label: common_edit(), icon: Edit, onClick: () => handleEditVlan(vlan) }];
 	}
 
-	function getSubnetNames(vlan: Vlan): string[] {
-		return getSubnets(vlan).map((s) => s.name);
+	function handleEditVlan(vlan: Vlan) {
+		editingVlan = vlan;
+		showVlanEditor = true;
+	}
+
+	async function handleVlanUpdate(data: Vlan) {
+		try {
+			await updateVlanMutation.mutateAsync(data);
+			handleCloseVlanEditor();
+		} catch {
+			// Error handled by mutation
+		}
+	}
+
+	function handleCloseVlanEditor() {
+		showVlanEditor = false;
+		editingVlan = null;
+	}
+
+	function getVlanTags(vlan: Vlan): string[] {
+		return vlan.tags;
 	}
 
 	// CSV export handler
@@ -73,21 +132,34 @@
 		await downloadCsv('Vlan', {});
 	}
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all VlanOrderField values are covered
+	const tableDefaults: TableDefaults<VlanOrderField> = {
+		sort: { field: 'vlan_number', direction: 'asc' }
+	};
+
+	// Related entities the registry's VLAN fields read: the subnets and interfaces a VLAN
+	// carries, the site.
+	let lookup = $derived(
+		collectionLookup({
+			Subnet: [...subnetsById.values()],
+			Interface: interfacesData,
+			Site: sitesData
+		})
+	);
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every VlanOrderField value must be listed.
 	let vlanFields = $derived(
-		defineFields<Vlan, VlanOrderField>(
+		defineRegistryFields<Vlan, VlanOrderField>(
+			'Vlan',
+			() => lookup,
 			{
 				// Identity fields: grouping by one would render a header per VLAN.
 				vlan_number: {
 					label: vlans_vlanNumber(),
-					type: 'string',
 					searchable: true,
 					groupable: false
 				},
 				name: {
-					label: common_name(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					display: { primary: true, width: 220 }
@@ -96,7 +168,7 @@
 				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
 			},
 			[
-				{ key: 'description', label: common_description(), type: 'string', searchable: true },
+				{ key: 'description', searchable: true },
 				{
 					key: 'source',
 					label: common_source(),
@@ -113,41 +185,52 @@
 					}
 				},
 				{
-					key: 'network_id',
-					label: common_network(),
+					key: 'site_id',
+					label: common_site(),
 					type: 'string',
 					searchable: true,
 					filterable: true,
 					groupable: true,
 					sortable: true,
 					getValue: (item) =>
-						networksData.find((n) => n.id == item.network_id)?.name || common_unknownNetwork(),
-					display: { getItems: (item) => networkItems(item.network_id, networksData) }
+						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
+					display: { getItems: (item) => siteItems(item.site_id, sitesData) }
 				},
-				{
-					key: 'subnet_ids',
-					label: common_subnets(),
-					type: 'array',
-					searchable: true,
-					filterable: true,
-					getValue: getSubnetNames,
-					display: {
-						getItems: (vlan) =>
-							getSubnets(vlan).map((subnet) => ({
-								id: subnet.id,
-								label: subnet.name,
-								color: entities.getColorHelper('Subnet').color,
-								entityRef: entityRef('Subnet', subnet.id, subnet)
-							}))
-					}
-				},
+				{ key: 'subnet_ids', searchable: true, filterable: true },
+				{ key: 'interface_ids', searchable: true, filterable: true },
 				{
 					// Not in VlanOrderField, so display-only with client-side sorting.
 					key: 'last_seen_at',
 					label: common_lastSeen(),
 					type: 'date',
 					sortable: true,
-					display: { recency: true, getItems: lastSeenItems(() => networksData, 'Vlan') }
+					display: { recency: true, getItems: lastSeenItems(() => sitesData, 'Vlan') }
+				},
+				{
+					key: 'first_found_by',
+					label: common_firstFoundBy(),
+					type: 'string',
+					display: {
+						hiddenByDefault: true,
+						getItems: (item) => discoveryRunItems(item.first_discovery_id, discoveryRunsData)
+					}
+				},
+				{
+					key: 'last_found_by',
+					label: common_lastFoundBy(),
+					type: 'string',
+					display: {
+						hiddenByDefault: true,
+						getItems: (item) => discoveryRunItems(item.last_discovery_id, discoveryRunsData)
+					}
+				},
+				{
+					key: 'tags',
+					label: common_tags(),
+					type: 'array',
+					searchable: true,
+					filterable: true,
+					getValue: (entity) => tagNames(entity.tags, tagsData)
 				}
 			]
 		)
@@ -155,8 +238,7 @@
 </script>
 
 <div class="space-y-6">
-	<!-- Header: no actions — VLANs are discovery-populated and view-only -->
-	<TabHeader title={common_vlans()} />
+	<!-- Header: no actions — VLANs are discovery-populated, so there is nothing to create -->
 
 	{#if !hasDaemon(onboarding)}
 		<PreDaemonEmptyState title={daemons_installPromptVlans()} />
@@ -171,16 +253,26 @@
 		/>
 	{:else}
 		<DataControls
+			title={common_vlans()}
 			items={vlansData}
 			fields={vlanFields}
 			storageKey="scanopy-vlans-table-state"
+			defaults={tableDefaults}
+			entityType="Vlan"
+			canEditTags={!isReadOnly}
+			getItemTags={getVlanTags}
 			getItemId={(item) => item.id}
-			getIcon={() => ({
-				icon: entities.getIconComponent('Vlan'),
-				color: entities.getColorHelper('Vlan').icon
-			})}
 			onCsvExport={handleCsvExport}
+			getActions={vlanActions}
 			entityLabel={common_vlans()}
 		></DataControls>
 	{/if}
 </div>
+
+<VlanEditModal
+	name="vlan-editor"
+	isOpen={showVlanEditor}
+	vlan={editingVlan}
+	onUpdate={handleVlanUpdate}
+	onClose={handleCloseVlanEditor}
+/>

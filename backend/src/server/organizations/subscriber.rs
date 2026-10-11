@@ -155,9 +155,7 @@ impl Subscriber<BillingOperation> for OrganizationService {
                     }
                 }
                 BillingOperation::TrialEnded {
-                    converted: true,
-                    next_renewal_at,
-                    ..
+                    next_renewal_at, ..
                 } => {
                     // Trial converted to paid; Stripe re-anchored
                     // current_period_end. Mirror it.
@@ -309,11 +307,8 @@ impl Subscriber<BillingOperation> for OrganizationService {
                         changed = true;
                     }
                 }
-                BillingOperation::SubscriptionCancelled { .. }
-                | BillingOperation::TrialEnded {
-                    converted: false, ..
-                } => {
-                    // A full cancellation / unconverted trial leaves the org on
+                BillingOperation::SubscriptionCancelled { .. } => {
+                    // A full cancellation (trialing or not) leaves the org on
                     // the plan it holds. The implied_status mirror below sets
                     // plan_status = Cancelled in the same write, which is what
                     // makes the org read-only until it chooses a paid plan; a
@@ -391,7 +386,7 @@ impl Subscriber<BillingOperation> for OrganizationService {
             // Mirror the canonical PlanStatus implied by every billing
             // operation onto `plan_status`. Single source of truth via
             // `BillingOperation::implied_status()`; downstream consumers
-            // (auth gates, BillingTab pills, Brevo sync) read the typed
+            // (auth gates, BillingTab pills, PostHog properties) read the typed
             // enum, set in one place.
             if let Some(status) = implied {
                 let new_status = Some(status);

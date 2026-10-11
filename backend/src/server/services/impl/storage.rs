@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -21,20 +20,6 @@ use crate::server::{
         types::entities::EntitySource,
     },
 };
-
-/// CSV row representation for Service export (excludes nested bindings)
-#[derive(Serialize)]
-pub struct ServiceCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub service_definition: String,
-    pub host_id: Uuid,
-    pub network_id: Uuid,
-    pub source: String,
-    pub position: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Service {
     type BaseData = ServiceBase;
@@ -98,7 +83,7 @@ impl Storable for Service {
             base:
                 Self::BaseData {
                     name,
-                    network_id,
+                    site_id,
                     host_id,
                     service_definition,
                     virtualization_metadata,
@@ -116,7 +101,7 @@ impl Storable for Service {
                 "created_at",
                 "updated_at",
                 "name",
-                "network_id",
+                "site_id",
                 "host_id",
                 "service_definition",
                 "virtualization_metadata",
@@ -135,7 +120,7 @@ impl Storable for Service {
                 SqlValue::Timestamp(created_at),
                 SqlValue::Timestamp(updated_at),
                 SqlValue::String(name),
-                SqlValue::Uuid(network_id),
+                SqlValue::Uuid(site_id),
                 SqlValue::Uuid(host_id),
                 SqlValue::ServiceDefinition(service_definition),
                 SqlValue::OptionalServiceVirtualization(virtualization_metadata),
@@ -182,7 +167,7 @@ impl Storable for Service {
             first_discovery_id: row.get("first_discovery_id"),
             base: ServiceBase {
                 name: row.get("name"),
-                network_id: row.get("network_id"),
+                site_id: row.get("site_id"),
                 host_id: row.get("host_id"),
                 service_definition,
                 virtualization_metadata,
@@ -283,22 +268,6 @@ impl Entity for Service {
         self.created_at = time;
     }
 
-    type CsvRow = ServiceCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        ServiceCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            service_definition: self.base.service_definition.id().to_string(),
-            host_id: self.base.host_id,
-            network_id: self.base.network_id,
-            source: format!("{:?}", self.base.source),
-            position: self.base.position,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Service
     }
@@ -308,11 +277,11 @@ impl Entity for Service {
     const ENTITY_DESCRIPTION: &'static str = "Services running on hosts. Detected or manually added services like databases, web servers, etc.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::NetworkInfrastructure
+        EntityCategory::Assets
     }
 
-    fn network_id(&self) -> Option<Uuid> {
-        Some(self.base.network_id)
+    fn site_id(&self) -> Option<Uuid> {
+        Some(self.base.site_id)
     }
 
     fn organization_id(&self) -> Option<Uuid> {

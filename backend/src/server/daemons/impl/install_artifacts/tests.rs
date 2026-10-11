@@ -6,7 +6,7 @@ use crate::server::shared::storage::traits::Storable;
 fn daemon(mode: DaemonMode, url: &str) -> Daemon {
     Daemon::new(DaemonBase {
         host_id: uuid::Uuid::new_v4(),
-        network_id: uuid::Uuid::new_v4(),
+        site_id: uuid::Uuid::new_v4(),
         url: url.to_string(),
         last_seen: None,
         mode,
@@ -155,7 +155,7 @@ fn commands_targeting_an_existing_install_carry_a_selector_for_it() {
     );
 }
 
-/// Every flag and env var an install artifact may carry. Identity (network, user, name, mode)
+/// Every flag and env var an install artifact may carry. Identity (site, user, name, mode)
 /// and the `--instance` selector are deliberately absent: the server assigns identity at
 /// provision, and a first install has no existing install to select.
 fn allowed_install_settings(mode: DaemonMode) -> Vec<&'static str> {
@@ -353,7 +353,7 @@ fn docker_install_yields_a_compose_carrying_config_but_never_identity() {
     );
 
     for identity in [
-        "SCANOPY_NETWORK_ID",
+        "SCANOPY_SITE_ID",
         "SCANOPY_USER_ID",
         "SCANOPY_NAME",
         "SCANOPY_MODE",
@@ -454,7 +454,7 @@ fn client_supplied_config_cannot_override_server_controlled_fields() {
         "log_level": "trace",
         "daemon_api_key": "attacker-key",
         "server_url": "https://evil.example",
-        "network_id": "00000000-0000-0000-0000-000000000001",
+        "site_id": "00000000-0000-0000-0000-000000000001",
         "name": "impostor"
     }"#;
     let config: DaemonArgs = serde_json::from_str(body).unwrap();
@@ -462,7 +462,7 @@ fn client_supplied_config_cannot_override_server_controlled_fields() {
     assert_eq!(config.log_level.as_deref(), Some("trace"));
     assert_eq!(config.daemon_api_key, None);
     assert_eq!(config.server_url, None);
-    assert_eq!(config.network_id, None);
+    assert_eq!(config.site_id, None);
     assert_eq!(config.name, None);
 
     let artifacts = build_install_artifacts(
@@ -666,4 +666,200 @@ fn install_command_omits_name() {
         InstallCommandType::Install,
     );
     assert!(!a.linux.contains("--name"));
+}
+
+/// Every `/root/.config…` path a file names, cut at the first character a path can't hold.
+fn root_config_paths(text: &str) -> Vec<&str> {
+    text.match_indices("/root/.config")
+        .map(|(start, _)| {
+            let rest = &text[start..];
+            let end = rest
+                .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '-' | '_')))
+                .unwrap_or(rest.len());
+            rest[..end].trim_end_matches('.')
+        })
+        .collect()
+}
+
+/// The daemon image only persists config if every compose mounts the volume where the image
+/// keeps it. GH #760: the composes and the image disagreed for six releases and every container
+/// recreate started the daemon blank, with nothing failing. Each shipped compose, the generated
+/// one, and both Dockerfiles must name [`DOCKER_CONFIG_DIR`] and no other config path.
+#[test]
+fn docker_config_dir_matches_every_compose_and_dockerfile() {
+    let generated = build_install_artifacts(
+        "https://app.scanopy.net",
+        &daemon(DaemonMode::DaemonPoll, ""),
+        None,
+        &[],
+        InstallCommandType::Install,
+    )
+    .docker
+    .compose
+    .expect("an install yields a docker compose");
+
+    let composes = [
+        (
+            "docker-compose.yml",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../docker-compose.yml"
+            )),
+        ),
+        (
+            "docker-compose.commercial.yml",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../docker-compose.commercial.yml"
+            )),
+        ),
+        (
+            "docker-compose.test.yml",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../docker-compose.test.yml"
+            )),
+        ),
+        ("generated compose", generated.as_str()),
+    ];
+    for (name, text) in composes {
+        let paths = root_config_paths(text);
+        assert!(!paths.is_empty(), "{name} mounts no daemon config volume");
+        for path in paths {
+            assert_eq!(
+                path, DOCKER_CONFIG_DIR,
+                "{name} mounts daemon config at {path}, but the daemon image keeps it at \
+                 {DOCKER_CONFIG_DIR}"
+            );
+        }
+    }
+
+    // The daemon's default per-user config dir on Linux as root (`ProjectDirs` for
+    // com.scanopy.daemon). Not derivable here: the test may run on macOS or Windows.
+    const DEFAULT_CONFIG_DIR: &str = "/root/.config/daemon";
+    let dockerfiles = [
+        (
+            "Dockerfile.daemon",
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Dockerfile.daemon")),
+        ),
+        (
+            "Dockerfile.dev",
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Dockerfile.dev")),
+        ),
+    ];
+    for (name, text) in dockerfiles {
+        assert!(
+            text.contains(&format!("ln -s {DOCKER_CONFIG_DIR} {DEFAULT_CONFIG_DIR}")),
+            "{name} must symlink {DEFAULT_CONFIG_DIR} onto {DOCKER_CONFIG_DIR}"
+        );
+        for path in root_config_paths(text) {
+            assert!(
+                path == DOCKER_CONFIG_DIR || path == DEFAULT_CONFIG_DIR,
+                "{name} names config path {path}, which is neither {DOCKER_CONFIG_DIR} nor the \
+                 symlinked default {DEFAULT_CONFIG_DIR}"
+            );
+        }
+    }
+}
+
+fn daemon_at(version: Option<&str>, name: &str) -> Daemon {
+    let mut daemon = daemon(DaemonMode::DaemonPoll, "");
+    daemon.base.name = name.to_string();
+    daemon.base.version = version.map(|v| semver::Version::parse(v).unwrap());
+    daemon
+}
+
+fn step(steps: &[UpgradeStep], r#type: UpgradeStepType) -> &str {
+    &steps
+        .iter()
+        .find(|s| s.r#type == r#type)
+        .unwrap_or_else(|| panic!("no {type:?} step in {steps:?}"))
+        .command
+}
+
+/// The upgrade's restart step must restart the service the installer registered for that daemon.
+/// The server emits only a daemon id; this resolves it through the installer's own selector
+/// matching and service naming, for each shape of install a host can hold.
+#[test]
+fn upgrade_restart_resolves_to_the_installed_slots_service() {
+    use crate::daemon::install::{Installed, restart_target};
+    use clap::Parser;
+
+    let install = |slot: &str| Installed {
+        slot: slot.to_string(),
+        config_path: format!("/etc/scanopy/daemon/{slot}/config.json").into(),
+        name: Some(format!("{slot} daemon")),
+        daemon_id: Some(uuid::Uuid::new_v4()),
+        api_key: None,
+        daemon_port: None,
+    };
+    // The default slot, an allocated numbered slot, and a pre-slot install named after its daemon.
+    let installed = [
+        install("scanopy-daemon"),
+        install("scanopy-daemon-2"),
+        install("edge"),
+    ];
+
+    for (entry, expected_service) in
+        installed
+            .iter()
+            .zip(["scanopy-daemon", "scanopy-daemon-2", "scanopy-daemon-edge"])
+    {
+        let mut daemon = daemon_at(Some("0.17.5"), "renamed in the UI since");
+        daemon.id = entry.daemon_id.unwrap();
+        let artifacts = build_upgrade_artifacts(&daemon);
+        assert!(!artifacts.legacy_service_name);
+
+        for steps in [&artifacts.linux, &artifacts.macos, &artifacts.freebsd] {
+            let restart = step(steps, UpgradeStepType::Restart);
+            let command = restart.strip_prefix("sudo ").unwrap();
+            let Some(DaemonCommand::Restart(args)) =
+                DaemonCli::parse_from(shell_split(command)).command
+            else {
+                panic!("not a restart command: {restart}");
+            };
+            let target = restart_target(&installed, args.instance.as_deref()).unwrap();
+            assert_eq!(target.service_id(), expected_service, "{restart}");
+        }
+    }
+}
+
+/// Daemons from before the install engine get their service named after the daemon, as it was
+/// registered then. A name with a space must reach `systemctl` as one argument.
+#[test]
+fn legacy_upgrade_restart_passes_the_service_name_as_one_argument() {
+    let artifacts = build_upgrade_artifacts(&daemon_at(Some("0.17.4"), "DC Daemon"));
+    assert!(artifacts.legacy_service_name);
+
+    let restart = shell_split(step(&artifacts.linux, UpgradeStepType::Restart));
+    assert_eq!(
+        restart.last().unwrap(),
+        &crate::daemon::install::service_id("DC Daemon")
+    );
+}
+
+#[test]
+fn upgrade_names_the_service_only_for_daemons_older_than_the_install_engine() {
+    for (version, legacy) in [
+        (None, true),
+        (Some("0.17.4"), true),
+        (Some("0.17.5"), false),
+    ] {
+        let daemon = daemon_at(version, "edge-01");
+        let artifacts = build_upgrade_artifacts(&daemon);
+        assert_eq!(artifacts.legacy_service_name, legacy, "{version:?}");
+        let names_instance = |steps: &[UpgradeStep]| {
+            step(steps, UpgradeStepType::Restart).contains(&daemon.id.to_string())
+        };
+        assert_eq!(names_instance(&artifacts.linux), !legacy, "{version:?}");
+        assert_eq!(
+            artifacts
+                .windows
+                .iter()
+                .any(|s| s.r#type == UpgradeStepType::Restart
+                    && s.command.contains(&daemon.id.to_string())),
+            !legacy,
+            "{version:?}"
+        );
+    }
 }

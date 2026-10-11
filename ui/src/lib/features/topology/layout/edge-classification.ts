@@ -13,7 +13,7 @@ import type { TagProps } from '$lib/shared/components/data/types';
 type EdgeTypeDiscriminants = components['schemas']['EdgeTypeDiscriminants'];
 type Interface = components['schemas']['Interface'];
 type InterfaceNeighborRow = components['schemas']['InterfaceNeighborRow'];
-type Network = components['schemas']['Network'];
+type Site = components['schemas']['Site'];
 type EdgeViewConfig = components['schemas']['EdgeViewConfig'];
 type TopologyView = components['schemas']['TopologyView'];
 
@@ -54,6 +54,41 @@ export function isDottedEdge(edge: TopologyEdge): boolean {
 export function isOverlayEdge(edge: TopologyEdge): boolean {
 	const vc = getViewConfig(edge);
 	return vc.type === 'active' && vc.stroke !== 'solid';
+}
+
+/**
+ * Whether the canvas leaves this edge undrawn. It stays in the edge store either way (see
+ * `CustomEdge`), so anything that reproduces the drawing, such as the diagram exports, filters on
+ * this. A preview edge always draws.
+ */
+export function isEdgeHidden(
+	edge: TopologyEdge | undefined,
+	state: { isPreview: boolean; simplified: boolean; hiddenEdgeTypes: readonly string[] }
+): boolean {
+	if (state.isPreview) return false;
+	if (state.simplified) return true;
+	return edge ? state.hiddenEdgeTypes.includes(edge.edge_type) : false;
+}
+
+/** How a drawn edge's stroke is shaped, read from its flow-edge data. */
+export interface EdgeStrokeShape {
+	isAggregated: boolean;
+	aggregatedCount: number;
+	isBundle: boolean;
+	bundleStrokeWidth: number;
+	isOverlay: boolean;
+}
+
+/** Stroke width of an edge with no hover or selection emphasis. */
+export function restingEdgeStrokeWidth(shape: EdgeStrokeShape): number {
+	if (shape.isAggregated) return Math.min(2 + shape.aggregatedCount, 8);
+	if (shape.isBundle) return shape.bundleStrokeWidth;
+	return shape.isOverlay ? 1.5 : 2;
+}
+
+/** SVG dash array for an overlay edge's stroke. */
+export function overlayDashArray(isDotted: boolean): string {
+	return isDotted ? '1 4' : '6 3';
 }
 
 /** Get the highlight behavior for an edge. Defaults to 'when_visible'. */
@@ -103,6 +138,23 @@ export function getRelationKey(edge: TopologyEdge): string | null {
 	return getRelationIdentity(edge);
 }
 
+/**
+ * The two end names to draw on an edge's label card, source first, or null to draw `label` as a
+ * single string.
+ *
+ * Gated on the label the flow edge actually renders, not on the edge data: an edge wholly inside
+ * one container has its label stripped, and an aggregated edge draws none, yet both still carry
+ * the endpoint names of the edge they came from.
+ */
+export function getEndpointLabels(
+	edge: TopologyEdge | undefined,
+	label: string | null | undefined
+): [string, string] | null {
+	if (!label) return null;
+	const endpoints = edge?.endpoint_labels;
+	return endpoints?.length === 2 ? [endpoints[0], endpoints[1]] : null;
+}
+
 /** Whether this edge should be elevated to target an accepting container. */
 export function willTargetContainer(edge: TopologyEdge): boolean {
 	const vc = getViewConfig(edge);
@@ -140,7 +192,7 @@ export function getDefaultHiddenEdgeTypes(view: TopologyView): EdgeTypeDiscrimin
  *
  * `interfaces`/`neighbours` must come from the rendered topology, not from
  * `queryKeys.interfaces.all` — that cache is written only by the hosts query, so on the topology
- * route it is empty and every link silently read as current. Networks still come from the query
+ * route it is empty and every link silently read as current. Sites still come from the query
  * cache, which is where `currentElementRenderContext` reads them for the node pills.
  */
 export function getLinkEvidenceTag(
@@ -150,7 +202,7 @@ export function getLinkEvidenceTag(
 ): TagProps | null {
 	if (edge.edge_type !== 'PhysicalLink') return null;
 
-	const networks = queryClient.getQueryData<Network[]>(queryKeys.networks.all) ?? [];
+	const sites = queryClient.getQueryData<Site[]>(queryKeys.sites.all) ?? [];
 	const sourceId = edge.source_entity_id;
 	const targetId = edge.target_entity_id;
 
@@ -165,14 +217,14 @@ export function getLinkEvidenceTag(
 			(n.interface_id === targetId && n.neighbor.type === 'Interface' && n.neighbor.id === sourceId)
 	);
 
-	const networkFor = (row: InterfaceNeighborRow) =>
-		networks.find((n) => n.id === interfaces.find((i) => i.id === row.interface_id)?.network_id);
+	const siteFor = (row: InterfaceNeighborRow) =>
+		sites.find((n) => n.id === interfaces.find((i) => i.id === row.interface_id)?.site_id);
 
-	const stale = rows.filter((row) => neighborEvidenceFreshness(row, networkFor(row)) === 'stale');
+	const stale = rows.filter((row) => neighborEvidenceFreshness(row, siteFor(row)) === 'stale');
 	if (stale.length === 0) return null;
 
 	const oldest = stale.reduce((a, b) =>
 		(a.neighbor_seen_at ?? '') <= (b.neighbor_seen_at ?? '') ? a : b
 	);
-	return neighborEvidenceTag(oldest, networkFor(oldest));
+	return neighborEvidenceTag(oldest, siteFor(oldest));
 }

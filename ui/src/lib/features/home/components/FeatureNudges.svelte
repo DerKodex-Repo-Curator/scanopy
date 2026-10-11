@@ -7,7 +7,7 @@
 		showViewSwitcherHint,
 		showDependencyTutorial
 	} from '$lib/features/topology/queries';
-	import { entities, billingPlans } from '$lib/shared/stores/metadata';
+	import { entities, billingPlans, interfaceIntegrationsList } from '$lib/shared/stores/metadata';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { hasSunsetWarning } from '$lib/features/daemons/utils';
 	import type { IconComponent } from '$lib/shared/utils/types';
@@ -31,15 +31,15 @@
 		home_nudges_inviteTeamAction,
 		home_nudges_inviteTeamDescription,
 		home_nudges_inviteTeamTitle,
-		home_nudges_multiNetworkAction,
-		home_nudges_multiNetworkDescription,
-		home_nudges_multiNetworkTitle,
+		home_nudges_multiSiteAction,
+		home_nudges_multiSiteDescription,
+		home_nudges_multiSiteTitle,
 		home_nudges_shareAction,
 		home_nudges_shareDescription,
 		home_nudges_shareTitle,
-		home_nudges_snmpAction,
-		home_nudges_snmpDescription,
-		home_nudges_snmpTitle,
+		credentials_createCredential,
+		home_nudges_interfacesDescription,
+		home_nudges_interfacesTitle,
 		home_nudges_tagsAction,
 		home_nudges_tagsDescription,
 		home_nudges_tagsTitle
@@ -152,14 +152,16 @@
 			},
 			{
 				id: 'snmp',
-				title: home_nudges_snmpTitle(),
-				description: home_nudges_snmpDescription(),
-				actionLabel: home_nudges_snmpAction(),
+				title: home_nudges_interfacesTitle(),
+				description: home_nudges_interfacesDescription({
+					integrations: interfaceIntegrationsList()
+				}),
+				actionLabel: credentials_createCredential(),
 				action: () => {
 					onNavigate('credentials');
 					openModal('credential-editor');
 				},
-				visible: has('FirstDiscoveryCompleted') && !has('FirstSnmpCredentialCreated'),
+				visible: has('FirstDiscoveryCompleted') && !has('FirstInterfaceCredentialCreated'),
 				icon: entities.getIconComponent('Credential'),
 				iconColor: entities.getColorHelper('Credential').icon
 			},
@@ -193,21 +195,21 @@
 				iconColor: entities.getColorHelper('User').icon
 			},
 			{
-				id: 'multi-network',
-				title: home_nudges_multiNetworkTitle(),
-				description: home_nudges_multiNetworkDescription(),
-				actionLabel: home_nudges_multiNetworkAction(),
+				id: 'multi-site',
+				title: home_nudges_multiSiteTitle(),
+				description: home_nudges_multiSiteDescription(),
+				actionLabel: home_nudges_multiSiteAction(),
 				action: () => {
-					onNavigate('networks');
-					openModal('network-editor');
+					onNavigate('sites');
+					openModal('site-editor');
 				},
 				visible:
-					(organization.plan?.included_networks === null ||
-						(organization.plan?.included_networks ?? 0) > 1 ||
-						(organization.plan?.network_cents ?? 0) > 0) &&
-					dashboard.networks.length === 1,
-				icon: entities.getIconComponent('Network'),
-				iconColor: entities.getColorHelper('Network').icon
+					(organization.plan?.included_sites === null ||
+						(organization.plan?.included_sites ?? 0) > 1 ||
+						(organization.plan?.site_cents ?? 0) > 0) &&
+					dashboard.sites.length === 1,
+				icon: entities.getIconComponent('Site'),
+				iconColor: entities.getColorHelper('Site').icon
 			},
 			{
 				id: 'api-keys',

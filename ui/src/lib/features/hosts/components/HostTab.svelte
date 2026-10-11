@@ -1,11 +1,11 @@
 <script lang="ts">
+	import { tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
 	import { lastSeenItems } from '$lib/shared/utils/freshness';
 	import type {
 		Host,
 		CreateHostWithServicesRequest,
 		UpdateHostWithServicesRequest
 	} from '../types/base';
-	import TabHeader from '$lib/shared/components/layout/TabHeader.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
@@ -16,22 +16,18 @@
 		type HostOsFamily
 	} from '$lib/features/hosts/host-os';
 	import OsTag from './OsTag.svelte';
-	import { interfaceDisplayName } from '$lib/features/hosts/interface-display-name';
 	import HostEditor from './HostEditModal/HostEditor.svelte';
 	import HostConsolidationModal from './HostConsolidationModal.svelte';
 	import HostExportModal from './HostExportModal.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
-	import { defineFields, entityRef, type CardAction } from '$lib/shared/components/data/types';
+	import type { TableDefaults } from '$lib/shared/components/data/types';
+	import { entityRef, type CardAction } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { tagNames } from '$lib/features/tags/columns';
-	import { networkItems } from '$lib/features/networks/columns';
 	import { credentialItems } from '$lib/features/credentials/columns';
-	import {
-		entities,
-		entitySources,
-		concepts,
-		serviceDefinitions
-	} from '$lib/shared/stores/metadata';
-	import { Plus, Trash2, RefreshCw, Replace, Eye, Edit } from 'lucide-svelte';
+	import { entities, entitySources, concepts } from '$lib/shared/stores/metadata';
+	import { Plus, Trash2, RefreshCw, Replace, Edit } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import UpgradeButton from '$lib/shared/components/UpgradeButton.svelte';
@@ -44,12 +40,13 @@
 		common_delete,
 		common_description,
 		common_edit,
-		common_hide,
-		common_hidden,
 		common_hostname,
 		common_credentials,
 		common_hosts,
 		common_interfaces,
+		common_ports,
+		common_firstFoundBy,
+		common_lastFoundBy,
 		common_ipAddresses,
 		common_lastSeen,
 		common_macAddress,
@@ -57,23 +54,26 @@
 		common_manufacturer,
 		common_model,
 		common_name,
-		common_network,
+		common_site,
 		common_noEntityYet,
 		common_rescan,
 		common_serialNumber,
+		common_assetTag,
 		common_source,
 		common_firmwareRevision,
 		common_softwareRevision,
 		common_operatingSystem,
+		common_host,
 		common_service,
 		common_services,
 		common_tags,
 		common_unknownEntity,
-		common_unknownNetwork,
+		common_unknownSite,
 		common_updated,
 		common_contact,
 		common_location,
 		daemons_installPromptHosts,
+		hosts_fields_presentedBy,
 		hosts_fields_virtualizedBy,
 		hosts_notVirtualized,
 		hosts_snmp_chassisId,
@@ -86,7 +86,14 @@
 
 	let { isReadOnly = false }: TabProps = $props();
 	import {
+		missingRootIds,
+		virtualizationGroupKey,
+		virtualizationGroupLabel,
+		virtualizationTree
+	} from '../virtualization-tree';
+	import {
 		useHostsQuery,
+		useHostsByIds,
 		useCreateHostMutation,
 		useUpdateHostMutation,
 		useDeleteHostMutation,
@@ -98,13 +105,17 @@
 	import { useServicesByIds, useServicesCacheQuery } from '$lib/features/services/queries';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { useIPAddressesQuery } from '$lib/features/ip-addresses/queries';
-	import { useInterfacesQuery } from '$lib/features/interfaces/queries';
+	import { usePortsQuery } from '$lib/features/ports/queries';
+	import { formatPort } from '$lib/shared/utils/formatting';
+	import { useInterfacesByIds, useInterfacesQuery } from '$lib/features/interfaces/queries';
+	import { useDiscoveriesByIds } from '$lib/features/discovery/queries';
+	import { discoveryRunIds, discoveryRunItems } from '$lib/features/discovery/columns';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
 	import { useSubnetsQuery, isContainerSubnet } from '$lib/features/subnets/queries';
 	import type { Credential } from '$lib/features/credentials/types/base';
 	import type { Interface } from '$lib/features/credentials/types/base';
-	import { formatIPAddress } from '../queries';
-	import { useNetworksQuery } from '$lib/features/networks/queries';
+	import { formatIPAddress } from '../address-labels';
+	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import type { components } from '$lib/api/schema';
 	import { hasDaemon } from '$lib/shared/onboarding/checklist';
@@ -127,13 +138,23 @@
 	let pageSize = $state(20);
 	let currentPage = $state(1);
 
-	// Ordering state (for server-side ordering)
-	let groupBy = $state<HostOrderField | undefined>(undefined);
-	let orderBy = $state<HostOrderField | undefined>(undefined);
-	let orderDirection = $state<OrderDirection>('asc');
+	// Ordering state (for server-side ordering).
+	// The grouping and sort the table opens with. Declared ahead of the query state so the
+	// first request already carries them; DataControls replaces them with a saved choice.
+	const tableDefaults: TableDefaults<HostOrderField> = {
+		group: 'virtualized_by',
+		sort: { field: 'name', direction: 'asc' }
+	};
+	let groupBy = $state<HostOrderField | undefined>(tableDefaults.group);
+	let orderBy = $state<HostOrderField | undefined>(tableDefaults.sort?.field);
+	let orderDirection = $state<OrderDirection>(tableDefaults.sort?.direction ?? 'asc');
 
 	// Tag filter state (for server-side filtering)
 	let tagIds = $state<string[]>([]);
+	// Tag-group columns sort, group and filter on the server, by group id.
+	let groupByTagGroup = $state<string | undefined>(undefined);
+	let orderByTagGroup = $state<string | undefined>(undefined);
+	let tagGroupFilters = $state<Record<string, string[]>>({});
 	// Staleness filter state (server-side: the list is server-paginated)
 	let stale = $state<boolean | null>(null);
 	// Search state (server-side, for the same reason)
@@ -142,8 +163,7 @@
 	// Field filter state. Server-side for the same reason as the two above: the
 	// client holds one page of hosts, so filtering here would narrow that page
 	// while the total count kept describing every match.
-	let filterNetworkIds = $state<string[]>([]);
-	let filterHidden = $state<boolean[]>([]);
+	let filterSiteIds = $state<string[]>([]);
 	let filterVirtualizationServiceNames = $state<string[]>([]);
 	let filterIncludeUnvirtualized = $state(false);
 	let filterServiceNames = $state<string[]>([]);
@@ -191,11 +211,13 @@
 		order_by: orderBy,
 		order_direction: orderDirection,
 		tag_ids: tagIds.length > 0 ? tagIds : undefined,
+		tag_sets: tagSetsParam(tagGroupFilters, tagsQuery.data ?? []),
+		group_by_tag_group: groupByTagGroup,
+		order_by_tag_group: orderByTagGroup,
 		stale: stale ?? undefined,
 		search: search || undefined,
-		network_ids: filterNetworkIds.length > 0 ? filterNetworkIds : undefined,
+		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
 		// Both values checked is no constraint, so it is sent as nothing.
-		hidden: filterHidden.length === 1 ? filterHidden : undefined,
 		virtualization_service_names:
 			filterVirtualizationServiceNames.length > 0 ? filterVirtualizationServiceNames : undefined,
 		include_unvirtualized: filterIncludeUnvirtualized || undefined,
@@ -203,9 +225,10 @@
 		sources: filterSources.length > 0 ? filterSources : undefined,
 		...fieldFilterParams()
 	}));
-	const networksQuery = useNetworksQuery();
+	const sitesQuery = useSitesQuery();
 	useDaemonsQuery();
 	const ipAddressesQuery = useIPAddressesQuery();
+	const portsQuery = usePortsQuery();
 	const interfacesQuery = useInterfacesQuery();
 	const credentialsQuery = useCredentialsQuery();
 	const subnetsQuery = useSubnetsQuery();
@@ -213,7 +236,7 @@
 	// loaded page would only offer the values on it, and the fixtures and caches would offer values
 	// no host holds. None of these takes the tab's active filters, so the options do not shrink as
 	// the user filters.
-	const networkValuesQuery = useFieldValuesQuery(HOST_FIELD_VALUES, 'network_id');
+	const siteValuesQuery = useFieldValuesQuery(HOST_FIELD_VALUES, 'site_id');
 	const virtualizedByValuesQuery = useFieldValuesQuery(HOST_FIELD_VALUES, 'virtualized_by');
 	const sourceValuesQuery = useFieldValuesQuery(HOST_FIELD_VALUES, 'source');
 	const osFamilyValuesQuery = useFieldValuesQuery(HOST_FIELD_VALUES, 'os_family');
@@ -231,6 +254,23 @@
 			.filter((id): id is string => id != null)
 			.filter((id, idx, arr) => arr.indexOf(id) === idx);
 	});
+	// The interface a virtualizing host presents each network identity from. It belongs to the
+	// virtualizing host, which is rarely on this page, so fetched by id.
+	const presentingInterfacesQuery = useInterfacesByIds(() => [
+		...new Set(
+			(hostsQuery.data?.items ?? [])
+				.map((h) => h.virtualization_interface_id)
+				.filter((id): id is string => id != null)
+		)
+	]);
+	const discoveryRunsQuery = useDiscoveriesByIds(() =>
+		discoveryRunIds(hostsQuery.data?.items ?? [])
+	);
+	// The hosts that head a virtualization tree on this page but sit on another, so the group
+	// header can name them.
+	const virtualizationRootsQuery = useHostsByIds(() =>
+		missingRootIds(hostsQuery.data?.items ?? [])
+	);
 
 	// Mutations
 	const createHostMutation = useCreateHostMutation();
@@ -245,10 +285,16 @@
 	let hostsData = $derived(hostsQuery.data?.items ?? []);
 	let hostsPagination = $derived(hostsQuery.data?.pagination ?? null);
 	let servicesData = $derived(servicesQuery.data ?? []);
+	let presentingInterfacesData = $derived(presentingInterfacesQuery.data ?? []);
+	let discoveryRunsData = $derived(discoveryRunsQuery.data ?? []);
+	let virtualizationRoots = $derived(
+		new Map([...hostsData, ...(virtualizationRootsQuery.data ?? [])].map((h) => [h.id, h]))
+	);
 	const servicesCacheQuery = useServicesCacheQuery();
 	let allServicesData = $derived(servicesCacheQuery.data ?? []);
-	let networksData = $derived(networksQuery.data ?? []);
+	let sitesData = $derived(sitesQuery.data ?? []);
 	let ipAddressesData = $derived(ipAddressesQuery.data ?? []);
+	let portsData = $derived(portsQuery.data ?? []);
 	let interfacesData = $derived(interfacesQuery.data ?? []);
 	let credentialsData = $derived(credentialsQuery.data ?? []);
 	let subnetsData = $derived(subnetsQuery.data ?? []);
@@ -280,8 +326,10 @@
 		orderField: string | null,
 		direction: 'asc' | 'desc'
 	) {
-		groupBy = (groupField as HostOrderField) ?? undefined;
-		orderBy = (orderField as HostOrderField) ?? undefined;
+		groupByTagGroup = tagGroupIdOf(groupField) ?? undefined;
+		orderByTagGroup = tagGroupIdOf(orderField) ?? undefined;
+		groupBy = groupByTagGroup ? undefined : ((groupField as HostOrderField) ?? undefined);
+		orderBy = orderByTagGroup ? undefined : ((orderField as HostOrderField) ?? undefined);
 		orderDirection = direction;
 	}
 
@@ -303,19 +351,21 @@
 	/**
 	 * Server-side field filter handler.
 	 *
-	 * The panel offers what the user reads — a network's name, a service's name —
+	 * The panel offers what the user reads — a site's name, a service's name —
 	 * while the API filters on ids, so each case resolves the labels back through
 	 * the same data the options were built from. Every key here must match a
 	 * field marked `serverFiltered`; an unhandled one would filter nothing at
 	 * all, since DataControls skips the client pass for those fields.
 	 */
 	function handleFilterChange(fieldKey: string, values: string[]) {
+		const tagGroupId = tagGroupIdOf(fieldKey);
+		if (tagGroupId) {
+			tagGroupFilters = { ...tagGroupFilters, [tagGroupId]: values };
+			return;
+		}
 		switch (fieldKey) {
-			case 'network_id':
-				filterNetworkIds = idsForNames(values, networksData);
-				break;
-			case 'hidden':
-				filterHidden = values.map((value) => value === 'true');
+			case 'site_id':
+				filterSiteIds = idsForNames(values, sitesData);
 				break;
 			case 'virtualized_by':
 				// "Not Virtualized" is a choice about absence, so it is carried as
@@ -377,10 +427,12 @@
 	// looking at rather than the whole network.
 	let exportParams = $derived({
 		tag_ids: tagIds.length > 0 ? tagIds : undefined,
+		tag_sets: tagSetsParam(tagGroupFilters, tagsData),
+		group_by_tag_group: groupByTagGroup,
+		order_by_tag_group: orderByTagGroup,
 		order_by: orderBy,
 		order_direction: orderDirection,
-		network_ids: filterNetworkIds.length > 0 ? filterNetworkIds : undefined,
-		hidden: filterHidden.length === 1 ? filterHidden : undefined,
+		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
 		virtualization_service_names:
 			filterVirtualizationServiceNames.length > 0 ? filterVirtualizationServiceNames : undefined,
 		include_unvirtualized: filterIncludeUnvirtualized || undefined,
@@ -422,8 +474,7 @@
 		}
 	});
 
-	// What a host holds. These were resolved inside HostCard, so the table had no
-	// way to show them; resolving here gives both views the same columns.
+	// What a host holds, resolved here for the table's columns.
 	function hostCredentials(host: Host): Credential[] {
 		return (host.credential_assignments ?? [])
 			.map((a) => credentialsData.find((c) => c.id === a.credential_id))
@@ -436,6 +487,10 @@
 
 	function hostIPAddresses(host: Host) {
 		return ipAddressesData.filter((i) => i.host_id === host.id);
+	}
+
+	function hostPorts(host: Host) {
+		return portsData.filter((p) => p.host_id === host.id).sort((a, b) => a.number - b.number);
 	}
 
 	/** The host's distinct MACs across its IP addresses and interfaces, lowest first — the
@@ -452,30 +507,51 @@
 		return subnet ? isContainerSubnet(subnet) : false;
 	}
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all HostOrderField values are covered
+	// Related entities the registry's host fields read, from the collections this page already
+	// loads. Keyed by id, since a virtualizing service or presenting interface can sit in both the
+	// page's cache and the by-id fetch, and a child lookup would otherwise list it twice.
+	let lookup = $derived(
+		collectionLookup({
+			IPAddress: ipAddressesData,
+			Port: portsData,
+			Interface: [
+				...new Map([...interfacesData, ...presentingInterfacesData].map((i) => [i.id, i])).values()
+			],
+			Service: [...new Map([...allServicesData, ...servicesData].map((s) => [s.id, s])).values()],
+			Site: sitesData
+		})
+	);
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters, sorts
+	// and groups. Every HostOrderField value must be listed.
 	let hostFields = $derived(
-		defineFields<Host, HostOrderField>(
+		defineRegistryFields<Host, HostOrderField>(
+			'Host',
+			() => lookup,
 			{
 				// Identity fields: grouping by one would render a header per host.
 				name: {
 					label: common_name(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					// The title, not the stored `name`. `getValue` rather than `display.cell`
-					// because this one accessor also feeds the row header cell, the row
-					// checkbox's accessible name and the card title — a `cell` snippet would fix
-					// the table and leave those three rendering an empty string.
+					// because this one accessor also feeds the row header cell and the row
+					// checkbox's accessible name. A `cell` snippet would fix the cell and
+					// leave those two rendering an empty string.
 					//
 					// The key stays `name`: it is the `HostOrderField` sent to the server, which
 					// now orders by the same ladder this renders.
 					getValue: (host) => hostDisplayName(host),
-					display: { primary: true, width: 220, order: 0 }
+					display: {
+						primary: true,
+						width: 220,
+						order: 0,
+						// Only when the name shown is the stored one, not a rung further down the ladder.
+						getSource: (host) => (host.display_name_rung === 'Name' ? host.name_source : null)
+					}
 				},
 				hostname: {
 					label: common_hostname(),
-					type: 'string',
 					searchable: true,
 					groupable: false,
 					display: { hiddenByDefault: true }
@@ -492,10 +568,16 @@
 						hasEmptyFieldValue(virtualizedByValuesQuery.data) ? [hosts_notVirtualized()] : []
 					),
 					groupable: true,
-					// The server groups on the virtualizing service's name,
-					// coalescing hosts without one to an empty string.
-					getGroupValue: (host) =>
-						servicesData.find((s) => s.id === host.virtualization_service_id)?.name ?? '',
+					// Grouped as a tree: every host under the host at the top of its chain, parent
+					// first. The server groups, orders and counts by the root's id ('' for a host in no
+					// tree); the column itself still shows, sorts and filters on the immediate runtime.
+					getGroupValue: virtualizationGroupKey,
+					getGroupLabel: (host) =>
+						virtualizationGroupLabel(host, virtualizationRoots, {
+							notVirtualized: hosts_notVirtualized(),
+							unknownRoot: common_unknownEntity({ entity: common_host() })
+						}),
+					tree: virtualizationTree,
 					getValue: (host) => {
 						if (host.virtualization_service_id) {
 							const virtualizationService = servicesData.find(
@@ -508,29 +590,12 @@
 							}
 						}
 						return hosts_notVirtualized();
-					},
-					display: {
-						// Not in the default column set — it stays a filter and group axis.
-						hiddenByDefault: true,
-						// No chips when a host isn't virtualized, so the cell renders the
-						// em dash rather than repeating "Not Virtualized" down the column.
-						// `getValue` keeps the phrase, so the filter still offers it.
-						getItems: (host) => {
-							const service = servicesData.find((s) => s.id === host.virtualization_service_id);
-							if (!service) return [];
-							return [
-								{
-									id: service.id,
-									label: service.name,
-									color: entities.getColorHelper('Service').color,
-									entityRef: entityRef('Service', service.id, service)
-								}
-							];
-						}
 					}
+					// The registry's chips: none when a host isn't virtualized, so the cell renders
+					// the em dash rather than repeating "Not Virtualized" down the column.
+					// `getValue` keeps the phrase, so the filter still offers it.
 				},
 				interface_ip: {
-					// The card calls this "IP Addresses"; it named one thing two ways.
 					label: common_ipAddresses(),
 					type: 'string',
 					searchable: true,
@@ -572,23 +637,24 @@
 							}))
 					}
 				},
-				network_id: {
-					label: common_network(),
+				site_id: {
+					label: common_site(),
 					type: 'string',
 					searchable: true,
 					filterable: true,
 					serverFiltered: true,
 					groupable: true,
-					// The networks some host is on, by name.
+					// The sites some host is on, by name.
 					filterOptions: labelledFieldValueOptions(
-						networkValuesQuery.data,
-						(id) => networksData.find((n) => n.id === id)?.name
+						siteValuesQuery.data,
+						(id) => sitesData.find((n) => n.id === id)?.name
 					),
 					// Displayed as a name, but grouped by id on the server.
-					getGroupValue: (item) => item.network_id,
+					getGroupValue: (item) => item.site_id,
 					getValue: (item) =>
-						networksData.find((n) => n.id == item.network_id)?.name || common_unknownNetwork(),
-					display: { order: 2, getItems: (item) => networkItems(item.network_id, networksData) }
+						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
+					// The registry's site chip.
+					display: { order: 2 }
 				},
 				// Audit dates stay available but off by default: 12 columns at once
 				// is unreadable, and these are rarely what someone is scanning for.
@@ -598,21 +664,19 @@
 					label: common_lastSeen(),
 					type: 'date',
 					staleFilter: true,
-					display: { recency: true, order: 1, getItems: lastSeenItems(() => networksData, 'Host') }
+					display: { recency: true, order: 1, getItems: lastSeenItems(() => sitesData, 'Host') }
 				},
 				// How the host came to exist, read from `source.type`. An inferred host (one a
 				// neighbour advertised and nothing scanned) looks the same as a down device by its
 				// ports and services, so the chip and filter read the stamped source, never those.
 				source: {
 					label: common_source(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					// The sources some host was stamped with, by name.
 					filterOptions: labelledFieldValueOptions(sourceValuesQuery.data, (id) =>
 						entitySources.getName(id)
 					),
-					getValue: (host) => entitySources.getName(host.source.type),
 					// The server groups on the raw `source.type`.
 					getGroupValue: (host) => host.source.type,
 					display: { order: 1, getItems: (host) => entitySourceItems(host.source) }
@@ -622,7 +686,6 @@
 				// stored string, which is also what renders.
 				manufacturer: {
 					label: common_manufacturer(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					filterOptions: fieldValueOptions(manufacturerValuesQuery.data),
@@ -630,7 +693,6 @@
 				},
 				model: {
 					label: common_model(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					filterOptions: fieldValueOptions(modelValuesQuery.data),
@@ -638,7 +700,6 @@
 				},
 				sys_location: {
 					label: common_location(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					filterOptions: fieldValueOptions(sysLocationValuesQuery.data),
@@ -647,7 +708,6 @@
 				// Sorted, grouped and filtered by family; the cell shows the full product and release.
 				os_family: {
 					label: common_operatingSystem(),
-					type: 'string',
 					filterable: true,
 					serverFiltered: true,
 					// The families some host runs, resolved through the same list the handler
@@ -659,22 +719,12 @@
 					getValue: (host) => (host.os ? hostOsFamilyName(host.os.family) : null),
 					getGroupValue: (host) => host.os?.family ?? null,
 					display: { hiddenByDefault: true, cell: osCell }
-				},
-				hidden: {
-					label: common_hidden(),
-					type: 'boolean',
-					filterable: true,
-					serverFiltered: true,
-					// Useful as a filter, but almost always false — a column of "false"
-					// earns none of the width it takes.
-					display: { hiddenByDefault: true }
 				}
 			},
 			[
 				{
 					key: 'description',
 					label: common_description(),
-					type: 'string',
 					searchable: true,
 					display: { hiddenByDefault: true }
 				},
@@ -683,56 +733,56 @@
 				{
 					key: 'serial_number',
 					label: common_serialNumber(),
-					type: 'string',
 					display: { hiddenByDefault: true }
 				},
+				{ key: 'asset_tag', label: common_assetTag(), display: { hiddenByDefault: true } },
 				{
 					key: 'firmware_revision',
 					label: common_firmwareRevision(),
-					type: 'string',
 					display: { hiddenByDefault: true }
 				},
 				{
 					key: 'software_revision',
 					label: common_softwareRevision(),
-					type: 'string',
 					display: { hiddenByDefault: true }
 				},
-				{
-					key: 'sys_name',
-					label: hosts_snmp_sysName(),
-					type: 'string',
-					display: { hiddenByDefault: true }
-				},
-				{
-					key: 'sys_descr',
-					label: hosts_snmp_sysDescr(),
-					type: 'string',
-					display: { hiddenByDefault: true }
-				},
+				{ key: 'sys_name', label: hosts_snmp_sysName(), display: { hiddenByDefault: true } },
+				{ key: 'sys_descr', label: hosts_snmp_sysDescr(), display: { hiddenByDefault: true } },
 				{
 					key: 'sys_object_id',
 					label: hosts_snmp_sysObjectId(),
-					type: 'string',
 					display: { hiddenByDefault: true }
 				},
-				{
-					key: 'sys_contact',
-					label: common_contact(),
-					type: 'string',
-					display: { hiddenByDefault: true }
-				},
-				{
-					key: 'chassis_id',
-					label: hosts_snmp_chassisId(),
-					type: 'string',
-					display: { hiddenByDefault: true }
-				},
+				{ key: 'sys_contact', label: common_contact(), display: { hiddenByDefault: true } },
+				{ key: 'chassis_id', label: hosts_snmp_chassisId(), display: { hiddenByDefault: true } },
 				{
 					key: 'management_url',
 					label: hosts_snmp_managementUrl(),
-					type: 'string',
 					display: { hiddenByDefault: true }
+				},
+				// The registry's chip for the interface on the virtualizing host.
+				{
+					key: 'presented_by',
+					label: hosts_fields_presentedBy(),
+					display: { hiddenByDefault: true }
+				},
+				{
+					key: 'first_found_by',
+					label: common_firstFoundBy(),
+					type: 'string',
+					display: {
+						hiddenByDefault: true,
+						getItems: (host) => discoveryRunItems(host.first_discovery_id, discoveryRunsData)
+					}
+				},
+				{
+					key: 'last_found_by',
+					label: common_lastFoundBy(),
+					type: 'string',
+					display: {
+						hiddenByDefault: true,
+						getItems: (host) => discoveryRunItems(host.last_discovery_id, discoveryRunsData)
+					}
 				},
 				{
 					key: 'tags',
@@ -762,27 +812,40 @@
 						getItems: (host) => credentialItems(hostCredentials(host))
 					}
 				},
+				// The registry's interface names and chips.
 				{
 					key: 'interfaces',
 					label: common_interfaces(),
-					type: 'array',
 					searchable: true,
-					getValue: (host) => hostInterfaces(host).map((i) => interfaceDisplayName(i)),
+					display: { order: 4 }
+				},
+				{
+					// Off by default: Services already says what answers on a port, and the open ports
+					// alone matter when nothing was matched to them.
+					key: 'ports',
+					label: common_ports(),
+					searchable: true,
+					// Lowest port first, which the registry's collection order doesn't give.
+					getValue: (host) => hostPorts(host).map((p) => formatPort(p)),
 					display: {
-						order: 4,
+						hiddenByDefault: true,
 						getItems: (host) =>
-							hostInterfaces(host).map((iface) => ({
-								id: iface.id,
-								label: interfaceDisplayName(iface),
-								color: entities.getColorHelper('Interface').color,
-								entityRef: entityRef('Interface', iface.id, iface)
+							hostPorts(host).map((port) => ({
+								id: port.id,
+								label: formatPort(port),
+								color: entities.getColorHelper('Port').color,
+								// What the popover needs to name the service on the port and its addresses.
+								entityRef: entityRef('Port', port.id, port, {
+									currentServices: allServicesData.filter((s) => s.host_id === host.id),
+									ip_addresses: hostIPAddresses(host),
+									isContainerSubnet: isContainerSubnetFn
+								})
 							}))
 					}
 				},
 				{
 					key: 'services',
 					label: common_services(),
-					type: 'array',
 					searchable: true,
 					filterable: true,
 					serverFiltered: true,
@@ -790,8 +853,6 @@
 					// every live service name the server counts; the services cache only holds the
 					// loaded page's.
 					filterOptions: fieldValueOptions(serviceNameValuesQuery.data),
-					getValue: (host) =>
-						allServicesData.filter((s) => s.host_id === host.id).map((s) => s.name),
 					display: {
 						order: 6,
 						// Containers are services too, so they share this column rather
@@ -819,13 +880,7 @@
 		showHostEditor = true;
 	}
 
-	/**
-	 * Row actions for table mode, matching what the card offers.
-	 *
-	 * The table never renders a card, so the actions the card builds for itself
-	 * are not reachable from it — the tab already owns every handler, so it is
-	 * the natural place to describe them once for both.
-	 */
+	/** Row actions. */
 	function hostActions(host: Host): CardAction[] {
 		if (isReadOnly) return [];
 
@@ -839,12 +894,6 @@
 				? [{ label: common_rescan(), icon: RefreshCw, onClick: () => handleRescanHost(host) }]
 				: []),
 			{ label: common_consolidate(), icon: Replace, onClick: () => handleStartConsolidate(host) },
-			{
-				label: common_hide(),
-				icon: Eye,
-				class: host.hidden ? 'text-blue-400' : '',
-				onClick: () => handleHostHide(host)
-			},
 			{
 				label: common_delete(),
 				icon: Trash2,
@@ -918,16 +967,6 @@
 		return host.tags;
 	}
 
-	async function handleHostHide(host: Host) {
-		const updatedHost = { ...host, hidden: !host.hidden };
-		await updateHostMutation.mutateAsync({
-			host: updatedHost,
-			ip_addresses: null,
-			ports: null,
-			services: null
-		});
-	}
-
 	function handleCloseHostEditor() {
 		showHostEditor = false;
 		setEditingHost(null);
@@ -942,40 +981,38 @@
 	{/if}
 {/snippet}
 
-<div class="space-y-6">
-	<!-- Header -->
-	<TabHeader title={common_hosts()}>
-		<svelte:fragment slot="actions">
-			{#if hasDaemon(onboarding)}
-				<div class="flex items-center gap-3">
-					{#if hostLimit !== null && !canBuyMoreHosts}
-						<span
-							class="text-sm {isAtHostLimit
-								? 'text-amber-400'
-								: isNearHostLimit
-									? 'text-yellow-400'
-									: 'text-tertiary'}"
-						>
-							{totalHostCount} / {hostLimit}
-						</span>
-					{/if}
-					{#if !isReadOnly}
-						{#if isAtHostLimit}
-							<UpgradeButton feature="hosts" surface="hosts_tab" gate_type="limit_hit" />
-						{:else}
-							{#if isNearHostLimit}
-								<UpgradeButton feature="hosts" surface="hosts_tab" gate_type="limit_hit" />
-							{/if}
-							<button class="btn-primary flex items-center" onclick={handleCreateHost}
-								><Plus class="h-5 w-5" />{common_create()}</button
-							>
-						{/if}
-					{/if}
-				</div>
+<!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
+{#snippet toolbarActions()}
+	{#if hasDaemon(onboarding)}
+		<div class="flex items-center gap-3">
+			{#if hostLimit !== null && !canBuyMoreHosts}
+				<span
+					class="text-sm {isAtHostLimit
+						? 'text-amber-400'
+						: isNearHostLimit
+							? 'text-yellow-400'
+							: 'text-tertiary'}"
+				>
+					{totalHostCount} / {hostLimit}
+				</span>
 			{/if}
-		</svelte:fragment>
-	</TabHeader>
+			{#if !isReadOnly}
+				{#if isAtHostLimit}
+					<UpgradeButton feature="hosts" surface="hosts_tab" gate_type="limit_hit" />
+				{:else}
+					{#if isNearHostLimit}
+						<UpgradeButton feature="hosts" surface="hosts_tab" gate_type="limit_hit" />
+					{/if}
+					<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateHost}
+						><Plus class="h-5 w-5" />{common_create()}</button
+					>
+				{/if}
+			{/if}
+		</div>
+	{/if}
+{/snippet}
 
+<div class="space-y-6">
 	{#if !hasDaemon(onboarding)}
 		<PreDaemonEmptyState title={daemons_installPromptHosts()} {isReadOnly} />
 	{:else if isInitialLoading}
@@ -991,25 +1028,17 @@
 		/>
 	{:else}
 		<DataControls
+			title={common_hosts()}
+			{toolbarActions}
 			items={hostsData}
 			fields={hostFields}
 			storageKey="scanopy-hosts-table-state"
+			defaults={tableDefaults}
 			onBulkDelete={isReadOnly ? undefined : handleBulkDelete}
-			entityType={isReadOnly ? undefined : 'Host'}
+			entityType="Host"
+			canEditTags={!isReadOnly}
 			getItemTags={getHostTags}
 			getItemId={(item) => item.id}
-			getIcon={(host) => {
-				const first = allServicesData.find(
-					(s) => s.host_id === host.id && s.service_definition !== 'Unclaimed Open Ports'
-				);
-				return {
-					icon: first
-						? serviceDefinitions.getIconComponent(first.service_definition)
-						: entities.getIconComponent('Host'),
-					color: entities.getColorHelper('Host').icon
-				};
-			}}
-			getLink={(host) => (host.hostname ? `http://${host.hostname}` : undefined)}
 			serverPagination={hostsPagination}
 			onPageChange={handlePageChange}
 			onOrderChange={handleOrderChange}

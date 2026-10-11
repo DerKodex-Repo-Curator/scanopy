@@ -2,10 +2,10 @@
 	import type { Node } from '@xyflow/svelte';
 	import type { components } from '$lib/api/schema';
 	import type { RenderableTopology } from '$lib/features/topology/types/base';
-	import { activeView } from '$lib/features/topology/queries';
+	import { activeView, getInfrastructureRuleIdForTopology } from '$lib/features/topology/queries';
 	import { views, entities } from '$lib/shared/stores/metadata';
 	import { tallyContainerElements } from '$lib/features/topology/labels';
-	import { inspector_elementSummary } from '$lib/paraglide/messages';
+	import InspectorSection from '../shared/InspectorSection.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	type Entity = components['schemas']['EntityDiscriminants'];
@@ -56,7 +56,9 @@
 		return result;
 	});
 
-	let counts = $derived(tallyContainerElements(node.id, topology));
+	let counts = $derived(
+		tallyContainerElements(node.id, topology, getInfrastructureRuleIdForTopology(topology))
+	);
 	let total = $derived([...counts.values()].reduce((s, n) => s + n, 0));
 
 	function titleCase(s: string): string {
@@ -65,8 +67,7 @@
 	}
 </script>
 
-<div>
-	<span class="text-secondary mb-2 block text-sm font-medium">{inspector_elementSummary()}</span>
+<InspectorSection id="ElementSummary" section="ElementSummary">
 	<div class="card card-static space-y-1 text-sm">
 		{#if elementConfig.collective_noun}
 			<div class="border-border mb-1 flex justify-between border-b pb-1 font-medium">
@@ -82,4 +83,4 @@
 			</div>
 		{/each}
 	</div>
-</div>
+</InspectorSection>

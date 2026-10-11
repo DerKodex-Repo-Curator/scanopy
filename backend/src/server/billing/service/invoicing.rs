@@ -5,6 +5,7 @@ use crate::server::billing::types::api::{
     InvoiceBillingDetails, InvoiceBillingMode, InvoiceBillingStatus, InvoiceSummary, PendingQuote,
 };
 use crate::server::billing::types::base::{InvoiceCollection, PO_NUMBER_FIELD};
+use crate::server::metrics::dependency::{Dependency, observe_http};
 use crate::server::shared::types::api::ValidationError;
 use stripe_billing::invoice::{
     FinalizeInvoiceInvoice, ListInvoice, MarkUncollectibleInvoice, RetrieveInvoice,
@@ -133,7 +134,7 @@ impl BillingService {
                             OrgScope { organization_id },
                             BillingOperation::CheckoutCompleted {
                                 plan,
-                                included_networks: plan.config().included_networks,
+                                included_sites: plan.config().included_sites,
                                 included_seats: plan.config().included_seats,
                                 mrr_amount_cents: mrr_from_subscription(&subscription),
                                 is_trialing: false,
@@ -349,11 +350,12 @@ impl BillingService {
             .ok_or_else(|| refused("There is no open quote to download"))?;
 
         self.stripe.acquire().await?;
-        let response = self
+        let request = self
             .files_http
             .get(format!("{STRIPE_FILES_BASE}/quotes/{}/pdf", quote.id))
             .bearer_auth(&self.stripe_secret)
-            .send()
+            .send();
+        let response = observe_http(Dependency::Stripe, request)
             .await?
             .error_for_status()?;
         let bytes = response.bytes().await?.to_vec();

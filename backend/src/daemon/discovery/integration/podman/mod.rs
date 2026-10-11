@@ -20,7 +20,7 @@ use crate::server::ports::r#impl::base::PortType;
 use super::container::{self, CONTAINER_SCAN_TIMEOUT, ContainerRuntime};
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 
@@ -61,11 +61,6 @@ pub struct PodmanIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for PodmanIntegration {
-    /// Container runtimes report networks and containers, never the host's ports.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::NoInterfaces
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::PodmanProxy
     }
@@ -108,11 +103,6 @@ pub struct PodmanSocketIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for PodmanSocketIntegration {
-    /// Container runtimes report networks and containers, never the host's ports.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::NoInterfaces
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::PodmanSocket
     }

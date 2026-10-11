@@ -7,6 +7,10 @@ export const ERROR_CODES = {
 	validation_invalid_email: 'Invalid email address',
 	validation_email_domain_undeliverable:
 		"This email domain can't receive mail. Please use a valid email address.",
+	validation_email_undeliverable:
+		"We couldn't confirm this address can receive mail. Check it for typos or use a different address.",
+	validation_email_disposable:
+		"Temporary email addresses can't be used. Please sign up with a permanent address.",
 	validation_invalid_ip: 'Invalid IP address format',
 	validation_min_length: "Field '{field}' must be at least {min} characters",
 	validation_max_length: "Field '{field}' must be at most {max} characters",
@@ -46,9 +50,9 @@ export const ERROR_CODES = {
 	entity_required: 'At least one {entity} is required',
 	entity_delete_forbidden: 'Cannot delete this {entity}: {reason}',
 	entity_update_forbidden: 'Cannot update this {entity}',
-	entity_network_mismatch: '{entity} is on a different network',
+	entity_site_mismatch: '{entity} is on a different site',
 	hosts_consolidate_failed: 'Failed to consolidate hosts: {reason}',
-	networks_access_denied: "You don't have access to network '{network}'",
+	sites_access_denied: "You don't have access to site '{site}'",
 	share_password_required: 'Password required for this share',
 	share_password_incorrect: 'Incorrect password',
 	share_token_invalid: 'Access token is invalid or expired',
@@ -56,11 +60,12 @@ export const ERROR_CODES = {
 	invite_email_mismatch: "Invite email doesn't match your account",
 	email_delivery_failed:
 		"Scanopy could not send this email. Ask an administrator to check the server logs for the mail server's response.",
+	email_feedback_rejected: 'Not an authentic message for the configured topic',
 	discovery_historical_read_only: 'Historical discovery cannot be modified via API',
-	discovery_subnet_network_mismatch: "Subnet '{subnet}' is on a different network",
+	discovery_subnet_site_mismatch: "Subnet '{subnet}' is on a different site",
 	discovery_session_not_found: "Discovery session '{id}' not found",
 	ip_address_out_of_range: "IP address '{ip}' is not within subnet '{subnet}' range",
-	daemon_network_mismatch: 'Cannot send updates for a different network',
+	daemon_site_mismatch: 'Cannot send updates for a different site',
 	daemon_identity_mismatch: 'Cannot send updates for a different daemon',
 	daemon_standby:
 		'The daemon is on standby because it has not completed a discovery in over 30 days. Restart the daemon or start a discovery to resume.',
@@ -77,6 +82,7 @@ export const ERROR_CODES = {
 	billing_plan_limit_reached: "You've reached the limit of {limit} {resource} on your current plan",
 	billing_subscription_required: 'Active subscription required',
 	billing_setup_incomplete: 'Billing setup is incomplete',
+	billing_webhook_signature_invalid: 'The Stripe webhook signature is invalid',
 	billing_host_limit_reached:
 		"You've reached the limit of {limit} hosts on your current plan. Upgrade for unlimited hosts.",
 	billing_feature_not_available:
@@ -102,6 +108,8 @@ export interface ErrorParams {
 	validation_empty: { field: string | number };
 	validation_invalid_email: Record<string, never>;
 	validation_email_domain_undeliverable: Record<string, never>;
+	validation_email_undeliverable: Record<string, never>;
+	validation_email_disposable: Record<string, never>;
 	validation_invalid_ip: Record<string, never>;
 	validation_min_length: { field: string | number; min: string | number };
 	validation_max_length: { field: string | number; max: string | number };
@@ -138,20 +146,21 @@ export interface ErrorParams {
 	entity_required: { entity: string | number };
 	entity_delete_forbidden: { entity: string | number; reason: string | number };
 	entity_update_forbidden: { entity: string | number };
-	entity_network_mismatch: { entity: string | number };
+	entity_site_mismatch: { entity: string | number };
 	hosts_consolidate_failed: { reason: string | number };
-	networks_access_denied: { network: string | number };
+	sites_access_denied: { site: string | number };
 	share_password_required: Record<string, never>;
 	share_password_incorrect: Record<string, never>;
 	share_token_invalid: Record<string, never>;
 	invite_already_accepted: Record<string, never>;
 	invite_email_mismatch: Record<string, never>;
 	email_delivery_failed: Record<string, never>;
+	email_feedback_rejected: Record<string, never>;
 	discovery_historical_read_only: Record<string, never>;
-	discovery_subnet_network_mismatch: { subnet: string | number };
+	discovery_subnet_site_mismatch: { subnet: string | number };
 	discovery_session_not_found: { id: string | number };
 	ip_address_out_of_range: { ip: string | number; subnet: string | number };
-	daemon_network_mismatch: Record<string, never>;
+	daemon_site_mismatch: Record<string, never>;
 	daemon_identity_mismatch: Record<string, never>;
 	daemon_standby: Record<string, never>;
 	daemon_not_registered: Record<string, never>;
@@ -163,6 +172,7 @@ export interface ErrorParams {
 	billing_plan_limit_reached: { limit: string | number; resource: string | number };
 	billing_subscription_required: Record<string, never>;
 	billing_setup_incomplete: Record<string, never>;
+	billing_webhook_signature_invalid: Record<string, never>;
 	billing_host_limit_reached: { limit: string | number };
 	billing_feature_not_available: { feature: string | number };
 	billing_self_hosted_plan_locked: Record<string, never>;

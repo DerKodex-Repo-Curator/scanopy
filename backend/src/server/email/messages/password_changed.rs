@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference};
+use super::{Body, Content, Email, EmailCategory};
 
 /// Sent as a security notice after a user's account password is changed.
 pub struct PasswordChanged<'a> {
@@ -12,10 +12,6 @@ impl Email for PasswordChanged<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Auth
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

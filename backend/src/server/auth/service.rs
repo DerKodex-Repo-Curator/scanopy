@@ -132,7 +132,7 @@ impl AuthService {
             permissions,
             ip,
             user_agent,
-            network_ids,
+            site_ids,
         } = params;
 
         request
@@ -157,7 +157,7 @@ impl AuthService {
 
         // Auto-verify when:
         // - invited user joining existing org (invite link proves email ownership), or
-        // - no email service is configured (self-hosted without SMTP/Brevo —
+        // - no email service is configured (self-hosted without SMTP —
         //   no other way for the user to receive a verification token).
         // Otherwise leave `email_verified = false` and emit a verification email.
         let auto_verify = provision_org.is_existing() || !self.has_email_service;
@@ -172,7 +172,7 @@ impl AuthService {
                 email_verified: auto_verify,
                 provision_org,
                 permissions,
-                network_ids,
+                site_ids,
                 terms_accepted_at,
                 billing_enabled,
             })
@@ -205,7 +205,6 @@ impl AuthService {
                 },
                 AuthOperation::Register {
                     method: AuthMethod::Password,
-                    marketing_opt_in: request.marketing_opt_in,
                     email_and_token,
                 },
                 authentication,
@@ -227,13 +226,13 @@ impl AuthService {
             provision_org,
             email_verified,
             permissions,
-            network_ids,
+            site_ids,
             terms_accepted_at,
             billing_enabled,
         } = params;
 
         // Plan at org creation time — surfaced on the OrgCreated onboarding
-        // event for downstream Brevo/PostHog identify.
+        // event for downstream PostHog identify.
         let mut new_org_plan: Option<BillingPlan> = None;
 
         let (organization_id, permissions) = match provision_org.clone() {
@@ -299,7 +298,6 @@ impl AuthService {
                             discount_save_offer_percent_off: None,
                             discount_save_offer_active_until: None,
                             next_renewal_at: None,
-                            brevo_company_id: None,
                             license_entitlement: None,
                             license_entitlement_at: None,
                             notifications: Default::default(),
@@ -309,6 +307,7 @@ impl AuthService {
                             license_key_version: 0,
                             license_key_issued_at: None,
                             license_key_type: None,
+                            license_server_version: None,
                             air_gapped_key_current_until: None,
                         }),
                         AuthenticatedEntity::System,
@@ -330,7 +329,7 @@ impl AuthService {
                         hash,
                         organization_id,
                         permissions,
-                        network_ids,
+                        site_ids,
                         terms_accepted_at,
                     )),
                     AuthenticatedEntity::System,
@@ -346,7 +345,7 @@ impl AuthService {
                         oidc_provider,
                         organization_id,
                         permissions,
-                        network_ids,
+                        site_ids,
                         terms_accepted_at,
                     )),
                     AuthenticatedEntity::System,
@@ -357,7 +356,9 @@ impl AuthService {
         }?;
 
         if let ProvisionOrg::New(PendingSetup {
-            org_name, use_case, ..
+            org_name,
+            use_case,
+            site,
         }) = provision_org
         {
             let authentication: AuthenticatedEntity = user.clone().into();
@@ -370,6 +371,7 @@ impl AuthService {
                         org_name,
                         plan,
                         use_case,
+                        site,
                     },
                     authentication,
                 ))

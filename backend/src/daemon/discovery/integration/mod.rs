@@ -17,6 +17,7 @@ pub mod flex;
 pub mod gnmi;
 pub mod instant_on;
 pub mod podman;
+pub mod proxmox;
 pub mod snmp;
 pub mod ssh;
 pub mod unifi;
@@ -38,6 +39,7 @@ use crate::{
         credentials::r#impl::mapping::{
             CredentialQueryPayload, CredentialQueryPayloadDiscriminants,
         },
+        credentials::r#impl::types::CredentialIntegration,
         discovery::r#impl::types::HostNamingFallback,
         ports::r#impl::base::PortType,
         services::r#impl::{base::Service, endpoints::EndpointResponse, patterns::ClientProbe},
@@ -47,6 +49,7 @@ use crate::{
 };
 
 use super::service::ops::{DiscoveryOps, HostData};
+pub use crate::server::credentials::r#impl::types::InterfaceViewScope;
 pub use failure::{IntegrationFailure, ProbeFailure};
 
 // ============================================================================
@@ -71,30 +74,6 @@ pub enum Completeness {
     /// It did not. Becomes the operator's warning; the collection that did land is still merged,
     /// because a coherent subset is worth more than nothing as long as it is labelled.
     Partial(CollectionShortfall),
-}
-
-/// How much of a device's interface list an integration can see when it succeeds.
-///
-/// Deliberately not the same fact as `interfaces_complete`, which says whether *this* collection
-/// finished. This says what a finished collection covers, and it is a property of the protocol,
-/// not of the run: a UniFi `port_table` is a complete list of physical ports and still omits the
-/// VLAN, loopback and CPU interfaces the same switch reports over SNMP, on every successful sync.
-///
-/// Several integrations can collect one host in a single scan, sharing one `HostData`. Before
-/// this existed, the last one to call the old `replace_interfaces` simply overwrote the others,
-/// and the only brake was a hand-written `if !host_data.interfaces.is_empty()` in two of them —
-/// which made the answer depend on dispatch order and read "richer" as "non-empty".
-///
-/// Ordered: `NoInterfaces` < `PhysicalPortsOnly` < `FullIfTable`. The order breaks ties *per
-/// interface*, never for the set as a whole — see `HostData::contribute_interfaces`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum InterfaceViewScope {
-    /// Contributes no interfaces at all — the container integrations.
-    NoInterfaces,
-    /// Every physical port, and nothing else. A controller API reporting the ports it manages.
-    PhysicalPortsOnly,
-    /// The device's whole ifTable, virtual interfaces included. An SNMP walk.
-    FullIfTable,
 }
 
 /// Who contributed an interface set, and how much of the device they can see.
@@ -141,11 +120,11 @@ impl<'a> Checkpoint<'a> {
     }
 }
 
-/// Union the three subnet sources by id, preserving order: network-wide first, then the subnet
+/// Union the three subnet sources by id, preserving order: site-wide first, then the subnet
 /// being swept, then anything this host's own collection turned up.
 ///
 /// Shared by every integration where one credential reports on devices it did not scan. The
-/// network's whole address space matters rather than the scan's scope: a controller reports every
+/// site's whole address space matters rather than the scan's scope: a controller reports every
 /// device it manages, and on a segmented network almost none of them sit in the subnet a rescan is
 /// sweeping — scoping to the sweep dropped all of them.
 pub fn merge_subnets(
@@ -174,13 +153,6 @@ pub trait DiscoveryIntegration: Send + Sync {
     /// Estimated execution time per invocation, in seconds.
     /// Used for cost-based progress estimation.
     fn estimated_seconds(&self) -> u32;
-
-    /// How much of a host's interface list this integration sees when it succeeds.
-    ///
-    /// No default: several integrations can collect one host in one scan and this is what decides
-    /// whose row survives where they disagree, so a new integration must say which it is rather
-    /// than inherit an answer.
-    fn interface_view_scope(&self) -> InterfaceViewScope;
 
     /// Maximum execution time before the caller cancels.
     fn timeout(&self) -> Duration {
@@ -375,9 +347,12 @@ pub struct IntegrationContext<'a> {
     pub credential: &'a CredentialQueryPayload,
     pub credential_id: Option<Uuid>,
     /// Who this integration is, for the purposes of contributing interfaces. Built by dispatch
-    /// from the integration's own `interface_view_scope`, so a call site cannot disagree with the
+    /// from `CredentialIntegration::interface_view_scope`, so a call site cannot disagree with the
     /// declaration.
     pub interface_source: InterfaceSource,
+    /// The integration running, for checking what it submits against what it declares it
+    /// reports. Built by dispatch from the integration's own `credential_type`.
+    pub integration: CredentialIntegration,
     pub cancel: &'a CancellationToken,
     pub ops: &'a DiscoveryOps,
     pub utils: &'a PlatformDaemonUtils,
@@ -388,7 +363,7 @@ pub struct IntegrationContext<'a> {
     pub endpoint_responses: &'a [EndpointResponse],
     pub host_id: Uuid,
     pub host_naming_fallback: HostNamingFallback,
-    /// Subnets an integration may place a discovered address in — the network's whole address
+    /// Subnets an integration may place a discovered address in — the site's whole address
     /// space during the network phase, and the just-created ones during the daemon-host phase.
     ///
     /// Deliberately *not* the scan's subnet list. An integration learns about addresses the
@@ -438,6 +413,7 @@ impl IntegrationRegistry {
             CredentialQueryPayloadDiscriminants::WakeOnLan => {
                 Box::new(wake_on_lan::WakeOnLanIntegration)
             }
+            CredentialQueryPayloadDiscriminants::Proxmox => Box::new(proxmox::ProxmoxIntegration),
             CredentialQueryPayloadDiscriminants::Unknown => return None,
         })
     }

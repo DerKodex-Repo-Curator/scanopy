@@ -1,9 +1,14 @@
 import { writable, get } from 'svelte/store';
 import type { Edge } from '@xyflow/svelte';
 import type { Node } from '@xyflow/svelte';
-import { edgeTypes, entities, views, serviceDefinitions } from '$lib/shared/stores/metadata';
+import { edgeTypes, entities, views } from '$lib/shared/stores/metadata';
 import { hostDisplayName } from '$lib/features/hosts/host-display-name';
-import type { TopologyEdge, TopologyNode, RenderableTopology } from './types/base';
+import type {
+	ElementInlineGroup,
+	TopologyEdge,
+	TopologyNode,
+	RenderableTopology
+} from './types/base';
 import {
 	isDisabledEdge,
 	getHighlightBehavior,
@@ -11,16 +16,13 @@ import {
 	showDirectionality
 } from './layout/edge-classification';
 import { elevateEdgesToContainers } from './layout/edge-elevation';
-import {
-	getContainerContents,
-	buildEntityNodeIndex,
-	entityCollection,
-	type EntityNodeIndex
-} from './resolvers';
-import type { Network } from '$lib/features/networks/types';
+import { buildEntityNodeIndex, entityCollection, type EntityNodeIndex } from './resolvers';
+import { getTopologyIndex } from './entity-index';
+import type { Site } from '$lib/features/sites/types';
 import { entityFreshness, type FreshnessSubject } from '$lib/shared/utils/freshness';
 import { buildFullParentMap, resolveCollapsedAncestor } from './collapse';
 import { formatEntityLabelTitle } from './labels';
+import { declaredMetadataFilters, hiddenValuesFor } from './view-filters';
 import { common_byTag, common_untagged } from '$lib/paraglide/messages';
 import type { components } from '$lib/api/schema';
 
@@ -111,12 +113,11 @@ export interface HoveredTag {
 }
 export const hoveredTag = writable<HoveredTag | null>(null);
 
-// Generic metadata-value hover. Mirrors the tag hover loop but for any
-// (entity type, filter type, value id) tuple declared by a view's
-// element_config.metadata_filters — Service.Category, Host.Virtualization,
-// and future extractor registrations below.
+// Generic metadata-value hover. Mirrors the tag hover loop but for any filter value declared by
+// a view's element_config.metadata_filters. Carries every entity the filter covers, so a value on
+// a filter over hosts and services (Workloads' Containerized) rings both.
 export interface HoveredMetadata {
-	entityType: import('$lib/api/schema').components['schemas']['EntityDiscriminants'];
+	entityTypes: import('$lib/api/schema').components['schemas']['EntityDiscriminants'][];
 	filterType: string;
 	valueId: string;
 	color: string;
@@ -252,11 +253,7 @@ export function clearEdgeHoverState(): void {
 	groupHoverState.set(new Map());
 }
 
-interface TagFilter {
-	hidden_host_tag_ids?: string[];
-	hidden_service_tag_ids?: string[];
-	hidden_subnet_tag_ids?: string[];
-}
+type TagFilter = components['schemas']['TopologyTagFilter'];
 
 /**
  * Update hidden nodes/services based on tag filter and category filter settings.
@@ -307,126 +304,39 @@ function hideContainersAndDescendants(
 	}
 }
 
-/**
- * Per-(entity, filter) extractor registry. For each declared metadata filter
- * on an entity, returns the filter value id (matching `FilterValue.id` on the
- * backend) for a given entity instance. The updateTagFilter pass below
- * matches these values against the user's hide set to decide whether to
- * hide each entity. Adding a new filter = one line here + a backend impl.
- */
-/**
- * Context for extractors whose value isn't intrinsic to the entity. Staleness
- * is the first such filter: it depends on the entity's network staleness
- * window and the current time, so the network has to be threaded in.
- */
-export interface FilterValueContext {
-	network?: Network;
-	/** The graph being filtered, for values that depend on other entities rather than just this one. */
-	topology?: RenderableTopology;
-}
+const STALENESS: components['schemas']['MetadataFilterType'] = 'Staleness';
 
 /**
- * Which interfaces are "linked", per topology: those with a resolved adjacency row of their own
- * (`own`), and those some other interface's row names as its `Interface`-type target (`referenced`)
- * — GH #701 replaced the old single-valued `Interface.neighbor` with a `Vec` of rows on the
- * topology bundle (`neighbours`), so both halves now come from iterating that array rather than a
- * per-interface field.
+ * The value `entity` carries for the metadata filter `filterType` (matching `FilterValue.id` on
+ * the backend), or null when it carries none.
  *
- * A link is recorded on one side. In the seeded reproduction 728 interfaces carry a neighbour and
- * 721 are the *target* of one, but only 12 have it set both ways — so judging "linked" from an
- * interface's own resolution alone marks the far end of nearly every link as unlinked. With the
- * link-state filter hiding unlinked ports that silently deleted one endpoint of almost every
- * physical link, and `buildFlowEdges` drops an edge whose endpoint is not in the node set: 11 edges
- * drew where there were ~704, which is exactly the count of the 12 bidirectional pairs.
- *
- * Cached per topology object so the pass over `neighbours` runs once rather than per interface.
+ * Every value but Staleness is stamped on the entity by the backend (`filter_values`, from
+ * `HasFilterValues`): the same values its server-side filter drops by. Staleness depends on the
+ * clock and the site's staleness window, so it is computed here, by the same helper the card
+ * badge and the node tag use, and cannot disagree with what the user sees marked as stale.
  */
-interface NeighbourIndex {
-	/** Interfaces with at least one resolved adjacency row of their own. */
-	own: ReadonlySet<string>;
-	/** Interfaces some other row names as its `Interface`-type target — see doc above. */
-	referenced: ReadonlySet<string>;
+export function filterValueOf(
+	entity: unknown,
+	filterType: string,
+	site: Site | undefined
+): string | null {
+	if (filterType === STALENESS) return entityFreshness(entity as FreshnessSubject, site);
+	return (entity as { filter_values?: Record<string, string> }).filter_values?.[filterType] ?? null;
 }
-
-const neighbourIndexByTopology = new WeakMap<RenderableTopology, NeighbourIndex>();
-
-/** Shared empty index for the no-topology-in-context case, so the extractor allocates nothing. */
-const EMPTY_NEIGHBOUR_INDEX: NeighbourIndex = { own: new Set(), referenced: new Set() };
-
-function neighbourIndex(topology: RenderableTopology): NeighbourIndex {
-	const cached = neighbourIndexByTopology.get(topology);
-	if (cached) return cached;
-
-	const own = new Set<string>();
-	const referenced = new Set<string>();
-	for (const row of topology.neighbours ?? []) {
-		if (row.interface_id) own.add(row.interface_id);
-		// Only a port-level resolution makes a specific port linked; `Host` names a device, not a port.
-		if (row.neighbor?.type === 'Interface' && row.neighbor.id) referenced.add(row.neighbor.id);
-	}
-	const index: NeighbourIndex = { own, referenced };
-	neighbourIndexByTopology.set(topology, index);
-	return index;
-}
-
-export type FilterValueExtractor = (entity: unknown, ctx: FilterValueContext) => string | null;
-export const FILTER_VALUE_EXTRACTORS: Record<string, Record<string, FilterValueExtractor>> = {
-	Service: {
-		Category: (s) =>
-			serviceDefinitions.getCategory((s as { service_definition: string }).service_definition) ??
-			null,
-		// Delegates to the same helper the card badge and the node tag use, so
-		// the filter cannot disagree with what the user sees marked as stale.
-		Staleness: (s, ctx) => entityFreshness(s as FreshnessSubject, ctx.network)
-	},
-	Host: {
-		Virtualization: (h) =>
-			(h as { virtualization_metadata?: unknown | null }).virtualization_metadata != null
-				? 'Virtualized'
-				: 'BareMetal',
-		Staleness: (h, ctx) => entityFreshness(h as FreshnessSubject, ctx.network)
-	},
-	IPAddress: {
-		Staleness: (ip, ctx) => entityFreshness(ip as FreshnessSubject, ctx.network)
-	},
-	Subnet: {
-		Staleness: (s, ctx) => entityFreshness(s as FreshnessSubject, ctx.network)
-	},
-	Interface: {
-		Staleness: (i, ctx) => entityFreshness(i as FreshnessSubject, ctx.network),
-		// Ids match `InterfaceLinkState` on the backend, which is what supplies the filter's
-		// values. A partial resolution (`Neighbor::Host` — the remote device known but not the
-		// port) counts as linked: it still draws an edge, so hiding it would break the diagram.
-		//
-		// Linked in *either* direction: a port with a resolved row of its own (`own`), or one no
-		// row names but that some other interface's row targets (`referenced`) — a link is
-		// recorded on one side, so an interface with no neighbour of its own is still linked if
-		// another interface names it. See `neighbourIndex`.
-		LinkState: (i, ctx) => {
-			const iface = i as { id: string };
-			const { own, referenced } = ctx.topology
-				? neighbourIndex(ctx.topology)
-				: EMPTY_NEIGHBOUR_INDEX;
-			return own.has(iface.id) || referenced.has(iface.id) ? 'Linked' : 'Unlinked';
-		}
-	}
-};
 
 /**
- * Whether `entity` carries the filter value being hovered in the options panel, judged by the
- * same extractor the hide pass uses. `topology` is passed through because some values depend on
- * other entities (LinkState reads the topology's neighbour rows).
+ * Whether `entity`, an `entityType`, carries the filter value being hovered in the options panel,
+ * judged by the same accessor the hide pass uses. False when the hovered filter does not cover
+ * `entityType`.
  */
 export function matchesHoveredMetadata(
 	entity: unknown,
+	entityType: string,
 	hovered: HoveredMetadata,
-	network: Network | undefined,
-	topology: RenderableTopology | null | undefined
+	site: Site | undefined
 ): boolean {
-	if (!entity) return false;
-	const extract = FILTER_VALUE_EXTRACTORS[hovered.entityType]?.[hovered.filterType];
-	if (!extract) return false;
-	return extract(entity, { network, topology: topology ?? undefined }) === hovered.valueId;
+	if (!entity || !(hovered.entityTypes as string[]).includes(entityType)) return false;
+	return filterValueOf(entity, hovered.filterType, site) === hovered.valueId;
 }
 
 /**
@@ -453,19 +363,20 @@ export const presentFilterValues = writable<Record<string, Record<string, string
 
 function computePresentFilterValues(
 	topology: RenderableTopology,
-	network: Network | undefined
+	view: string | undefined,
+	site: Site | undefined
 ): Record<string, Record<string, string[]>> {
 	const out: Record<string, Record<string, string[]>> = {};
-	for (const [entityType, extractors] of Object.entries(FILTER_VALUE_EXTRACTORS)) {
-		const collection = entityCollection(topology, entityType);
-		if (!collection) continue;
-		for (const [filterType, extract] of Object.entries(extractors)) {
+	for (const filter of view ? declaredMetadataFilters(view) : []) {
+		for (const entityType of filter.entities) {
+			const collection = entityCollection(topology, entityType);
+			if (!collection) continue;
 			const seen = new Set<string>();
 			for (const entity of collection) {
-				const value = extract(entity, { network, topology });
+				const value = filterValueOf(entity, filter.filter_type, site);
 				if (value) seen.add(value);
 			}
-			(out[entityType] ??= {})[filterType] = [...seen];
+			(out[entityType] ??= {})[filter.filter_type] = [...seen];
 		}
 	}
 	return out;
@@ -503,8 +414,8 @@ export function updateTagFilter(
 	/** hide_metadata_values[activeView] — a nested map keyed by entity type, then filter type, to hidden value ids. */
 	hiddenMetadataValues?: Record<string, Record<string, string[]>>,
 	hiddenEntityTypes?: string[],
-	/** The topology's network — supplies the staleness window to extractors. */
-	network?: Network
+	/** The topology's site — supplies the staleness window to `filterValueOf`. */
+	site?: Site
 ) {
 	if (!topology) {
 		tagHiddenNodeIds.set(new Set());
@@ -523,7 +434,7 @@ export function updateTagFilter(
 	// group is judged to offer no choice, the panel drops it — and the user has no way to bring
 	// 16,000 ports back. They are hidden *because* they exist.
 	presentFilterValues.set(
-		withHiddenValues(computePresentFilterValues(topology, network), hiddenMetadataValues)
+		withHiddenValues(computePresentFilterValues(topology, view, site), hiddenMetadataValues)
 	);
 
 	const hasTagFilter = tagFilter && !isTagFilterEmpty(tagFilter);
@@ -550,14 +461,6 @@ export function updateTagFilter(
 	const serviceIsInline = viewInlinesEntity(config, 'Service');
 	const serviceIsVisible = serviceIsElement || serviceIsInline;
 
-	const hiddenHostTagIds = tagFilter?.hidden_host_tag_ids ?? [];
-	const hiddenServiceTagIds = tagFilter?.hidden_service_tag_ids ?? [];
-	const hiddenSubnetTagIds = tagFilter?.hidden_subnet_tag_ids ?? [];
-
-	const hideUntaggedHosts = hiddenHostTagIds.includes(UNTAGGED_SENTINEL);
-	const hideUntaggedServices = hiddenServiceTagIds.includes(UNTAGGED_SENTINEL);
-	const hideUntaggedSubnets = hiddenSubnetTagIds.includes(UNTAGGED_SENTINEL);
-
 	const hiddenNodeIds = new Set<string>();
 	// Entity-space hits, plus the same ids grouped by type. The grouping is what lets the single
 	// resolution pass at the end reach nodes that represent an entity *indirectly* — a node whose
@@ -575,77 +478,70 @@ export function updateTagFilter(
 	};
 	const index = buildEntityNodeIndex(topology.nodes);
 
-	// Host filtering: runs when Host is container, element, or parent of an element entity
-	if (hostIsRelevant) {
-		const hiddenHostIds = new Set<string>();
-		for (const host of topology.hosts) {
-			const isUntagged = host.tags.length === 0;
-			const hostHasHiddenTag = host.tags.some((t) => hiddenHostTagIds.includes(t));
-			if (hostHasHiddenTag || (isUntagged && hideUntaggedHosts)) {
-				hiddenHostIds.add(host.id);
-				// Hide element nodes that represent this host entity (VMs in Workloads)
-				const nodeIds = index.hostIdToNodes.get(host.id);
-				nodeIds?.forEach((id) => hiddenNodeIds.add(id));
+	// What hiding a tagged entity of each type does to this view. A type with no entry, or one
+	// whose gate is closed in this view, hides nothing.
+	const tagHideEffects: Partial<Record<string, (hiddenIds: Set<string>) => void>> = {
+		// Runs when Host is container, element, or parent of an element entity.
+		Host: (hiddenHostIds) => {
+			if (!hostIsRelevant) return;
+			// Hide element nodes that represent this host entity (VMs in Workloads)
+			for (const hostId of hiddenHostIds) {
+				index.hostIdToNodes.get(hostId)?.forEach((id) => hiddenNodeIds.add(id));
 			}
-		}
-
-		// When Host is the container (L2, Workloads): hide container nodes + descendants
-		if (hostIsContainer && hiddenHostIds.size > 0) {
-			const hiddenContainerIds = new Set<string>();
-			for (const [hostId, containerIds] of index.hostIdToContainerIds) {
-				if (hiddenHostIds.has(hostId)) {
-					containerIds.forEach((cid) => hiddenContainerIds.add(cid));
+			// When Host is the container (L2, Workloads): hide container nodes + descendants
+			if (hostIsContainer) {
+				const hiddenContainerIds = new Set<string>();
+				for (const hostId of hiddenHostIds) {
+					index.entityIdToContainerIds.get(hostId)?.forEach((cid) => hiddenContainerIds.add(cid));
 				}
+				hideContainersAndDescendants(hiddenContainerIds, topology.nodes, hiddenNodeIds);
 			}
-			hideContainersAndDescendants(hiddenContainerIds, topology.nodes, hiddenNodeIds);
+		},
+		// Records entity-space only; whether a hidden service also removes a node is settled by the
+		// resolution pass at the end. Category / other metadata filters come through the generic
+		// metadata-filter pass below.
+		Service: (hiddenServiceIds) => {
+			if (!serviceIsVisible) return;
+			for (const id of hiddenServiceIds) noteHidden('Service', id);
+		},
+		// Hide subnet container nodes and their child elements.
+		Subnet: (hiddenSubnetIds) => {
+			for (const id of hiddenSubnetIds) hiddenNodeIds.add(id);
+			hideContainersAndDescendants(new Set(hiddenSubnetIds), topology.nodes, hiddenNodeIds);
 		}
-	}
+	};
 
-	// Service filtering: tag-based only. Category / other metadata filters
-	// come through the generic metadata-filter pass below.
-	//
-	// Records entity-space only; whether a hidden service also removes a node is settled by the
-	// resolution pass at the end, which is what the `serviceIsElement` gate used to decide here.
-	if (serviceIsVisible) {
-		for (const service of topology.services) {
-			const isUntagged = service.tags.length === 0;
-			const serviceHasHiddenTag = service.tags.some((t) => hiddenServiceTagIds.includes(t));
-			if (serviceHasHiddenTag || (isUntagged && hideUntaggedServices)) {
-				noteHidden('Service', service.id);
+	// Tag filter: an entity is hidden when it carries a hidden tag of its type, or carries no tags
+	// and its type's list holds UNTAGGED_SENTINEL.
+	for (const [entityType, hiddenTagIds] of Object.entries(tagFilter?.hidden_tag_ids ?? {})) {
+		const applyHide = tagHideEffects[entityType];
+		if (!applyHide || !hiddenTagIds?.length) continue;
+		const hideUntagged = hiddenTagIds.includes(UNTAGGED_SENTINEL);
+		const matched = new Set<string>();
+		for (const entity of (entityCollection(topology, entityType) ?? []) as Array<{
+			id: string;
+			tags: string[];
+		}>) {
+			const isUntagged = entity.tags.length === 0;
+			if (entity.tags.some((t) => hiddenTagIds.includes(t)) || (isUntagged && hideUntagged)) {
+				matched.add(entity.id);
 			}
 		}
-	}
-
-	// Subnet filtering: hide container nodes and their child elements
-	if (hiddenSubnetTagIds.length > 0) {
-		const hiddenContainerIds = new Set<string>();
-		for (const subnet of topology.subnets) {
-			const isUntagged = subnet.tags.length === 0;
-			const subnetHasHiddenTag = subnet.tags.some((t) => hiddenSubnetTagIds.includes(t));
-			if (subnetHasHiddenTag || (isUntagged && hideUntaggedSubnets)) {
-				hiddenNodeIds.add(subnet.id);
-				hiddenContainerIds.add(subnet.id);
-			}
-		}
-		hideContainersAndDescendants(hiddenContainerIds, topology.nodes, hiddenNodeIds);
+		if (matched.size > 0) applyHide(matched);
 	}
 
 	// Generic metadata-filter hide: for each (entity, filter) in the user's
-	// hide-set, look up the extractor, iterate the entity's collection, and
-	// add matching IDs to the hidden sets. Orphaned hide entries (value ids
-	// no longer declared by the current filter) silently match nothing.
+	// hide-set, iterate the entity's collection and add the ids whose value is
+	// hidden. Orphaned hide entries (value ids no longer declared by the current
+	// filter) silently match nothing.
 	if (hasMetadataFilter && hiddenMetadataValues) {
 		for (const [entityType, byFilter] of Object.entries(hiddenMetadataValues)) {
-			const extractors = FILTER_VALUE_EXTRACTORS[entityType];
-			if (!extractors) continue;
 			const collection = entityCollection(topology, entityType);
 			if (!collection) continue;
 			for (const entity of collection) {
 				for (const [filterType, hiddenValues] of Object.entries(byFilter)) {
 					if (!hiddenValues.length) continue;
-					const extract = extractors[filterType];
-					if (!extract) continue;
-					const value = extract(entity, { network, topology });
+					const value = filterValueOf(entity, filterType, site);
 					if (value && hiddenValues.includes(value)) {
 						noteHidden(entityType, entity.id);
 					}
@@ -676,9 +572,9 @@ export function updateTagFilter(
 	}
 
 	// Entity-space -> node-space, once, generically. A node stands for a hidden entity in one of
-	// two ways: it *is* that entity, so its own id matches; or it is an element of that type
-	// related to it, for the types whose node id is some other entity's. Every pass above records
-	// entity ids and leaves this to decide what that means for the graph.
+	// two ways: it *is* that entity, so its own id matches; or it is an element of that type whose
+	// `entity_id` is that entity, for the types whose node id is some other entity's. Every pass
+	// above records entity ids and leaves this to decide what that means for the graph.
 	//
 	// A container stands for a hidden entity when its `container_type` names that entity's type
 	// and its `entity_id` is that entity (a Workloads/L2 host box, an L3 subnet box). Hiding it
@@ -698,8 +594,7 @@ export function updateTagFilter(
 			continue;
 		}
 		if (node.node_type !== 'Element') continue;
-		const relatedId = relatedEntityId(node, node.element_type);
-		if (relatedId && hiddenByType.get(node.element_type)?.has(relatedId)) {
+		if (node.entity_id && hiddenByType.get(node.element_type)?.has(node.entity_id)) {
 			hiddenNodeIds.add(node.id);
 		}
 	}
@@ -710,16 +605,8 @@ export function updateTagFilter(
 	hiddenEntityIdsByType.set(hiddenByType);
 }
 
-function isTagFilterEmpty(filter: {
-	hidden_host_tag_ids?: string[];
-	hidden_service_tag_ids?: string[];
-	hidden_subnet_tag_ids?: string[];
-}): boolean {
-	return (
-		(filter.hidden_host_tag_ids?.length ?? 0) === 0 &&
-		(filter.hidden_service_tag_ids?.length ?? 0) === 0 &&
-		(filter.hidden_subnet_tag_ids?.length ?? 0) === 0
-	);
+function isTagFilterEmpty(filter: TagFilter): boolean {
+	return Object.values(filter.hidden_tag_ids ?? {}).every((ids) => (ids?.length ?? 0) === 0);
 }
 
 function hasAnyMetadataFilter(m: Record<string, Record<string, string[]>> | undefined): boolean {
@@ -742,20 +629,6 @@ export interface ActiveFilterSummary {
 	count?: number;
 }
 
-type MetadataFilterDef = {
-	filter_type: string;
-	label: string;
-	values: Array<{ id: string; label: string }>;
-};
-
-/** The metadata filters a view declares, keyed by entity type — from the generated view fixture. */
-function declaredMetadataFilters(view: string): Record<string, MetadataFilterDef[]> {
-	const meta = views.getMetadata(view) as {
-		element_config?: { metadata_filters?: Record<string, MetadataFilterDef[]> };
-	} | null;
-	return meta?.element_config?.metadata_filters ?? {};
-}
-
 /**
  * Which controls are hiding something in `view`, and how much.
  *
@@ -773,41 +646,40 @@ export function activeViewFilters(
 	hiddenMetadataValues: Record<string, Record<string, string[]>> | undefined,
 	hiddenEntityTypes: string[] | undefined,
 	tagFilter: TagFilter | undefined,
-	network?: Network
+	site?: Site
 ): ActiveFilterSummary[] {
 	const summaries: ActiveFilterSummary[] = [];
 	if (!topology) return summaries;
 
-	const declared = declaredMetadataFilters(view);
 	const serverDropped = topology.filtered_out ?? {};
 
-	for (const [entityType, byFilter] of Object.entries(hiddenMetadataValues ?? {})) {
-		for (const [filterType, hiddenValues] of Object.entries(byFilter)) {
-			if (!hiddenValues.length) continue;
-			const def = declared[entityType]?.find((f) => f.filter_type === filterType);
-			// A hide entry for a filter this view no longer declares matches nothing and is not
-			// hiding anything, so it has no business being named as a cause.
-			if (!def) continue;
+	// One summary per declared filter, however many entities it covers. A hide entry for a filter
+	// this view no longer declares matches nothing and is not hiding anything, so it has no
+	// business being named as a cause.
+	for (const filter of declaredMetadataFilters(view)) {
+		const hiddenValues = hiddenValuesFor(filter, hiddenMetadataValues);
+		if (!hiddenValues.length) continue;
 
-			// Entities this filter removed: those dropped before the response was built, plus
-			// those still in the bundle that the browser is hiding. Counted per filter with the
-			// same extractor the hide pass uses, so two filters on one entity type each report
-			// their own share rather than both claiming the total.
-			let count = serverDropped[entityType]?.[filterType] ?? 0;
-			const extract = FILTER_VALUE_EXTRACTORS[entityType]?.[filterType];
-			if (extract) {
-				for (const entity of entityCollection(topology, entityType) ?? []) {
-					const value = extract(entity, { network, topology });
-					if (value && hiddenValues.includes(value)) count++;
-				}
+		// Entities this filter removed: those dropped before the response was built, plus those
+		// still in the bundle that the browser is hiding. Counted per filter with the same
+		// accessor the hide pass uses, so two filters on one entity type each report their own
+		// share rather than both claiming the total.
+		let count = 0;
+		for (const entityType of filter.entities) {
+			const hiddenHere = hiddenMetadataValues?.[entityType]?.[filter.filter_type] ?? [];
+			if (!hiddenHere.length) continue;
+			count += serverDropped[entityType]?.[filter.filter_type] ?? 0;
+			for (const entity of entityCollection(topology, entityType) ?? []) {
+				const value = filterValueOf(entity, filter.filter_type, site);
+				if (value && hiddenHere.includes(value)) count++;
 			}
-
-			summaries.push({
-				label: def.label,
-				values: hiddenValues.map((id) => def.values.find((v) => v.id === id)?.label ?? id),
-				count
-			});
 		}
+
+		summaries.push({
+			label: filter.label,
+			values: hiddenValues.map((id) => filter.values.find((v) => v.id === id)?.label ?? id),
+			count
+		});
 	}
 
 	for (const entityType of hiddenEntityTypes ?? []) {
@@ -819,11 +691,7 @@ export function activeViewFilters(
 	}
 
 	if (tagFilter && !isTagFilterEmpty(tagFilter)) {
-		const hiddenTagIds = [
-			...(tagFilter.hidden_host_tag_ids ?? []),
-			...(tagFilter.hidden_service_tag_ids ?? []),
-			...(tagFilter.hidden_subnet_tag_ids ?? [])
-		];
+		const hiddenTagIds = Object.values(tagFilter.hidden_tag_ids ?? {}).flatMap((ids) => ids ?? []);
 		summaries.push({
 			label: common_byTag(),
 			values: hiddenTagIds.map(
@@ -835,32 +703,6 @@ export function activeViewFilters(
 	}
 
 	return summaries;
-}
-
-/** For non-Service metadata filters: check that an Element node represents
- *  the same entity instance as the filter target. Keeps the filter match
- *  narrowly scoped instead of leaking to unrelated elements sharing a host_id. */
-/**
- * The id of the `entityType` entity this node hangs off, when that is something other than the
- * node itself. `undefined` for a node that simply *is* its entity — those are matched by id, so
- * they need no mapping.
- *
- * Returns the id rather than testing one, so a caller can resolve in a single pass over the
- * nodes instead of once per (node, hidden entity) pair.
- */
-function relatedEntityId(node: TopologyNode, entityType: string): string | undefined {
-	if (node.node_type !== 'Element') return undefined;
-	const data = node as unknown as Record<string, string | undefined>;
-	switch (entityType) {
-		case 'Host':
-			return data.host_id;
-		case 'IPAddress':
-			return data.ip_address_id;
-		case 'Interface':
-			return data.interface_id;
-		default:
-			return undefined;
-	}
 }
 
 /**
@@ -900,17 +742,13 @@ export function nodesConnectedByEdge(
  * When a container has connected elements inside it, highlight that container.
  * Uses topology data to find elements hidden by collapsed containers.
  */
-function addContainerHighlights(
-	connected: Set<string>,
-	allNodes: Node[],
-	topology?: RenderableTopology
-) {
-	const topoNodes = topology?.nodes ?? allNodes.map((n) => n.data as TopologyNode);
+function addContainerHighlights(connected: Set<string>, topology: RenderableTopology) {
+	const { containerContents } = getTopologyIndex(topology);
 
-	for (const nd of topoNodes) {
+	for (const nd of topology.nodes) {
 		if (nd.node_type !== 'Container') continue;
 
-		const contents = getContainerContents(nd.id, topoNodes);
+		const contents = containerContents(nd.id);
 
 		if (connected.has(nd.id)) {
 			// Container is connected — include its elements and subcontainers
@@ -930,24 +768,24 @@ function addContainerHighlights(
 
 /**
  * Update connected nodes when a node or edge is selected
- * @param topology - Optional topology data for direct lookups (used in share views where cache is empty)
+ * @param topology - Topology data for direct lookups (share views have no query cache)
  * @param multiSelectedNodes - Optional array of multi-selected nodes
  */
 export function updateConnectedNodes(
 	selectedNode: Node | null,
 	selectedEdge: Edge | null,
 	allEdges: Edge[],
-	allNodes: Node[],
-	topology?: RenderableTopology,
+	topology: RenderableTopology,
 	multiSelectedNodes?: Node[],
 	hiddenEdgeTypes?: string[]
 ) {
 	const connected = new Set<string>();
+	const { containerContents } = getTopologyIndex(topology);
 
 	// If multiple nodes are selected
 	if (multiSelectedNodes && multiSelectedNodes.length >= 2) {
-		const rawEdges = topology?.edges ?? [];
-		const topologyNodes = topology?.nodes ?? [];
+		const rawEdges = topology.edges ?? [];
+		const topologyNodes = topology.nodes ?? [];
 		const elevatedEdges = elevateEdgesToContainers(rawEdges, topologyNodes);
 		for (const node of multiSelectedNodes) {
 			connected.add(node.id);
@@ -966,10 +804,9 @@ export function updateConnectedNodes(
 			}
 		}
 		// Expand connected containers to include their element contents
-		const topoNodes = topology?.nodes ?? allNodes.map((n) => n.data as TopologyNode);
-		for (const nd of topoNodes) {
+		for (const nd of topology.nodes) {
 			if (nd.node_type !== 'Container' || !connected.has(nd.id)) continue;
-			const contents = getContainerContents(nd.id, topoNodes);
+			const contents = containerContents(nd.id);
 			for (const id of contents.elementNodeIds) connected.add(id);
 			for (const id of contents.subcontainerIds) connected.add(id);
 		}
@@ -983,8 +820,7 @@ export function updateConnectedNodes(
 		const nodeData = selectedNode.data as TopologyNode;
 
 		if (nodeData.node_type == 'Container') {
-			const topoNodes2 = topology?.nodes ?? allNodes.map((n) => n.data as TopologyNode);
-			const contents = getContainerContents(nodeData.id, topoNodes2);
+			const contents = containerContents(nodeData.id);
 			for (const id of contents.elementNodeIds) connected.add(id);
 			for (const id of contents.subcontainerIds) connected.add(id);
 		}
@@ -992,8 +828,8 @@ export function updateConnectedNodes(
 		// Use elevated edges so absorbing containers appear in the connected set.
 		// Elevation rewrites edge endpoints from elements to their outermost
 		// absorbing container, which is exactly what highlighting needs.
-		const rawEdges = topology?.edges ?? [];
-		const topologyNodes = topology?.nodes ?? [];
+		const rawEdges = topology.edges ?? [];
+		const topologyNodes = topology.nodes ?? [];
 		const elevatedEdges = elevateEdgesToContainers(rawEdges, topologyNodes);
 
 		for (const edge of elevatedEdges) {
@@ -1016,7 +852,7 @@ export function updateConnectedNodes(
 			}
 		}
 
-		addContainerHighlights(connected, allNodes, topology);
+		addContainerHighlights(connected, topology);
 
 		connectedNodeIds.set(connected);
 		return;
@@ -1040,9 +876,9 @@ export function updateConnectedNodes(
 
 		// Elevated topology edges, matching the endpoints the selected edge itself carries —
 		// and unlike the rendered flow edges, they still include every member of a bundle.
-		const rawEdges = topology?.edges ?? [];
+		const rawEdges = topology.edges ?? [];
 		const candidateEdges = rawEdges.length
-			? elevateEdgesToContainers(rawEdges, topology?.nodes ?? [])
+			? elevateEdgesToContainers(rawEdges, topology.nodes ?? [])
 			: allEdges
 					.map((e) => e.data as TopologyEdge | undefined)
 					.filter((e): e is TopologyEdge => !!e);
@@ -1051,7 +887,7 @@ export function updateConnectedNodes(
 			for (const id of nodesConnectedByEdge(clicked, candidateEdges)) connected.add(id);
 		}
 
-		addContainerHighlights(connected, allNodes, topology);
+		addContainerHighlights(connected, topology);
 		connectedNodeIds.set(connected);
 		return;
 	}
@@ -1240,14 +1076,6 @@ interface EntityResolution {
 	containerNodeIds: string[];
 }
 
-/** Index map for looking up element nodes by entity type */
-const ENTITY_ELEMENT_INDEX: Record<string, (idx: EntityNodeIndex) => Map<string, string[]>> = {
-	Host: (idx) => idx.hostIdToNodes,
-	IPAddress: (idx) => idx.ipAddressIdToNodes,
-	Service: (idx) => idx.serviceIdToNodes,
-	Interface: (idx) => idx.interfaceIdToNodes
-};
-
 /**
  * Resolve an entity to topology node IDs based on the current view's element config.
  * Returns element and container node IDs separately so callers can decide behavior
@@ -1265,24 +1093,18 @@ function resolveEntityToNodes(
 
 	const isDirectElement = config.element_entities.some((e) => e.entity_type === entityType);
 
-	// 1. Direct element: entity type is an element in this view
+	// 1. Direct element: entity type is an element in this view. A host matches every card on it
+	// (the services drawn beside its Host card), not only the card that stands for it.
 	if (isDirectElement) {
-		const getIndex = ENTITY_ELEMENT_INDEX[entityType];
-		if (getIndex) {
-			const nodeIds = getIndex(index).get(entityId);
-			if (nodeIds) elementNodeIds.push(...nodeIds);
-		}
+		const byEntity = entityType === 'Host' ? index.hostIdToNodes : index.entityIdToNodes;
+		const nodeIds = byEntity.get(entityId);
+		if (nodeIds) elementNodeIds.push(...nodeIds);
 	}
 
 	// 2. Container: entity type is the container in this view
 	if (entityType === config.container_entity) {
-		if (entityType === 'Host') {
-			const cids = index.hostIdToContainerIds.get(entityId);
-			if (cids) containerNodeIds.push(...cids);
-		} else {
-			// Subnet containers: entity ID is the container node ID
-			containerNodeIds.push(entityId);
-		}
+		const cids = index.entityIdToContainerIds.get(entityId);
+		if (cids) containerNodeIds.push(...cids);
 	}
 
 	// 3. Parent propagation: entity type is parent_taggable_entity of an element entity
@@ -1304,7 +1126,7 @@ function resolveEntityToNodes(
 		if (service) {
 			for (const binding of service.bindings) {
 				if (binding.ip_address_id) {
-					const nodeIds = index.ipAddressIdToNodes.get(binding.ip_address_id);
+					const nodeIds = index.entityIdToNodes.get(binding.ip_address_id);
 					if (nodeIds) elementNodeIds.push(...nodeIds);
 				}
 			}
@@ -1500,4 +1322,21 @@ export function clearSearch() {
 	searchOpen.set(false);
 	searchMatchContainerMap.set(new Map());
 	searchNavigableNodeIds.set([]);
+}
+
+/**
+ * Hosts inlined in a card's manager boxes (a guest's network identities, a runtime's macvlan
+ * containers) that carry the hovered Host filter value. Their rows pulse like inline service rows.
+ */
+export function inlineHostsMatching(
+	groups: ElementInlineGroup[],
+	hovered: HoveredMetadata | null,
+	siteFor: (entity: { site_id?: string }) => Site | undefined
+): Set<string> {
+	const out = new Set<string>();
+	if (!hovered) return out;
+	for (const { host } of groups.flatMap((g) => g.hosts)) {
+		if (matchesHoveredMetadata(host, 'Host', hovered, siteFor(host))) out.add(host.id);
+	}
+	return out;
 }

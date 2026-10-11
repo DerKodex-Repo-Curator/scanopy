@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, EmailPreference, PausableCategory, links};
+use super::{Body, Content, Email, EmailCategory, links};
 
 /// Notifies an organization that one or more of its daemons run a version whose
 /// support ends on a scheduled sunset date, and must be upgraded before then to
@@ -19,11 +19,7 @@ impl Email for DaemonSunset<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Daemon
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::DaemonAlerts)
+        EmailCategory::DaemonAlerts
     }
 
     fn campaign(&self) -> &'static str {

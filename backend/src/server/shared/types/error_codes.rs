@@ -35,6 +35,10 @@ pub enum ErrorCode {
     ValidationInvalidEmail,
     /// Email domain cannot receive mail (no MX/A/AAAA DNS records)
     ValidationEmailDomainUndeliverable,
+    /// Email validation rated the address unlikely to receive mail, or randomly generated
+    ValidationEmailUndeliverable,
+    /// Email validation identified the address as a disposable inbox
+    ValidationEmailDisposable,
     /// IP address format is invalid
     ValidationInvalidIp,
     /// Field value is too short
@@ -123,16 +127,16 @@ pub enum ErrorCode {
     },
     /// Entity cannot be updated
     EntityUpdateForbidden { entity: String },
-    /// Entity is on a different network than expected
-    EntityNetworkMismatch { entity: String },
+    /// Entity is on a different site than expected
+    EntitySiteMismatch { entity: String },
 
     // === Hosts ===
     /// Host consolidation failed
     HostsConsolidateFailed { reason: String },
 
-    // === Networks ===
-    /// User doesn't have access to this network
-    NetworksAccessDenied { network: String },
+    // === Sites ===
+    /// User doesn't have access to this site
+    SitesAccessDenied { site: String },
 
     // === Shares ===
     /// Password required for this share
@@ -153,12 +157,16 @@ pub enum ErrorCode {
     /// why: the mail server's reply names the relay host and carries provider
     /// diagnostics, which belong in the server log and not in front of an end user.
     EmailDeliveryFailed,
+    /// An SNS delivery to the SES feedback endpoint that isn't an authentic message for the
+    /// configured topic: a bad signature, or a topic ARN that doesn't match
+    /// `SCANOPY_EMAIL_FEEDBACK_SNS_TOPIC_ARN`.
+    EmailFeedbackRejected,
 
     // === Discovery ===
     /// Historical discovery cannot be modified via API
     DiscoveryHistoricalReadOnly,
-    /// Subnet is on a different network than the discovery
-    DiscoverySubnetNetworkMismatch { subnet: String },
+    /// Subnet is on a different site than the discovery
+    DiscoverySubnetSiteMismatch { subnet: String },
     /// Discovery session not found
     DiscoverySessionNotFound { id: Uuid },
 
@@ -167,8 +175,8 @@ pub enum ErrorCode {
     IpAddressOutOfRange { ip: String, subnet: String },
 
     // === Daemon ===
-    /// Cannot send updates for a different network
-    DaemonNetworkMismatch,
+    /// Cannot send updates for a different site
+    DaemonSiteMismatch,
     /// Cannot send updates for a different daemon
     DaemonIdentityMismatch,
     /// Daemon is on standby due to plan restrictions
@@ -200,6 +208,8 @@ pub enum ErrorCode {
     BillingSubscriptionRequired,
     /// Billing setup is incomplete
     BillingSetupIncomplete,
+    /// A Stripe webhook delivery whose signature doesn't verify against the webhook secret
+    BillingWebhookSignatureInvalid,
     /// Host limit reached on current plan
     BillingHostLimitReached { limit: u64 },
     /// Feature not available on current plan
@@ -248,6 +258,12 @@ impl ErrorCode {
             Self::ValidationInvalidEmail => "Invalid email address",
             Self::ValidationEmailDomainUndeliverable => {
                 "This email domain can't receive mail. Please use a valid email address."
+            }
+            Self::ValidationEmailUndeliverable => {
+                "We couldn't confirm this address can receive mail. Check it for typos or use a different address."
+            }
+            Self::ValidationEmailDisposable => {
+                "Temporary email addresses can't be used. Please sign up with a permanent address."
             }
             Self::ValidationInvalidIp => "Invalid IP address format",
             Self::ValidationMinLength { .. } => "Field '{field}' must be at least {min} characters",
@@ -301,13 +317,13 @@ impl ErrorCode {
             Self::EntityRequired { .. } => "At least one {entity} is required",
             Self::EntityDeleteForbidden { .. } => "Cannot delete this {entity}: {reason}",
             Self::EntityUpdateForbidden { .. } => "Cannot update this {entity}",
-            Self::EntityNetworkMismatch { .. } => "{entity} is on a different network",
+            Self::EntitySiteMismatch { .. } => "{entity} is on a different site",
 
             // Hosts
             Self::HostsConsolidateFailed { .. } => "Failed to consolidate hosts: {reason}",
 
-            // Networks
-            Self::NetworksAccessDenied { .. } => "You don't have access to network '{network}'",
+            // Sites
+            Self::SitesAccessDenied { .. } => "You don't have access to site '{site}'",
 
             // Shares
             Self::SharePasswordRequired => "Password required for this share",
@@ -323,12 +339,11 @@ impl ErrorCode {
                 "Scanopy could not send this email. Ask an administrator to check the server \
                  logs for the mail server's response."
             }
+            Self::EmailFeedbackRejected => "Not an authentic message for the configured topic",
 
             // Discovery
             Self::DiscoveryHistoricalReadOnly => "Historical discovery cannot be modified via API",
-            Self::DiscoverySubnetNetworkMismatch { .. } => {
-                "Subnet '{subnet}' is on a different network"
-            }
+            Self::DiscoverySubnetSiteMismatch { .. } => "Subnet '{subnet}' is on a different site",
             Self::DiscoverySessionNotFound { .. } => "Discovery session '{id}' not found",
 
             // IP address
@@ -337,7 +352,7 @@ impl ErrorCode {
             }
 
             // Daemon
-            Self::DaemonNetworkMismatch => "Cannot send updates for a different network",
+            Self::DaemonSiteMismatch => "Cannot send updates for a different site",
             Self::DaemonIdentityMismatch => "Cannot send updates for a different daemon",
             Self::DaemonStandby => {
                 "The daemon is on standby because it has not completed a discovery in over 30 days. Restart the daemon or start a discovery to resume."
@@ -367,6 +382,7 @@ impl ErrorCode {
             }
             Self::BillingSubscriptionRequired => "Active subscription required",
             Self::BillingSetupIncomplete => "Billing setup is incomplete",
+            Self::BillingWebhookSignatureInvalid => "The Stripe webhook signature is invalid",
             Self::BillingHostLimitReached { .. } => {
                 "You've reached the limit of {limit} hosts on your current plan. Upgrade for unlimited hosts."
             }
@@ -405,6 +421,8 @@ impl ErrorCode {
             // No params
             Self::ValidationInvalidEmail
             | Self::ValidationEmailDomainUndeliverable
+            | Self::ValidationEmailUndeliverable
+            | Self::ValidationEmailDisposable
             | Self::ValidationInvalidIp
             | Self::ValidationBulkEmpty
             | Self::AuthInvalidCredentials
@@ -432,8 +450,9 @@ impl ErrorCode {
             | Self::InviteAlreadyAccepted
             | Self::InviteEmailMismatch
             | Self::EmailDeliveryFailed
+            | Self::EmailFeedbackRejected
             | Self::DiscoveryHistoricalReadOnly
-            | Self::DaemonNetworkMismatch
+            | Self::DaemonSiteMismatch
             | Self::DaemonIdentityMismatch
             | Self::DaemonStandby
             | Self::DaemonNotRegistered
@@ -441,6 +460,7 @@ impl ErrorCode {
             | Self::BillingPaymentRequired
             | Self::BillingSubscriptionRequired
             | Self::BillingSetupIncomplete
+            | Self::BillingWebhookSignatureInvalid
             | Self::BillingSelfHostedPlanLocked
             | Self::BillingPlanLapsed
             | Self::BillingAirGappedKeyStillCurrent
@@ -484,7 +504,7 @@ impl ErrorCode {
             | Self::EntityDisabled { entity }
             | Self::EntityRequired { entity }
             | Self::EntityUpdateForbidden { entity }
-            | Self::EntityNetworkMismatch { entity } => Some(json_map! { "entity" => entity }),
+            | Self::EntitySiteMismatch { entity } => Some(json_map! { "entity" => entity }),
             Self::EntityDeleteForbidden { entity, reason } => Some(json_map! {
                 "entity" => entity,
                 "reason" => reason.as_deref().unwrap_or("")
@@ -492,10 +512,8 @@ impl ErrorCode {
 
             // Domain-specific with params
             Self::HostsConsolidateFailed { reason } => Some(json_map! { "reason" => reason }),
-            Self::NetworksAccessDenied { network } => Some(json_map! { "network" => network }),
-            Self::DiscoverySubnetNetworkMismatch { subnet } => {
-                Some(json_map! { "subnet" => subnet })
-            }
+            Self::SitesAccessDenied { site } => Some(json_map! { "site" => site }),
+            Self::DiscoverySubnetSiteMismatch { subnet } => Some(json_map! { "subnet" => subnet }),
             Self::DiscoverySessionNotFound { id } => Some(json_map! {"id" => id}),
             Self::IpAddressOutOfRange { ip, subnet } => {
                 Some(json_map! { "ip" => ip, "subnet" => subnet })

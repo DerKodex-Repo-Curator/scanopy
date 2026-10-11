@@ -24,8 +24,8 @@ pub struct VlanBase {
     /// Free-text notes about the VLAN.
     #[serde(default, deserialize_with = "deserialize_empty_string_as_none")]
     pub description: Option<String>,
-    /// The network this entity belongs to.
-    pub network_id: Uuid,
+    /// The site this entity belongs to.
+    pub site_id: Uuid,
     /// The organization that owns this record.
     pub organization_id: Uuid,
     /// How this VLAN came to be known — discovered, imported, or created by hand.
@@ -38,6 +38,16 @@ pub struct VlanBase {
     #[serde(default)]
     #[schema(read_only)]
     pub subnet_ids: Vec<Uuid>,
+    /// Interfaces that serve this VLAN, as their native VLAN or one of their
+    /// member VLANs (`Interface::native_vlan_id` / `Interface::vlan_ids`).
+    /// Hydrated by `VlanService` on read; not a column on `vlans`.
+    #[serde(default)]
+    #[schema(read_only)]
+    pub interface_ids: Vec<Uuid>,
+    /// Tags assigned to this entity.
+    #[serde(default)]
+    #[schema(required)]
+    pub tags: Vec<Uuid>,
 }
 
 impl Default for VlanBase {
@@ -46,10 +56,12 @@ impl Default for VlanBase {
             vlan_number: 1,
             name: "Default".to_string(),
             description: None,
-            network_id: Uuid::nil(),
+            site_id: Uuid::nil(),
             organization_id: Uuid::nil(),
             source: EntitySource::Manual,
             subnet_ids: Vec::new(),
+            interface_ids: Vec::new(),
+            tags: Vec::new(),
         }
     }
 }

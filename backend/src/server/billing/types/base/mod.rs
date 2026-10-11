@@ -82,7 +82,7 @@ mod cancel_modal_tests {
     #[test]
     fn plan_status_writes_canonical_spelling() {
         // Wire writes always use the British spelling so downstream
-        // string comparisons (frontend `'cancelled'`, Brevo sync, etc)
+        // string comparisons (frontend `'cancelled'`, PostHog properties, etc)
         // stay consistent.
         assert_eq!(PlanStatus::Cancelled.to_string(), "cancelled");
         assert_eq!(

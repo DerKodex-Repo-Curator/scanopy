@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailAttachment, EmailCategory, EmailPreference, links};
+use super::{Body, Content, Email, EmailAttachment, EmailCategory, links};
 
 /// Monthly billing summary. The authoritative amount lives in the Stripe
 /// invoice itself (attached as a PDF, or linked via its hosted URL when the
@@ -25,10 +25,6 @@ impl Email for UsageSummary<'_> {
 
     fn category(&self) -> EmailCategory {
         EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Required
     }
 
     fn campaign(&self) -> &'static str {

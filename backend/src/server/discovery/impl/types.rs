@@ -43,7 +43,7 @@ pub enum DiscoveryType {
     },
     #[schema(title = "Network")]
     Network {
-        /// Subnets to sweep. `null` sweeps every subnet on the network.
+        /// Subnets to sweep. `null` sweeps every subnet on the site.
         #[schema(required)]
         subnet_ids: Option<Vec<Uuid>>,
         /// What to name a host by when reverse DNS gives nothing.
@@ -346,7 +346,7 @@ impl TypeMetadataProvider for DiscoveryType {
             }
             DiscoveryType::Rescan { .. } => "Re-check a single host's known addresses and ports",
             DiscoveryType::Unified { .. } => {
-                "Unified discovery combining self-report, network scanning, and Docker container detection"
+                "Unified discovery combining self-report, network scanning, and integrations"
             }
         }
     }

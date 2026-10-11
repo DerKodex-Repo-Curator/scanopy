@@ -25,7 +25,6 @@ import type {
 	HostResponse,
 	HostFormData,
 	IPAddress,
-	AllIPAddresses,
 	Interface,
 	Port,
 	CreateHostWithServicesRequest,
@@ -63,6 +62,7 @@ export function toHostPrimitive(response: HostResponse): Host {
 		description: hostFields.description ?? null,
 		virtualization_metadata: hostFields.virtualization_metadata ?? null,
 		virtualization_service_id: hostFields.virtualization_service_id ?? null,
+		virtualization_interface_id: hostFields.virtualization_interface_id ?? null,
 		credential_assignments: hostFields.credential_assignments ?? [],
 		hostname: hostFields.hostname ?? undefined,
 		sys_descr: hostFields.sys_descr ?? undefined,
@@ -75,6 +75,7 @@ export function toHostPrimitive(response: HostResponse): Host {
 		manufacturer: hostFields.manufacturer ?? undefined,
 		model: hostFields.model ?? undefined,
 		serial_number: hostFields.serial_number ?? undefined,
+		asset_tag: hostFields.asset_tag ?? undefined,
 		firmware_revision: hostFields.firmware_revision ?? undefined,
 		software_revision: hostFields.software_revision ?? undefined,
 		os: hostFields.os ?? undefined
@@ -123,12 +124,12 @@ function toBindingInput(binding: Service['bindings'][0]): BindingInput {
 function toCreateHostRequest(formData: HostFormData): CreateHostRequest {
 	return {
 		name: formData.name,
-		network_id: formData.network_id,
+		site_id: formData.site_id,
 		hostname: formData.hostname ?? null,
 		description: formData.description,
 		virtualization_metadata: formData.virtualization_metadata,
 		virtualization_service_id: formData.virtualization_service_id,
-		hidden: formData.hidden,
+		virtualization_interface_id: formData.virtualization_interface_id,
 		tags: formData.tags,
 		ip_addresses: formData.ip_addresses.map((iface, index): IPAddressInput => ({
 			id: iface.id,
@@ -162,10 +163,8 @@ function toCreateHostRequest(formData: HostFormData): CreateHostRequest {
 export interface HostQueryOptions {
 	limit?: number;
 	offset?: number;
-	/** Filter by network ID. Several narrows to the union of them. */
-	network_ids?: string[];
-	/** Filter by the `hidden` flag. Omit for no constraint. */
-	hidden?: boolean[];
+	/** Filter by site ID. Several narrows to the union of them. */
+	site_ids?: string[];
 	/** Filter by the name of the service virtualizing the host, the value "Virtualized By" groups on. */
 	virtualization_service_names?: string[];
 	/** Also return hosts nothing virtualizes; on its own, only those. */
@@ -192,11 +191,17 @@ export interface HostQueryOptions {
 	order_direction?: components['schemas']['OrderDirection'];
 	/** Filter by tag IDs (returns hosts that have ANY of the specified tags). */
 	tag_ids?: string[];
-	/** `true` returns only hosts discovery hasn't observed within their network's
+	/** Tag sets a host must hold one tag of each of: one comma-separated id list per tag group. */
+	tag_sets?: string[];
+	/** Group by the tag each host holds from this tag group, in place of `group_by`. */
+	group_by_tag_group?: string;
+	/** Sort by the position of the tag each host holds from this tag group, in place of `order_by`. */
+	order_by_tag_group?: string;
+	/** `true` returns only hosts discovery hasn't observed within their site's
 	 * staleness window; omit for no staleness constraint. */
 	stale?: boolean;
-	/** Free-text search across host name, hostname, description, IP addresses
-	 * and the names of services running on the host. */
+	/** Free-text search across host name, hostname, serial number, asset tag,
+	 * description, IP addresses and the names of services running on the host. */
 	search?: string;
 	/** As-of timestamp (ISO 8601). When set, returns SCD2 state as of this instant
 	 * (snapshot view) instead of live state. */
@@ -241,15 +246,17 @@ export function useHostsQuery(optionsOrGetter: HostQueryOptions | (() => HostQue
 							query: {
 								limit: options.limit,
 								offset: options.offset,
-								network_ids: options.network_ids,
+								site_ids: options.site_ids,
 								group_by: options.group_by,
 								order_by: options.order_by,
 								order_direction: options.order_direction,
 								tag_ids: options.tag_ids,
+								tag_sets: options.tag_sets,
+								group_by_tag_group: options.group_by_tag_group,
+								order_by_tag_group: options.order_by_tag_group,
 								stale: options.stale,
 								search: options.search,
 								at: options.at,
-								hidden: options.hidden,
 								virtualization_service_names: options.virtualization_service_names,
 								include_unvirtualized: options.include_unvirtualized,
 								service_names: options.service_names,
@@ -318,13 +325,13 @@ export function useHostsQuery(optionsOrGetter: HostQueryOptions | (() => HostQue
  * so it takes scoping and ordering but no offset paging.
  */
 export interface HostSummaryQueryOptions {
-	/** Filter by network ID. Prefer this over an org-wide query wherever the surface is network-scoped. */
-	network_id?: string;
+	/** Filter by site ID. Prefer this over an org-wide query wherever the surface is site-scoped. */
+	site_id?: string;
 	/** Filter by specific host IDs. */
 	ids?: string[];
 	/** Filter by tag IDs (returns hosts that have ANY of the specified tags). */
 	tag_ids?: string[];
-	/** Maximum number of results. Defaults to 0 (no limit) — scope with `network_id` or `ids`. */
+	/** Maximum number of results. Defaults to 0 (no limit) — scope with `site_id` or `ids`. */
 	limit?: number;
 	/** As-of timestamp (ISO 8601) for a snapshot read instead of live state. */
 	at?: string;
@@ -340,7 +347,7 @@ export interface HostSummaryQueryOptions {
  * Query hook for host identity only — no nested children.
  *
  * Use this for anything that needs hosts as *labels or options*: name lookups,
- * pickers, per-network lists. It requests `include_children=false`, so the
+ * pickers, per-site lists. It requests `include_children=false`, so the
  * response carries the host row, its tags and its ip_addresses but not ports,
  * services or interfaces — which are the bulk of a host payload. The addresses
  * stay because a host's title can be its address, and pickers show and search them.
@@ -379,9 +386,9 @@ export function useHostSummariesQuery(
 					await apiClient.GET('/api/v1/hosts', {
 						params: {
 							query: {
-								// One network stays the ergonomic shape for a picker; the
+								// One site stays the ergonomic shape for a picker; the
 								// wire param takes a list.
-								network_ids: options.network_id ? [options.network_id] : undefined,
+								site_ids: options.site_id ? [options.site_id] : undefined,
 								ids: options.ids,
 								tag_ids: options.tag_ids,
 								limit: options.limit ?? 0,
@@ -408,9 +415,9 @@ const HOST_PICKER_PAGE_SIZE = 50;
 
 /** Options for {@link useHostPickerQuery}. */
 export interface HostPickerQueryOptions {
-	/** Filter by network ID. Omit for a picker that spans every network the user can see. */
-	network_id?: string;
-	/** Server-side search: name, hostname, sysName, chassis id, description, IPs, MACs, services. */
+	/** Filter by site ID. Omit for a picker that spans every site the user can see. */
+	site_id?: string;
+	/** Server-side search: name, hostname, sysName, chassis id, serial, asset tag, description, IPs, MACs, services. */
 	search?: string;
 	/** Set false to hold the fetch until the picker is shown. Excluded from the query key. */
 	enabled?: boolean;
@@ -445,7 +452,7 @@ export function useHostPickerQuery(
 					await apiClient.GET('/api/v1/hosts', {
 						params: {
 							query: {
-								network_ids: options.network_id ? [options.network_id] : undefined,
+								site_ids: options.site_id ? [options.site_id] : undefined,
 								search,
 								limit: HOST_PICKER_PAGE_SIZE,
 								offset: pageParam,
@@ -569,7 +576,7 @@ export function useUpdateHostMutation() {
 				description: data.host.description,
 				virtualization_metadata: data.host.virtualization_metadata,
 				virtualization_service_id: data.host.virtualization_service_id,
-				hidden: data.host.hidden,
+				virtualization_interface_id: data.host.virtualization_interface_id,
 				tags: data.host.tags,
 				credential_assignments: data.host.credential_assignments ?? undefined,
 				expected_updated_at: data.host.updated_at,
@@ -668,7 +675,7 @@ export function useUpdateHostDescriptionMutation() {
 						description: data.description,
 						virtualization_metadata: data.host.virtualization_metadata,
 						virtualization_service_id: data.host.virtualization_service_id,
-						hidden: data.host.hidden,
+						virtualization_interface_id: data.host.virtualization_interface_id,
 						expected_updated_at: data.host.updated_at,
 						tags: data.host.tags ?? []
 					}
@@ -857,19 +864,6 @@ export function useRescanHostMutation() {
 }
 
 /**
- * Format an interface for display
- */
-export function formatIPAddress(
-	i: IPAddress | AllIPAddresses,
-	isContainerSubnetFn: (subnetId: string) => boolean
-): string {
-	if (i.id == null) return i.name;
-	return isContainerSubnetFn(i.subnet_id)
-		? (i.name ?? i.ip_address)
-		: (i.name ? i.name + ': ' : '') + i.ip_address;
-}
-
-/**
  * Hydrate a Host primitive to HostFormData using TanStack Query cache.
  * Used for form editing where the full form structure is needed.
  */
@@ -930,9 +924,9 @@ import { utcTimeZoneSentinel, uuidv4Sentinel } from '$lib/shared/utils/formattin
 
 /**
  * Create empty form data for creating a new host.
- * @param defaultNetworkId - Optional network ID to use as default.
+ * @param defaultSiteId - Optional site ID to use as default.
  */
-export function createEmptyHostFormData(defaultNetworkId?: string): HostFormData {
+export function createEmptyHostFormData(defaultSiteId?: string): HostFormData {
 	return {
 		id: uuidv4Sentinel,
 		created_at: utcTimeZoneSentinel,
@@ -948,8 +942,8 @@ export function createEmptyHostFormData(defaultNetworkId?: string): HostFormData
 		},
 		virtualization_metadata: null,
 		virtualization_service_id: null,
-		network_id: defaultNetworkId ?? '',
-		hidden: false,
+		virtualization_interface_id: null,
+		site_id: defaultSiteId ?? '',
 		// The discovered attributes are simply absent on a host nothing has scanned yet. They each
 		// travel with the source that produced them, so there is no value here without one — which
 		// is why these are omitted rather than set to null.

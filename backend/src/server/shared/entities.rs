@@ -10,17 +10,19 @@ use crate::server::snapshots::types::base::Snapshot;
 use crate::server::subnets::r#impl::base::Subnet;
 use crate::server::topology::types::base::Topology;
 use crate::server::vlans::r#impl::base::Vlan;
-use crate::server::{dependencies::r#impl::base::Dependency, tags::r#impl::base::Tag};
+use crate::server::{
+    dependencies::r#impl::base::Dependency, tags::groups::base::TagGroup, tags::r#impl::base::Tag,
+};
 use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter, IntoStaticStr, VariantNames};
 use utoipa::ToSchema;
 
+use crate::server::shared::entity_metadata::EntityCategory;
 use crate::server::{
     daemon_api_keys::r#impl::base::DaemonApiKey,
     daemons::r#impl::base::Daemon,
     discovery::r#impl::base::Discovery,
     hosts::r#impl::base::Host,
-    networks::r#impl::Network,
     organizations::r#impl::base::Organization,
     shared::{
         storage::traits::Entity as EntityTrait,
@@ -29,6 +31,7 @@ use crate::server::{
             metadata::{EntityMetadataProvider, HasId, TypeMetadataProvider},
         },
     },
+    sites::r#impl::Site,
     user_api_keys::r#impl::base::UserApiKey,
     users::r#impl::base::User,
 };
@@ -39,20 +42,14 @@ pub trait ChangeTriggersTopologyStaleness<T> {
 }
 
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    EnumDiscriminants,
-    IntoStaticStr,
-    Serialize,
-    Deserialize,
-    Display,
-    Default,
+    Debug, Clone, PartialEq, EnumDiscriminants, IntoStaticStr, Serialize, Deserialize, Display,
 )]
 #[strum_discriminants(derive(
     Display,
     AsRefStr,
     Hash,
+    PartialOrd,
+    Ord,
     EnumIter,
     IntoStaticStr,
     Serialize,
@@ -66,37 +63,42 @@ pub trait ChangeTriggersTopologyStaleness<T> {
 // the widest variant would cost an allocation on a value that is only ever pattern-matched, to
 // even out a size difference nothing pays for. The gap became visible when `Interface` shrank; it
 // was always here.
+//
+// Variant order is display order: grouped by `EntityCategory` in that enum's order, and within a
+// category in the order the sidebar and the global search list them. A test holds the grouping.
 #[allow(clippy::large_enum_variant)]
 pub enum Entity {
-    Organization(Organization),
-    Invite(Invite),
-    Share(Share),
-    Network(Network),
-    DaemonApiKey(DaemonApiKey),
-    UserApiKey(UserApiKey),
-    User(User),
-    Tag(Tag),
-
-    Discovery(Discovery),
-    Daemon(Daemon),
-
+    // EntityCategory::Assets
+    Site(Site),
+    Vlan(Vlan),
+    Subnet(Subnet),
+    #[strum_discriminants(default)]
     Host(Host),
     Service(Service),
-    Port(Port),
-    Binding(Binding),
     IPAddress(IPAddress),
     Interface(Interface),
+    Port(Port),
+    Binding(Binding),
 
+    // EntityCategory::Discover
+    Discovery(Discovery),
+    Daemon(Daemon),
+    DaemonApiKey(DaemonApiKey),
+
+    // EntityCategory::Platform
+    Tag(Tag),
+    TagGroup(TagGroup),
+    User(User),
+    UserApiKey(UserApiKey),
     Credential(Credential),
-    Subnet(Subnet),
-    Vlan(Vlan),
-    Dependency(Dependency),
-    Topology(Box<Topology>),
-    Snapshot(Snapshot),
+    Organization(Organization),
+    Invite(Invite),
 
-    #[default]
-    #[strum_discriminants(default)]
-    Unknown,
+    // EntityCategory::Visualization
+    Topology(Topology),
+    Snapshot(Snapshot),
+    Share(Share),
+    Dependency(Dependency),
 }
 
 impl HasId for EntityDiscriminants {
@@ -124,9 +126,9 @@ impl Entity {
                 <Share as EntityTrait>::ENTITY_NAME_SINGULAR,
                 <Share as EntityTrait>::ENTITY_NAME_PLURAL,
             ),
-            Entity::Network(_) => (
-                <Network as EntityTrait>::ENTITY_NAME_SINGULAR,
-                <Network as EntityTrait>::ENTITY_NAME_PLURAL,
+            Entity::Site(_) => (
+                <Site as EntityTrait>::ENTITY_NAME_SINGULAR,
+                <Site as EntityTrait>::ENTITY_NAME_PLURAL,
             ),
             Entity::DaemonApiKey(_) => (
                 <DaemonApiKey as EntityTrait>::ENTITY_NAME_SINGULAR,
@@ -143,6 +145,10 @@ impl Entity {
             Entity::Tag(_) => (
                 <Tag as EntityTrait>::ENTITY_NAME_SINGULAR,
                 <Tag as EntityTrait>::ENTITY_NAME_PLURAL,
+            ),
+            Entity::TagGroup(_) => (
+                <TagGroup as EntityTrait>::ENTITY_NAME_SINGULAR,
+                <TagGroup as EntityTrait>::ENTITY_NAME_PLURAL,
             ),
             Entity::Discovery(_) => (
                 <Discovery as EntityTrait>::ENTITY_NAME_SINGULAR,
@@ -200,12 +206,47 @@ impl Entity {
                 <Snapshot as EntityTrait>::ENTITY_NAME_SINGULAR,
                 <Snapshot as EntityTrait>::ENTITY_NAME_PLURAL,
             ),
-            Entity::Unknown => ("Entity", "Entities"),
+        }
+    }
+}
+
+impl Entity {
+    /// The part of the product this entity belongs to, as its storage declares it.
+    fn category(&self) -> EntityCategory {
+        match self {
+            Entity::Site(_) => <Site as EntityTrait>::entity_category(),
+            Entity::Vlan(_) => <Vlan as EntityTrait>::entity_category(),
+            Entity::Subnet(_) => <Subnet as EntityTrait>::entity_category(),
+            Entity::Host(_) => <Host as EntityTrait>::entity_category(),
+            Entity::Service(_) => <Service as EntityTrait>::entity_category(),
+            Entity::IPAddress(_) => <IPAddress as EntityTrait>::entity_category(),
+            Entity::Interface(_) => <Interface as EntityTrait>::entity_category(),
+            Entity::Port(_) => <Port as EntityTrait>::entity_category(),
+            Entity::Binding(_) => <Binding as EntityTrait>::entity_category(),
+            Entity::Discovery(_) => <Discovery as EntityTrait>::entity_category(),
+            Entity::Daemon(_) => <Daemon as EntityTrait>::entity_category(),
+            Entity::DaemonApiKey(_) => <DaemonApiKey as EntityTrait>::entity_category(),
+            Entity::Tag(_) => <Tag as EntityTrait>::entity_category(),
+            Entity::TagGroup(_) => <TagGroup as EntityTrait>::entity_category(),
+            Entity::User(_) => <User as EntityTrait>::entity_category(),
+            Entity::UserApiKey(_) => <UserApiKey as EntityTrait>::entity_category(),
+            Entity::Credential(_) => <Credential as EntityTrait>::entity_category(),
+            Entity::Organization(_) => <Organization as EntityTrait>::entity_category(),
+            Entity::Invite(_) => <Invite as EntityTrait>::entity_category(),
+            Entity::Topology(_) => <Topology as EntityTrait>::entity_category(),
+            Entity::Snapshot(_) => <Snapshot as EntityTrait>::entity_category(),
+            Entity::Share(_) => <Share as EntityTrait>::entity_category(),
+            Entity::Dependency(_) => <Dependency as EntityTrait>::entity_category(),
         }
     }
 }
 
 impl EntityDiscriminants {
+    /// The part of the product this entity type belongs to.
+    pub fn category(&self) -> EntityCategory {
+        Entity::from(*self).category()
+    }
+
     /// Title-case singular name, e.g. "Host", "IP Address". Delegates to
     /// `Entity::entity_names` via the existing `From<EntityDiscriminants> for Entity`.
     pub fn entity_name_singular(&self) -> &'static str {
@@ -227,26 +268,64 @@ impl EntityDiscriminants {
             | EntityDiscriminants::Service
             | EntityDiscriminants::Subnet
             | EntityDiscriminants::Dependency
-            | EntityDiscriminants::Network
+            | EntityDiscriminants::Site
             | EntityDiscriminants::Discovery
             | EntityDiscriminants::Daemon
             | EntityDiscriminants::DaemonApiKey
             | EntityDiscriminants::UserApiKey
-            | EntityDiscriminants::Credential => true,
+            | EntityDiscriminants::Credential
+            | EntityDiscriminants::Vlan => true,
             EntityDiscriminants::Organization
             | EntityDiscriminants::Invite
             | EntityDiscriminants::Share
             | EntityDiscriminants::User
             | EntityDiscriminants::Tag
+            | EntityDiscriminants::TagGroup
             | EntityDiscriminants::Port
             | EntityDiscriminants::Binding
             | EntityDiscriminants::IPAddress
             | EntityDiscriminants::Interface
-            | EntityDiscriminants::Vlan
             | EntityDiscriminants::Topology
-            | EntityDiscriminants::Snapshot
-            | EntityDiscriminants::Unknown => false,
+            | EntityDiscriminants::Snapshot => false,
         }
+    }
+
+    /// Whether this entity type carries a status of its own: a daemon's health, a discovery's
+    /// schedule or run phase, an API key's enabled state and expiry. The Status tag group never
+    /// applies to these, since a status tag would contradict the status they already show.
+    /// Exhaustive match: adding a new variant forces a decision.
+    pub fn has_status(&self) -> bool {
+        match self {
+            EntityDiscriminants::Daemon
+            | EntityDiscriminants::Discovery
+            | EntityDiscriminants::DaemonApiKey
+            | EntityDiscriminants::UserApiKey
+            | EntityDiscriminants::Invite => true,
+            EntityDiscriminants::Host
+            | EntityDiscriminants::Service
+            | EntityDiscriminants::Subnet
+            | EntityDiscriminants::Dependency
+            | EntityDiscriminants::Site
+            | EntityDiscriminants::Credential
+            | EntityDiscriminants::Vlan
+            | EntityDiscriminants::Organization
+            | EntityDiscriminants::Share
+            | EntityDiscriminants::User
+            | EntityDiscriminants::Tag
+            | EntityDiscriminants::TagGroup
+            | EntityDiscriminants::Port
+            | EntityDiscriminants::Binding
+            | EntityDiscriminants::IPAddress
+            | EntityDiscriminants::Interface
+            | EntityDiscriminants::Topology
+            | EntityDiscriminants::Snapshot => false,
+        }
+    }
+
+    /// Whether some topology view draws this entity type, as container, element or inline entity.
+    /// Derived from the views' own hierarchies.
+    pub fn drawn_in_topology(&self) -> bool {
+        crate::server::topology::types::views::TopologyView::drawn_entities().contains(self)
     }
 
     /// The nearest taggable ancestor of this entity — used to resolve which
@@ -264,11 +343,12 @@ impl EntityDiscriminants {
             EntityDiscriminants::Service
             | EntityDiscriminants::Binding
             | EntityDiscriminants::Organization
-            | EntityDiscriminants::Network
+            | EntityDiscriminants::Site
             | EntityDiscriminants::User
             | EntityDiscriminants::Invite
             | EntityDiscriminants::Share
             | EntityDiscriminants::Tag
+            | EntityDiscriminants::TagGroup
             | EntityDiscriminants::DaemonApiKey
             | EntityDiscriminants::UserApiKey
             | EntityDiscriminants::Daemon
@@ -279,8 +359,7 @@ impl EntityDiscriminants {
             | EntityDiscriminants::Vlan
             | EntityDiscriminants::Dependency
             | EntityDiscriminants::Topology
-            | EntityDiscriminants::Snapshot
-            | EntityDiscriminants::Unknown => None,
+            | EntityDiscriminants::Snapshot => None,
         }
     }
 }
@@ -289,11 +368,12 @@ impl EntityMetadataProvider for EntityDiscriminants {
     fn color(&self) -> Color {
         match self {
             EntityDiscriminants::Organization => Color::Blue,
-            EntityDiscriminants::Network => Color::Blue,
+            EntityDiscriminants::Site => Color::Blue,
             EntityDiscriminants::User => Color::Blue,
             EntityDiscriminants::Invite => Color::Sky,
 
             EntityDiscriminants::Tag => Color::Yellow,
+            EntityDiscriminants::TagGroup => Color::Yellow,
 
             EntityDiscriminants::Daemon => Color::Green,
             EntityDiscriminants::Discovery => Color::Green,
@@ -318,17 +398,16 @@ impl EntityMetadataProvider for EntityDiscriminants {
 
             EntityDiscriminants::Subnet => Color::Indigo,
             EntityDiscriminants::Vlan => Color::Violet,
-
-            EntityDiscriminants::Unknown => Color::Gray,
         }
     }
 
     fn icon(&self) -> Icon {
         match self {
             EntityDiscriminants::Organization => Icon::Building,
-            EntityDiscriminants::Network => Icon::LandPlot,
+            EntityDiscriminants::Site => Icon::LandPlot,
             EntityDiscriminants::User => Icon::User,
             EntityDiscriminants::Tag => Icon::Tag,
+            EntityDiscriminants::TagGroup => Icon::Tags,
             EntityDiscriminants::Invite => Icon::UserPlus,
             EntityDiscriminants::Share => Icon::Share2,
             EntityDiscriminants::DaemonApiKey => Icon::Key,
@@ -347,8 +426,6 @@ impl EntityMetadataProvider for EntityDiscriminants {
             EntityDiscriminants::Dependency => Icon::Waypoints,
             EntityDiscriminants::Topology => Icon::ChartBarStacked,
             EntityDiscriminants::Snapshot => Icon::Camera,
-
-            EntityDiscriminants::Unknown => Icon::CircleQuestionMark,
         }
     }
 }
@@ -356,6 +433,10 @@ impl EntityMetadataProvider for EntityDiscriminants {
 impl TypeMetadataProvider for EntityDiscriminants {
     fn name(&self) -> &'static str {
         self.into()
+    }
+
+    fn category(&self) -> &'static str {
+        EntityDiscriminants::category(self).into()
     }
 
     fn metadata(&self) -> serde_json::Value {
@@ -371,6 +452,14 @@ impl TypeMetadataProvider for EntityDiscriminants {
             serde_json::json!(self.is_taggable()),
         );
         m.insert(
+            "has_status".to_string(),
+            serde_json::json!(self.has_status()),
+        );
+        m.insert(
+            "drawn_in_topology".to_string(),
+            serde_json::json!(self.drawn_in_topology()),
+        );
+        m.insert(
             "entity_name_singular".to_string(),
             serde_json::json!(self.entity_name_singular()),
         );
@@ -378,7 +467,43 @@ impl TypeMetadataProvider for EntityDiscriminants {
             "entity_name_plural".to_string(),
             serde_json::json!(self.entity_name_plural()),
         );
+        m.insert("fields".to_string(), serde_json::json!(self.fields()));
+        m.insert(
+            "display_fields".to_string(),
+            serde_json::json!(self.display_fields()),
+        );
         serde_json::Value::Object(m)
+    }
+}
+
+impl Entity {
+    /// The id of the entity carried.
+    pub fn id(&self) -> uuid::Uuid {
+        match self {
+            Self::Organization(e) => e.id(),
+            Self::Invite(e) => e.id(),
+            Self::Share(e) => e.id(),
+            Self::Site(e) => e.id(),
+            Self::DaemonApiKey(e) => e.id(),
+            Self::UserApiKey(e) => e.id(),
+            Self::User(e) => e.id(),
+            Self::Tag(e) => e.id(),
+            Self::TagGroup(e) => e.id(),
+            Self::Discovery(e) => e.id(),
+            Self::Daemon(e) => e.id(),
+            Self::Host(e) => e.id(),
+            Self::Service(e) => e.id(),
+            Self::Port(e) => e.id(),
+            Self::Binding(e) => e.id(),
+            Self::IPAddress(e) => e.id(),
+            Self::Interface(e) => e.id(),
+            Self::Credential(e) => e.id(),
+            Self::Subnet(e) => e.id(),
+            Self::Vlan(e) => e.id(),
+            Self::Dependency(e) => e.id(),
+            Self::Topology(e) => e.id(),
+            Self::Snapshot(e) => e.id(),
+        }
     }
 }
 
@@ -400,9 +525,9 @@ impl From<Share> for Entity {
     }
 }
 
-impl From<Network> for Entity {
-    fn from(value: Network) -> Self {
-        Self::Network(value)
+impl From<Site> for Entity {
+    fn from(value: Site) -> Self {
+        Self::Site(value)
     }
 }
 
@@ -486,7 +611,7 @@ impl From<Dependency> for Entity {
 
 impl From<Topology> for Entity {
     fn from(value: Topology) -> Self {
-        Self::Topology(Box::new(value))
+        Self::Topology(value)
     }
 }
 
@@ -499,6 +624,12 @@ impl From<Snapshot> for Entity {
 impl From<Tag> for Entity {
     fn from(value: Tag) -> Self {
         Self::Tag(value)
+    }
+}
+
+impl From<TagGroup> for Entity {
+    fn from(value: TagGroup) -> Self {
+        Self::TagGroup(value)
     }
 }
 
@@ -527,7 +658,8 @@ impl From<EntityDiscriminants> for Entity {
             EntityDiscriminants::Binding => Entity::Binding(Binding::default()),
             EntityDiscriminants::Interface => Entity::Interface(Interface::default()),
             EntityDiscriminants::Tag => Entity::Tag(Tag::default()),
-            EntityDiscriminants::Network => Entity::Network(Network::default()),
+            EntityDiscriminants::TagGroup => Entity::TagGroup(TagGroup::default()),
+            EntityDiscriminants::Site => Entity::Site(Site::default()),
             EntityDiscriminants::Organization => Entity::Organization(Organization::default()),
             EntityDiscriminants::User => Entity::User(User::default()),
             EntityDiscriminants::Invite => Entity::Invite(Invite::default()),
@@ -537,9 +669,28 @@ impl From<EntityDiscriminants> for Entity {
             EntityDiscriminants::DaemonApiKey => Entity::DaemonApiKey(DaemonApiKey::default()),
             EntityDiscriminants::UserApiKey => Entity::UserApiKey(UserApiKey::default()),
             EntityDiscriminants::Credential => Entity::Credential(Credential::default()),
-            EntityDiscriminants::Topology => Entity::Topology(Box::default()),
+            EntityDiscriminants::Topology => Entity::Topology(Topology::default()),
             EntityDiscriminants::Snapshot => Entity::Snapshot(Snapshot::default()),
-            EntityDiscriminants::Unknown => Entity::Unknown,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use strum::IntoEnumIterator;
+
+    /// The sidebar's sections and the search's group order both read `EntityDiscriminants` in
+    /// declaration order, so an entity declared outside its category's run would show out of
+    /// place in both.
+    #[test]
+    fn entity_types_are_declared_grouped_by_category_in_category_order() {
+        let categories: Vec<(EntityDiscriminants, EntityCategory)> = EntityDiscriminants::iter()
+            .map(|entity| (entity, entity.category()))
+            .collect();
+        assert!(
+            categories.is_sorted_by_key(|(_, category)| *category),
+            "declare each entity among its category, categories in EntityCategory order: {categories:?}"
+        );
     }
 }

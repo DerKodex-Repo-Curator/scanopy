@@ -1,5 +1,11 @@
 <script lang="ts">
 	import Tag from '$lib/shared/components/data/Tag.svelte';
+	import {
+		applicationGroupId,
+		isApplicationTag,
+		tagIcon,
+		tagTooltip
+	} from '$lib/features/tags/groups';
 	import TagPickerInline from '$lib/features/tags/components/TagPickerInline.svelte';
 	import { AVAILABLE_COLORS, type Color } from '$lib/shared/utils/styling';
 	import { createDefaultTag } from '$lib/features/tags/types/base';
@@ -7,6 +13,7 @@
 	import {
 		useCreateTagMutation,
 		useDeleteTagMutation,
+		useTagGroupsQuery,
 		useTagsQuery,
 		useUpdateTagMutation
 	} from '$lib/features/tags/queries';
@@ -38,6 +45,9 @@
 	const deleteTagMutation = useDeleteTagMutation();
 	const updateTagMutation = useUpdateTagMutation();
 	const tagsQuery = useTagsQuery();
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+	let applicationGroup = $derived(applicationGroupId(tagGroups));
 
 	let organization = $derived(organizationQuery.data);
 	let useCase = $derived(organization?.use_case ?? null);
@@ -45,7 +55,7 @@
 
 	let suggestions = $derived(getSuggestions(useCase));
 	let allTags = $derived(tagsQuery.data ?? []);
-	let nonAppTags = $derived(allTags.filter((t) => !t.is_application));
+	let nonAppTags = $derived(allTags.filter((t) => !isApplicationTag(t, applicationGroup)));
 	// Exclude suggestions whose name collides with ANY existing tag — creating one
 	// would violate the name-unique constraint, whether the existing tag is an app
 	// tag or not.
@@ -67,7 +77,11 @@
 		if (isConverting) return;
 		isConverting = true;
 		try {
-			await updateTagMutation.mutateAsync({ ...tag, is_application: true });
+			await updateTagMutation.mutateAsync({
+				...tag,
+				tag_group_id: applicationGroup,
+				icon: null
+			});
 		} finally {
 			isConverting = false;
 		}
@@ -87,7 +101,7 @@
 			const tag = createDefaultTag(organization.id);
 			tag.name = trimmed;
 			tag.color = color ?? getRandomColor();
-			(tag as TagType & { is_application: boolean }).is_application = true;
+			tag.tag_group_id = applicationGroup;
 			await createTagMutation.mutateAsync(tag);
 		} finally {
 			isCreating = false;
@@ -158,7 +172,13 @@
 						onclick={() => convertToApp(tag)}
 						disabled={isConverting}
 					>
-						<Tag label={tag.name} color={tag.color} pill={true} />
+						<Tag
+							label={tag.name}
+							color={tag.color}
+							icon={tagIcon(tag, applicationGroup)}
+							title={tagTooltip(tag, tagGroups)}
+							pill={true}
+						/>
 					</button>
 				{/each}
 			</div>

@@ -1,4 +1,4 @@
-use crate::server::auth::middleware::permissions::{Authorized, Owner, RequireVerified, Viewer};
+use crate::server::auth::middleware::permissions::{Authorized, Owner, RequireVerified};
 use crate::server::billing::types::api::{
     CancelSubscriptionRequest, CancelSubscriptionResponse, ChangePlanPreview, ChangePlanRequest,
     CreateCheckoutRequest, FinalizePaymentMethodRequest, PauseSubscriptionRequest, SaveOfferCoupon,
@@ -7,7 +7,6 @@ use crate::server::billing::types::api::{
 use crate::server::billing::types::base::BillingPlan;
 use crate::server::config::AppState;
 use crate::server::openapi::tags as api_tags;
-use crate::server::shared::services::traits::CrudService;
 use crate::server::shared::types::ErrorCode;
 use crate::server::shared::types::api::{ApiError, ApiJson, ApiResult};
 use crate::server::shared::types::api::{ApiErrorResponse, ApiResponse, EmptyApiResponse};
@@ -16,70 +15,8 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::http::header::CACHE_CONTROL;
 use axum::response::IntoResponse;
-use axum_client_ip::ClientIp;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-
-/// Company size bracket offered by the plan-inquiry form.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-pub enum TeamSize {
-    #[serde(rename = "1-10")]
-    Upto10,
-    #[serde(rename = "11-25")]
-    Upto25,
-    #[serde(rename = "26-50")]
-    Upto50,
-    #[serde(rename = "51-100")]
-    Upto100,
-    #[serde(rename = "101-250")]
-    Upto250,
-    #[serde(rename = "251-500")]
-    Upto500,
-    #[serde(rename = "501-1000")]
-    Upto1000,
-    #[serde(rename = "1001+")]
-    Over1000,
-}
-
-/// How soon the enquirer wants to move.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum InquiryTimeline {
-    Immediately,
-    #[serde(rename = "1-3 months")]
-    OneToThreeMonths,
-    #[serde(rename = "3-6 months")]
-    ThreeToSixMonths,
-    Exploring,
-}
-
-/// Enterprise plan inquiry request
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct EnterpriseInquiryRequest {
-    /// Contact email
-    #[schema(format = "email")]
-    pub email: String,
-    /// Contact name
-    pub name: String,
-    /// Company name
-    pub company: String,
-    /// Team/company size
-    pub team_size: TeamSize,
-    /// Message/use case description
-    pub message: String,
-    /// How soon they want to move
-    #[serde(default)]
-    pub urgency: Option<InquiryTimeline>,
-    /// Number of networks/sites
-    #[serde(default)]
-    pub network_count: Option<i64>,
-    /// Plan the enquiry is about — the `type` tag of a `BillingPlan`
-    /// (e.g. `Team`, `Business`, `Enterprise`).
-    #[serde(default)]
-    pub plan_type: Option<String>,
-}
 
 pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
     OpenApiRouter::new()
@@ -91,7 +28,6 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
         .routes(routes!(preview_plan_change))
         .routes(routes!(handle_webhook))
         .routes(routes!(create_portal_session))
-        .routes(routes!(submit_enterprise_inquiry))
         .routes(routes!(pause_subscription))
         .routes(routes!(resume_subscription))
         .routes(routes!(extend_trial))
@@ -514,108 +450,6 @@ async fn create_portal_session(
     } else {
         Err(ApiError::billing_setup_incomplete())
     }
-}
-
-/// Submit enterprise plan inquiry
-///
-/// Updates Brevo contact/company with inquiry data, creates a deal, and
-/// tracks an event for automation triggers. Requires authentication to
-/// link the inquiry to an organization.
-#[utoipa::path(
-    post,
-    path = "/inquiry",
-    tags = [api_tags::BILLING, api_tags::INTERNAL],
-    request_body = EnterpriseInquiryRequest,
-    responses(
-        (status = 200, description = "Inquiry submitted successfully", body = EmptyApiResponse),
-        (status = 400, description = "Invalid request or Brevo not configured", body = ApiErrorResponse),
-        (status = 401, description = "Authentication required", body = ApiErrorResponse),
-    ),
-    security(("user_api_key" = []), ("session" = []))
-)]
-async fn submit_enterprise_inquiry(
-    State(state): State<Arc<AppState>>,
-    ClientIp(ip): ClientIp,
-    auth: Authorized<Viewer>,
-    ApiJson(request): ApiJson<EnterpriseInquiryRequest>,
-) -> ApiResult<Json<ApiResponse<()>>> {
-    let organization_id = auth
-        .organization_id()
-        .ok_or_else(ApiError::organization_required)?;
-
-    if request.email.is_empty() || request.name.is_empty() || request.company.is_empty() {
-        return Err(ApiError::validation(ErrorCode::ValidationRequired {
-            field: "email, name, company".to_string(),
-        }));
-    }
-
-    let brevo_service = state
-        .services
-        .brevo_service
-        .as_ref()
-        .ok_or_else(|| ApiError::bad_request("Enterprise inquiries are not enabled"))?;
-
-    // 1. Create a deal in the Sales pipeline
-    let org = state
-        .services
-        .organization_service
-        .get_by_id(&organization_id)
-        .await?
-        .ok_or_else(ApiError::organization_required)?;
-
-    let deal_name = format!("Enterprise Inquiry - {}", &request.company);
-
-    let company_ids = org.base.brevo_company_id.map(|id| vec![id]);
-    let mut deal_attributes = serde_json::to_value(&request)?;
-    if let Some(obj) = deal_attributes.as_object_mut() {
-        obj.remove("email");
-        obj.remove("company");
-        obj.remove("name");
-        // Brevo deal attributes must all be strings
-        for value in obj.values_mut() {
-            if let serde_json::Value::Number(n) = value {
-                *value = serde_json::Value::String(n.to_string());
-            }
-        }
-    }
-    if let Err(e) = brevo_service
-        .client
-        .create_deal(&deal_name, Some(deal_attributes), company_ids)
-        .await
-    {
-        tracing::warn!(
-            error = %e,
-            organization_id = %organization_id,
-            "Failed to create Brevo deal for inquiry"
-        );
-    }
-
-    // 2. Fire event for tracking and triggers
-    if let Err(e) = brevo_service
-        .client
-        .track_event(
-            "enterprise_inquiry",
-            &request.email,
-            Some(serde_json::to_value(&request)?),
-        )
-        .await
-    {
-        tracing::warn!(
-            error = %e,
-            "Failed to track enterprise_inquiry event in Brevo"
-        );
-    }
-
-    tracing::info!(
-        email = %request.email,
-        company = %request.company,
-        organization_id = %organization_id,
-        plan_type = ?request.plan_type,
-        client_ip = %ip,
-        "Enterprise inquiry submitted to Brevo"
-    );
-
-    Ok(Json(ApiResponse::success(())))
 }
 
 /// Pause subscription billing

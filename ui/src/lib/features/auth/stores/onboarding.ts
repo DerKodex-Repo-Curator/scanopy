@@ -1,17 +1,42 @@
 import { writable, get } from 'svelte/store';
-import type { UseCase, NetworkSetup } from '../types/base';
+import type { UseCase, SiteSetup } from '../types/base';
 import type { PlanPickerHosting } from '$lib/features/billing/types';
 
 export interface OnboardingState {
 	useCase: UseCase | null;
-	/** Plan-picker tab requested at signup (`?hosting=self_hosted`). */
+	/** Where Scanopy runs, chosen at signup (preselected from `?hosting=`). Opens the plan picker on that tab. */
 	hosting: PlanPickerHosting | null;
 	organizationName: string;
-	network: NetworkSetup;
+	site: SiteSetup;
 	populateSeedData: boolean;
 }
 
 const STORAGE_KEY = 'scanopy_onboarding';
+
+/**
+ * Whether signup asks for a first site. A self-hosted license buyer on
+ * cloud skips it: their org gets a site only if it later moves to a cloud
+ * plan. A self-hosted instance always asks, because nothing creates one later.
+ */
+export function asksForSite(hosting: PlanPickerHosting | null, cloudDeployment: boolean) {
+	return !(cloudDeployment && hosting === 'self_hosted');
+}
+
+export type OnboardingStep = 'hosting' | 'use_case' | 'setup' | 'register';
+
+/**
+ * The new-org signup steps, in order. A server that sells both cloud and
+ * self-hosted plans asks where Scanopy runs first. A self-hosted license
+ * buyer then skips the use case, which their own server asks for instead.
+ */
+export function onboardingSteps(
+	asksHosting: boolean,
+	hosting: PlanPickerHosting | null
+): OnboardingStep[] {
+	if (!asksHosting) return ['use_case', 'setup', 'register'];
+	if (hosting === 'self_hosted') return ['hosting', 'setup', 'register'];
+	return ['hosting', 'use_case', 'setup', 'register'];
+}
 
 // Fields to persist to localStorage (for billing page autofill)
 interface PersistedState {
@@ -53,7 +78,7 @@ const initialState: OnboardingState = {
 	useCase: persisted.useCase,
 	hosting: persisted.hosting,
 	organizationName: '',
-	network: { name: '' },
+	site: { name: '' },
 	populateSeedData: true
 };
 
@@ -78,7 +103,7 @@ function createOnboardingStore() {
 		reset: () =>
 			updateAndPersist((state) => ({
 				...initialState,
-				network: { name: '' },
+				site: { name: '' },
 				useCase: state.useCase, // Preserve for billing page
 				hosting: state.hosting // Preserve for billing page
 			})),
@@ -95,22 +120,30 @@ function createOnboardingStore() {
 				hosting
 			})),
 
+		// Once a plan is picked, the signup's hosting choice has done its job.
+		// Clearing it stops it steering a later signup in this browser.
+		clearHosting: () =>
+			updateAndPersist((state) => ({
+				...state,
+				hosting: null
+			})),
+
 		setOrganizationName: (name: string) =>
 			update((state) => ({
 				...state,
 				organizationName: name
 			})),
 
-		setNetwork: (network: NetworkSetup) =>
+		setSite: (site: SiteSetup) =>
 			update((state) => ({
 				...state,
-				network
+				site
 			})),
 
-		setNetworkId: (networkId: string) =>
+		setSiteId: (siteId: string) =>
 			update((state) => ({
 				...state,
-				network: { ...state.network, id: networkId }
+				site: { ...state.site, id: siteId }
 			})),
 
 		setPopulateSeedData: (populate: boolean) =>

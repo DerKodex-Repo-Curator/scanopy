@@ -30,10 +30,10 @@ use crate::server::discovery::handlers::DiscoveryOrderField;
 use crate::server::discovery::r#impl::base::Discovery;
 use crate::server::hosts::handlers::HostOrderField;
 use crate::server::hosts::r#impl::base::Host;
+use crate::server::hosts::r#impl::virtualization::HostVirtualizationState;
 use crate::server::interfaces::r#impl::base::Interface;
 use crate::server::invites::r#impl::base::Invite;
 use crate::server::ip_addresses::r#impl::base::IPAddress;
-use crate::server::networks::r#impl::Network;
 use crate::server::organizations::r#impl::base::Organization;
 use crate::server::ports::r#impl::base::Port;
 use crate::server::services::handlers::ServiceOrderField;
@@ -41,16 +41,24 @@ use crate::server::services::r#impl::base::Service;
 use crate::server::shared::handlers::query::{OrderDirection, PaginationParams};
 use crate::server::shared::storage::traits::Entity;
 use crate::server::shared::types::entities::{EntityFreshness, EntitySourceDiscriminants};
+use crate::server::shared::types::entity_field::{EntityField, FieldFormat, Hop, MetadataFixture};
 use crate::server::shared::types::field_definition::{
     FieldDefinition, FieldType, InlineFormat, SelectOption,
 };
 use crate::server::shares::r#impl::base::Share;
+use crate::server::sites::r#impl::Site;
 use crate::server::snapshots::types::base::Snapshot;
 use crate::server::subnets::handlers::SubnetOrderField;
 use crate::server::subnets::r#impl::base::Subnet;
+use crate::server::subnets::r#impl::nesting::SubnetResponse;
+use crate::server::tags::groups::base::TagGroup;
 use crate::server::tags::handlers::TagOrderField;
 use crate::server::tags::r#impl::base::Tag;
 use crate::server::topology::types::base::Topology;
+use crate::server::topology::types::views::{
+    DependencyMemberType, InspectorSection, ViewElementConfig, ViewElementOrder,
+    ViewHandleStrategy, ViewInspectorConfig, ViewLayoutAlgorithm, ViewLayoutConfig, ViewRootOrder,
+};
 use crate::server::user_api_keys::r#impl::base::UserApiKey;
 use crate::server::users::r#impl::base::User;
 use crate::server::vlans::handlers::VlanOrderField;
@@ -79,6 +87,10 @@ pub mod tags {
     pub const INTERNAL: &str = "internal";
     /// Entity metadata registry.
     pub const METADATA: &str = "metadata";
+    /// Release notes for the version this server runs.
+    pub const RELEASE_NOTES: &str = "release-notes";
+    /// Search across every entity type.
+    pub const SEARCH: &str = "search";
     /// Version and compatibility checking.
     pub const SYSTEM: &str = "system";
 }
@@ -107,10 +119,29 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         DiscoveryOrderField,
         VlanOrderField,
         // Derived staleness status. Not a field on any entity (it's computed
-        // per-request against the network's window), so nothing else pulls it
+        // per-request against the site's window), so nothing else pulls it
         // into the schema — but the frontend must derive its union from here
         // rather than hand-maintaining one.
         EntityFreshness,
+        // A view's element hierarchy, filters and element marks. Travels inside the views fixture's
+        // untyped `TypeMetadata.metadata`, so nothing else pulls it into the schema; the topology
+        // types its colour marks and filters from here.
+        ViewElementConfig,
+        // A view's inspector sections and dependency creation mode, from the same fixture; the
+        // inspector types its section registry from here rather than keeping its own union.
+        ViewInspectorConfig,
+        InspectorSection,
+        DependencyMemberType,
+        // A view's layout choices, from the same fixture; the topology layout pipeline reads
+        // these instead of branching on view ids.
+        ViewLayoutConfig,
+        ViewLayoutAlgorithm,
+        ViewHandleStrategy,
+        ViewElementOrder,
+        ViewRootOrder,
+        // The filter state a host virtualization type files under. Travels inside
+        // `host-virtualizations.json`'s untyped `TypeMetadata.metadata`.
+        HostVirtualizationState,
         // Credential-type release maturity. Travels to the frontend inside the untyped
         // `TypeMetadata.metadata` blob, so nothing else pulls it into the schema — but the
         // frontend must derive its union from here rather than hand-maintaining one.
@@ -128,6 +159,9 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         CredentialOsFields,
         // Referenced by the install-command query parameter, so it needs a registered schema.
         InstallCommandType,
+        // The subnet list and get-by-id body. Inlined into the generic envelopes, so registered by
+        // name for the frontend to type its rows from.
+        SubnetResponse,
         // Referenced by the credential-list `?type` filter, which utoipa collects from
         // `IntoParams` without registering the schema it points at.
         CredentialTypeDiscriminants,
@@ -137,6 +171,12 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         // blob and the scan-settings fixture, so nothing else pulls it into the schema — but the
         // frontend must derive its `field_type` union from here rather than hand-maintaining one.
         // Hand-maintaining it is what let the credential form guess "is this a port?" from a label.
+        // The entity field registry, carried in the entities and edge-types fixtures for the same
+        // reason.
+        EntityField,
+        Hop,
+        FieldFormat,
+        MetadataFixture,
         FieldDefinition,
         FieldType,
         SelectOption,
@@ -146,7 +186,7 @@ pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
         title = "Scanopy API",
         version = "1",
         description = r#"
-Network topology discovery and visualization API.
+Site topology discovery and visualization API.
 
 ## Authentication
 
@@ -241,12 +281,12 @@ Endpoints are prefixed with `/api/v1/`. The API version is an integer (`api_vers
 
 ## Multi-Tenancy
 
-Resources are scoped to your **organization** and **network(s)**:
+Resources are scoped to your **organization** and **site(s)**:
 
 - You can only access entities within your organization
-- Network-level entities (hosts, services, etc.) are filtered to networks you have access to
-- Use `?network_id=<UUID>` to filter list endpoints to a specific network
-- API keys can be scoped to a subset of your accessible networks
+- Site-level entities (hosts, services, etc.) are filtered to sites you have access to
+- Use `?site_id=<UUID>` to filter list endpoints to a specific site
+- API keys can be scoped to a subset of your accessible sites
 "#,
         license(name = "Dual (AGPL3.0, Commercial License Available)")
     ),
@@ -274,7 +314,7 @@ Resources are scoped to your **organization** and **network(s)**:
         (name = Interface::ENTITY_NAME_PLURAL, description = Interface::ENTITY_DESCRIPTION),
         (name = IPAddress::ENTITY_NAME_PLURAL, description = IPAddress::ENTITY_DESCRIPTION),
         (name = Invite::ENTITY_NAME_PLURAL, description = Invite::ENTITY_DESCRIPTION),
-        (name = Network::ENTITY_NAME_PLURAL, description = Network::ENTITY_DESCRIPTION),
+        (name = Site::ENTITY_NAME_PLURAL, description = Site::ENTITY_DESCRIPTION),
         (name = Organization::ENTITY_NAME_PLURAL, description = Organization::ENTITY_DESCRIPTION),
         (name = Port::ENTITY_NAME_PLURAL, description = Port::ENTITY_DESCRIPTION),
         (name = Service::ENTITY_NAME_PLURAL, description = Service::ENTITY_DESCRIPTION),
@@ -283,6 +323,7 @@ Resources are scoped to your **organization** and **network(s)**:
         (name = Credential::ENTITY_NAME_PLURAL, description = Credential::ENTITY_DESCRIPTION),
         (name = Subnet::ENTITY_NAME_PLURAL, description = Subnet::ENTITY_DESCRIPTION),
         (name = Tag::ENTITY_NAME_PLURAL, description = Tag::ENTITY_DESCRIPTION),
+        (name = TagGroup::ENTITY_NAME_PLURAL, description = TagGroup::ENTITY_DESCRIPTION),
         (name = Topology::ENTITY_NAME_PLURAL, description = Topology::ENTITY_DESCRIPTION),
         (name = User::ENTITY_NAME_PLURAL, description = User::ENTITY_DESCRIPTION),
         (name = UserApiKey::ENTITY_NAME_PLURAL, description = UserApiKey::ENTITY_DESCRIPTION),
@@ -296,6 +337,8 @@ Resources are scoped to your **organization** and **network(s)**:
         (name = tags::GITHUB, description = "GitHub integration endpoints."),
         (name = tags::INTERNAL, description = "Internal endpoints for system operations. Not part of the public API."),
         (name = tags::METADATA, description = "Entity metadata registry. Schema information for all entity types in the system."),
+        (name = tags::RELEASE_NOTES, description = "Release notes for the version this server runs, and which of them the caller has seen."),
+        (name = tags::SEARCH, description = "Search every entity type the caller can list, by text and tags."),
         (name = tags::SYSTEM, description = "System information endpoints. Version and compatibility checking."),
     )
 )]

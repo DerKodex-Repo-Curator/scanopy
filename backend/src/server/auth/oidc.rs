@@ -80,6 +80,7 @@ impl OidcService {
                 config.issuer_url.clone(),
                 config.client_id.clone(),
                 config.client_secret.clone(),
+                config.trusted_audiences.clone(),
                 redirect_url,
                 http_client.clone(),
             );
@@ -127,7 +128,6 @@ impl OidcService {
             billing_enabled,
             terms_accepted_at,
             deployment_type,
-            marketing_opt_in,
         } = oidc_register_params;
 
         let provider = self
@@ -139,7 +139,7 @@ impl OidcService {
             permissions,
             ip,
             user_agent,
-            network_ids,
+            site_ids,
         } = params;
 
         // Exchange code for user info using provider
@@ -207,7 +207,7 @@ impl OidcService {
                 provision_org,
                 email_verified: true,
                 permissions,
-                network_ids,
+                site_ids,
                 terms_accepted_at,
                 billing_enabled,
             })
@@ -225,7 +225,6 @@ impl OidcService {
                 },
                 AuthOperation::Register {
                     method: AuthMethod::Oidc((&**provider).into()),
-                    marketing_opt_in,
                     // No email verification sent for OIDC logins
                     email_and_token: None,
                 },

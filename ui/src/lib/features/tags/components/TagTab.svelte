@@ -1,41 +1,48 @@
 <script lang="ts">
 	import {
 		useTagsQuery,
+		useTagGroupsQuery,
 		useCreateTagMutation,
 		useUpdateTagMutation,
 		useDeleteTagMutation,
 		useBulkDeleteTagsMutation
 	} from '../queries';
 	import TagEditModal from './TagEditModal.svelte';
-	import TabHeader from '$lib/shared/components/layout/TabHeader.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import type { Tag } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
-	import { defineFields, type CardAction } from '$lib/shared/components/data/types';
-	import { Plus, Trash2, Edit, Tag as TagIcon } from 'lucide-svelte';
-	import { createColorHelper } from '$lib/shared/utils/styling';
+	import type { TableDefaults } from '$lib/shared/components/data/types';
+	import type { CardAction } from '$lib/shared/components/data/types';
+	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { collectionLookup } from '$lib/shared/entity-fields';
+	import { Plus, Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { permissions, billingPlans, concepts } from '$lib/shared/stores/metadata';
+	import { permissions, billingPlans } from '$lib/shared/stores/metadata';
 	import type { TabProps } from '$lib/shared/types';
+	import {
+		applicationGroupId,
+		compareTagsByGroup,
+		groupOf,
+		tagGroupLabel,
+		tagIcon
+	} from '../groups';
+	import { tagItems } from '../columns';
 	import type { components } from '$lib/api/schema';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import {
-		common_application,
-		common_color,
 		common_confirmBulkDelete,
 		common_confirmDeleteName,
 		common_create,
 		common_created,
 		common_delete,
 		common_edit,
-		common_description,
-		common_name,
 		common_noEntityYet,
 		common_tags,
 		common_updated,
+		tags_tagGroup,
 		tags_noTagsHelp,
 		tags_subtitle
 	} from '$lib/paraglide/messages';
@@ -76,6 +83,9 @@
 	let isNonOwnerInDemo = $derived(isDemoOrg && currentUser?.permissions !== 'Owner');
 
 	const tagsQuery = useTagsQuery();
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+	let applicationGroup = $derived(applicationGroupId(tagGroups));
 	const createTagMutation = useCreateTagMutation();
 	const updateTagMutation = useUpdateTagMutation();
 	const deleteTagMutation = useDeleteTagMutation();
@@ -103,7 +113,7 @@
 		showTagEditor = true;
 	}
 
-	/** Row actions for table mode, matching what the card offers. */
+	/** Row actions. */
 	function tagActions(tag: Tag): CardAction[] {
 		if (!canManage) return [];
 
@@ -157,57 +167,88 @@
 		await downloadCsv('Tag', {});
 	}
 
-	// Define field configuration for the DataTableControls
-	// Uses defineFields to ensure all TagOrderField values are covered
-	const tagFields = defineFields<Tag, TagOrderField>(
-		{
-			// Identity field: grouping by it would render a header per tag.
-			name: {
-				label: common_name(),
-				type: 'string',
-				searchable: true,
-				groupable: false,
-				display: { primary: true, width: 220 }
+	const tableDefaults: TableDefaults<TagOrderField> = {
+		group: 'tag_group',
+		// Within a group, the group's own order.
+		sort: { field: 'tag_group', direction: 'asc' }
+	};
+
+	// Columns from the entity field registry; this tab adds how each one searches, filters and
+	// sorts. Every TagOrderField value must be listed.
+	let lookup = $derived(collectionLookup({ TagGroup: tagGroups }));
+	let tagFields = $derived(
+		defineRegistryFields<Tag, TagOrderField>(
+			'Tag',
+			() => lookup,
+			{
+				// Identity field: grouping by it would render a header per tag. Drawn as the tag itself,
+				// with its icon and colour, as it appears on every entity carrying it.
+				name: {
+					searchable: true,
+					groupable: false,
+					display: {
+						primary: true,
+						width: 220,
+						getItems: (tag) => tagItems([tag.id], [tag], tagGroups)
+					}
+				},
+				color: {
+					searchable: true,
+					filterable: true,
+					// A colour name is worth showing in its own colour. Hidden by default: the name column
+					// already draws it, so this column is there to group and filter by.
+					display: {
+						hiddenByDefault: true,
+						getItems: (tag) => [
+							{
+								id: tag.color,
+								label: tag.color.charAt(0).toUpperCase() + tag.color.slice(1),
+								color: tag.color
+							}
+						]
+					}
+				},
+				tag_group: {
+					label: tags_tagGroup(),
+					filterable: true,
+					// A system group reads under its translated name.
+					getValue: (tag) => tagGroupLabel(groupOf(tag, tagGroups)),
+					// Groups in the server's order, each group's tags in its own order.
+					compare: compareTagsByGroup(tagGroups)
+				},
+				created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
+				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
 			},
-			color: {
-				label: common_color(),
-				type: 'string',
-				searchable: true,
-				filterable: true,
-				// A colour name is worth showing in its own colour.
-				display: {
-					getItems: (tag) => [
-						{
-							id: tag.color,
-							label: tag.color.charAt(0).toUpperCase() + tag.color.slice(1),
-							color: tag.color
+			[
+				{ key: 'description', searchable: true },
+				{
+					// Hidden by default for the same reason as colour: the name column draws the icon.
+					key: 'icon',
+					filterable: true,
+					groupable: true,
+					display: {
+						hiddenByDefault: true,
+						getItems: (tag) => {
+							const icon = tagIcon(tag, applicationGroup);
+							return icon && tag.icon ? [{ id: tag.icon, label: tag.icon, icon }] : [];
 						}
-					]
+					}
 				}
-			},
-			is_application: {
-				label: common_application(),
-				type: 'boolean',
-				filterable: true
-			},
-			created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
-			updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
-		},
-		[{ key: 'description', label: common_description(), type: 'string', searchable: true }]
+			]
+		)
 	);
 </script>
 
-<div class="space-y-6">
-	<TabHeader title={common_tags()} subtitle={tags_subtitle()}>
-		<svelte:fragment slot="actions">
-			{#if canManage}
-				<button class="btn-primary flex items-center" onclick={handleCreateTag}>
-					<Plus class="h-5 w-5" />{common_create()}
-				</button>
-			{/if}
-		</svelte:fragment>
-	</TabHeader>
+<!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
+{#snippet toolbarActions()}
+	{#if canManage}
+		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateTag}>
+			<Plus class="h-5 w-5" />{common_create()}
+		</button>
+	{/if}
+{/snippet}
 
+<div class="space-y-6">
 	{#if isLoading}
 		<Loading />
 	{:else if tags.length === 0}
@@ -219,18 +260,16 @@
 		/>
 	{:else}
 		<DataControls
+			title={common_tags()}
+			subtitle={tags_subtitle()}
+			{toolbarActions}
 			items={tags}
 			fields={tagFields}
 			{allowBulkDelete}
 			storageKey="scanopy-tags-table-state"
+			defaults={tableDefaults}
 			onBulkDelete={handleBulkDelete}
 			getItemId={(item) => item.id}
-			getIcon={(tag) => ({
-				icon: tag.is_application ? concepts.getIconComponent('Application') : TagIcon,
-				color: tag.is_application
-					? concepts.getColorHelper('Application')?.icon
-					: createColorHelper(tag.color).icon
-			})}
 			onCsvExport={handleCsvExport}
 			getActions={tagActions}
 			entityLabel={common_tags()}

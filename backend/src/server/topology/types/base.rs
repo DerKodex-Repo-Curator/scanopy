@@ -1,3 +1,4 @@
+use crate::server::organizations::r#impl::base::UseCase;
 use crate::server::services::r#impl::categories::ServiceCategory;
 use crate::server::shared::entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants};
 use crate::server::topology::types::edges::{EdgeHandle, EdgeTypeDiscriminants};
@@ -10,7 +11,10 @@ use crate::server::topology::types::views::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+};
 use strum::IntoEnumIterator;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -67,21 +71,21 @@ impl Topology {
 
 #[derive(Debug, Clone, Validate, Serialize, Deserialize, Eq, PartialEq, Default, ToSchema)]
 pub struct TopologyBase {
-    /// The network this entity belongs to.
-    pub network_id: Uuid,
+    /// The site this entity belongs to.
+    pub site_id: Uuid,
     /// Saved layout and view settings for this topology.
     pub options: TopologyOptions,
     // The per-view node/edge graph is no longer persisted — it's a pure
     // function of entities + `options` and is built on request by the read
-    // path (`build_all_view_graphs`). The row holds only the user's grouping
+    // path (`build_view_graphs`). The row holds only the user's grouping
     // `options`; snapshots build their graph on request from closed copies, so
     // there are no snapshot-pinned topology rows (and no `snapshot_id`).
 }
 
 impl TopologyBase {
-    pub fn new(network_id: Uuid) -> Self {
+    pub fn new(site_id: Uuid) -> Self {
         Self {
-            network_id,
+            site_id,
             options: TopologyOptions::default(),
         }
     }
@@ -123,28 +127,63 @@ pub struct TopologyOptions {
 
 /// Filter settings for hiding entities by tag in topology visualization.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, Default, ToSchema)]
+#[serde(from = "TagFilterWire")]
 pub struct TopologyTagFilter {
-    /// Host tag IDs to hide (hosts with these tags will fade out)
+    /// Tag IDs to hide, per entity type. An entity of that type carrying one of them is hidden.
     #[serde(default)]
-    pub hidden_host_tag_ids: Vec<Uuid>,
-    /// Service tag IDs to hide (services with these tags will be hidden from nodes)
-    #[serde(default)]
-    pub hidden_service_tag_ids: Vec<Uuid>,
-    /// Subnet tag IDs to hide (subnets with these tags will fade out)
-    #[serde(default)]
-    pub hidden_subnet_tag_ids: Vec<Uuid>,
+    pub hidden_tag_ids: BTreeMap<EntityDiscriminants, Vec<Uuid>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, ToSchema)]
+/// What a stored tag filter may look like: the per-entity map, or the three per-entity lists
+/// written before it. Topology options are JSONB, so rows saved earlier still hold the lists.
+#[derive(Deserialize)]
+struct TagFilterWire {
+    #[serde(default)]
+    hidden_tag_ids: BTreeMap<EntityDiscriminants, Vec<Uuid>>,
+    #[serde(default)]
+    hidden_host_tag_ids: Vec<Uuid>,
+    #[serde(default)]
+    hidden_service_tag_ids: Vec<Uuid>,
+    #[serde(default)]
+    hidden_subnet_tag_ids: Vec<Uuid>,
+}
+
+impl From<TagFilterWire> for TopologyTagFilter {
+    fn from(wire: TagFilterWire) -> Self {
+        let mut hidden_tag_ids = wire.hidden_tag_ids;
+        for (entity, ids) in [
+            (EntityDiscriminants::Host, wire.hidden_host_tag_ids),
+            (EntityDiscriminants::Service, wire.hidden_service_tag_ids),
+            (EntityDiscriminants::Subnet, wire.hidden_subnet_tag_ids),
+        ] {
+            if ids.is_empty() {
+                continue;
+            }
+            let entry = hidden_tag_ids.entry(entity).or_default();
+            for id in ids {
+                if !entry.contains(&id) {
+                    entry.push(id);
+                }
+            }
+        }
+        Self { hidden_tag_ids }
+    }
+}
+
+/// Viewer settings. `hide_edge_types` and `tag_filter` are per view; the rest apply to every view.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, ToSchema)]
 #[serde(default)]
 pub struct TopologyLocalOptions {
     /// Keep unrelated edges at full opacity when something is selected.
     pub no_fade_edges: bool,
-    /// Edge types to leave out of the drawing.
-    pub hide_edge_types: Vec<EdgeTypeDiscriminants>,
-    /// Restrict the view to entities carrying these tags.
-    #[serde(default)]
-    pub tag_filter: TopologyTagFilter,
+    /// Edge types to leave out of the drawing, per view. A view with no entry hides the edge
+    /// types that view hides by default. Unknown edge types and views are dropped on read rather
+    /// than failing the topology.
+    #[serde(deserialize_with = "deserialize_hide_edge_types")]
+    pub hide_edge_types: HashMap<TopologyView, Vec<EdgeTypeDiscriminants>>,
+    /// Tags whose entities are left out, per view. A view with no entry hides nothing by tag.
+    #[serde(default, deserialize_with = "deserialize_tag_filter")]
+    pub tag_filter: HashMap<TopologyView, TopologyTagFilter>,
     /// Show the minimap.
     #[serde(default = "default_true")]
     pub show_minimap: bool,
@@ -157,12 +196,127 @@ fn default_true() -> bool {
     true
 }
 
+/// Every view's default hidden edge types.
+fn default_hide_edge_types() -> HashMap<TopologyView, Vec<EdgeTypeDiscriminants>> {
+    TopologyView::iter()
+        .map(|view| (view, view.default_hidden_edge_types()))
+        .collect()
+}
+
+/// An edge type list, dropping values that no longer name an edge type.
+#[derive(Deserialize)]
+struct KnownEdgeTypes(
+    #[serde(
+        deserialize_with = "crate::server::topology::types::edges::deserialize_known_edge_types"
+    )]
+    Vec<EdgeTypeDiscriminants>,
+);
+
+/// What a stored `hide_edge_types` may look like: the per-view map, or the single list written
+/// before it. Topology options are JSONB, so rows saved earlier still hold the list.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum HideEdgeTypesWire {
+    PerView(HashMap<String, KnownEdgeTypes>),
+    Flat(KnownEdgeTypes),
+}
+
+/// Read `hide_edge_types` in either stored shape, then give every view without an entry its
+/// default set.
+///
+/// The single list predates per-view storage. The viewer applied it to the view it hydrated
+/// into, which on load was L3 Logical, and drew every other view with its defaults. It is read
+/// into L3 Logical only: copying it into every view would show edges that L2 Physical, Workloads
+/// and Application hide by default.
+fn deserialize_hide_edge_types<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<TopologyView, Vec<EdgeTypeDiscriminants>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let mut stored: HashMap<TopologyView, Vec<EdgeTypeDiscriminants>> =
+        match HideEdgeTypesWire::deserialize(deserializer)? {
+            HideEdgeTypesWire::PerView(by_view) => by_view
+                .into_iter()
+                .filter_map(|(key, KnownEdgeTypes(edge_types))| {
+                    match serde_json::from_value::<TopologyView>(serde_json::Value::String(
+                        key.clone(),
+                    )) {
+                        Ok(view) => Some((view, edge_types)),
+                        Err(_) => {
+                            tracing::warn!(view = %key, "Unrecognized view in hide_edge_types; dropping it");
+                            None
+                        }
+                    }
+                })
+                .collect(),
+            HideEdgeTypesWire::Flat(KnownEdgeTypes(edge_types)) => {
+                HashMap::from([(TopologyView::L3Logical, edge_types)])
+            }
+        };
+    for (view, defaults) in default_hide_edge_types() {
+        stored.entry(view).or_insert(defaults);
+    }
+    Ok(stored)
+}
+
+/// Read `tag_filter` in either stored shape: the per-view map, or the single filter v0.17.22 and
+/// earlier wrote. A single filter goes into every view: its tags were hidden on purpose, and a tag
+/// filter has no per-view defaults it could override. Unknown views are dropped.
+///
+/// The shape is told apart by its keys, since serde would read either shape as the other: a
+/// single filter's keys are its own field names.
+fn deserialize_tag_filter<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<TopologyView, TopologyTagFilter>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    const SINGLE_FILTER_KEYS: [&str; 4] = [
+        "hidden_tag_ids",
+        "hidden_host_tag_ids",
+        "hidden_service_tag_ids",
+        "hidden_subnet_tag_ids",
+    ];
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let Some(object) = value.as_object() else {
+        return Ok(HashMap::new());
+    };
+    if object
+        .keys()
+        .any(|key| SINGLE_FILTER_KEYS.contains(&key.as_str()))
+    {
+        let filter: TopologyTagFilter =
+            serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+        return Ok(TopologyView::iter()
+            .map(|view| (view, filter.clone()))
+            .collect());
+    }
+    Ok(object
+        .iter()
+        .filter_map(|(key, filter)| {
+            let view =
+                serde_json::from_value::<TopologyView>(serde_json::Value::String(key.clone()));
+            match (
+                view,
+                serde_json::from_value::<TopologyTagFilter>(filter.clone()),
+            ) {
+                (Ok(view), Ok(filter)) => Some((view, filter)),
+                _ => {
+                    tracing::warn!(view = %key, "Unrecognized view in tag_filter; dropping it");
+                    None
+                }
+            }
+        })
+        .collect())
+}
+
 impl Default for TopologyLocalOptions {
     fn default() -> Self {
         Self {
             no_fade_edges: false,
-            hide_edge_types: vec![EdgeTypeDiscriminants::Hypervisor],
-            tag_filter: TopologyTagFilter::default(),
+            hide_edge_types: default_hide_edge_types(),
+            tag_filter: HashMap::new(),
             show_minimap: true,
             bundle_edges: true,
         }
@@ -191,8 +345,8 @@ pub struct TopologyRequestOptions {
     /// Rules deciding how nodes are grouped into containers.
     #[serde(default = "default_container_rules")]
     pub container_rules: HashMap<TopologyView, Vec<IdentifiedRule<ContainerRule>>>,
-    /// Rules deciding how entities are placed and inlined within containers.
-    #[serde(default = "default_element_rules")]
+    /// Rules deciding how entities are placed and inlined within containers. A missing field
+    /// takes the rules for an organization with no stated use case.
     pub element_rules: Vec<IdentifiedRule<ElementRule>>,
     /// How nodes are ordered inside containers, per view. A view with no entry uses the
     /// layout's own order.
@@ -261,15 +415,18 @@ fn default_container_rules() -> HashMap<TopologyView, Vec<IdentifiedRule<Contain
     map
 }
 
-fn default_element_rules() -> Vec<IdentifiedRule<ElementRule>> {
+/// The element rules a new topology starts with for an organization's use case.
+///
+/// The infrastructure rule collects every service category that is not application-relevant for
+/// `use_case`, so a network appliance is infrastructure unless the organization is an MSP, and an
+/// IoT device is infrastructure unless it is a homelab.
+pub(crate) fn default_element_rules(use_case: UseCase) -> Vec<IdentifiedRule<ElementRule>> {
     vec![
         IdentifiedRule::new(ElementRule::ByTrunkPort),
         IdentifiedRule::new(ElementRule::ByVLAN),
         IdentifiedRule::new(ElementRule::ByPortOpStatus),
         IdentifiedRule::new(ElementRule::ByServiceCategory {
-            categories: ServiceCategory::iter()
-                .filter(|c| c.application_relevant_use_cases().is_empty())
-                .collect(),
+            categories: infrastructure_categories(use_case),
             title: Some("Infrastructure".into()),
             is_infra_rule: true,
         }),
@@ -289,8 +446,44 @@ impl Default for TopologyRequestOptions {
             hide_entities: HashMap::new(),
             hide_metadata_values: default_hide_metadata_values(),
             container_rules: default_container_rules(),
-            element_rules: default_element_rules(),
+            element_rules: default_element_rules(UseCase::default()),
             element_sort: HashMap::new(),
+        }
+    }
+}
+
+/// Service categories that are not application-relevant for `use_case`.
+fn infrastructure_categories(use_case: UseCase) -> Vec<ServiceCategory> {
+    ServiceCategory::iter()
+        .filter(|c| !c.application_relevant_use_cases().contains(&use_case))
+        .collect()
+}
+
+impl TopologyRequestOptions {
+    /// The options a new topology starts with for an organization with this use case.
+    pub fn for_use_case(use_case: UseCase) -> Self {
+        Self {
+            element_rules: default_element_rules(use_case),
+            ..Self::default()
+        }
+    }
+
+    /// Give an infrastructure rule stored with no categories the use case's infrastructure set.
+    ///
+    /// The grouping-rules migration wrote the infrastructure rule with an empty category list and
+    /// left the categories to be filled when the topology is read. A rule that has any categories
+    /// is the user's and is left alone.
+    pub fn populate_empty_infra_rule(&mut self, use_case: UseCase) {
+        for identified in &mut self.element_rules {
+            if let ElementRule::ByServiceCategory {
+                categories,
+                is_infra_rule: true,
+                ..
+            } = &mut identified.rule
+                && categories.is_empty()
+            {
+                *categories = infrastructure_categories(use_case);
+            }
         }
     }
 }
@@ -302,8 +495,8 @@ impl Default for TopologyRequestOptions {
 /// Fixes HTTP 413 errors on drag operations.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TopologyNodePositionUpdate {
-    /// Network ID for authorization
-    pub network_id: Uuid,
+    /// Site ID for authorization
+    pub site_id: Uuid,
     /// View whose node/edge slice this update targets
     pub view: TopologyView,
     /// ID of the node to update
@@ -319,8 +512,8 @@ pub struct TopologyNodePositionUpdate {
 /// Fixes HTTP 413 errors on edge reconnect operations.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TopologyEdgeHandleUpdate {
-    /// Network ID for authorization
-    pub network_id: Uuid,
+    /// Site ID for authorization
+    pub site_id: Uuid,
     /// View whose node/edge slice this update targets
     pub view: TopologyView,
     /// ID of the edge to update
@@ -338,8 +531,8 @@ pub struct TopologyEdgeHandleUpdate {
 /// Fixes HTTP 413 errors on resize operations.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TopologyNodeResizeUpdate {
-    /// Network ID for authorization
-    pub network_id: Uuid,
+    /// Site ID for authorization
+    pub site_id: Uuid,
     /// View whose node/edge slice this update targets
     pub view: TopologyView,
     /// ID of the node to update
@@ -353,6 +546,194 @@ pub struct TopologyNodeResizeUpdate {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn infra_categories(options: &TopologyRequestOptions) -> &[ServiceCategory] {
+        options
+            .element_rules
+            .iter()
+            .find_map(|r| match &r.rule {
+                ElementRule::ByServiceCategory {
+                    categories,
+                    is_infra_rule: true,
+                    ..
+                } => Some(categories.as_slice()),
+                _ => None,
+            })
+            .expect("default rules carry an infrastructure rule")
+    }
+
+    /// An MSP manages network appliances as its product, so they stay out of the infrastructure
+    /// group; IoT is not application-relevant to an MSP and goes in.
+    #[test]
+    fn msp_infra_rule_keeps_network_appliances_out() {
+        let options = TopologyRequestOptions::for_use_case(UseCase::Msp);
+        let infra = infra_categories(&options);
+        assert!(!infra.contains(&ServiceCategory::NetworkAppliance));
+        assert!(infra.contains(&ServiceCategory::IoT));
+    }
+
+    #[test]
+    fn homelab_infra_rule_keeps_iot_out() {
+        let options = TopologyRequestOptions::for_use_case(UseCase::Homelab);
+        let infra = infra_categories(&options);
+        assert!(infra.contains(&ServiceCategory::NetworkAppliance));
+        assert!(!infra.contains(&ServiceCategory::IoT));
+    }
+
+    /// The migration stored the infrastructure rule with no categories; reading it fills them in
+    /// for the org's use case, and a rule the user has filled is left as it is.
+    #[test]
+    fn empty_infra_rule_is_populated_and_user_rule_is_kept() {
+        let mut options = TopologyRequestOptions::for_use_case(UseCase::Msp);
+        for r in &mut options.element_rules {
+            if let ElementRule::ByServiceCategory { categories, .. } = &mut r.rule {
+                categories.clear();
+            }
+        }
+        options.populate_empty_infra_rule(UseCase::Msp);
+        assert_eq!(
+            infra_categories(&options),
+            infra_categories(&TopologyRequestOptions::for_use_case(UseCase::Msp))
+        );
+
+        for r in &mut options.element_rules {
+            if let ElementRule::ByServiceCategory { categories, .. } = &mut r.rule {
+                *categories = vec![ServiceCategory::DNS];
+            }
+        }
+        options.populate_empty_infra_rule(UseCase::Msp);
+        assert_eq!(infra_categories(&options), &[ServiceCategory::DNS]);
+    }
+
+    /// Rows saved before the per-entity map hold three lists; every id in them carries over.
+    #[test]
+    fn stored_three_list_tag_filter_reads_into_the_map() {
+        let (host, service, subnet) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let filter: TopologyTagFilter = serde_json::from_value(serde_json::json!({
+            "hidden_host_tag_ids": [host],
+            "hidden_service_tag_ids": [service],
+            "hidden_subnet_tag_ids": [subnet]
+        }))
+        .unwrap();
+        assert_eq!(
+            filter.hidden_tag_ids,
+            BTreeMap::from([
+                (EntityDiscriminants::Host, vec![host]),
+                (EntityDiscriminants::Service, vec![service]),
+                (EntityDiscriminants::Subnet, vec![subnet]),
+            ])
+        );
+    }
+
+    #[test]
+    fn keyed_tag_filter_round_trips_in_the_new_shape() {
+        let filter = TopologyTagFilter {
+            hidden_tag_ids: BTreeMap::from([(EntityDiscriminants::Host, vec![Uuid::new_v4()])]),
+        };
+        let json = serde_json::to_value(&filter).unwrap();
+        assert!(json.get("hidden_host_tag_ids").is_none());
+        let back: TopologyTagFilter = serde_json::from_value(json).unwrap();
+        assert_eq!(back, filter);
+    }
+
+    #[test]
+    fn empty_or_missing_tag_filter_reads_as_empty() {
+        let empty: TopologyTagFilter = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(empty.hidden_tag_ids.is_empty());
+        let local: TopologyLocalOptions = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(local.tag_filter.is_empty());
+    }
+
+    /// v0.17.22 and earlier stored one tag filter for every view. Each view keeps hiding its tags.
+    #[test]
+    fn stored_single_tag_filter_reads_into_every_view() {
+        let tag = Uuid::new_v4();
+        for stored in [
+            serde_json::json!({ "hidden_tag_ids": { "Host": [tag] } }),
+            serde_json::json!({ "hidden_host_tag_ids": [tag] }),
+        ] {
+            let local: TopologyLocalOptions =
+                serde_json::from_value(serde_json::json!({ "tag_filter": stored })).unwrap();
+            for view in TopologyView::iter() {
+                assert_eq!(
+                    local.tag_filter[&view].hidden_tag_ids[&EntityDiscriminants::Host],
+                    vec![tag],
+                    "{view:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn per_view_tag_filter_keeps_each_view_apart() {
+        let tag = Uuid::new_v4();
+        let local: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
+            "tag_filter": { "L3Logical": { "hidden_tag_ids": { "Host": [tag] } }, "SomeFutureView": {} }
+        }))
+        .unwrap();
+        assert_eq!(local.tag_filter.len(), 1);
+        assert_eq!(
+            local.tag_filter[&TopologyView::L3Logical].hidden_tag_ids[&EntityDiscriminants::Host],
+            vec![tag]
+        );
+        let round_trip: TopologyLocalOptions =
+            serde_json::from_value(serde_json::to_value(&local).unwrap()).unwrap();
+        assert_eq!(round_trip, local);
+    }
+
+    /// Saved options that hide an edge type or name a view this binary doesn't know still load,
+    /// keeping what it does know.
+    #[test]
+    fn an_unknown_hidden_edge_type_or_view_is_dropped_not_fatal() {
+        let options: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
+            "hide_edge_types": {
+                "L3Logical": ["Hypervisor", "SomeFutureEdgeType"],
+                "SomeFutureView": ["Hypervisor"]
+            }
+        }))
+        .expect("an unknown edge type or view must not fail the options");
+        assert_eq!(
+            options.hide_edge_types[&TopologyView::L3Logical],
+            vec![EdgeTypeDiscriminants::Hypervisor]
+        );
+        assert_eq!(options.hide_edge_types.len(), TopologyView::iter().count());
+    }
+
+    /// The single list stored before per-view entries is what L3 Logical drew on load; every
+    /// other view drew its defaults, and still does.
+    #[test]
+    fn stored_flat_edge_list_reads_into_l3_and_other_views_keep_defaults() {
+        let options: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
+            "hide_edge_types": ["RequestPath"]
+        }))
+        .unwrap();
+        for view in TopologyView::iter() {
+            let expected = if view == TopologyView::L3Logical {
+                vec![EdgeTypeDiscriminants::RequestPath]
+            } else {
+                view.default_hidden_edge_types()
+            };
+            assert_eq!(options.hide_edge_types[&view], expected, "{view:?}");
+        }
+    }
+
+    /// A view with no entry hides its defaults; a view whose entry is an empty list shows every
+    /// edge, because the user turned them all on.
+    #[test]
+    fn missing_view_takes_its_default_and_empty_view_stays_empty() {
+        let options: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
+            "hide_edge_types": { "L3Logical": [] }
+        }))
+        .unwrap();
+        assert!(options.hide_edge_types[&TopologyView::L3Logical].is_empty());
+        for view in TopologyView::iter().filter(|v| *v != TopologyView::L3Logical) {
+            assert_eq!(
+                options.hide_edge_types[&view],
+                view.default_hidden_edge_types(),
+                "{view:?}"
+            );
+        }
+    }
 
     /// A stored map that predates a filter must adopt its default, or every existing topology
     /// keeps rendering as though the filter were switched off. This is the whole reason the merge
@@ -432,10 +813,7 @@ mod tests {
             let config = view.element_config();
             for (entity, by_filter) in &config.default_hidden_values {
                 for (filter_type, values) in by_filter {
-                    let declared = config
-                        .metadata_filters
-                        .get(entity)
-                        .and_then(|filters| filters.iter().find(|f| f.filter_type == *filter_type));
+                    let declared = config.filter(*entity, *filter_type);
 
                     // Service.Category is declared in every view but only *rendered* where
                     // Service has an element or inline role, so a view without that role is

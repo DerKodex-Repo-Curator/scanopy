@@ -347,7 +347,7 @@ pub mod cdp {
     }
 }
 
-/// ENTITY-MIB OIDs (RFC 4133) - Physical entity information
+/// ENTITY-MIB OIDs (RFC 6933, which obsoletes RFC 4133) - Physical entity information
 pub mod entity {
     /// The ENTITY-MIB root, which is the subtree an agent registers to serve the physical table.
     pub const ENTITY_MIB: &str = "1.3.6.1.2.1.47";
@@ -386,6 +386,9 @@ pub mod entity {
 
         /// entPhysicalModelName - Model name
         pub const ENT_PHYSICAL_MODEL_NAME: &str = "1.3.6.1.2.1.47.1.1.1.1.13";
+
+        /// entPhysicalAssetID - Asset tag an administrator set on the device
+        pub const ENT_PHYSICAL_ASSET_ID: &str = "1.3.6.1.2.1.47.1.1.1.1.15";
     }
 }
 

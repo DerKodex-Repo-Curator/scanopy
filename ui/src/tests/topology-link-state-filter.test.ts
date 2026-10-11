@@ -8,40 +8,39 @@ import {
 import type { RenderableTopology, Topology } from '$lib/features/topology/types/base';
 import { entityBundleFrom, toRenderableTopology } from '$lib/features/topology/enriched';
 
-const NETWORK_ID = 'net-1';
+const SITE_ID = 'net-1';
 
 /**
  * The L2 bundle as it arrives with the link-state filter already applied server-side.
  *
  * The shape that matters, taken from the live database: of the interfaces that survive, some own a
  * resolved row (`p-own-*`) and some are only ever another port's `neighbor_interface_id`
- * (`p-far-*`) — 50 and 18 respectively on the network this was traced against. The far ends are
- * the fragile half: nothing points *from* them, so any pass that judges link state on the outbound
- * direction alone marks them Unlinked and the filter then deletes one end of every link.
- *
- * `neighbours` is not filtered by the server, so it still carries every resolved row.
+ * (`p-far-*`). The backend judges link state in both directions and stamps it on each interface
+ * (`filter_values`), so every survivor arrives `Linked`, the far ends included.
  */
 function filteredL2Bundle(): RenderableTopology {
 	const iface = (id: string, host: string) => ({
 		id,
 		host_id: host,
-		network_id: NETWORK_ID,
-		tags: []
+		site_id: SITE_ID,
+		tags: [],
+		filter_values: { LinkState: 'Linked' }
 	});
 	const node = (id: string, host: string) => ({
 		id,
 		node_type: 'Element',
 		element_type: 'Interface',
 		interface_id: id,
+		entity_id: id,
 		host_id: host
 	});
 
 	return {
 		id: 'topo-1',
-		network_id: NETWORK_ID,
+		site_id: SITE_ID,
 		hosts: [
-			{ id: 'switch-a', network_id: NETWORK_ID, tags: [] },
-			{ id: 'switch-b', network_id: NETWORK_ID, tags: [] }
+			{ id: 'switch-a', site_id: SITE_ID, tags: [] },
+			{ id: 'switch-b', site_id: SITE_ID, tags: [] }
 		],
 		interfaces: [
 			iface('p-own-1', 'switch-a'),
@@ -61,7 +60,6 @@ function filteredL2Bundle(): RenderableTopology {
 				neighbor: { type: 'Interface', id: 'p-far-2' }
 			}
 		],
-		candidates: [],
 		filtered_out: { Interface: { LinkState: 103 } },
 		nodes: [
 			node('p-own-1', 'switch-a'),
@@ -78,7 +76,7 @@ function filteredL2Bundle(): RenderableTopology {
 		dependencies: [],
 		vlans: [],
 		entity_tags: [],
-		name: 'My Network'
+		name: 'My Site'
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} as any;
 }
@@ -109,29 +107,13 @@ describe('hiding unlinked interfaces in L2', () => {
 		expect([...get(hiddenEntityIds)]).toEqual([]);
 	});
 
-	/** The far ends specifically — the half a one-directional judgement deletes. */
-	it('keeps a port that is only ever named as another port’s neighbour', () => {
-		updateTagFilter(
-			filteredL2Bundle(),
-			undefined,
-			'L2Physical',
-			{ Interface: { LinkState: ['Unlinked'] } },
-			[],
-			undefined
-		);
-
-		expect(get(tagHiddenNodeIds).has('p-far-1')).toBe(false);
-		expect(get(tagHiddenNodeIds).has('p-far-2')).toBe(false);
-	});
-
 	/**
-	 * The reported bug, end to end from the API response rather than from a hand-built topology.
+	 * End to end from the API response rather than from a hand-built topology.
 	 *
-	 * The topology tab mapped the `TopologyData` response into its entity bundle field by field and
-	 * left `neighbours` out. With no neighbour rows every interface classified `Unlinked`, the hide
-	 * pass removed all of them, their subcontainers were pruned as empty, and L2 showed host boxes
-	 * with nothing inside. The tests above build the topology directly and so could never see a
-	 * field lost in that mapping — this one goes through it.
+	 * The topology tab once mapped the `TopologyData` response into its entity bundle field by
+	 * field and dropped one, which emptied every host container in L2. A port that loses its
+	 * stamped `filter_values` in that mapping carries no link state and the filter misjudges it;
+	 * the tests above build the topology directly and so could never see a field lost there.
 	 */
 	it('keeps linked ports when the topology is built from the API response', () => {
 		const built = filteredL2Bundle();
@@ -144,7 +126,6 @@ describe('hiding unlinked interfaces in L2', () => {
 			bindings: built.bindings,
 			interfaces: built.interfaces,
 			neighbours: built.neighbours,
-			candidates: built.candidates,
 			filtered_out: built.filtered_out,
 			dependencies: built.dependencies,
 			vlans: built.vlans,
@@ -154,9 +135,9 @@ describe('hiding unlinked interfaces in L2', () => {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		} as any;
 		const topology = toRenderableTopology(
-			{ id: 'topo-1', network_id: NETWORK_ID } as Topology,
+			{ id: 'topo-1', site_id: SITE_ID } as Topology,
 			entityBundleFrom(response),
-			'My Network',
+			'My Site',
 			'L2Physical'
 		);
 
@@ -169,8 +150,17 @@ describe('hiding unlinked interfaces in L2', () => {
 			undefined
 		);
 
-		expect(topology.neighbours).toHaveLength(2);
 		expect([...get(tagHiddenNodeIds)]).toEqual([]);
+
+		updateTagFilter(
+			topology,
+			undefined,
+			'L2Physical',
+			{ Interface: { LinkState: ['Linked'] } },
+			[],
+			undefined
+		);
+		expect(get(tagHiddenNodeIds).size).toBe(4);
 	});
 
 	/**

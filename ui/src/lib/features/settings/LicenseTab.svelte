@@ -2,6 +2,7 @@
 	import { Copy, RefreshCw } from 'lucide-svelte';
 	import InfoCard from '$lib/shared/components/data/InfoCard.svelte';
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
+	import DocsHint from '$lib/shared/components/feedback/DocsHint.svelte';
 	import ConfirmationDialog from '$lib/shared/components/feedback/ConfirmationDialog.svelte';
 	import SegmentedControl from '$lib/shared/components/forms/SegmentedControl.svelte';
 	import {
@@ -14,7 +15,11 @@
 	import { priceToCharge } from '$lib/features/billing/pricing';
 	import { triggerUpgrade } from '$lib/features/billing/trigger-upgrade';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { hasLicensedPlan, isPlanLapsed } from '$lib/features/organizations/types';
+	import {
+		hasLicensedPlan,
+		isPlanLapsed,
+		isSelfHostedPlanLocked
+	} from '$lib/features/organizations/types';
 	import type { Organization } from '$lib/features/organizations/types';
 	import { billingPlans } from '$lib/shared/stores/metadata';
 	import { useConfigQuery } from '$lib/shared/stores/config-query';
@@ -25,6 +30,7 @@
 	import { formatLongDate, formatTimestamp } from '$lib/shared/utils/formatting';
 	import { startSetupPayment } from '$lib/shared/billing/setup-payment';
 	import { waitForOrgUpdate } from '$lib/shared/billing/wait-for-org-update';
+	import { tooltip } from '$lib/shared/actions/tooltip';
 	import type { components } from '$lib/api/schema';
 	import {
 		apiKeys_rotateKey,
@@ -45,12 +51,15 @@
 		settings_billing_license_airGappedNeedsCard,
 		settings_billing_license_airGappedOpenInvoice,
 		settings_billing_license_airGappedPastDue,
+		settings_billing_license_installHint,
+		settings_billing_license_installLinkText,
 		settings_billing_license_keyLabel,
 		settings_billing_license_lapsed,
 		settings_billing_license_lapsedUnpaid,
 		settings_billing_license_keyTypeChanged,
 		settings_billing_license_keyTypeLabel,
 		settings_billing_license_lastCheckIn,
+		settings_billing_license_notSelfHosting,
 		settings_billing_license_offlineKeyUpsell,
 		settings_billing_license_onlineLockedUntil,
 		settings_billing_license_validThrough,
@@ -62,6 +71,8 @@
 		settings_billing_license_switchConfirm,
 		settings_billing_license_switchOnlineConfirm,
 		settings_billing_license_switchTitle,
+		settings_billing_license_switchToCloud,
+		settings_billing_license_switchToCloudDesc,
 		settings_billing_payInvoice
 	} from '$lib/paraglide/messages';
 
@@ -189,7 +200,12 @@
 		try {
 			await copyText(key);
 			pushSuccess(common_copied());
-			trackEvent('license_key_copied', { key_type: type });
+			// An air-gapped key never calls home, so a copy for the current
+			// paid-through date is the only sign its renewal reached the server.
+			trackEvent('license_key_copied', {
+				key_type: type,
+				license_paid_through: org?.license_paid_through ?? null
+			});
 		} catch (error) {
 			pushWarning(common_failedToCopy({ error: String(error) }));
 		}
@@ -272,6 +288,19 @@
 
 	function handleAddPaymentMethod() {
 		startSetupPayment({ org, source: 'license_tab', trialDaysLeft: getTrialDaysLeft(org) });
+	}
+
+	// The way back for an org that decides not to self-host. Opens on the Cloud
+	// plans, where the picker says what happens to the license.
+	let locked = $derived(isSelfHostedPlanLocked(org, billingEnabled));
+	function openCloudPlans() {
+		triggerUpgrade({
+			source: 'settings_license_switch_to_cloud',
+			surface: 'billing_tab',
+			hosting: 'cloud',
+			reopenSettings: true,
+			beforeModal: () => onClose()
+		});
 	}
 
 	function openPlanPicker() {
@@ -429,10 +458,31 @@
 										{apiKeys_rotateKey()}
 									</button>
 								</div>
+								<DocsHint
+									class="mt-2"
+									text={settings_billing_license_installHint()}
+									href="https://scanopy.net/docs/self-hosted-server/commercial-deployment/"
+									linkText={settings_billing_license_installLinkText()}
+								/>
 							</div>
 						</div>
 					</div>
 				</InfoCard>
+
+				{#if locked}
+					<p class="text-secondary text-sm">
+						{settings_billing_license_notSelfHosting()}
+						<button
+							type="button"
+							onclick={openCloudPlans}
+							class="text-link hover:underline"
+							data-tooltip={settings_billing_license_switchToCloudDesc()}
+							use:tooltip
+						>
+							{settings_billing_license_switchToCloud()}
+						</button>
+					</p>
+				{/if}
 			</div>
 		{/if}
 	</div>

@@ -38,6 +38,7 @@
 		common_unlink,
 		common_update,
 		common_userId,
+		common_change,
 		settings_account_authMethods,
 		settings_account_credentialsUpdated,
 		settings_account_currentPasswordPlaceholder,
@@ -237,7 +238,7 @@
 										}}
 										class="text-xs text-blue-500 hover:text-blue-700"
 									>
-										Change
+										{common_change()}
 									</button>
 								{/if}
 							</div>

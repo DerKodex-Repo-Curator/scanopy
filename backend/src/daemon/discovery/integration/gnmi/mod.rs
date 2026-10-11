@@ -42,7 +42,7 @@ use mac_address::MacAddress;
 
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::server::credentials::r#impl::mapping::{
@@ -390,7 +390,7 @@ impl LldpModelProfile {
 pub(crate) fn collection_to_interfaces(
     coll: &Collection,
     host_id: uuid::Uuid,
-    network_id: uuid::Uuid,
+    site_id: uuid::Uuid,
 ) -> Vec<Interface> {
     // Every neighbour a port hears is its own evidence entry, as the SNMP remote table and the
     // lldpd reader produce them (GH #701); the server groups entries by the host they resolve
@@ -410,7 +410,7 @@ pub(crate) fn collection_to_interfaces(
             let neighbor_candidates = neighbors_by_port.remove(name).unwrap_or_default();
             Interface::new(InterfaceBase {
                 host_id,
-                network_id,
+                site_id,
                 if_index: i.ifindex.and_then(|x| i32::try_from(x).ok()),
                 // ifDescr is the interface name on every NOS that matters; the operator's
                 // text is ifAlias, which is what `description` is in openconfig.
@@ -520,12 +520,6 @@ async fn collect_profile(
 
 #[async_trait]
 impl DiscoveryIntegration for GnmiIntegration {
-    /// `/interfaces/interface` is the device's own account of every interface it has, the
-    /// same standing as an ifTable walk.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::FullIfTable
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::Gnmi
     }
@@ -577,8 +571,7 @@ impl DiscoveryIntegration for GnmiIntegration {
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
         let coll = collect(&mut transport, &handle.models).await?;
 
-        let interfaces =
-            collection_to_interfaces(&coll, ctx.host_id, host_data.host.base.network_id);
+        let interfaces = collection_to_interfaces(&coll, ctx.host_id, host_data.host.base.site_id);
         tracing::info!(
             ip = %ctx.ip,
             interfaces = coll.interfaces.len(),

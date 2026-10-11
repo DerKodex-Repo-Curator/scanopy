@@ -17,8 +17,11 @@
 		topology_levelContainersExpanded,
 		topology_levelSubcontainersExpanded,
 		topology_levelFullyExpanded,
+		topology_levelContainersFullyExpanded,
 		topology_parseFailed,
 		topology_detailSimplified,
+		topology_updatedDuringScan,
+		common_refresh,
 		common_rendering
 	} from '$lib/paraglide/messages';
 	import { type Node, type Edge } from '@xyflow/svelte';
@@ -28,6 +31,7 @@
 		ABSOLUTE_MIN_ZOOM,
 		DEFAULT_MIN_ZOOM,
 		boundsOfNodes,
+		focusNodes,
 		zoomFloorFor
 	} from '../../viewport-fit';
 	import '@xyflow/svelte/dist/style.css';
@@ -49,7 +53,10 @@
 		getInfrastructureRuleIdForTopology,
 		topologyReadOnly,
 		topologyOptionsHydrated,
-		activeView
+		activeView,
+		hiddenEdgeTypes,
+		heldTopologyUpdates,
+		refreshHeldTopology
 	} from '../../queries';
 	import {
 		isExporting,
@@ -68,6 +75,7 @@
 	import {
 		collapsedContainers,
 		collapseLevel,
+		expandedInlineGroups,
 		stepExpand,
 		stepCollapse,
 		nextEffectiveLevel
@@ -212,7 +220,8 @@
 	let viewportMoved = false;
 	let viewportMoveTimer: ReturnType<typeof setTimeout> | null = null;
 
-	const { fitView, setViewport, getNodes, getInternalNode, getViewport } = useSvelteFlow();
+	const { fitView, fitBounds, setViewport, getNodes, getInternalNode, getViewport } =
+		useSvelteFlow();
 	const viewerViewport = useViewport();
 	let containerElement: HTMLDivElement;
 
@@ -386,9 +395,7 @@
 	}
 
 	export function fitViewToNodes(nodeIds: string[]) {
-		requestAnimationFrame(() =>
-			fitView({ nodes: nodeIds.map((id) => ({ id })), padding: 0.5, duration: 300 })
-		);
+		requestAnimationFrame(() => focusNodes({ fitBounds, getInternalNode }, nodeIds));
 	}
 
 	onMount(() => {
@@ -504,6 +511,9 @@
 		})
 	);
 
+	// The running scan changed this site and the layout is held (see `heldTopologySites`).
+	let heldUpdatePending = $derived(!$isExporting && $heldTopologyUpdates.has(topology.site_id));
+
 	// Publish rather than let each node decide: the size term above is not visible to a node, and
 	// one refcounted subscription beats a viewport read per node. See `detailSimplified`.
 	$effect(() => detailSimplified.set(detailHidden));
@@ -582,9 +592,7 @@
 
 	// Trigger loadTopologyData on topology or store changes
 	const bundleEdgesStore = derived(topologyOptions, (o) => o.local.bundle_edges ?? false);
-	const hideEdgeTypesStore = derived(topologyOptions, (o) =>
-		(o.local.hide_edge_types ?? []).join(',')
-	);
+	const hideEdgeTypesStore = derived(hiddenEdgeTypes, (hidden) => hidden.join(','));
 	// Metadata-value filters (e.g. hiding the OpenPorts service category) are read at render
 	// time straight from the options, so no hidden-id store ever fires for them. Without this
 	// the cards resize under a layout that never re-runs, and they overlap.
@@ -593,7 +601,7 @@
 	);
 
 	// Infra rule id derived from the topology bundle being rendered (not the
-	// global options store, which hydrates out-of-band and lags a network
+	// global options store, which hydrates out-of-band and lags a site
 	// switch). Keeps auto-collapse of the infra subcontainer correct on switch.
 	const getInfrastructureRuleId = () => getInfrastructureRuleIdForTopology(topology);
 
@@ -636,8 +644,9 @@
 			collapsed: get(collapsedContainers),
 			expandedBundles: get(expandedBundles),
 			expandedPorts: get(expandedPortNodeIds),
+			expandedInlineGroups: get(expandedInlineGroups),
 			bundleEdges: get(topologyOptions).local.bundle_edges ?? false,
-			hiddenEdgeTypes: (get(topologyOptions).local.hide_edge_types ?? []).join(','),
+			hiddenEdgeTypes: get(hiddenEdgeTypes).join(','),
 			tagHidden: get(tagHiddenNodeIds),
 			hiddenEntities: get(hiddenEntityIds),
 			hiddenMetadata: hiddenMetadataKey(get(activeView)),
@@ -770,6 +779,10 @@
 	expandedPortNodeIds.subscribe(() => {
 		if (storesInitialized) triggerLoad('ports');
 	});
+	// Deferred like the collapsed set: a level step writes both, and they should cost one run.
+	expandedInlineGroups.subscribe(() => {
+		if (storesInitialized) deferTriggerLoad('inline-groups');
+	});
 	bundleEdgesStore.subscribe(() => {
 		if (storesInitialized) triggerLoad('bundle-option');
 	});
@@ -821,17 +834,14 @@
 
 		if (topology && (topology.edges || topology.nodes)) {
 			const currentBaseEdges = get(baseFlowEdges);
-			const currentNodes = get(nodes);
-			const opts = get(topologyOptions);
 
 			updateConnectedNodes(
 				curSelectedNode,
 				curSelectedEdge,
 				currentBaseEdges,
-				currentNodes,
 				topology,
 				multiSelected,
-				opts.local.hide_edge_types ?? []
+				get(hiddenEdgeTypes)
 			);
 			const updatedEdges = computeEdgeDisplayUpdates(
 				currentBaseEdges,
@@ -1482,6 +1492,8 @@
 			case 3:
 				return topology_levelSubcontainersExpanded();
 			case 4:
+				return topology_levelContainersFullyExpanded();
+			case 5:
 				return topology_levelFullyExpanded();
 		}
 	}
@@ -1490,16 +1502,19 @@
 	// end. A view whose only root is collapsed_by_default has fewer distinct states than the
 	// ladder has rungs, so the button can run out before the number does — and a button that
 	// still looks live while doing nothing is worse than one that greys out.
-	// `$collapsedContainers` is read so this re-evaluates when the rendered set changes.
+	// `$collapsedContainers` and `$expandedInlineGroups` are read so this re-evaluates when the
+	// rendered state changes.
 	let expandDisabled = $derived(
 		!!editMode ||
 			($collapsedContainers &&
+				$expandedInlineGroups &&
 				nextEffectiveLevel('expand', topology.nodes, containerTypes, getInfrastructureRuleId()) ===
 					null)
 	);
 	let collapseDisabled = $derived(
 		!!editMode ||
 			($collapsedContainers &&
+				$expandedInlineGroups &&
 				nextEffectiveLevel(
 					'collapse',
 					topology.nodes,
@@ -1513,7 +1528,7 @@
 			: ''
 	);
 	let collapseLevelTooltipExpand = $derived(
-		$collapseLevel < 4
+		$collapseLevel < 5
 			? `${common_expand()}: ${getCollapseLevelName(($collapseLevel + 1) as CollapseLevel)}`
 			: ''
 	);
@@ -1679,7 +1694,7 @@
 			/>
 		{/if}
 
-		{#if $isRenderingTopology || detailHidden}
+		{#if $isRenderingTopology || detailHidden || heldUpdatePending}
 			<!--
 				One pill for what the view is doing to itself, in flow chrome rather than in the graph
 				so it belongs to the view and not to any node.
@@ -1698,6 +1713,18 @@
 				{#if detailHidden}
 					<span class="detail-hidden-row">
 						{topology_detailSimplified()}
+					</span>
+				{/if}
+				{#if heldUpdatePending && !$isRenderingTopology}
+					<span class="detail-hidden-row">
+						{topology_updatedDuringScan()}
+						<button
+							type="button"
+							class="held-refresh"
+							onclick={() => refreshHeldTopology(topology.site_id)}
+						>
+							{common_refresh()}
+						</button>
 					</span>
 				{/if}
 			</div>
@@ -1753,6 +1780,15 @@
 		display: flex;
 		align-items: center;
 		gap: 5px;
+	}
+
+	/* The pill ignores the pointer so the graph under it stays usable; this one control takes it. */
+	.held-refresh {
+		pointer-events: auto;
+		font-weight: 600;
+		color: var(--color-text-primary, #0f172a);
+		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 
 	/*

@@ -28,7 +28,6 @@
 		auth_passwordLoginDisabledNoProviders,
 		auth_scanopyLogo,
 		auth_signInInstead,
-		auth_signUpForUpdates,
 		auth_termsAndPrivacy,
 		auth_youreInvitedBody,
 		auth_youreInvitedTitle,
@@ -50,7 +49,7 @@
 		orgName?: string | null;
 		invitedBy?: string | null;
 		isOpen?: boolean;
-		onRegister: (data: RegisterRequest, subscribed: boolean) => Promise<void> | void;
+		onRegister: (data: RegisterRequest) => Promise<void> | void;
 		onClose: () => void;
 		onSwitchToLogin?: () => void;
 	} = $props();
@@ -70,7 +69,6 @@
 	let disablePasswordLogin = $derived(configData?.disable_password_login ?? false);
 	let oidcProviders = $derived(configData?.oidc_providers ?? []);
 	let hasOidcProviders = $derived(oidcProviders.length > 0);
-	let enableEmailOptIn = $derived(configData?.has_email_opt_in ?? false);
 	let enableTermsCheckbox = $derived(configData?.billing_enabled ?? false);
 	let isCloudDeployment = $derived(configData ? isCloud(configData) : false);
 
@@ -96,21 +94,17 @@
 			email: '',
 			password: '',
 			confirmPassword: '',
-			subscribed: false,
 			terms_accepted: false
 		},
 		onSubmit: async ({ value }) => {
 			registering = true;
 			try {
-				await onRegister(
-					{
-						email: value.email.trim(),
-						password: value.password,
-						terms_accepted: enableTermsCheckbox && value.terms_accepted,
-						company_url: isCloudDeployment ? honeypotValue || undefined : undefined
-					},
-					value.subscribed
-				);
+				await onRegister({
+					email: value.email.trim(),
+					password: value.password,
+					terms_accepted: enableTermsCheckbox && value.terms_accepted,
+					company_url: isCloudDeployment ? honeypotValue || undefined : undefined
+				});
 			} finally {
 				registering = false;
 			}
@@ -123,7 +117,6 @@
 			email: '',
 			password: '',
 			confirmPassword: '',
-			subscribed: false,
 			terms_accepted: false
 		});
 		subStep = 'method';
@@ -171,7 +164,7 @@
 	function handleOidcRegister(providerSlug: string) {
 		oidcLoadingSlug = providerSlug;
 		const returnUrl = encodeURIComponent(window.location.origin);
-		window.location.href = `/api/auth/oidc/${providerSlug}/authorize?flow=register&return_url=${returnUrl}&terms_accepted=${enableTermsCheckbox && form.state.values.terms_accepted}&marketing_opt_in=${form.state.values.subscribed}`;
+		window.location.href = `/api/auth/oidc/${providerSlug}/authorize?flow=register&return_url=${returnUrl}&terms_accepted=${enableTermsCheckbox && form.state.values.terms_accepted}`;
 	}
 
 	async function handleSubmit() {
@@ -242,27 +235,13 @@
 					{#if disablePasswordLogin && !hasOidcProviders}
 						<InlineDanger title={auth_passwordLoginDisabledNoProviders()} />
 					{:else}
-						{#if enableTermsCheckbox || enableEmailOptIn}
+						{#if enableTermsCheckbox}
 							<div class="flex flex-col gap-2">
-								{#if enableTermsCheckbox}
-									<form.Field name="terms_accepted">
-										{#snippet children(field)}
-											<Checkbox label={auth_termsAndPrivacy()} helpText="" {field} id="terms" />
-										{/snippet}
-									</form.Field>
-								{/if}
-								{#if enableEmailOptIn}
-									<form.Field name="subscribed">
-										{#snippet children(field)}
-											<Checkbox
-												{field}
-												label={auth_signUpForUpdates()}
-												id="subscribe"
-												helpText=""
-											/>
-										{/snippet}
-									</form.Field>
-								{/if}
+								<form.Field name="terms_accepted">
+									{#snippet children(field)}
+										<Checkbox label={auth_termsAndPrivacy()} helpText="" {field} id="terms" />
+									{/snippet}
+								</form.Field>
 							</div>
 						{/if}
 

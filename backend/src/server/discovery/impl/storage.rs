@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -15,19 +14,6 @@ use crate::server::{
         storage::traits::{Entity, SqlValue, Storable},
     },
 };
-
-/// CSV row representation for Discovery export
-#[derive(Serialize)]
-pub struct DiscoveryCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub discovery_type: String,
-    pub run_type: String,
-    pub daemon_id: Uuid,
-    pub network_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Discovery {
     const HAS_SCD2: bool = false;
@@ -77,7 +63,7 @@ impl Storable for Discovery {
                     run_type,
                     name,
                     daemon_id,
-                    network_id,
+                    site_id,
                     tags: _, // Stored in entity_tags junction table
                 },
             scan_count,
@@ -91,7 +77,7 @@ impl Storable for Discovery {
                 "created_at",
                 "updated_at",
                 "name",
-                "network_id",
+                "site_id",
                 "daemon_id",
                 "run_type",
                 "discovery_type",
@@ -104,7 +90,7 @@ impl Storable for Discovery {
                 SqlValue::Timestamp(created_at),
                 SqlValue::Timestamp(updated_at),
                 SqlValue::String(name),
-                SqlValue::Uuid(network_id),
+                SqlValue::Uuid(site_id),
                 SqlValue::Uuid(daemon_id),
                 SqlValue::RunType(run_type),
                 SqlValue::DiscoveryType(discovery_type),
@@ -134,7 +120,7 @@ impl Storable for Discovery {
             base: DiscoveryBase {
                 daemon_id: row.get("daemon_id"),
                 name: row.get("name"),
-                network_id: row.get("network_id"),
+                site_id: row.get("site_id"),
                 run_type,
                 discovery_type,
                 tags: Vec::new(), // Hydrated from entity_tags junction table
@@ -163,21 +149,6 @@ impl Entity for Discovery {
         self.created_at = time;
     }
 
-    type CsvRow = DiscoveryCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        DiscoveryCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            discovery_type: format!("{:?}", self.base.discovery_type),
-            run_type: format!("{:?}", self.base.run_type),
-            daemon_id: self.base.daemon_id,
-            network_id: self.base.network_id,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Discovery
     }
@@ -187,7 +158,7 @@ impl Entity for Discovery {
     const ENTITY_DESCRIPTION: &'static str = "Network discovery operations. Trigger and monitor scans that detect hosts, services, and network topology.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::DiscoveryAndDaemons
+        EntityCategory::Discover
     }
 
     fn preserve_immutable_fields(&mut self, existing: &Self) {
@@ -195,8 +166,8 @@ impl Entity for Discovery {
         self.scan_count = existing.scan_count;
     }
 
-    fn network_id(&self) -> Option<Uuid> {
-        Some(self.base.network_id)
+    fn site_id(&self) -> Option<Uuid> {
+        Some(self.base.site_id)
     }
 
     fn organization_id(&self) -> Option<Uuid> {

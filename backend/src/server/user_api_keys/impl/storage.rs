@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -14,27 +13,16 @@ use crate::server::{
     users::r#impl::permissions::UserOrgPermissions,
 };
 
-/// CSV row representation for UserApiKey export (excludes sensitive key field)
-#[derive(Serialize)]
-pub struct UserApiKeyCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub user_id: Uuid,
-    pub organization_id: Uuid,
-    pub permissions: String,
-    pub is_enabled: bool,
-    pub last_used: Option<DateTime<Utc>>,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 impl Storable for UserApiKey {
     const HAS_SCD2: bool = false;
     type BaseData = UserApiKeyBase;
 
     fn table_name() -> &'static str {
         "user_api_keys"
+    }
+
+    fn search_predicates() -> &'static [&'static str] {
+        &["user_api_keys.name ILIKE {}"]
     }
 
     fn new(base: Self::BaseData) -> Self {
@@ -67,8 +55,8 @@ impl Storable for UserApiKey {
                     last_used,
                     expires_at,
                     is_enabled,
-                    tags: _,        // Stored in entity_tags junction table
-                    network_ids: _, // Stored in junction table, not here
+                    tags: _,     // Stored in entity_tags junction table
+                    site_ids: _, // Stored in junction table, not here
                 },
         } = self.clone();
 
@@ -121,8 +109,8 @@ impl Storable for UserApiKey {
                 last_used: row.get("last_used"),
                 expires_at: row.get("expires_at"),
                 is_enabled: row.get("is_enabled"),
-                tags: Vec::new(),        // Hydrated from entity_tags junction table
-                network_ids: Vec::new(), // Hydrated separately from junction table
+                tags: Vec::new(),     // Hydrated from entity_tags junction table
+                site_ids: Vec::new(), // Hydrated separately from junction table
             },
         })
     }
@@ -145,23 +133,6 @@ impl Entity for UserApiKey {
         self.created_at = time;
     }
 
-    type CsvRow = UserApiKeyCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        UserApiKeyCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            user_id: self.base.user_id,
-            organization_id: self.base.organization_id,
-            permissions: format!("{:?}", self.base.permissions),
-            is_enabled: self.base.is_enabled,
-            last_used: self.base.last_used,
-            expires_at: self.base.expires_at,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::UserApiKey
     }
@@ -171,11 +142,11 @@ impl Entity for UserApiKey {
     const ENTITY_DESCRIPTION: &'static str = "User API keys for programmatic access. Create and manage personal API keys with scoped permissions.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::OrganizationsAndUsers
+        EntityCategory::Platform
     }
 
-    fn network_id(&self) -> Option<Uuid> {
-        // User API keys use a junction table for network access
+    fn site_id(&self) -> Option<Uuid> {
+        // User API keys use a junction table for site access
         None
     }
 

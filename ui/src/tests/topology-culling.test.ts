@@ -52,7 +52,8 @@ const element = (id: string, container_id: string): TopologyNode =>
 		node_type: 'Element',
 		container_id,
 		host_id: 'h',
-		element_type: 'Interface'
+		element_type: 'Interface',
+		entity_id: id
 	}) as unknown as TopologyNode;
 
 /**

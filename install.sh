@@ -19,7 +19,8 @@ ARCH=$(uname -m)
 
 # Map architecture names to match release binaries
 case "$ARCH" in
-    x86_64)
+    # FreeBSD reports amd64 where Linux and macOS report x86_64.
+    x86_64|amd64)
         ARCH="amd64"
         ;;
     aarch64|arm64)

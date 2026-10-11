@@ -8,7 +8,7 @@ import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-qu
 import { queryKeys } from '$lib/api/query-client';
 import { apiClient } from '$lib/api/client';
 import { requireSuccess, unwrapData } from '$lib/api/query-helpers';
-import type { Tag } from './types/base';
+import type { Tag, TagGroup } from './types/base';
 import type { components } from '$lib/api/schema';
 
 // Types for tag assignment operations
@@ -122,6 +122,102 @@ export function useBulkDeleteTagsMutation() {
 }
 
 // ============================================================================
+// Tag Groups
+// ============================================================================
+
+/** Every tag group of the organization: system groups first, then by name. */
+export function useTagGroupsQuery() {
+	return createQuery(() => ({
+		queryKey: queryKeys.tagGroups.all,
+		queryFn: async () => unwrapData(await apiClient.GET('/api/v1/tag-groups'))
+	}));
+}
+
+export function useCreateTagGroupMutation() {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async (group: TagGroup) =>
+			unwrapData(await apiClient.POST('/api/v1/tag-groups', { body: group })),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.tagGroups.all });
+		}
+	}));
+}
+
+export function useUpdateTagGroupMutation() {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async (group: TagGroup) =>
+			unwrapData(
+				await apiClient.PUT('/api/v1/tag-groups/{id}', {
+					params: { path: { id: group.id } },
+					body: group
+				})
+			),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.tagGroups.all });
+		}
+	}));
+}
+
+/** Deleting a group leaves its tags in no group, so the tags are refetched too. */
+export function useDeleteTagGroupMutation() {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async (id: string) => {
+			requireSuccess(
+				await apiClient.DELETE('/api/v1/tag-groups/{id}', { params: { path: { id } } })
+			);
+			return id;
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.tagGroups.all });
+			queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+		}
+	}));
+}
+
+export function useBulkDeleteTagGroupsMutation() {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async (ids: string[]) => {
+			requireSuccess(await apiClient.POST('/api/v1/tag-groups/bulk-delete', { body: ids }));
+			return ids;
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.tagGroups.all });
+			queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+		}
+	}));
+}
+
+/** Set a group's tag order. The response carries the group's tags with their new positions. */
+export function useSetTagOrderMutation() {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async ({ groupId, tagIds }: { groupId: string; tagIds: string[] }) =>
+			unwrapData(
+				await apiClient.PUT('/api/v1/tag-groups/{id}/tag-order', {
+					params: { path: { id: groupId } },
+					body: { tag_ids: tagIds }
+				})
+			),
+		onSuccess: (reordered: Tag[]) => {
+			const byId = new Map(reordered.map((tag) => [tag.id, tag]));
+			queryClient.setQueryData<Tag[]>(
+				queryKeys.tags.all,
+				(old) => old?.map((tag) => byId.get(tag.id) ?? tag) ?? []
+			);
+		}
+	}));
+}
+
+// ============================================================================
 // Entity Tag Assignment Mutations
 // ============================================================================
 
@@ -136,26 +232,26 @@ const entityTypeToQueryKeyName: Record<EntityDiscriminants, keyof typeof queryKe
 	Service: 'services',
 	Subnet: 'subnets',
 	Dependency: 'dependencies',
-	Network: 'networks',
+	Site: 'sites',
 	Discovery: 'discovery',
 	Daemon: 'daemons',
 	DaemonApiKey: 'apiKeys',
 	UserApiKey: 'userApiKeys',
 	Credential: 'credentials',
+	Vlan: 'vlans',
 	// Non-taggable entities (null = no cache invalidation needed)
 	Organization: null,
 	Invite: null,
 	Share: null,
 	User: null,
 	Tag: null,
+	TagGroup: null,
 	Port: null,
 	Binding: null,
 	IPAddress: null,
 	Interface: null,
-	Vlan: null,
 	Topology: null,
-	Snapshot: null,
-	Unknown: null
+	Snapshot: null
 };
 
 /**
@@ -175,13 +271,6 @@ function getQueryKeyForEntityType(entityType: EntityDiscriminants): readonly str
 	}
 	return undefined;
 }
-
-/**
- * List of taggable entity types (derived from the mapping above)
- */
-export const TAGGABLE_ENTITY_TYPES = (
-	Object.keys(entityTypeToQueryKeyName) as EntityDiscriminants[]
-).filter((key) => entityTypeToQueryKeyName[key] !== null);
 
 /**
  * Mutation hook for bulk adding a tag to multiple entities

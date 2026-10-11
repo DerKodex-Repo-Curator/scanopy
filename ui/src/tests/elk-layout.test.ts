@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { LayoutGraph } from '$lib/features/topology/layout/layout-graph';
+import { computeElkLayout, type ElkLayoutInput } from '$lib/features/topology/layout/elk-layout';
 import {
-	computeElkLayout,
 	computeOptimalHandles,
-	type ElkLayoutInput,
 	type ObstacleRect
-} from '$lib/features/topology/layout/elk-layout';
+} from '$lib/features/topology/layout/handle-picking';
 import {
 	isDisabledEdge,
 	isDottedEdge,
@@ -101,7 +100,7 @@ function makeSubnet(id: string, subnetType: SubnetType): Subnet {
 		name: `subnet-${subnetType}`,
 		cidr_source: 'DaemonSelfReport',
 		subnet_type: subnetType,
-		network_id: uuid(),
+		site_id: uuid(),
 		cidr: '10.0.0.0/24',
 		virtualization_service_id: null,
 		source: { type: 'Manual' },
@@ -126,7 +125,7 @@ function makeTopology(
 			created_at: '2026-01-01T00:00:00Z',
 			updated_at: '2026-01-01T00:00:00Z',
 			name: 'test',
-			network_id: uuid(),
+			site_id: uuid(),
 			is_locked: false,
 			is_stale: false,
 			last_refreshed: '2026-01-01T00:00:00Z',
@@ -153,7 +152,7 @@ function makeTopology(
 			options: {
 				local: {
 					left_zone_title: '', // Deprecated field, kept for generated type compat
-					hide_edge_types: [],
+					hide_edge_types: {},
 					no_fade_edges: false,
 					hide_resize_handles: false
 				},

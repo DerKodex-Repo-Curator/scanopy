@@ -3,19 +3,29 @@
 	import Tag from '$lib/shared/components/data/Tag.svelte';
 	import {
 		useTagsQuery,
+		useTagGroupsQuery,
 		useCreateTagMutation,
 		useBulkAddTagMutation,
 		useBulkRemoveTagMutation,
 		type EntityDiscriminants
 	} from '$lib/features/tags/queries';
 	import { createDefaultTag } from '$lib/features/tags/types/base';
-	import { createColorHelper, AVAILABLE_COLORS, type Color } from '$lib/shared/utils/styling';
+	import { AVAILABLE_COLORS, type Color } from '$lib/shared/utils/styling';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { permissions, billingPlans } from '$lib/shared/stores/metadata';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { onMount } from 'svelte';
 	import { common_creating, tags_addTag, tags_createTagQuoted } from '$lib/paraglide/messages';
-	import { concepts } from '$lib/shared/stores/metadata';
+	import CreatableOptionList from '$lib/shared/components/forms/selection/CreatableOptionList.svelte';
+	import {
+		applicationGroupId,
+		compareTagsByGroup,
+		isApplicationTag,
+		sameGroup,
+		tagAllowedOn,
+		tagIcon,
+		tagTooltip
+	} from '$lib/features/tags/groups';
 
 	/**
 	 * Compact inline tag picker for use in cards and bulk actions.
@@ -36,7 +46,7 @@
 		onRemove,
 		// Optional pre-resolved tags (e.g. from topology snapshot on share pages)
 		availableTags: availableTagsProp,
-		// When true, tags created inline will have is_application set
+		// When true, tags created inline go in the Application group
 		createAsApplication = false,
 		// When false, hides the inline tag creation option
 		allowCreate = true,
@@ -142,6 +152,9 @@
 
 	// Query and mutation
 	const tagsQuery = useTagsQuery();
+	const tagGroupsQuery = useTagGroupsQuery();
+	let tagGroups = $derived(tagGroupsQuery.data ?? []);
+	let applicationGroup = $derived(applicationGroupId(tagGroups));
 	const createTagMutation = useCreateTagMutation();
 	const organizationQuery = useOrganizationQuery();
 	const currentUserQuery = useCurrentUserQuery();
@@ -179,13 +192,17 @@
 		return tags.find((t) => t.id === id) ?? null;
 	}
 
-	// Filter available tags based on input and exclude already selected
+	// Filter available tags based on input, exclude already selected, and leave out tags whose group
+	// doesn't allow the entity type, in group order
 	let availableTags = $derived(
-		tags.filter(
-			(tag) =>
-				!selectedTagIds.includes(tag.id) &&
-				tag.name.toLowerCase().includes(inputValue.toLowerCase())
-		)
+		tags
+			.filter(
+				(tag) =>
+					!selectedTagIds.includes(tag.id) &&
+					(!entityType || tagAllowedOn(tag, tagGroups, entityType)) &&
+					tag.name.toLowerCase().includes(inputValue.toLowerCase())
+			)
+			.sort(compareTagsByGroup(tagGroups))
 	);
 
 	let showDropdown = $derived(open && (availableTags.length > 0 || showCreateOption));
@@ -206,7 +223,7 @@
 			newTag.name = name;
 			newTag.color = getRandomColor();
 			if (createAsApplication) {
-				(newTag as typeof newTag & { is_application: boolean }).is_application = true;
+				newTag.tag_group_id = applicationGroup;
 			}
 
 			const result = await createTagMutation.mutateAsync(newTag);
@@ -226,6 +243,14 @@
 				tag_id: tagId
 			});
 		} else {
+			// The server replaces a held tag of the same tag group on assignment; in callback
+			// mode the caller holds the list, so drop the displaced tag here to match.
+			const added = getTag(tagId);
+			for (const heldId of selectedTagIds) {
+				if (heldId !== tagId && sameGroup(getTag(heldId), added)) {
+					onRemove?.(heldId);
+				}
+			}
 			onAdd?.(tagId);
 		}
 		inputValue = '';
@@ -290,8 +315,9 @@
 		<Tag
 			label={tag?.name}
 			color={tag?.color}
-			icon={tag?.is_application ? concepts.getIconComponent('Application') : null}
-			isShiny={tag?.is_application ?? false}
+			icon={tagIcon(tag, applicationGroup)}
+			title={tagTooltip(tag, tagGroups)}
+			isShiny={isApplicationTag(tag, applicationGroup)}
 			pill={!disabled}
 			removable={!disabled && !!(onRemove || isEntityMode)}
 			onRemove={() => handleRemoveTag(tagId)}
@@ -337,34 +363,30 @@
 		class="select-dropdown fixed z-[9999] max-h-48 min-w-40 overflow-y-auto rounded-md shadow-lg"
 		style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px;"
 	>
-		<!-- Create new tag option -->
-		{#if showCreateOption}
-			<button
-				type="button"
-				class="select-option flex w-full items-center gap-2 border-b px-3 py-2 text-left text-xs transition-colors"
-				style="border-color: var(--color-border)"
-				onmousedown={handleCreateTag}
-				disabled={isCreating}
-			>
-				<Plus class="h-3 w-3 shrink-0 text-green-400" />
-				<span class="text-primary">
-					{isCreating ? common_creating() : tags_createTagQuoted({ name: inputValue.trim() })}
-				</span>
-			</button>
-		{/if}
-
-		<!-- Existing tags -->
-		{#each availableTags as tag (tag.id)}
-			{@const colorHelper = createColorHelper(tag.color)}
-			<button
-				type="button"
-				class="select-option flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
-				onmousedown={() => handleAddTag(tag.id)}
-			>
-				<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background-color: {colorHelper.rgb};"
-				></span>
-				<span class="text-primary">{tag.name}</span>
-			</button>
-		{/each}
+		<CreatableOptionList
+			options={availableTags.map((tag) => ({
+				id: tag.id,
+				label: tag.name
+			}))}
+			onSelect={handleAddTag}
+			createLabel={showCreateOption
+				? isCreating
+					? common_creating()
+					: tags_createTagQuoted({ name: inputValue.trim() })
+				: null}
+			onCreate={handleCreateTag}
+			creating={isCreating}
+		>
+			{#snippet row(option)}
+				{@const tag = getTag(option.id)}
+				<Tag
+					label={tag?.name}
+					color={tag?.color}
+					icon={tagIcon(tag, applicationGroup)}
+					title={tagTooltip(tag, tagGroups)}
+					isShiny={isApplicationTag(tag, applicationGroup)}
+				/>
+			{/snippet}
+		</CreatableOptionList>
 	</div>
 {/if}

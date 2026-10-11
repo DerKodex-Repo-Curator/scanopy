@@ -186,6 +186,8 @@ pub mod veeam;
 pub mod audiobookshelf;
 pub mod bazarr;
 pub mod booklore;
+pub mod calibre;
+pub mod calibre_web;
 pub mod emby;
 pub mod immich;
 pub mod jellyfin;
@@ -209,6 +211,7 @@ pub mod zigbee2mqtt;
 pub mod zwave_js;
 
 // Virtualization
+pub mod docker_api_proxy;
 pub mod docker_container;
 pub mod docker_daemon;
 pub mod docker_swarm;
@@ -218,6 +221,7 @@ pub mod kubernetes;
 pub mod nomad;
 pub mod openshift;
 pub mod podman;
+pub mod podman_api_proxy;
 pub mod podman_container;
 pub mod portainer;
 pub mod proxmox;
@@ -391,6 +395,7 @@ pub mod actual_budget;
 pub mod autobrr;
 pub mod backrest;
 pub mod cleanuparr;
+pub mod dawarich;
 pub mod docmost;
 pub mod firefly_iii;
 pub mod freshrss;
@@ -419,6 +424,7 @@ pub mod wizarr;
 // ============= SPECIAL =============
 
 // Scanopy
+pub mod network_identities;
 pub mod open_ports;
 pub mod scanopy_daemon;
 pub mod scanopy_server;

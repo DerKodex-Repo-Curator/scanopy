@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::base::{Daemon, DaemonMode};
-use crate::daemon::shared::config::DaemonArgs;
+use super::version::{installed_by_install_engine, own_version, persists_docker_config};
+use crate::daemon::shared::config::{DOCKER_CONFIG_DIR, DaemonArgs};
 use crate::server::credentials::r#impl::mapping::IntegrationTarget;
 
 /// The `install.sh` one-liner that fetches + runs the Unix installer bootstrap.
@@ -293,7 +294,7 @@ fn is_shell_safe(value: &str) -> bool {
 }
 
 /// The `install` flags for a resolved config. DaemonPoll dials the server (so it carries
-/// `--server-url`), ServerPoll is dialed by the server (so it does not). Name and network never
+/// `--server-url`), ServerPoll is dialed by the server (so it does not). Name and site never
 /// reach the CLI — the daemon learns its name via the handshake — so the command carries
 /// neither; everything else set on `args` is emitted, including the `--instance` selector that
 /// tells a multi-daemon host which install the command is for.
@@ -335,7 +336,7 @@ fn quote_yaml(value: &str) -> String {
 /// lines. This is the daemon's config expressed for compose.
 ///
 /// The set comes from the same [`DaemonArgs::install_config_pairs`] table as the CLI and MSI
-/// artifacts, so they cannot drift. Notably no network id, user id, name or mode: those are
+/// artifacts, so they cannot drift. Notably no site id, user id, name or mode: those are
 /// `#[serde(skip)]` on [`DaemonArgs`] precisely because a client must not assert them, and the
 /// binary install command dropped them for the same reason — identity comes from the 1:1
 /// api-key binding and the handshake. A compose that asserted them could disagree with the
@@ -379,9 +380,9 @@ fn docker_compose(env_lines: &[String], daemon: &Daemon) -> String {
     }
 
     let volumes = [
-        "daemon-config:/root/.config/scanopy/daemon",
-        "/var/run/docker.sock:/var/run/docker.sock:ro",
-        "/var/log/scanopy:/var/log/scanopy",
+        format!("daemon-config:{DOCKER_CONFIG_DIR}"),
+        "/var/run/docker.sock:/var/run/docker.sock:ro".to_string(),
+        "/var/log/scanopy:/var/log/scanopy".to_string(),
     ];
 
     let mut lines = vec![
@@ -471,6 +472,155 @@ pub fn build_install_artifacts(
             filename: msi_filename,
             omitted_config_keys: msi_omitted_config_keys,
         },
+    }
+}
+
+/// What one upgrade step does. The UI labels each step by its type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum UpgradeStepType {
+    /// Fetch the new binary into place.
+    Download,
+    /// Restart the daemon's service onto the new binary.
+    Restart,
+    /// Stop the daemon's service (Windows, daemons installed before the install engine).
+    Stop,
+    /// Start the daemon's service (Windows, daemons installed before the install engine).
+    Start,
+}
+
+/// One command of a binary upgrade, in the order it runs.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct UpgradeStep {
+    pub r#type: UpgradeStepType,
+    pub command: String,
+}
+
+impl UpgradeStep {
+    fn new(r#type: UpgradeStepType, command: String) -> Self {
+        Self { r#type, command }
+    }
+}
+
+/// The docker upgrade method.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DockerUpgrade {
+    /// Copies the daemon's config onto the `daemon-config` volume before the recreate. Set for
+    /// images that keep config outside the volume, where the recreate would otherwise erase it.
+    pub config_copy: Option<String>,
+    /// Pulls and recreates on the `latest` tag.
+    pub pull: String,
+    /// The compose `image:` line pinned to this server's version.
+    pub pinned_image: String,
+}
+
+/// Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct UpgradeArtifacts {
+    pub linux: Vec<UpgradeStep>,
+    pub macos: Vec<UpgradeStep>,
+    pub windows: Vec<UpgradeStep>,
+    pub freebsd: Vec<UpgradeStep>,
+    pub docker: DockerUpgrade,
+    /// The restart step names the service after the daemon, as installs from before the install
+    /// engine were named. Such a daemon may have been set up differently, so the UI points the
+    /// operator to `scanopy-daemon list` for the real service.
+    pub legacy_service_name: bool,
+}
+
+/// Program Files directory the Windows installer places the daemon binary in.
+const WINDOWS_BIN_DIR: &str = "$env:ProgramFiles\\Scanopy";
+
+/// Assemble the upgrade steps for a daemon.
+///
+/// A daemon installed by the install engine is restarted with `restart --instance <daemon id>`.
+/// The restart runs the binary the download step just placed, so it has the subcommand whatever
+/// version the daemon reports, and the installer resolves the id to the slot's service on its
+/// own. The server never names the service. Older daemons get the service named after the
+/// daemon, which is how they were registered before slots.
+pub fn build_upgrade_artifacts(daemon: &Daemon) -> UpgradeArtifacts {
+    use crate::daemon::install::{launchd_label, service_id};
+    use UpgradeStepType::{Download, Restart, Start, Stop};
+
+    let version = daemon.base.version.as_ref();
+    let legacy_service_name = !installed_by_install_engine(version);
+    let unix_download = UpgradeStep::new(Download, UNIX_INSTALL_SCRIPT.to_string());
+
+    let (linux, macos, freebsd, windows) = if legacy_service_name {
+        let name = &daemon.base.name;
+        let unix_service = quote_posix(&service_id(name));
+        let windows_service = quote_powershell(&service_id(name));
+        let unix =
+            |restart: String| vec![unix_download.clone(), UpgradeStep::new(Restart, restart)];
+        (
+            unix(format!("sudo systemctl restart {unix_service}")),
+            unix(format!(
+                "sudo launchctl kickstart -k {}",
+                quote_posix(&format!("system/{}", launchd_label(name)))
+            )),
+            unix(format!("sudo service {unix_service} restart")),
+            // The running exe is locked, so it is stopped before being overwritten in place.
+            vec![
+                UpgradeStep::new(Stop, format!("sc.exe stop {windows_service}")),
+                UpgradeStep::new(
+                    Download,
+                    format!(
+                        "Invoke-WebRequest -Uri \"{WINDOWS_EXE_URL}\" -OutFile \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\""
+                    ),
+                ),
+                UpgradeStep::new(Start, format!("sc.exe start {windows_service}")),
+            ],
+        )
+    } else {
+        let instance = daemon.id.to_string();
+        let unix = vec![
+            unix_download,
+            UpgradeStep::new(
+                Restart,
+                format!("sudo scanopy-daemon restart --instance {instance}"),
+            ),
+        ];
+        let windows = vec![
+            // Windows refuses to overwrite a running exe but lets it be renamed, and every daemon
+            // on the host runs the same one. Download beside it, move the running copy aside, and
+            // move the new one in. The retired copy gets a unique name: an earlier one can still be
+            // running (another daemon not yet restarted), and an in-use file can't be replaced.
+            // `restart` and `install` clear retired copies once released. Errors stop the chain,
+            // so a failed download never moves the working exe away.
+            UpgradeStep::new(
+                Download,
+                format!(
+                    "$ErrorActionPreference = 'Stop'; \
+                     Invoke-WebRequest -Uri \"{WINDOWS_EXE_URL}\" -OutFile \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\"; \
+                     Move-Item \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.$(Get-Date -Format yyyyMMddHHmmss).old\"; \
+                     Move-Item \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\""
+                ),
+            ),
+            UpgradeStep::new(
+                Restart,
+                format!(
+                    "& \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\" restart --instance {instance}"
+                ),
+            ),
+        ];
+        (unix.clone(), unix.clone(), unix, windows)
+    };
+
+    UpgradeArtifacts {
+        linux,
+        macos,
+        windows,
+        freebsd,
+        docker: DockerUpgrade {
+            // `-n` never overwrites a config already on the volume.
+            config_copy: (!persists_docker_config(version)).then(|| {
+                format!(
+                    "docker compose exec daemon sh -c 'mkdir -p {DOCKER_CONFIG_DIR} && cp -rn /root/.config/daemon/. {DOCKER_CONFIG_DIR}/'"
+                )
+            }),
+            pull: "docker compose pull\ndocker compose up -d".to_string(),
+            pinned_image: format!("image: ghcr.io/scanopy/scanopy/daemon:v{}", own_version()),
+        },
+        legacy_service_name,
     }
 }
 

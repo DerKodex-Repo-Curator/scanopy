@@ -1,4 +1,10 @@
-import { getFieldKey, isDisplayField, isOrderableField, type FieldConfig } from '../types';
+import {
+	getFieldKey,
+	isDisplayField,
+	isOrderableField,
+	type FieldConfig,
+	type TableDefaults
+} from '../types';
 import { getFieldValue } from './fieldValues';
 
 export type SortDirection = 'asc' | 'desc';
@@ -26,8 +32,14 @@ export function compareByField<T>(
 	const aVal = getFieldValue(a, field);
 	const bVal = getFieldValue(b, field);
 
-	if (aVal === null || aVal === undefined) return 1;
-	if (bVal === null || bVal === undefined) return -1;
+	const aMissing = aVal === null || aVal === undefined;
+	const bMissing = bVal === null || bVal === undefined;
+	if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
+
+	if (field.compare) {
+		const comparison = field.compare(a, b);
+		return direction === 'asc' ? comparison : -comparison;
+	}
 
 	let comparison: number;
 
@@ -86,6 +98,21 @@ export function sortItems<T>(
 	if (serverOrdered && isOrderableField(field)) return items;
 
 	return [...items].sort((a, b) => compareByField(a, b, field, sort.direction));
+}
+
+/**
+ * How the siblings of a tree grouping are ordered: by the active sort when there is one, else by
+ * `fallback`, the grouped field's own order. Parents stay above their children either way; only
+ * the order among rows under the same parent changes.
+ */
+export function treeSiblingCompare<T>(
+	fields: FieldConfig<T>[],
+	sort: SortState,
+	fallback?: (a: T, b: T) => number
+): ((a: T, b: T) => number) | undefined {
+	const field = sort.field ? fields.find((f) => getFieldKey(f) === sort.field) : undefined;
+	if (!field) return fallback;
+	return (a, b) => compareByField(a, b, field, sort.direction);
 }
 
 /**
@@ -169,4 +196,36 @@ export function serverOrderViolations<T>(
 			(field) => isDisplayField(field) && (field.sortable === true || field.groupable === true)
 		)
 		.map(getFieldKey);
+}
+
+/**
+ * Default group and sort keys a list cannot apply.
+ *
+ * A list groups and sorts only by rendered columns, so a default on a missing
+ * field, a field that cannot group or sort, or a column hidden until the user
+ * shows it would silently open the tab ungrouped or unsorted.
+ */
+export function defaultOrderingViolations<T>(
+	fields: FieldConfig<T>[],
+	defaults: TableDefaults,
+	serverPaginated: boolean
+): string[] {
+	const rendersByDefault = (field: FieldConfig<T>) =>
+		!field.display?.hidden && !field.display?.hiddenByDefault;
+	const fieldFor = (key: string) => fields.find((f) => getFieldKey(f) === key);
+
+	const offenders: string[] = [];
+	if (defaults.group) {
+		const field = fieldFor(defaults.group);
+		if (!field || !rendersByDefault(field) || !isGroupableField(field, serverPaginated)) {
+			offenders.push(`group "${defaults.group}"`);
+		}
+	}
+	if (defaults.sort) {
+		const field = fieldFor(defaults.sort.field);
+		if (!field || !rendersByDefault(field) || !isSortableField(field, serverPaginated)) {
+			offenders.push(`sort "${defaults.sort.field}"`);
+		}
+	}
+	return offenders;
 }

@@ -20,8 +20,12 @@ import {
 	definedOrderField,
 	orderFieldSchema,
 	readTab,
+	registryEntity,
+	registryFieldsOf,
+	registryOmitted,
 	type SchemaNode
 } from './entity-tabs';
+import { columnType } from '$lib/shared/entity-fields/table';
 
 /**
  * Every column on every entity tab has a recorded sort, group and filter decision, and the tab
@@ -97,6 +101,8 @@ const server = (param: string): ColumnDecision => ({ sort: true, group: true, fi
 const serverIdentity = (group: string): ColumnDecision => ({ sort: true, group, filter: SEARCH });
 
 const RUN_RESULT = none('Run result; a scan configuration has none');
+/** The run that first or last found an entity: one chip, and Created and Last seen already say when. */
+const FOUND_BY = none('A scan run; Created and Last seen order by when');
 
 /** Keyed by tab path relative to `src/lib/features`. */
 const DECISIONS: Record<string, TabDecisions> = {
@@ -108,7 +114,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			virtualized_by: server('virtualization_service_ids'),
 			interface_ip: serverIdentity('Unique per host'),
 			mac_address: serverIdentity('Unique per host'),
-			network_id: server('network_ids'),
+			site_id: server('site_ids'),
 			created_at: DATE,
 			updated_at: DATE,
 			last_seen_at: LAST_SEEN,
@@ -117,9 +123,9 @@ const DECISIONS: Record<string, TabDecisions> = {
 			model: server('models'),
 			sys_location: server('sys_locations'),
 			os_family: server('os_families'),
-			hidden: server('hidden'),
 			description: TEXT,
 			serial_number: none('Identifier, unique per device; search finds one'),
+			asset_tag: none('Identifier, unique per device; search finds one'),
 			chassis_id: none('Identifier, unique per device; search finds one'),
 			sys_name: none('Identifier, unique per device; search finds one'),
 			management_url: none('Identifier, unique per device; search finds one'),
@@ -143,7 +149,11 @@ const DECISIONS: Record<string, TabDecisions> = {
 			tags: { ...SHARED_ARRAY, filter: { param: 'tag_ids' } },
 			credentials: { ...SHARED_ARRAY, filter: { param: 'credential_ids' } },
 			interfaces: ownedArray('Interface names are unique per host; search finds them'),
-			services: { ...SHARED_ARRAY, filter: { param: 'service_names' } }
+			ports: ownedArray('No port filter on the hosts list; Services filters by port'),
+			services: { ...SHARED_ARRAY, filter: { param: 'service_names' } },
+			presented_by: none('Set on site identities only; Virtualized by groups and filters them'),
+			first_found_by: FOUND_BY,
+			last_found_by: FOUND_BY
 		}
 	},
 	'services/components/ServiceTab.svelte': {
@@ -151,7 +161,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 		columns: {
 			name: serverIdentity('Type groups the same values'),
 			host: server('host_ids'),
-			network_id: server('network_ids'),
+			site_id: server('site_ids'),
 			service_definition: server('service_definitions'),
 			position: { sort: true, group: 'Per-host ordinal', filter: 'Per-host ordinal' },
 			created_at: DATE,
@@ -167,7 +177,9 @@ const DECISIONS: Record<string, TabDecisions> = {
 				group: 'Derived in code; no SQL column',
 				filter: { param: 'exclude_categories' }
 			},
-			tags: { ...SHARED_ARRAY, filter: { param: 'tag_ids' } }
+			tags: { ...SHARED_ARRAY, filter: { param: 'tag_ids' } },
+			first_found_by: FOUND_BY,
+			last_found_by: FOUND_BY
 		}
 	},
 	'discovery/components/tabs/DiscoveryHistoryTab.svelte': {
@@ -176,7 +188,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			// Runs of one scan share its name, so grouping gathers a scan's history.
 			name: { sort: true, group: true, filter: SEARCH },
 			daemon_id: server('daemon_ids'),
-			network_id: server('network_ids'),
+			site_id: server('site_ids'),
 			discovery_type: server('discovery_types'),
 			created_at: DATE,
 			updated_at: DATE,
@@ -188,7 +200,8 @@ const DECISIONS: Record<string, TabDecisions> = {
 				sort: true,
 				group: COUNT,
 				filter: 'Sorting brings runs with warnings to the top'
-			}
+			},
+			tags: ownedArray('No server tag filter; runs are untagged unless tagged through the API')
 		}
 	},
 	'discovery/components/tabs/DiscoveryScheduledTab.svelte': {
@@ -197,7 +210,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			created_at: DATE,
 			updated_at: DATE,
 			daemon_id: YES,
-			network_id: YES,
+			site_id: YES,
 			discovery_type: YES,
 			phase: RUN_RESULT,
 			started_at: RUN_RESULT,
@@ -217,7 +230,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 	'daemons/components/DaemonTab.svelte': {
 		columns: {
 			name: IDENTITY,
-			network_id: YES,
+			site_id: YES,
 			last_seen: DATE,
 			created_at: DATE,
 			updated_at: DATE,
@@ -226,6 +239,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			os: YES,
 			mode: YES,
 			version: YES,
+			maintainer: YES,
 			url: none('Unique per daemon'),
 			interfaced_subnet_ids: SHARED_ARRAY,
 			tags: SHARED_ARRAY
@@ -234,7 +248,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 	'daemon_api_keys/components/ApiKeyTab.svelte': {
 		columns: {
 			name: IDENTITY,
-			network_id: YES,
+			site_id: YES,
 			is_enabled: BOOLEAN,
 			last_used: DATE,
 			expires_at: DATE,
@@ -247,20 +261,34 @@ const DECISIONS: Record<string, TabDecisions> = {
 		columns: {
 			name: IDENTITY,
 			color: YES,
-			// An orderable boolean: the order field sorts it as a side effect of grouping.
-			is_application: YES,
+			// One group per tag: Application or a named group.
+			tag_group: YES,
 			created_at: DATE,
 			updated_at: DATE,
-			description: TEXT
+			description: TEXT,
+			icon: { sort: 'An icon name has no useful order', group: true, filter: true }
 		}
 	},
-	'networks/components/NetworksTab.svelte': {
+	'tags/components/TagGroupTab.svelte': {
 		columns: {
 			name: IDENTITY,
-			vlans: ownedArray('Each belongs to one network'),
-			daemons: ownedArray('Each belongs to one network'),
-			subnets: ownedArray('Each belongs to one network'),
-			// Credentials are shared across networks.
+			description: TEXT,
+			group_type: YES,
+			entity_types: SHARED_ARRAY,
+			ordered: YES,
+			// Each tag is in one group, so filtering by one finds its group.
+			tags: SHARED_ARRAY,
+			created_at: DATE,
+			updated_at: DATE
+		}
+	},
+	'sites/components/SitesTab.svelte': {
+		columns: {
+			name: IDENTITY,
+			vlans: ownedArray('Each belongs to one site'),
+			daemons: ownedArray('Each belongs to one site'),
+			subnets: ownedArray('Each belongs to one site'),
+			// Credentials are shared across sites.
 			credentials: SHARED_ARRAY,
 			tags: SHARED_ARRAY,
 			created_at: DATE,
@@ -273,7 +301,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			email: IDENTITY,
 			invite_status: YES,
 			permissions: YES,
-			network_ids: SHARED_ARRAY,
+			site_ids: SHARED_ARRAY,
 			oidc_provider: YES,
 			invited_by: YES,
 			invite_url: none('Unique per invite'),
@@ -289,7 +317,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 		columns: {
 			name: IDENTITY,
 			permissions: YES,
-			network_ids: SHARED_ARRAY,
+			site_ids: SHARED_ARRAY,
 			is_enabled: BOOLEAN,
 			last_used: DATE,
 			expires_at: DATE,
@@ -301,15 +329,24 @@ const DECISIONS: Record<string, TabDecisions> = {
 	'subnets/components/SubnetTab.svelte': {
 		columns: {
 			name: IDENTITY,
-			cidr: IDENTITY,
+			// Groups each range with the ranges nested inside it, not one group per CIDR.
+			cidr: { sort: true, group: true, filter: SEARCH },
 			subnet_type: YES,
-			network_id: YES,
+			site_id: YES,
 			created_at: DATE,
 			updated_at: DATE,
 			last_seen_at: DATE,
 			description: TEXT,
 			source: YES,
-			tags: SHARED_ARRAY
+			managed_by: YES,
+			first_found_by: FOUND_BY,
+			last_found_by: FOUND_BY,
+			tags: SHARED_ARRAY,
+			utilization: {
+				sort: true,
+				group: 'A percentage; every value would be its own group',
+				filter: 'A percentage; sort finds the fullest'
+			}
 		}
 	},
 	'credentials/components/CredentialsTab.svelte': {
@@ -322,7 +359,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			beta: BOOLEAN,
 			unofficial_api: BOOLEAN,
 			description: TEXT,
-			assigned_networks: SHARED_ARRAY,
+			assigned_sites: SHARED_ARRAY,
 			assigned_hosts: ownedArray(SEARCH),
 			target: SHARED_ARRAY,
 			tags: SHARED_ARRAY
@@ -330,15 +367,19 @@ const DECISIONS: Record<string, TabDecisions> = {
 	},
 	'vlans/components/VlanTab.svelte': {
 		columns: {
-			vlan_number: { sort: true, group: 'Unique per network', filter: SEARCH },
+			vlan_number: { sort: true, group: 'Unique per site', filter: SEARCH },
 			name: IDENTITY,
 			created_at: DATE,
 			updated_at: DATE,
 			last_seen_at: DATE,
 			description: TEXT,
 			source: YES,
-			network_id: YES,
-			subnet_ids: SHARED_ARRAY
+			site_id: YES,
+			subnet_ids: SHARED_ARRAY,
+			interface_ids: SHARED_ARRAY,
+			tags: SHARED_ARRAY,
+			first_found_by: FOUND_BY,
+			last_found_by: FOUND_BY
 		}
 	}
 };
@@ -465,14 +506,22 @@ function parseEntry(src: string, start: number, end: number): Entry | null {
 	return { name, value: name, valueStart: i };
 }
 
-/** The flags of the field object literal at `open`, or why they cannot be read. */
-function parseField(src: string, open: number, orderable: boolean): ParsedField | string {
+/**
+ * The flags of the field object literal at `open`, or why they cannot be read. `registryType` is
+ * the type a registry-backed column gets when the literal leaves it out.
+ */
+function parseField(
+	src: string,
+	open: number,
+	orderable: boolean,
+	registryType?: FieldConfig<unknown>['type']
+): ParsedField | string {
 	const entries = objectEntries(src, open);
 	if (entries.some((entry) => entry.name === '...')) {
 		return 'spreads another object into the field, so its flags cannot be read here';
 	}
 	const byName = new Map(entries.map((entry) => [entry.name, entry.value]));
-	const type = byName.get('type')?.match(/^'(string|boolean|date|array)'$/)?.[1];
+	const type = byName.get('type')?.match(/^'(string|boolean|date|array)'$/)?.[1] ?? registryType;
 	if (!type) return `has no literal \`type\` ('string', 'boolean', 'date' or 'array')`;
 	const flags: ParsedField['flags'] = {};
 	for (const flag of FLAGS) {
@@ -487,9 +536,33 @@ function parseField(src: string, open: number, orderable: boolean): ParsedField 
 	return { orderable, type: type as ParsedField['type'], flags, columnless };
 }
 
+/** Where the `n`th (0-based) top-level argument of the call whose `(` is at `paren` starts. */
+function argumentStart(src: string, paren: number, n: number): number {
+	let depth = 0;
+	let seen = 0;
+	for (let i = paren + 1; i < src.length;) {
+		const skipped = skipLiteral(src, i);
+		if (skipped !== i) {
+			i = skipped;
+			continue;
+		}
+		if (OPENERS.includes(src[i])) depth++;
+		else if (CLOSERS.includes(src[i])) depth--;
+		else if (src[i] === ',' && depth === 0 && ++seen === n) {
+			i++;
+			while (/\s/.test(src[i])) i++;
+			return i;
+		}
+		i++;
+	}
+	return paren + 1;
+}
+
 /** The `<script>` blocks of a Svelte file: the template's text would derail the brace matcher. */
 function scriptOf(source: string): string {
-	return [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join('\n');
+	return [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\b[^>]*>/gi)]
+		.map((m) => m[1])
+		.join('\n');
 }
 
 /**
@@ -503,9 +576,11 @@ function orderableFieldsObject(
 	tab: string,
 	script: string
 ): { src: string; open: number } | string {
-	const call = /defineFields<[^>]*>\s*\(\s*/.exec(script);
+	const call = /define(Registry)?Fields<[^>]*>\s*\(\s*/.exec(script);
 	if (!call) return 'calls no defineFields';
-	const argStart = call.index + call[0].length;
+	let argStart = call.index + call[0].length;
+	// `defineRegistryFields(entity, lookup, orderable, ...)`: the orderable object is the third.
+	if (call[1]) argStart = argumentStart(script, call.index + call[0].lastIndexOf('('), 2);
 	if (script[argStart] === '{') return { src: script, open: argStart };
 
 	const paren = call.index + call[0].lastIndexOf('(');
@@ -533,6 +608,11 @@ function tabFields(
 	const script = scriptOf(source);
 	const fields = new Map<string, ParsedField>();
 	const problems: string[] = [];
+	// Registry-backed tabs take a column's type from the registry when they don't declare one.
+	const entity = registryEntity(source);
+	const registry = new Map(
+		entity ? registryFieldsOf(entity).map((field) => [field.id, columnType(field)]) : []
+	);
 
 	if (definedOrderField(source)) {
 		const object = orderableFieldsObject(tab, script);
@@ -541,7 +621,7 @@ function tabFields(
 			for (const entry of objectEntries(object.src, object.open)) {
 				const field =
 					object.src[entry.valueStart] === '{'
-						? parseField(object.src, entry.valueStart, true)
+						? parseField(object.src, entry.valueStart, true, registry.get(entry.name))
 						: 'is not an object literal';
 				if (typeof field === 'string') problems.push(`orderable field "${entry.name}" ${field}`);
 				else fields.set(entry.name, field);
@@ -572,9 +652,15 @@ function tabFields(
 			problems.push(`declares the column "${key}" twice`);
 			continue;
 		}
-		const field = parseField(script, enclosing[0], false);
+		const field = parseField(script, enclosing[0], false, registry.get(key));
 		if (typeof field === 'string') problems.push(`display field "${key}" ${field}`);
 		else fields.set(key, field);
+	}
+	// Registry fields the tab neither lists nor omits are appended as plain display columns.
+	const omitted = registryOmitted(source);
+	for (const [id, type] of registry) {
+		if (fields.has(id) || omitted.has(id)) continue;
+		fields.set(id, { orderable: false, type, flags: {}, columnless: false });
 	}
 	return { fields, problems };
 }

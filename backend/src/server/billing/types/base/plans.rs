@@ -121,7 +121,7 @@ impl BillingPlan {
             let monthly = Self::round_to_dollar(c as f32 * (1.0 - discount));
             monthly * 12
         });
-        yearly_config.network_cents = yearly_config.network_cents.map(|c| {
+        yearly_config.site_cents = yearly_config.site_cents.map(|c| {
             let monthly = Self::round_to_dollar(c as f32 * (1.0 - discount));
             monthly * 12
         });
@@ -160,16 +160,20 @@ pub struct PlanConfig {
     // None = can't pay for more
     /// Charge per seat beyond `included_seats`, in cents.
     pub seat_cents: Option<i64>,
-    /// Charge per network beyond `included_networks`, in cents.
-    pub network_cents: Option<i64>,
+    /// Charge per site beyond `included_sites`, in cents.
+    /// Plans stored before the site rename (org rows, Stripe subscription metadata) say
+    /// `network_cents`.
+    #[serde(alias = "network_cents")]
+    pub site_cents: Option<i64>,
     /// Charge per host beyond `included_hosts`, in cents.
     pub host_cents: Option<i64>,
 
     // None = unlimited
     /// Seats included before per-seat charges apply.
     pub included_seats: Option<u64>,
-    /// Networks included before per-network charges apply.
-    pub included_networks: Option<u64>,
+    /// Sites included before per-site charges apply.
+    #[serde(alias = "included_networks")]
+    pub included_sites: Option<u64>,
     /// Hosts included before per-host charges apply.
     pub included_hosts: Option<u64>,
     /// Organizations allowed on one self-hosted server instance. `None` =
@@ -262,6 +266,8 @@ pub struct BillingPlanFeatures {
     pub confluence_export: bool,
     pub pdf_export: bool,
     pub html_export: bool,
+    pub drawio_export: bool,
+    pub vsdx_export: bool,
     pub scheduled_discovery: bool,
     pub discovery_integrations: bool,
     pub csv_export: bool,
@@ -327,6 +333,13 @@ impl BillingPlan {
         matches!(self, BillingPlan::Demo(_))
     }
 
+    /// The plan's own price is zero, before any discount. A paid plan on a
+    /// 100%-off coupon is not this. Enterprise carries no list price because
+    /// each deal is priced by hand, so it is not this either.
+    pub fn is_priced_at_zero(&self) -> bool {
+        !self.is_enterprise() && self.config().base_cents == 0
+    }
+
     /// Plans where the customer hosts Scanopy themselves and Stripe is not in
     /// the loop. Use this to skip checks that only make sense for cloud plans.
     pub fn is_self_hosted(&self) -> bool {
@@ -388,8 +401,8 @@ impl BillingPlan {
         self.config().included_hosts
     }
 
-    pub fn network_limit(&self) -> Option<u64> {
-        self.config().included_networks
+    pub fn site_limit(&self) -> Option<u64> {
+        self.config().included_sites
     }
 
     pub fn seat_limit(&self) -> Option<u64> {
@@ -602,10 +615,10 @@ impl BillingPlan {
         })
     }
 
-    pub fn stripe_network_addon_price_lookup_key(&self) -> Option<String> {
-        self.config().network_cents.map(|c| {
+    pub fn stripe_site_addon_price_lookup_key(&self) -> Option<String> {
+        self.config().site_cents.map(|c| {
             format!(
-                "{}_networks_{}_{}",
+                "{}_sites_{}_{}",
                 self.stripe_product_id(),
                 c,
                 self.config().rate
@@ -638,6 +651,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -670,6 +685,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: false,
                 html_export: false,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: false,
                 discovery_integrations: true,
                 csv_export: true,
@@ -702,6 +719,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: false,
                 html_export: false,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -734,6 +753,8 @@ impl BillingPlan {
                 confluence_export: false,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: false,
+                vsdx_export: false,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -766,6 +787,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -798,6 +821,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -830,6 +855,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -862,6 +889,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -894,6 +923,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -926,6 +957,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -958,6 +991,8 @@ impl BillingPlan {
                 confluence_export: true,
                 pdf_export: true,
                 html_export: true,
+                drawio_export: true,
+                vsdx_export: true,
                 scheduled_discovery: true,
                 discovery_integrations: true,
                 csv_export: true,
@@ -999,6 +1034,8 @@ impl Into<Vec<Feature>> for BillingPlanFeatures {
             confluence_export,
             pdf_export,
             html_export,
+            drawio_export,
+            vsdx_export,
             scheduled_discovery,
             discovery_integrations,
             csv_export,
@@ -1113,6 +1150,14 @@ impl Into<Vec<Feature>> for BillingPlanFeatures {
             features.push(Feature::HtmlExport)
         }
 
+        if drawio_export {
+            features.push(Feature::DrawioExport)
+        }
+
+        if vsdx_export {
+            features.push(Feature::VsdxExport)
+        }
+
         if scheduled_discovery {
             features.push(Feature::ScheduledDiscovery)
         }
@@ -1197,7 +1242,7 @@ impl TypeMetadataProvider for BillingPlan {
             }
             BillingPlan::Free { .. } => "For hobbyists exploring a small network",
             BillingPlan::Starter { .. } => "For homelabbers automating documentation",
-            BillingPlan::Pro { .. } => "For IT pros managing multiple networks",
+            BillingPlan::Pro { .. } => "For IT pros managing multiple sites",
             BillingPlan::Team { .. } => {
                 "Collaborate on infrastructure documentation with your team"
             }
@@ -1229,10 +1274,10 @@ impl TypeMetadataProvider for BillingPlan {
             "rate": config.rate,
             "trial_days": config.trial_days,
             "seat_cents": config.seat_cents,
-            "network_cents": config.network_cents,
+            "site_cents": config.site_cents,
             "host_cents": config.host_cents,
             "included_seats": config.included_seats,
-            "included_networks": config.included_networks,
+            "included_sites": config.included_sites,
             "included_hosts": config.included_hosts,
             "included_orgs": config.included_orgs,
             // Feature flags and metadata

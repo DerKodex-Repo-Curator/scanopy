@@ -1,9 +1,10 @@
+use crate::server::auth::email_validation::SesEmailValidator;
 use crate::server::license::service::LicenseService;
+use crate::server::release_notes::service::ReleaseNotesService;
 use crate::server::{
     auth::{oidc::OidcService, service::AuthService},
     billing::service::{BillingService, BillingServiceParams},
     bindings::service::BindingService,
-    brevo::service::BrevoService,
     config::ServerConfig,
     credentials::service::CredentialService,
     daemon_api_keys::service::DaemonApiKeyService,
@@ -12,7 +13,10 @@ use crate::server::{
     digest::service::DiscoveryDigestService,
     discovery::service::DiscoveryService,
     email::{
-        brevo::BrevoEmailProvider, logging::LoggingEmailProvider, service::EmailService,
+        feedback::EmailFeedbackService,
+        logging::LoggingEmailProvider,
+        rate_limit::{self, RateLimitedTransport},
+        service::EmailService,
         smtp::SmtpEmailProvider,
     },
     hosts::service::HostService,
@@ -22,7 +26,6 @@ use crate::server::{
     ip_addresses::service::IPAddressService,
     logging::service::LoggingService,
     metrics::service::MetricsService,
-    networks::service::NetworkService,
     organizations::service::OrganizationService,
     ports::service::PortService,
     posthog::PosthogService,
@@ -36,9 +39,10 @@ use crate::server::{
         trusted_ca::TrustedCaBundle,
     },
     shares::service::ShareService,
+    sites::service::SiteService,
     snapshots::service::SnapshotService,
     subnets::service::SubnetService,
-    tags::{entity_tags::EntityTagService, service::TagService},
+    tags::{entity_tags::EntityTagService, groups::service::TagGroupService, service::TagService},
     topology::service::main::TopologyService,
     user_api_keys::service::UserApiKeyService,
     users::service::UserService,
@@ -54,7 +58,7 @@ static PROMETHEUS_HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
 pub struct ServiceFactory {
     pub user_service: Arc<UserService>,
     pub auth_service: Arc<AuthService>,
-    pub network_service: Arc<NetworkService>,
+    pub site_service: Arc<SiteService>,
     pub host_service: Arc<HostService>,
     pub ip_address_service: Arc<IPAddressService>,
     pub dependency_service: Arc<DependencyService>,
@@ -72,12 +76,16 @@ pub struct ServiceFactory {
     pub oidc_service: Option<Arc<OidcService>>,
     pub billing_service: Option<Arc<BillingService>>,
     pub email_service: Option<Arc<EmailService>>,
-    pub brevo_service: Option<Arc<BrevoService>>,
+    /// Present only when `email_feedback_sns_topic_arn` is configured.
+    pub email_feedback_service: Option<Arc<EmailFeedbackService>>,
+    /// Present only when `aws_region` and both `email_validation_aws_*` keys are configured.
+    pub email_validator: Option<Arc<SesEmailValidator>>,
     pub posthog_service: Option<Arc<PosthogService>>,
     pub event_bus: Arc<EventBus>,
     pub logging_service: Arc<LoggingService>,
     pub metrics_service: Arc<MetricsService>,
     pub tag_service: Arc<TagService>,
+    pub tag_group_service: Arc<TagGroupService>,
     pub entity_tag_service: Arc<EntityTagService>,
     pub port_service: Arc<PortService>,
     pub binding_service: Arc<BindingService>,
@@ -86,6 +94,7 @@ pub struct ServiceFactory {
     pub interface_neighbor_service: Arc<InterfaceNeighborService>,
     pub vlan_service: Arc<VlanService>,
     pub discovery_digest_service: Arc<DiscoveryDigestService>,
+    pub release_notes_service: Arc<ReleaseNotesService>,
     /// Present only when a license key applies (self-hosted commercial). A
     /// keyless deployment (community or cloud) has no license service —
     /// licensing is "not required".
@@ -130,7 +139,18 @@ impl ServiceFactory {
             .clone();
         let metrics_service = Arc::new(MetricsService::new(prometheus_handle));
 
-        let tag_service = Arc::new(TagService::new(storage.tags.clone(), event_bus.clone()));
+        let tag_group_service = Arc::new(TagGroupService::new(
+            storage.tag_groups.clone(),
+            storage.tags.clone(),
+            storage.entity_tags.clone(),
+            event_bus.clone(),
+        ));
+        let tag_service = Arc::new(TagService::new(
+            storage.tags.clone(),
+            storage.entity_tags.clone(),
+            tag_group_service.clone(),
+            event_bus.clone(),
+        ));
         let entity_tag_service = Arc::new(EntityTagService::new(
             storage.entity_tags.clone(),
             tag_service.clone(),
@@ -144,7 +164,7 @@ impl ServiceFactory {
 
         let user_api_key_service = Arc::new(UserApiKeyService::new(
             storage.user_api_keys.clone(),
-            storage.user_api_key_network_access.clone(),
+            storage.user_api_key_site_access.clone(),
             event_bus.clone(),
             entity_tag_service.clone(),
         ));
@@ -206,14 +226,8 @@ impl ServiceFactory {
             ip_address_service.clone(),
         ));
 
-        let vlan_service = Arc::new(VlanService::new(
-            storage.vlans.clone(),
-            event_bus.clone(),
-            storage.subnet_vlan.clone(),
-        ));
-
-        let network_service = Arc::new(NetworkService::new(
-            storage.networks.clone(),
+        let site_service = Arc::new(SiteService::new(
+            storage.sites.clone(),
             subnet_service.clone(),
             event_bus.clone(),
             entity_tag_service.clone(),
@@ -221,7 +235,7 @@ impl ServiceFactory {
 
         let user_service = Arc::new(UserService::new(
             storage.users.clone(),
-            storage.user_network_access.clone(),
+            storage.user_site_access.clone(),
             event_bus.clone(),
         ));
 
@@ -248,11 +262,20 @@ impl ServiceFactory {
             interface_neighbor_service.clone(),
         ));
 
+        // VlanService reads each VLAN's serving interfaces through InterfaceService.
+        let vlan_service = Arc::new(VlanService::new(
+            storage.vlans.clone(),
+            event_bus.clone(),
+            entity_tag_service.clone(),
+            storage.subnet_vlan.clone(),
+            interface_service.clone(),
+        ));
+
         let credential_service = Arc::new(CredentialService::new(
             storage.credentials.clone(),
             event_bus.clone(),
             entity_tag_service.clone(),
-            network_service.clone(),
+            site_service.clone(),
             ip_address_service.clone(),
             organization_service.clone(),
             storage.pool.clone(),
@@ -264,7 +287,7 @@ impl ServiceFactory {
             event_bus.clone(),
             entity_tag_service.clone(),
             credential_service.clone(),
-            network_service.clone(),
+            site_service.clone(),
             organization_service.clone(),
         )
         .await?;
@@ -277,7 +300,7 @@ impl ServiceFactory {
             discovery_service.clone(),
             credential_service.clone(),
             subnet_service.clone(),
-            network_service.clone(),
+            site_service.clone(),
             organization_service.clone(),
             user_service.clone(),
             daemon_api_key_service.clone(),
@@ -297,7 +320,7 @@ impl ServiceFactory {
             credential_service.clone(),
             subnet_service.clone(),
             vlan_service.clone(),
-            network_service.clone(),
+            site_service.clone(),
             organization_service.clone(),
             event_bus.clone(),
             entity_tag_service.clone(),
@@ -321,7 +344,8 @@ impl ServiceFactory {
             interface_neighbor_service.clone(),
             tag_service.clone(),
             vlan_service.clone(),
-            network_service.clone(),
+            site_service.clone(),
+            organization_service.clone(),
             storage.topologies.clone(),
             event_bus.clone(),
         ));
@@ -330,7 +354,7 @@ impl ServiceFactory {
             Arc::new(storage.pool.clone()),
             storage.snapshots.clone(),
             event_bus.clone(),
-            network_service.clone(),
+            site_service.clone(),
             organization_service.clone(),
         );
 
@@ -344,15 +368,27 @@ impl ServiceFactory {
             subnet_service.clone(),
             vlan_service.clone(),
             user_service.clone(),
-            network_service.clone(),
+            site_service.clone(),
             discovery_service.clone(),
             event_bus.clone(),
         ));
 
+        for (var, region) in config.aws_region_mismatches() {
+            tracing::error!(
+                setting = var,
+                setting_region = %region,
+                aws_region = config.aws_region.as_deref().unwrap_or_default(),
+                "An SES setting names a different region than SCANOPY_AWS_REGION"
+            );
+        }
+        let email_validator = SesEmailValidator::from_config(&config)?.map(Arc::new);
         let public_url = config.public_url.clone();
         let deployment_type = crate::server::config::get_deployment_type(&config);
+        let email_quota = rate_limit::per_second(config.smtp_max_per_second);
+        // The release email takes half, so other email keeps the rest while it goes out.
+        let bulk_email_quota = rate_limit::per_second(config.smtp_max_per_second / 2);
 
-        // A configured email log directory wins over Brevo/SMTP: it is a
+        // A configured email log directory wins over SMTP: it is a
         // testing transport you explicitly turn on, so it has to work with no
         // credentials present and override any that happen to be set.
         let email_service = if let Some(ref email_log_dir) = config.email_log_dir {
@@ -361,32 +397,14 @@ impl ServiceFactory {
                 "SCANOPY_EMAIL_LOG_DIR is set: emails will be logged and written to disk, not delivered"
             );
             Some(Arc::new(EmailService::new(
-                Box::new(LoggingEmailProvider::new(Some(email_log_dir.clone()))),
+                Box::new(RateLimitedTransport::new(
+                    Box::new(LoggingEmailProvider::new(Some(email_log_dir.clone()))),
+                    email_quota,
+                )),
                 user_service.clone(),
                 organization_service.clone(),
                 host_service.clone(),
-                network_service.clone(),
-                service_service.clone(),
-                daemon_service.clone(),
-                public_url,
-                deployment_type,
-            )))
-        } else if let Some(ref brevo_api_key) = config.brevo_api_key {
-            // Brevo outranks SMTP. An operator who has both configured would otherwise
-            // never learn that their SMTP settings are being ignored.
-            if config.smtp_relay.is_some() {
-                tracing::warn!(
-                    "SCANOPY_BREVO_API_KEY is set and takes precedence: the SCANOPY_SMTP_* \
-                     settings will be ignored"
-                );
-            }
-            let brevo_provider = BrevoEmailProvider::new(brevo_api_key.clone());
-            Some(Arc::new(EmailService::new(
-                Box::new(brevo_provider),
-                user_service.clone(),
-                organization_service.clone(),
-                host_service.clone(),
-                network_service.clone(),
+                site_service.clone(),
                 service_service.clone(),
                 daemon_service.clone(),
                 public_url,
@@ -413,11 +431,14 @@ impl ServiceFactory {
                         trusted_ca.as_deref(),
                     ) {
                         Ok(smtp_provider) => Some(Arc::new(EmailService::new(
-                            Box::new(smtp_provider),
+                            Box::new(RateLimitedTransport::new(
+                                Box::new(smtp_provider),
+                                email_quota,
+                            )),
                             user_service.clone(),
                             organization_service.clone(),
                             host_service.clone(),
-                            network_service.clone(),
+                            site_service.clone(),
                             service_service.clone(),
                             daemon_service.clone(),
                             public_url,
@@ -458,6 +479,22 @@ impl ServiceFactory {
             }
         };
 
+        let release_notes_service = Arc::new(ReleaseNotesService::new(
+            storage.release_announcements.clone(),
+            user_service.clone(),
+            email_service.clone(),
+            bulk_email_quota,
+            config.hold_release_email,
+        ));
+
+        let email_feedback_service = config
+            .email_feedback_sns_topic_arn
+            .clone()
+            .map(|topic_arn| {
+                EmailFeedbackService::new(topic_arn, user_service.clone()).map(Arc::new)
+            })
+            .transpose()?;
+
         let billing_service = if let Some(stripe_secret) = config.stripe_secret
             && let Some(webhook_secret) = config.stripe_webhook_secret
         {
@@ -466,7 +503,7 @@ impl ServiceFactory {
                 webhook_secret,
                 organization_service: organization_service.clone(),
                 user_service: user_service.clone(),
-                network_service: network_service.clone(),
+                site_service: site_service.clone(),
                 host_service: host_service.clone(),
                 event_bus: event_bus.clone(),
             })))
@@ -482,27 +519,12 @@ impl ServiceFactory {
             license_service.clone(),
         ));
 
-        // Create Brevo service if API key is configured (before config is consumed)
-        let brevo_service = config.brevo_api_key.map(|api_key| {
-            Arc::new(BrevoService::new(
-                api_key.clone(),
-                network_service.clone(),
-                host_service.clone(),
-                user_service.clone(),
-                organization_service.clone(),
-                daemon_service.clone(),
-                tag_service.clone(),
-                user_api_key_service.clone(),
-                credential_service.clone(),
-            ))
-        });
-
         let posthog_service = if let Some(api_key) = config.posthog_key {
             Some(Arc::new(
                 PosthogService::new(
                     api_key,
                     "https://ph.scanopy.net".to_string(),
-                    network_service.clone(),
+                    site_service.clone(),
                 )
                 .await,
             ))
@@ -528,7 +550,7 @@ impl ServiceFactory {
         let factory = Self {
             user_service,
             auth_service,
-            network_service,
+            site_service,
             host_service,
             ip_address_service,
             dependency_service,
@@ -546,12 +568,14 @@ impl ServiceFactory {
             oidc_service,
             billing_service,
             email_service,
-            brevo_service,
+            email_feedback_service,
+            email_validator,
             posthog_service,
             event_bus,
             logging_service,
             metrics_service,
             tag_service,
+            tag_group_service,
             entity_tag_service,
             port_service,
             binding_service,
@@ -560,6 +584,7 @@ impl ServiceFactory {
             interface_neighbor_service,
             vlan_service,
             discovery_digest_service,
+            release_notes_service,
             license_service,
             trusted_ca,
         };
@@ -585,7 +610,7 @@ impl ServiceFactory {
         let Self {
             user_service,
             auth_service,
-            network_service,
+            site_service,
             host_service,
             ip_address_service,
             dependency_service,
@@ -603,12 +628,14 @@ impl ServiceFactory {
             oidc_service,
             billing_service,
             email_service,
-            brevo_service,
+            email_feedback_service: _, // not a Subscriber: driven by its HTTP endpoint
+            email_validator: _,        // not a Subscriber: called by the register handler
             posthog_service,
             event_bus: _, // not a service; not subscriber-dispatched
             logging_service,
             metrics_service,
             tag_service,
+            tag_group_service,
             entity_tag_service,
             port_service,
             binding_service,
@@ -617,14 +644,15 @@ impl ServiceFactory {
             interface_neighbor_service: _, // not a Subscriber: bespoke service, no EventBusService impl
             vlan_service,
             discovery_digest_service,
-            license_service: _, // not a Subscriber: bespoke service, no EventBusService impl
-            trusted_ca: _,      // not a service; shared TLS roots
+            release_notes_service: _, // not a Subscriber: run at boot and by its handlers
+            license_service: _,       // not a Subscriber: bespoke service, no EventBusService impl
+            trusted_ca: _,            // not a service; shared TLS roots
         } = self;
 
         ServiceCollector::new()
             .with(user_service.clone())
             .with(auth_service.clone())
-            .with(network_service.clone())
+            .with(site_service.clone())
             .with(host_service.clone())
             .with(ip_address_service.clone())
             .with(dependency_service.clone())
@@ -642,6 +670,7 @@ impl ServiceFactory {
             .with(logging_service.clone())
             .with(metrics_service.clone())
             .with(tag_service.clone())
+            .with(tag_group_service.clone())
             .with(entity_tag_service.clone())
             .with(port_service.clone())
             .with(binding_service.clone())
@@ -652,7 +681,6 @@ impl ServiceFactory {
             .with_optional(oidc_service.clone())
             .with_optional(billing_service.clone())
             .with_optional(email_service.clone())
-            .with_optional(brevo_service.clone())
             .with_optional(posthog_service.clone())
             .build()
     }

@@ -3,7 +3,8 @@ import type { Edge, EdgeMarkerType } from '@xyflow/svelte';
 import type { TopologyEdge } from '../types/base';
 import type { TopologyView } from '../queries';
 import type { EdgeHandles } from '../layout/elk-layout';
-import { computeOptimalHandles } from '../layout/elk-layout';
+import { computeOptimalHandles, ObstacleGrid } from '../layout/handle-picking';
+import { getViewLayout } from '../layout/view-layout';
 import type { SelectionStores } from '../selection';
 import type { AggregatedEdge } from '../collapse';
 import type { LayoutGraph } from '../layout/layout-graph';
@@ -290,8 +291,8 @@ export function buildFlowEdges(params: BuildFlowEdgesParams): BuildFlowEdgesResu
 /**
  * Compute edge handles against final post-layout positions from LayoutGraph.
  * Runs over both elementary (elevated) edges and aggregated collapse edges.
- * The L2Physical view uses a simple left/right rule; all others use the
- * generic `computeOptimalHandles` picker.
+ * A view with the `horizontal` handle strategy uses a simple left/right rule; the
+ * `optimal` strategy uses the generic `computeOptimalHandles` picker.
  */
 function computeHandlesFromLayout(
 	elevatedEdges: TopologyEdge[],
@@ -302,7 +303,7 @@ function computeHandlesFromLayout(
 	const out = new Map<string, EdgeHandles>();
 	if (!layoutGraph) return out;
 
-	const viewId = view as string | undefined;
+	const horizontalHandles = getViewLayout(view).handle_strategy === 'horizontal';
 
 	const sizeFor = (id: string): { w: number; h: number } | undefined => {
 		const c = layoutGraph.getContainerSize(id);
@@ -316,7 +317,7 @@ function computeHandlesFromLayout(
 	// handle-resolution pass. Per-edge we filter out the endpoints and their
 	// ancestor containers (a line from an element to its own parent naturally
 	// crosses the parent's boundary — don't penalise that).
-	const allRects = layoutGraph.getAllNodeRects();
+	const obstacles = new ObstacleGrid(layoutGraph.getAllNodeRects());
 
 	const pick = (src: string, tgt: string): EdgeHandles | undefined => {
 		const srcPos = layoutGraph.getAbsolutePosition(src);
@@ -325,7 +326,7 @@ function computeHandlesFromLayout(
 		const tgtSize = sizeFor(tgt);
 		if (!srcPos || !tgtPos || !srcSize || !tgtSize) return undefined;
 
-		if (viewId === 'L2Physical') {
+		if (horizontalHandles) {
 			const srcCx = srcPos.x + srcSize.w / 2;
 			const tgtCx = tgtPos.x + tgtSize.w / 2;
 			return {
@@ -337,8 +338,9 @@ function computeHandlesFromLayout(
 		const exclude = new Set<string>([src, tgt]);
 		for (const a of layoutGraph.ancestorIdsOf(src)) exclude.add(a);
 		for (const a of layoutGraph.ancestorIdsOf(tgt)) exclude.add(a);
-		const obstacles = allRects.filter((r) => !exclude.has(r.id));
-		return computeOptimalHandles(srcPos, srcSize, tgtPos, tgtSize, obstacles);
+		return computeOptimalHandles(srcPos, srcSize, tgtPos, tgtSize, (x1, y1, x2, y2) =>
+			obstacles.countCrossings(x1, y1, x2, y2, exclude)
+		);
 	};
 
 	for (const edge of elevatedEdges) {

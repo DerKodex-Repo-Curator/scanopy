@@ -111,14 +111,14 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
-    pub fn network_ids(mut self, ids: &[Uuid]) -> Self {
+    pub fn site_ids(mut self, ids: &[Uuid]) -> Self {
         if ids.is_empty() {
             // Empty IN clause should match nothing
             self.conditions.push("FALSE".to_string());
             return self;
         }
 
-        let col = self.qualify_column("network_id");
+        let col = self.qualify_column("site_id");
         let placeholders: Vec<String> = ids
             .iter()
             .enumerate()
@@ -164,14 +164,6 @@ impl<T: Storable> StorableFilter<T> {
             self.values.push(SqlValue::Uuid(*id));
         }
 
-        self
-    }
-
-    pub fn hidden_is(mut self, hidden: bool) -> Self {
-        let col = self.qualify_column("hidden");
-        self.conditions
-            .push(format!("{} = ${}", col, self.values.len() + 1));
-        self.values.push(SqlValue::Bool(hidden));
         self
     }
 
@@ -292,7 +284,7 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
-    /// Rows whose MAC is one of these, for looking a device up by identity across a network.
+    /// Rows whose MAC is one of these, for looking a device up by identity across a site.
     ///
     /// An empty list matches nothing rather than everything: the caller asked for the rows bearing
     /// a specific set of addresses, and a set with nothing in it is answered by no rows. Dropping
@@ -323,6 +315,14 @@ impl<T: Storable> StorableFilter<T> {
         self.conditions
             .push(format!("{} = ${}", col, self.values.len() + 1));
         self.values.push(SqlValue::String(token.to_string()));
+        self
+    }
+
+    pub fn email_unsubscribe_token(mut self, token: &Uuid) -> Self {
+        let col = self.qualify_column("email_unsubscribe_token");
+        self.conditions
+            .push(format!("{} = ${}", col, self.values.len() + 1));
+        self.values.push(SqlValue::Uuid(*token));
         self
     }
 
@@ -619,14 +619,24 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
+    /// Organizations whose online license key last checked in before
+    /// `timestamp`. Never-checked-in rows (NULL) don't match.
+    pub fn license_checkin_before(mut self, timestamp: DateTime<Utc>) -> Self {
+        let col = self.qualify_column("license_checkin_at");
+        self.conditions
+            .push(format!("{} < ${}", col, self.values.len() + 1));
+        self.values.push(SqlValue::Timestamp(timestamp));
+        self
+    }
+
     /// SQL form of the staleness verdict, evaluated per row against **its own**
-    /// network's cutoff.
+    /// site's cutoff.
     ///
-    /// The entity lists span every network the caller can reach and are
-    /// server-paginated, so a single cutoff would be wrong (each network
+    /// The entity lists span every site the caller can reach and are
+    /// server-paginated, so a single cutoff would be wrong (each site
     /// configures its own window) and a client-side filter would only filter
-    /// the current page. `cutoffs` is `(network_id, cutoff_instant)`, resolved
-    /// by the handler from each network's `stale_after_hours`.
+    /// the current page. `cutoffs` is `(site_id, cutoff_instant)`, resolved
+    /// by the handler from each site's `stale_after_hours`.
     ///
     /// Emits one parenthesised OR-of-ANDs, in the same shape as
     /// [`Self::id_or_lineage_in`], plus the discovery-managed guard: an entity
@@ -638,12 +648,12 @@ impl<T: Storable> StorableFilter<T> {
     /// `stale = false` inverts to "fresh or not discovery-managed". An empty
     /// `cutoffs` pushes `FALSE`, matching `id_or_lineage_in`'s precedent for an
     /// empty input rather than silently matching everything.
-    pub fn stale_by_network(mut self, cutoffs: &[(Uuid, DateTime<Utc>)], stale: bool) -> Self {
+    pub fn stale_by_site(mut self, cutoffs: &[(Uuid, DateTime<Utc>)], stale: bool) -> Self {
         if cutoffs.is_empty() {
             self.conditions.push("FALSE".to_string());
             return self;
         }
-        let network_col = self.qualify_column("network_id");
+        let site_col = self.qualify_column("site_id");
         let seen_col = self.qualify_column("last_seen_at");
         let source_col = self.qualify_column("source");
         // Only entities discovery actually refreshes can go stale. Taken from
@@ -658,22 +668,22 @@ impl<T: Storable> StorableFilter<T> {
         let comparison = if stale { "<" } else { ">=" };
 
         let mut clauses = Vec::with_capacity(cutoffs.len());
-        for (network_id, cutoff) in cutoffs {
+        for (site_id, cutoff) in cutoffs {
             let net_idx = self.values.len() + 1;
             let cutoff_idx = self.values.len() + 2;
             clauses.push(format!(
-                "({network_col} = ${net_idx} AND {seen_col} {comparison} ${cutoff_idx})"
+                "({site_col} = ${net_idx} AND {seen_col} {comparison} ${cutoff_idx})"
             ));
-            self.values.push(SqlValue::Uuid(*network_id));
+            self.values.push(SqlValue::Uuid(*site_id));
             self.values.push(SqlValue::Timestamp(*cutoff));
         }
-        let per_network = clauses.join(" OR ");
+        let per_site = clauses.join(" OR ");
 
         self.conditions.push(if stale {
-            format!("({managed} AND ({per_network}))")
+            format!("({managed} AND ({per_site}))")
         } else {
             // Not stale = inside its window, or not discovery-managed at all.
-            format!("(NOT ({managed}) OR ({per_network}))")
+            format!("(NOT ({managed}) OR ({per_site}))")
         });
         self
     }
@@ -855,8 +865,16 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
-    /// Filter entities that have ANY of the specified tags.
-    /// Uses a subquery against the entity_tags junction table.
+    /// Filter entities that hold at least one tag of every set in `sets`: each set is one tag
+    /// group's filter, and the groups combine as AND.
+    pub fn has_tags_from_each(self, sets: &[Vec<Uuid>], entity_type: EntityDiscriminants) -> Self {
+        sets.iter()
+            .fold(self, |filter, set| filter.has_any_tags(set, entity_type))
+    }
+
+    /// Filter entities that hold ANY of the specified tags now. Closed and snapshot
+    /// assignments don't count: an entity moved from one Status to another no longer matches
+    /// the first.
     ///
     /// Example SQL: `entities.id IN (SELECT entity_id FROM entity_tags WHERE entity_type = 'Service' AND tag_id IN ($1, $2))`
     pub fn has_any_tags(mut self, tag_ids: &[Uuid], entity_type: EntityDiscriminants) -> Self {
@@ -873,7 +891,8 @@ impl<T: Storable> StorableFilter<T> {
             .collect();
 
         self.conditions.push(format!(
-            "{} IN (SELECT entity_id FROM entity_tags WHERE entity_type = ${} AND tag_id IN ({}))",
+            "{} IN (SELECT entity_id FROM entity_tags WHERE entity_type = ${} AND tag_id IN ({}) \
+             AND valid_to IS NULL AND snapshot_id IS NULL)",
             col,
             entity_type_idx,
             placeholders.join(", ")
@@ -940,21 +959,6 @@ impl<T: Storable> StorableFilter<T> {
             .push(format!("{} IN ({})", col, placeholders.join(", ")));
     }
 
-    /// Hosts whose `hidden` flag is one of `values`.
-    pub fn hidden_in(mut self, values: &[bool]) -> Self {
-        if values.is_empty() {
-            self.conditions.push("FALSE".to_string());
-            return self;
-        }
-
-        self.push_in_clause("hidden", values.len());
-        for value in values {
-            self.values.push(SqlValue::Bool(*value));
-        }
-
-        self
-    }
-
     /// Entities whose virtualization parent is one of `service_ids`, and — when
     /// `include_null` is set — those with no parent at all.
     ///
@@ -994,6 +998,15 @@ impl<T: Storable> StorableFilter<T> {
             self.values.push(SqlValue::Uuid(*id));
         }
 
+        self
+    }
+
+    /// Hosts presented by interface `interface_id` (`hosts.virtualization_interface_id`).
+    pub fn virtualization_interface_id(mut self, interface_id: &Uuid) -> Self {
+        let col = self.qualify_column("virtualization_interface_id");
+        self.conditions
+            .push(format!("{} = ${}", col, self.values.len() + 1));
+        self.values.push(SqlValue::Uuid(*interface_id));
         self
     }
 

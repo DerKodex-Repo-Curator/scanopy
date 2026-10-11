@@ -41,7 +41,7 @@
 		gettingStarted_havingTrouble,
 		gettingStarted_inviteTeamMembers,
 		gettingStarted_scanningNetwork,
-		gettingStarted_setupSnmpCredentials,
+		gettingStarted_setupInterfaceDiscovery,
 		gettingStarted_createTags,
 		gettingStarted_title,
 		gettingStarted_whileYouWait
@@ -88,12 +88,12 @@
 	const configQuery = useConfigQuery();
 	let hasEmail = $derived(configQuery.data?.has_email_service ?? false);
 
-	let activeNetworkSession = $derived(
+	let activeScanSession = $derived(
 		(sessionsQuery.data ?? []).find(
 			(s) => s.discovery_type?.type === 'Network' || s.discovery_type?.type === 'Unified'
 		)
 	);
-	let isDiscoveryActive = $derived(!!activeNetworkSession);
+	let isDiscoveryActive = $derived(!!activeScanSession);
 
 	// Fun suggestion localStorage state
 	let funChecked = $state<Record<string, boolean>>({});
@@ -189,12 +189,12 @@
 	function getInAppSuggestions(): Array<{ label: string; action: () => void; completed: boolean }> {
 		const suggestions: Array<{ label: string; action: () => void; completed: boolean }> = [];
 		suggestions.push({
-			label: gettingStarted_setupSnmpCredentials(),
+			label: gettingStarted_setupInterfaceDiscovery(),
 			action: () => {
 				onNavigate('credentials');
 				openModal('credential-editor');
 			},
-			completed: onboarding.includes('FirstSnmpCredentialCreated')
+			completed: onboarding.includes('FirstInterfaceCredentialCreated')
 		});
 		suggestions.push({
 			label: gettingStarted_createTags(),
@@ -350,16 +350,16 @@
 						{#snippet subContent()}
 							{#if !complete && enabled && !isAccountStep && !isActiveDiscoveryStep}
 								<p class="text-tertiary text-xs">{step.description()}</p>
-							{:else if isActiveDiscoveryStep && activeNetworkSession}
+							{:else if isActiveDiscoveryStep && activeScanSession}
 								<div class="mt-0.5 flex items-center gap-2">
 									<DiscoveryEstimation
-										phase={activeNetworkSession.phase}
-										hosts_discovered={activeNetworkSession.hosts_discovered}
-										estimated_remaining_secs={activeNetworkSession.estimated_remaining_secs}
+										phase={activeScanSession.phase}
+										hosts_discovered={activeScanSession.hosts_discovered}
+										estimated_remaining_secs={activeScanSession.estimated_remaining_secs}
 									/>
 									<StallTag
-										session_id={activeNetworkSession.session_id}
-										phase={activeNetworkSession.phase}
+										session_id={activeScanSession.session_id}
+										phase={activeScanSession.phase}
 									/>
 								</div>
 							{/if}

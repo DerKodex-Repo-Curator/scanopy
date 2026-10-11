@@ -3,10 +3,12 @@ use strum::{EnumIter, IntoStaticStr};
 use utoipa::ToSchema;
 
 use crate::server::{
+    hosts::r#impl::virtualization::HostVirtualizationDiscriminants,
     services::{
         definitions::{
-            docker_daemon::Docker, gnmi::Gnmi, instant_on::InstantOn, podman::Podman, snmp::Snmp,
-            ssh::Ssh, unifi_controller::UnifiController, wake_on_lan::WakeOnLan,
+            docker_daemon::Docker, gnmi::Gnmi, instant_on::InstantOn, podman::Podman,
+            proxmox::Proxmox, snmp::Snmp, ssh::Ssh, unifi_controller::UnifiController,
+            wake_on_lan::WakeOnLan,
         },
         r#impl::definitions::{ServiceDefinition, ServiceDefinitionExt},
     },
@@ -51,6 +53,31 @@ pub enum CredentialIntegration {
     InstantOn,
     Ssh,
     WakeOnLan,
+    Proxmox,
+}
+
+/// How much of a device's interface list an integration can see when it succeeds.
+///
+/// Deliberately not the same fact as `interfaces_complete`, which says whether *this* collection
+/// finished. This says what a finished collection covers, and it is a property of the protocol,
+/// not of the run: a UniFi `port_table` is a complete list of physical ports and still omits the
+/// VLAN, loopback and CPU interfaces the same switch reports over SNMP, on every successful sync.
+///
+/// Several integrations can collect one host in a single scan, sharing one `HostData`. Before
+/// this existed, the last one to call the old `replace_interfaces` simply overwrote the others,
+/// and the only brake was a hand-written `if !host_data.interfaces.is_empty()` in two of them —
+/// which made the answer depend on dispatch order and read "richer" as "non-empty".
+///
+/// Ordered: `NoInterfaces` < `PhysicalPortsOnly` < `FullIfTable`. The order breaks ties *per
+/// interface*, never for the set as a whole — see `HostData::contribute_interfaces`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum InterfaceViewScope {
+    /// Contributes no interfaces at all — the container integrations.
+    NoInterfaces,
+    /// Every physical port, and nothing else. A controller API reporting the ports it manages.
+    PhysicalPortsOnly,
+    /// The device's whole ifTable, virtual interfaces included. An SNMP walk.
+    FullIfTable,
 }
 
 impl CredentialTypeDiscriminants {
@@ -66,6 +93,7 @@ impl CredentialTypeDiscriminants {
             Self::InstantOnAccount => CredentialIntegration::InstantOn,
             Self::SshPassword | Self::SshKey => CredentialIntegration::Ssh,
             Self::WakeOnLan => CredentialIntegration::WakeOnLan,
+            Self::ProxmoxApiToken => CredentialIntegration::Proxmox,
         }
     }
 }
@@ -82,13 +110,16 @@ impl CredentialIntegration {
             Self::InstantOn => Box::new(InstantOn),
             Self::Ssh => Box::new(Ssh),
             Self::WakeOnLan => Box::new(WakeOnLan),
+            Self::Proxmox => Box::new(Proxmox),
         }
     }
 
     pub fn credential_category(&self) -> CredentialCategory {
         match self {
             Self::Snmp | Self::Gnmi => CredentialCategory::NetworkMonitoring,
-            Self::Docker | Self::Podman => CredentialCategory::ContainerVirtualization,
+            Self::Docker | Self::Podman | Self::Proxmox => {
+                CredentialCategory::ContainerVirtualization
+            }
             Self::UnifiController | Self::InstantOn => CredentialCategory::NetworkController,
             Self::Ssh | Self::WakeOnLan => CredentialCategory::HostManagement,
         }
@@ -138,6 +169,67 @@ impl CredentialIntegration {
                 "Run your own script on a host and record the system details and interfaces it reports."
             }
             Self::WakeOnLan => "Wake sleeping hosts before a scan so they are discovered.",
+            Self::Proxmox => {
+                "Discover Proxmox VE nodes and the VMs and LXC containers on each, with their addresses."
+            }
+        }
+    }
+
+    /// How much of a host's interface list this integration sees when it succeeds. Shared by all
+    /// of its transports.
+    ///
+    /// Exhaustive (no wildcard): several integrations can collect one host in one scan and this
+    /// decides whose row survives where they disagree, so a new integration must say which it is
+    /// rather than inherit an answer.
+    pub fn interface_view_scope(&self) -> InterfaceViewScope {
+        match self {
+            // An ifTable walk is the device's own account of every interface it has, and gNMI's
+            // `/interfaces/interface` has the same standing.
+            Self::Snmp | Self::Gnmi => InterfaceViewScope::FullIfTable,
+            // A UniFi `port_table` is every physical port and nothing else: the same switch under
+            // SNMP also reports the VLAN, loopback and CPU interfaces UniFi never mentions. The
+            // Instant On portal reports switch ports and AP uplinks, not a device's whole ifTable.
+            Self::UnifiController | Self::InstantOn => InterfaceViewScope::PhysicalPortsOnly,
+            // A script reports the interfaces its author chose to print. Narrower than an ifTable
+            // walk, so SNMP's row wins where both describe one interface.
+            Self::Ssh => InterfaceViewScope::PhysicalPortsOnly,
+            // Container runtimes report networks and containers, never the host's ports.
+            Self::Docker | Self::Podman => InterfaceViewScope::NoInterfaces,
+            // The node's own NICs come from SNMP or SSH; the Proxmox API's view of them is the
+            // Linux bridge config, not an interface table.
+            Self::Proxmox => InterfaceViewScope::NoInterfaces,
+            Self::WakeOnLan => InterfaceViewScope::NoInterfaces,
+        }
+    }
+
+    /// Whether a successful collection contributes interfaces to the hosts it reaches. Gates the
+    /// onboarding prompts that point at interface data, and names the integrations those prompts
+    /// list.
+    pub fn reports_interfaces(&self) -> bool {
+        self.interface_view_scope() != InterfaceViewScope::NoInterfaces
+    }
+
+    /// The kinds of host virtualization this integration reports: the relationships it records
+    /// between a host and what runs it.
+    ///
+    /// Exhaustive (no wildcard), so a new integration cannot compile without answering. Every
+    /// host an integration submits is checked against this (`undeclared_virtualization`), which
+    /// fails tests and debug builds when the two disagree. The docs list which integrations
+    /// report which relationship from it, through the integrations fixture.
+    pub fn host_virtualizations(&self) -> &'static [HostVirtualizationDiscriminants] {
+        match self {
+            Self::Proxmox => &[
+                HostVirtualizationDiscriminants::Proxmox,
+                HostVirtualizationDiscriminants::NetworkIdentity,
+            ],
+            Self::Docker => &[HostVirtualizationDiscriminants::Docker],
+            Self::Podman => &[HostVirtualizationDiscriminants::Podman],
+            Self::Snmp
+            | Self::Gnmi
+            | Self::UnifiController
+            | Self::InstantOn
+            | Self::Ssh
+            | Self::WakeOnLan => &[],
         }
     }
 
@@ -161,6 +253,7 @@ impl CredentialIntegration {
             Self::Gnmi => "/docs/guides/integrations/gnmi/",
             Self::Ssh => "/docs/guides/integrations/ssh/",
             Self::WakeOnLan => "/docs/guides/integrations/wake-on-lan/",
+            Self::Proxmox => "/docs/guides/integrations/proxmox/",
         }
     }
 
@@ -196,6 +289,7 @@ impl EntityMetadataProvider for CredentialIntegration {
             Self::Snmp => Concept::SNMP.icon(),
             Self::Gnmi | Self::UnifiController | Self::InstantOn => Concept::L2.icon(),
             Self::Docker | Self::Podman => Concept::Containerization.icon(),
+            Self::Proxmox => Concept::Virtualization.icon(),
             Self::Ssh => Icon::SquareTerminal,
             Self::WakeOnLan => Icon::Power,
         }
@@ -219,6 +313,7 @@ impl TypeMetadataProvider for CredentialIntegration {
         let service = self.service();
         serde_json::json!({
             "docs_path": self.docs_path(),
+            "reports_interfaces": self.reports_interfaces(),
             // The logo is named after the service, as for credential types.
             "associated_service": ServiceDefinition::name(&*service),
             "has_logo": service.has_logo(),

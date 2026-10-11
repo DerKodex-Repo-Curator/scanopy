@@ -5,10 +5,11 @@
 	import { themeStore } from '$lib/shared/stores/theme.svelte';
 	import { ChevronLeft } from 'lucide-svelte';
 	import Toast from '$lib/shared/components/feedback/Toast.svelte';
-	import OrgNetworksModal from '$lib/features/auth/components/onboarding/OrgNetworksModal.svelte';
+	import OrgSitesModal from '$lib/features/auth/components/onboarding/OrgSitesModal.svelte';
 	import OrgLimitModal from '$lib/features/auth/components/OrgLimitModal.svelte';
 	import RegisterModal from '$lib/features/auth/components/RegisterModal.svelte';
 	import UseCaseStep from '$lib/features/auth/components/onboarding/UseCaseStep.svelte';
+	import HostingStep from '$lib/features/auth/components/onboarding/HostingStep.svelte';
 	import type { RegisterRequest, SetupRequest, UseCase } from '$lib/features/auth/types/base';
 	import {
 		useSetupMutation,
@@ -19,17 +20,32 @@
 	import { fetchOrganization } from '$lib/features/organizations/queries';
 	import { navigate } from '$lib/shared/utils/navigation';
 	import { resolve } from '$app/paths';
-	import { onboardingStore } from '$lib/features/auth/stores/onboarding';
+	import {
+		asksForSite,
+		onboardingStore,
+		onboardingSteps,
+		type OnboardingStep
+	} from '$lib/features/auth/stores/onboarding';
 	import { trackEvent } from '$lib/shared/utils/analytics';
 	import { pushError } from '$lib/shared/stores/feedback';
-	import { auth_emailAlreadyInUse, common_goBack } from '$lib/paraglide/messages';
-	import { useConfigQuery, isCloud } from '$lib/shared/stores/config-query';
+	import {
+		auth_emailAlreadyInUse,
+		common_goBack,
+		onboarding_noCreditCard,
+		onboarding_stepProgress
+	} from '$lib/paraglide/messages';
+	import {
+		useConfigQuery,
+		isCloud,
+		isLicenseSigningAvailable
+	} from '$lib/shared/stores/config-query';
 	import { setLastLoginMethod } from '$lib/features/auth/components/LoginModal.svelte';
 
 	// Show OIDC error from redirect if present
 	onMount(() => {
-		// `?hosting=self_hosted` opens the post-registration plan picker on the
-		// Self-Hosted tab. Persisted so it survives registration and OIDC redirects.
+		// `?hosting=self_hosted` preselects the hosting step and opens the
+		// post-registration plan picker on the Self-Hosted tab. Persisted so it
+		// survives registration and OIDC redirects.
 		const hosting = $page.url.searchParams.get('hosting');
 		if (hosting === 'self_hosted' || hosting === 'cloud') {
 			onboardingStore.setHosting(hosting);
@@ -74,15 +90,28 @@
 	let adminContactEmail = $derived(onboardingConfigData?.server_admin_contact_email ?? null);
 
 	// Step tracking
-	type Step = 'use_case' | 'setup' | 'register';
+	type Step = OnboardingStep;
+
+	// A server that sells both cloud and self-hosted plans asks where Scanopy runs.
+	let asksHosting = $derived(
+		!!onboardingConfigData &&
+			isCloud(onboardingConfigData) &&
+			isLicenseSigningAvailable(onboardingConfigData)
+	);
+	let steps = $derived(onboardingSteps(asksHosting, $onboardingStore.hosting));
 
 	// Get initial step from URL params or default
 	function getInitialStep(): Step {
 		if ($page.url.searchParams.get('invited_by')) return 'register';
-		return 'use_case';
+		return 'hosting';
 	}
 
-	let currentStep = $state<Step>(getInitialStep());
+	let requestedStep = $state<Step>(getInitialStep());
+	// A step this flow doesn't have (hosting on a server that doesn't ask it, or
+	// a use case restored for a self-hosted buyer) falls back to the first step.
+	let currentStep = $derived(
+		isInviteFlow || steps.includes(requestedStep) ? requestedStep : steps[0]
+	);
 	let stepInitialized = $state(false);
 	let lastPersistedStep = $state<Step | null>(null);
 
@@ -93,8 +122,8 @@
 
 			// Restore step
 			if (stateData.step && isValidStep(stateData.step)) {
-				currentStep = stateData.step as Step;
-				lastPersistedStep = stateData.step as Step; // Don't re-persist this
+				requestedStep = stateData.step;
+				lastPersistedStep = stateData.step; // Don't re-persist this
 			}
 
 			// Restore use case
@@ -107,11 +136,11 @@
 				onboardingStore.setOrganizationName(stateData.org_name);
 			}
 
-			// Restore network (with ID and name)
-			if (stateData.network) {
-				onboardingStore.setNetwork({
-					id: stateData.network.id ?? undefined,
-					name: stateData.network.name
+			// Restore site (with ID and name)
+			if (stateData.site) {
+				onboardingStore.setSite({
+					id: stateData.site.id ?? undefined,
+					name: stateData.site.name
 				});
 			}
 
@@ -126,12 +155,22 @@
 
 	// Helper to validate step
 	function isValidStep(step: string): step is Step {
-		return ['use_case', 'setup', 'register'].includes(step);
+		return ['hosting', 'use_case', 'setup', 'register'].includes(step);
 	}
+
+	// The step list depends on the server config, so steps are neither shown nor
+	// persisted until it loads.
+	let configLoaded = $derived(!!onboardingConfigData);
+
+	// A self-hosted license buyer on cloud: this account holds the license, not a
+	// cloud org, so it skips the site and the cloud-app copy.
+	let licenseSignup = $derived(
+		!asksForSite($onboardingStore.hosting, !!onboardingConfigData && isCloud(onboardingConfigData))
+	);
 
 	// Persist step to session whenever it changes
 	$effect(() => {
-		if (stepInitialized && !isInviteFlow && currentStep !== lastPersistedStep) {
+		if (stepInitialized && configLoaded && !isInviteFlow && currentStep !== lastPersistedStep) {
 			lastPersistedStep = currentStep;
 			onboardingStepMutation.mutate({
 				step: currentStep,
@@ -143,67 +182,43 @@
 	// Get use case from store
 	let useCase = $derived($onboardingStore.useCase);
 
-	// Calculate total steps based on flow
-	// use_case -> setup -> register = 3 steps
 	// Invite: just register = 1 step
-	let totalSteps = $derived(() => {
-		if (isInviteFlow) return 1;
-		return 3;
-	});
-
-	let currentStepNumber = $derived(() => {
-		if (isInviteFlow) return 1;
-
-		const stepMap: Record<Step, number> = {
-			use_case: 1,
-			setup: 2,
-			register: 3
-		};
-		return stepMap[currentStep];
-	});
+	let totalSteps = $derived(isInviteFlow ? 1 : steps.length);
+	let currentStepNumber = $derived(isInviteFlow ? 1 : steps.indexOf(currentStep) + 1);
 
 	// Note: Auth check is handled by +layout.svelte
 
-	function handleUseCaseNext() {
-		currentStep = 'setup';
+	function goToNextStep() {
+		const next = steps[steps.indexOf(currentStep) + 1];
+		if (next) requestedStep = next;
 	}
 
 	async function handleSetupSubmit(formData: SetupRequest) {
 		try {
 			// Submit setup data to backend (stored in session)
 			const result = await setupMutation.mutateAsync(formData);
-			// Update store with network ID
-			onboardingStore.setNetworkId(result.network_id);
+			// Update store with site ID
+			if (result.site_id) onboardingStore.setSiteId(result.site_id);
 
 			// Track onboarding modal completion
 			trackEvent('onboarding_modal_completed', {
-				network_count: 1
+				site_count: formData.site ? 1 : 0
 			});
 
-			currentStep = 'register';
+			requestedStep = 'register';
 		} catch {
 			// Error handled by mutation
 		}
 	}
 
 	function handleBack() {
-		switch (currentStep) {
-			case 'setup':
-				currentStep = 'use_case';
-				break;
-			case 'register':
-				currentStep = 'setup';
-				break;
-		}
+		const previous = steps[steps.indexOf(currentStep) - 1];
+		if (previous) requestedStep = previous;
 	}
 
-	async function handleRegister(data: RegisterRequest, subscribed: boolean) {
+	async function handleRegister(data: RegisterRequest) {
 		try {
-			// Include marketing_opt_in in the registration request
-			await registerMutation.mutateAsync({
-				...data,
-				marketing_opt_in: subscribed
-			});
+			await registerMutation.mutateAsync(data);
 			setLastLoginMethod('email');
 
 			// Before clearing onboarding store, get state for tracking
@@ -251,13 +266,13 @@
 
 	<!-- Progress Indicator - fixed position above modal (hidden for invite flow
 	     and when the org-limit gate replaces the whole flow) -->
-	{#if !isInviteFlow && !showOrgLimitGate}
+	{#if !isInviteFlow && !showOrgLimitGate && configLoaded}
 		<div class="fixed left-1/2 top-2 z-[200] -translate-x-1/2 sm:top-6">
 			<div class="flex flex-col items-center gap-1">
 				<div
 					class="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-lg backdrop-blur-sm dark:bg-gray-800/90"
 				>
-					{#if currentStepNumber() > 1}
+					{#if currentStepNumber > 1}
 						<button
 							type="button"
 							onclick={handleBack}
@@ -268,13 +283,13 @@
 						</button>
 					{/if}
 					<span class="text-secondary text-sm">
-						Step {currentStepNumber()} of {totalSteps()}
+						{onboarding_stepProgress({ current: currentStepNumber, total: totalSteps })}
 					</span>
 					<div class="flex gap-1">
 						<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
-						{#each Array(totalSteps()) as _, i (i)}
+						{#each Array(totalSteps) as _, i (i)}
 							<div
-								class="h-2 w-2 rounded-full transition-colors {i < currentStepNumber()
+								class="h-2 w-2 rounded-full transition-colors {i < currentStepNumber
 									? 'bg-primary-500'
 									: 'bg-gray-300 dark:bg-gray-600'}"
 							></div>
@@ -282,7 +297,7 @@
 					</div>
 				</div>
 				{#if onboardingConfigData && isCloud(onboardingConfigData)}
-					<span class="text-tertiary text-xs">No credit card required</span>
+					<span class="text-tertiary text-xs">{onboarding_noCreditCard()}</span>
 				{/if}
 			</div>
 		</div>
@@ -298,21 +313,31 @@
 					onClose={handleClose}
 					onSwitchToLogin={handleSwitchToLogin}
 				/>
+			{:else if !isInviteFlow && !configLoaded}
+				<!-- The step list waits on the server config -->
+			{:else if currentStep === 'hosting'}
+				<HostingStep
+					isOpen={true}
+					onNext={goToNextStep}
+					onClose={handleClose}
+					onSwitchToLogin={handleSwitchToLogin}
+				/>
 			{:else if currentStep === 'use_case'}
 				<!-- Use Case Selection Step -->
 				<UseCaseStep
 					isOpen={true}
-					onNext={handleUseCaseNext}
+					onNext={goToNextStep}
 					onClose={handleClose}
 					onSwitchToLogin={handleSwitchToLogin}
 				/>
 			{:else if currentStep === 'setup'}
-				<!-- Organization & Network Setup -->
-				<OrgNetworksModal
+				<!-- Organization & Site Setup -->
+				<OrgSitesModal
 					isOpen={true}
 					onClose={handleClose}
 					onSubmit={handleSetupSubmit}
 					{useCase}
+					{licenseSignup}
 				/>
 			{:else if currentStep === 'register'}
 				<!-- Registration -->

@@ -158,3 +158,16 @@ export function translateFieldDefinitions<F extends TranslatableField>(
 		};
 	});
 }
+
+/**
+ * Resolve an entity field registry label, falling back to the fixture's English label.
+ * Key shape mirrors scripts/generate-meta-messages.js: meta_<fixtureKey>_<ownerId>_field_<id>_label.
+ */
+export function metaFieldLabel(
+	fixtureKey: 'entities' | 'edge_types',
+	ownerId: string,
+	fieldId: string,
+	fallback: string
+): string {
+	return resolveMeta(`meta_${fixtureKey}_${ownerId}_field_${fieldId}_label`, fallback);
+}

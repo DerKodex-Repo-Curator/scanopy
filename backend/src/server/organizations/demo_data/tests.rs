@@ -1,9 +1,10 @@
 use super::*;
+use crate::server::shared::entities::EntityDiscriminants;
 use std::collections::{HashMap, HashSet};
 
 #[test]
 fn subnet_vlan_records_are_derived_and_reference_valid_entities() {
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
 
     // The derivation should link at least the subnets whose hosts carry a
     // native VLAN (otherwise the junction is silently empty and demo
@@ -36,7 +37,7 @@ fn subnet_vlan_records_are_derived_and_reference_valid_entities() {
 fn a_subnet_carries_a_provisional_cidr_source() {
     use crate::server::shared::attribution::AttributeMethod;
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     assert!(
         demo.subnets
             .iter()
@@ -53,10 +54,10 @@ fn stale_demo_hosts_are_stale_together_with_their_children() {
     use crate::server::shared::storage::snapshot::DiscoveryTracked;
     use crate::server::shared::types::entities::EntityFreshness;
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     let now = Utc::now();
     let cutoffs: HashMap<Uuid, DateTime<Utc>> = demo
-        .networks
+        .sites
         .iter()
         .map(|n| (n.id, n.stale_cutoff(now)))
         .collect();
@@ -67,7 +68,7 @@ fn stale_demo_hosts_are_stale_together_with_their_children() {
         .iter()
         .chain(&demo.recent_hosts_with_services)
     {
-        let cutoff = cutoffs[&hws.host.base.network_id];
+        let cutoff = cutoffs[&hws.host.base.site_id];
         let host_freshness = hws.host.freshness(cutoff);
         if host_freshness == EntityFreshness::Stale {
             stale_hosts += 1;
@@ -115,7 +116,7 @@ fn stale_demo_hosts_are_stale_together_with_their_children() {
 
 #[test]
 fn a_host_is_known_only_by_inference() {
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     assert!(
         demo.hosts_with_services
             .iter()
@@ -130,7 +131,7 @@ fn a_discovery_carries_warnings_from_more_than_one_remedy_group() {
     use crate::server::discovery::r#impl::types::RunType;
     use crate::server::shared::types::metadata::TypeMetadataProvider;
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     let warnings: Vec<&DiscoveryWarning> = demo
         .discoveries
         .iter()
@@ -157,7 +158,7 @@ fn a_discovery_carries_warnings_from_more_than_one_remedy_group() {
 fn a_service_is_in_the_industrial_category() {
     use crate::server::services::r#impl::categories::ServiceCategory;
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     assert!(
         demo.hosts_with_services
             .iter()
@@ -174,7 +175,7 @@ fn a_service_is_in_the_industrial_category() {
 fn demo_hosts_are_titled_from_every_rung() {
     use crate::server::hosts::r#impl::name_ladder::HostNameRung;
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     let rungs: HashSet<HostNameRung> = demo
         .hosts_with_services
         .iter()
@@ -195,7 +196,7 @@ fn demo_hosts_are_titled_from_every_rung() {
 
 #[test]
 fn a_host_shows_distinct_firmware_and_software_revisions() {
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     assert!(
         demo.hosts_with_services.iter().any(|hws| {
             match (
@@ -215,7 +216,7 @@ fn every_credential_type_is_in_the_demo() {
     use crate::server::credentials::r#impl::types::CredentialTypeDiscriminants;
     use strum::{IntoDiscriminant, IntoEnumIterator};
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     let present: HashSet<CredentialTypeDiscriminants> = demo
         .credentials
         .iter()
@@ -236,7 +237,7 @@ fn every_credential_type_is_in_the_demo() {
 fn demo_credentials_are_valid_and_described() {
     use validator::Validate;
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     for credential in &demo.credentials {
         let name = &credential.base.name;
         credential
@@ -265,7 +266,7 @@ fn demo_credentials_are_assigned_within_their_targets() {
     use crate::server::credentials::r#impl::types::{CredentialTypeDiscriminants, Target};
     use strum::IntoDiscriminant;
 
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     let by_id: HashMap<Uuid, &Credential> = demo.credentials.iter().map(|c| (c.id, c)).collect();
 
     let mut uses: Vec<(Uuid, Target)> = Vec::new();
@@ -274,9 +275,9 @@ fn demo_credentials_are_assigned_within_their_targets() {
             uses.push((assignment.credential_id, Target::Hosts));
         }
     }
-    for assignment in &demo.network_credential_assignments {
+    for assignment in &demo.site_credential_assignments {
         for &credential_id in &assignment.credential_ids {
-            uses.push((credential_id, Target::Network));
+            uses.push((credential_id, Target::Site));
         }
     }
     for discovery in &demo.discoveries {
@@ -306,7 +307,7 @@ fn demo_credentials_are_assigned_within_their_targets() {
         }
         assert!(
             used.contains(&credential.id),
-            "{} is not assigned to any host, network or discovery",
+            "{} is not assigned to any host, site or discovery",
             credential.base.name
         );
     }
@@ -314,7 +315,7 @@ fn demo_credentials_are_assigned_within_their_targets() {
 
 #[test]
 fn daemons_report_the_subnets_their_host_has_addresses_on() {
-    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4());
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     assert!(!demo.daemons.is_empty());
 
     let subnets_by_id: HashMap<Uuid, &Subnet> = demo.subnets.iter().map(|s| (s.id, s)).collect();
@@ -350,5 +351,153 @@ fn daemons_report_the_subnets_their_host_has_addresses_on() {
             "{} reports no container bridge subnet",
             daemon.base.name
         );
+    }
+}
+
+/// The demo's tag assignments keep the rule tag groups exist for: no entity holds two tags of
+/// one group. Seeding writes the junction rows directly, so nothing else would catch a demo host
+/// tagged both Production and Development.
+#[test]
+fn no_demo_entity_holds_two_tags_of_one_tag_group() {
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
+    let group_of: HashMap<Uuid, Uuid> = demo
+        .tags
+        .iter()
+        .filter_map(|t| t.base.tag_group_id.map(|g| (t.id, g)))
+        .collect();
+
+    let tag_lists = demo_tag_lists(&demo)
+        .into_iter()
+        .map(|(id, _, tags)| (id, tags));
+
+    let name_of = |tag_id: &Uuid| {
+        demo.tags
+            .iter()
+            .find(|t| t.id == *tag_id)
+            .map(|t| t.base.name.clone())
+    };
+    for (id, tags) in tag_lists {
+        let mut seen = HashSet::new();
+        for group in tags.iter().filter_map(|id| group_of.get(id)) {
+            assert!(
+                seen.insert(group),
+                "entity {id} holds two tags of the {group} group: {:?}",
+                tags.iter().filter_map(name_of).collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+#[test]
+fn every_daemon_api_key_is_bound_one_to_one() {
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
+    assert!(!demo.api_keys.is_empty());
+
+    // No site-shared legacy keys: each key names a daemon, and that daemon names it back.
+    for key in &demo.api_keys {
+        let daemon_id = key
+            .base
+            .daemon_id
+            .unwrap_or_else(|| panic!("{} is not bound to a daemon", key.base.name));
+        let daemon = demo
+            .daemons
+            .iter()
+            .find(|d| d.id == daemon_id)
+            .unwrap_or_else(|| panic!("{} names a daemon the demo lacks", key.base.name));
+        assert_eq!(daemon.base.api_key_id, Some(key.id), "{}", daemon.base.name);
+        assert_eq!(daemon.base.site_id, key.base.site_id, "{}", key.base.name);
+    }
+    assert!(demo.daemons.iter().all(|d| d.base.api_key_id.is_some()));
+}
+
+/// Every tagged demo entity: its id, its type, and its tags.
+fn demo_tag_lists(demo: &DemoData) -> Vec<(Uuid, EntityDiscriminants, Vec<Uuid>)> {
+    let hosts: Vec<&HostWithServices> = demo
+        .hosts_with_services
+        .iter()
+        .chain(&demo.recent_hosts_with_services)
+        .collect();
+    hosts
+        .iter()
+        .map(|h| {
+            (
+                h.host.id,
+                EntityDiscriminants::Host,
+                h.host.base.tags.clone(),
+            )
+        })
+        .chain(hosts.iter().flat_map(|h| {
+            h.services
+                .iter()
+                .map(|s| (s.id, EntityDiscriminants::Service, s.base.tags.clone()))
+        }))
+        .chain(
+            demo.subnets
+                .iter()
+                .map(|s| (s.id, EntityDiscriminants::Subnet, s.base.tags.clone())),
+        )
+        .chain(
+            demo.sites
+                .iter()
+                .map(|s| (s.id, EntityDiscriminants::Site, s.base.tags.clone())),
+        )
+        .collect()
+}
+
+/// Seeding writes the junction rows directly, past the check that keeps a limited group's tags
+/// off other entity types, so the demo has to keep the rule itself.
+#[test]
+fn demo_tags_sit_only_on_types_their_group_allows() {
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
+    assert!(
+        demo.tag_groups
+            .iter()
+            .any(|g| g.base.entity_types.is_some()),
+        "the demo shows a group limited to some entity types"
+    );
+
+    for (id, entity_type, tags) in demo_tag_lists(&demo) {
+        for tag in demo.tags.iter().filter(|t| tags.contains(&t.id)) {
+            let Some(group) = demo
+                .tag_groups
+                .iter()
+                .find(|g| Some(g.id) == tag.base.tag_group_id)
+            else {
+                continue;
+            };
+            assert!(
+                group.base.allows(entity_type),
+                "{entity_type} {id} holds {} from the {} group",
+                tag.base.name,
+                group.base.name
+            );
+        }
+    }
+}
+
+/// Positions within each ordered demo group run 1, 2, 3… with no gap or repeat, so tables and
+/// pickers list them in the order written. An unordered group's tags carry none.
+#[test]
+fn demo_tag_positions_run_from_one_in_each_ordered_group() {
+    let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
+    for group in &demo.tag_groups {
+        let in_group = demo
+            .tags
+            .iter()
+            .filter(|t| t.base.tag_group_id == Some(group.id));
+        if !group.base.ordered {
+            assert!(in_group.clone().all(|t| t.base.position.is_none()));
+            continue;
+        }
+        let mut positions: Vec<i32> = in_group
+            .map(|t| {
+                t.base
+                    .position
+                    .expect("a tag in an ordered group has a position")
+            })
+            .collect();
+        positions.sort();
+        let expected: Vec<i32> = (1..=positions.len() as i32).collect();
+        assert_eq!(positions, expected, "{}", group.base.name);
     }
 }

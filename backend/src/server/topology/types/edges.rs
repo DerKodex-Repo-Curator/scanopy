@@ -1,3 +1,4 @@
+use crate::server::shared::types::entity_field::{EntityField, Hop, MetadataFixture};
 use crate::server::{
     dependencies::r#impl::types::DependencyTypeDiscriminants,
     shared::{
@@ -15,13 +16,62 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Protocol that discovered the physical link between network devices
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Hash, Default, ToSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    Eq,
+    PartialEq,
+    Hash,
+    Default,
+    ToSchema,
+    IntoStaticStr,
+    EnumIter,
+)]
 pub enum DiscoveryProtocol {
     /// Link Layer Discovery Protocol (IEEE 802.1AB)
     #[default]
     LLDP,
     /// Cisco Discovery Protocol (Cisco proprietary)
     CDP,
+}
+
+impl HasId for DiscoveryProtocol {
+    fn id(&self) -> &'static str {
+        self.into()
+    }
+}
+
+impl EntityMetadataProvider for DiscoveryProtocol {
+    fn color(&self) -> Color {
+        match self {
+            DiscoveryProtocol::LLDP => Color::Green,
+            DiscoveryProtocol::CDP => Color::Blue,
+        }
+    }
+    fn icon(&self) -> Icon {
+        EntityDiscriminants::Interface.icon()
+    }
+}
+
+impl TypeMetadataProvider for DiscoveryProtocol {
+    fn name(&self) -> &'static str {
+        match self {
+            DiscoveryProtocol::LLDP => "LLDP",
+            DiscoveryProtocol::CDP => "CDP",
+        }
+    }
+
+    fn description(&self) -> &'static str {
+        match self {
+            DiscoveryProtocol::LLDP => {
+                "A device's LLDP (Link Layer Discovery Protocol) neighbor table"
+            }
+            DiscoveryProtocol::CDP => "A device's CDP (Cisco Discovery Protocol) neighbor table",
+        }
+    }
 }
 
 /// Whether an edge is visible by default or hidden behind a toggle
@@ -116,6 +166,10 @@ pub struct Edge {
     /// Text drawn on the edge.
     #[schema(required)]
     pub label: Option<String>,
+    /// The names of the two ends, source first, for edges that join two named things. The UI
+    /// draws each name at its own end; `label` carries the same names joined.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint_labels: Option<[String; 2]>,
     /// Which side of the source node the edge leaves from.
     pub source_handle: EdgeHandle,
     /// Which side of the target node the edge arrives at.
@@ -179,6 +233,33 @@ pub enum EdgeStyle {
     Bezier,
 }
 
+/// Read a saved list of edge types, dropping any this binary doesn't know.
+///
+/// A topology's options persist the edge types a user chose to hide. Read strictly, one unknown
+/// value (an edge type added by a newer release, met by an older one during a rollback or a
+/// mixed-version window) failed the whole topology. Same reasoning and same narrow scope as
+/// `deserialize_known_categories`: only stored lists are lenient, the enum itself stays strict.
+pub fn deserialize_known_edge_types<'de, D>(
+    deserializer: D,
+) -> Result<Vec<EdgeTypeDiscriminants>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(raw
+        .into_iter()
+        .filter_map(
+            |value| match serde_json::from_value::<EdgeTypeDiscriminants>(value.clone()) {
+                Ok(edge_type) => Some(edge_type),
+                Err(_) => {
+                    tracing::warn!(%value, "Unrecognized edge type in topology options; dropping it");
+                    None
+                }
+            },
+        )
+        .collect())
+}
+
 #[derive(
     Debug,
     Clone,
@@ -205,6 +286,13 @@ pub enum EdgeType {
         /// The hypervisor service running the guest.
         hypervisor_service_id: Uuid,
     },
+    /// A guest's own address to one of its network identities on the same subnet: an address
+    /// and MAC the guest presents from an interface of its own beyond its configured NICs.
+    #[schema(title = "NetworkIdentity")]
+    NetworkIdentity {
+        /// The guest's Network Identities service, which owns the identity host.
+        identities_service_id: Uuid,
+    },
     #[schema(title = "ContainerRuntime")]
     ContainerRuntime {
         /// The host running the container runtime.
@@ -213,9 +301,11 @@ pub enum EdgeType {
         service_id: Uuid,
         /// The bridge subnet(s) this edge reaches: one when they render as their own boxes,
         /// all of them when merged into a single box. Resolved here rather than in the
-        /// inspector, which cannot tell which subnet an elevated edge landed on.
+        /// inspector, which cannot tell which subnet an elevated edge landed on. For an edge to a
+        /// container host (macvlan, ipvlan), the subnet holding the address it ends on.
         subnet_ids: Vec<Uuid>,
-        /// The containerized services this edge stands for — the ones on those subnets.
+        /// The containerized services this edge stands for — the ones on those subnets. Empty on
+        /// an edge to a container host.
         containerized_service_ids: Vec<Uuid>,
     },
     /// One container reachable at several of its host's container-bridge subnets. Ties the
@@ -294,6 +384,7 @@ impl EdgeType {
             // link is likewise the whole relationship, not a segment of one.
             EdgeType::ContainerRuntime { .. }
             | EdgeType::Hypervisor { .. }
+            | EdgeType::NetworkIdentity { .. }
             | EdgeType::PhysicalLink { .. }
             | EdgeType::NeighborLink { .. } => Segment,
         }
@@ -344,7 +435,9 @@ impl EdgeType {
             // between the same pair of boxes land on identical endpoints and draw as one line
             // over another. Merging them into a single counted line is the only way to show
             // there is more than one; expanding the bundle fans them back out.
-            EdgeType::Hypervisor { .. } | EdgeType::ContainerRuntime { .. } => None,
+            EdgeType::Hypervisor { .. }
+            | EdgeType::NetworkIdentity { .. }
+            | EdgeType::ContainerRuntime { .. } => None,
         }
     }
 }
@@ -356,6 +449,9 @@ impl EntityMetadataProvider for EdgeType {
             EdgeType::HubAndSpoke { .. } => EntityDiscriminants::Dependency.color(),
             EdgeType::SameHost { .. } => EntityDiscriminants::Host.color(),
             EdgeType::Hypervisor { .. } => Concept::Virtualization.color(),
+            // An identity is one interface the guest presents. Virtualization's colour is the
+            // host's, which would draw it like the SameHost and Hypervisor edges beside it.
+            EdgeType::NetworkIdentity { .. } => EntityDiscriminants::Interface.color(),
             EdgeType::ContainerRuntime { .. } => Concept::Containerization.color(),
             EdgeType::SameContainer { .. } => Concept::Containerization.color(),
             EdgeType::PhysicalLink { .. } => EntityDiscriminants::Interface.color(),
@@ -371,6 +467,7 @@ impl EntityMetadataProvider for EdgeType {
             EdgeType::HubAndSpoke { .. } => DependencyTypeDiscriminants::HubAndSpoke.icon(),
             EdgeType::SameHost { .. } => EntityDiscriminants::Host.icon(),
             EdgeType::Hypervisor { .. } => Concept::Virtualization.icon(),
+            EdgeType::NetworkIdentity { .. } => Icon::FingerprintPattern,
             EdgeType::ContainerRuntime { .. } => Concept::Containerization.icon(),
             EdgeType::SameContainer { .. } => Concept::Containerization.icon(),
             EdgeType::PhysicalLink { .. } => EntityDiscriminants::Interface.icon(),
@@ -386,6 +483,7 @@ impl TypeMetadataProvider for EdgeType {
             EdgeType::HubAndSpoke { .. } => DependencyTypeDiscriminants::HubAndSpoke.name(),
             EdgeType::SameHost { .. } => "Same Host",
             EdgeType::Hypervisor { .. } => "Hypervisor",
+            EdgeType::NetworkIdentity { .. } => "Network Identity",
             EdgeType::ContainerRuntime { .. } => "Container Runtime",
             EdgeType::SameContainer { .. } => "Same Container",
             EdgeType::PhysicalLink { .. } => "Physical Link",
@@ -399,6 +497,7 @@ impl TypeMetadataProvider for EdgeType {
             EdgeType::HubAndSpoke { .. } => EdgeStyle::Bezier.into(),
             EdgeType::SameHost { .. } => EdgeStyle::Bezier.into(),
             EdgeType::Hypervisor { .. } => EdgeStyle::Bezier.into(),
+            EdgeType::NetworkIdentity { .. } => EdgeStyle::Bezier.into(),
             EdgeType::ContainerRuntime { .. } => EdgeStyle::Bezier.into(),
             EdgeType::SameContainer { .. } => EdgeStyle::Bezier.into(),
             EdgeType::PhysicalLink { .. } => EdgeStyle::Bezier.into(),
@@ -412,6 +511,7 @@ impl TypeMetadataProvider for EdgeType {
             EdgeType::HubAndSpoke { .. } => true,
             EdgeType::SameHost { .. } => false,
             EdgeType::Hypervisor { .. } => false,
+            EdgeType::NetworkIdentity { .. } => false,
             EdgeType::ContainerRuntime { .. } => false,
             EdgeType::SameContainer { .. } => false,
             EdgeType::PhysicalLink { .. } => false, // No markers - bidirectional link
@@ -438,8 +538,80 @@ impl TypeMetadataProvider for EdgeType {
             "is_host_edge": is_host_edge,
             "is_dependency_edge": is_dependency_edge,
             "is_physical_edge": is_physical_edge,
-            "selection_scope": self.selection_scope()
+            "selection_scope": self.selection_scope(),
+            "fields": self.fields()
         })
+    }
+}
+
+use EntityDiscriminants as E;
+
+const DEPENDENCY_FIELDS: &[EntityField] = &[EntityField::new("dependency_id", "Dependency")
+    .entity(&[Hop::parent(E::Dependency, "dependency_id")])
+    .summary()];
+const SAME_HOST_FIELDS: &[EntityField] = &[EntityField::new("host_id", "Host")
+    .entity(&[Hop::parent(E::Host, "host_id")])
+    .summary()];
+const HYPERVISOR_FIELDS: &[EntityField] =
+    &[EntityField::new("hypervisor_service_id", "Hypervisor")
+        .entity(&[Hop::parent(E::Service, "hypervisor_service_id")])
+        .summary()];
+const NETWORK_IDENTITY_FIELDS: &[EntityField] =
+    &[
+        EntityField::new("identities_service_id", "Identity Service")
+            .entity(&[Hop::parent(E::Service, "identities_service_id")])
+            .summary(),
+    ];
+const CONTAINER_RUNTIME_FIELDS: &[EntityField] = &[
+    EntityField::new("host_id", "Host").entity(&[Hop::parent(E::Host, "host_id")]),
+    EntityField::new("service_id", "Runtime")
+        .entity(&[Hop::parent(E::Service, "service_id")])
+        .summary(),
+    EntityField::new("containerized_service_ids", "Containers")
+        .entity(&[Hop::parent(E::Service, "containerized_service_ids")])
+        .many(),
+    EntityField::new("subnet_ids", "Bridge Subnets")
+        .entity(&[Hop::parent(E::Subnet, "subnet_ids")])
+        .many(),
+];
+const SAME_CONTAINER_FIELDS: &[EntityField] = &[EntityField::new("service_id", "Service")
+    .entity(&[Hop::parent(E::Service, "service_id")])
+    .summary()];
+const PROTOCOL: EntityField =
+    EntityField::new("protocol", "Protocol").metadata(MetadataFixture::DiscoveryProtocols);
+const PHYSICAL_LINK_FIELDS: &[EntityField] = &[
+    EntityField::new("source_entity_id", "From Interface")
+        .entity(&[Hop::parent(E::Interface, "source_entity_id")])
+        .summary(),
+    EntityField::new("target_entity_id", "To Interface")
+        .entity(&[Hop::parent(E::Interface, "target_entity_id")])
+        .summary(),
+    PROTOCOL,
+];
+const NEIGHBOR_LINK_FIELDS: &[EntityField] = &[
+    EntityField::new("source_host_id", "From Host")
+        .entity(&[Hop::parent(E::Host, "source_host_id")])
+        .summary(),
+    EntityField::new("target_host_id", "To Host")
+        .entity(&[Hop::parent(E::Host, "target_host_id")])
+        .summary(),
+    PROTOCOL,
+];
+
+impl EdgeType {
+    /// The fields an edge of this type is described by, read from the edge's own data. See
+    /// `shared::types::entity_field`.
+    pub fn fields(&self) -> &'static [EntityField] {
+        match self {
+            EdgeType::RequestPath { .. } | EdgeType::HubAndSpoke { .. } => DEPENDENCY_FIELDS,
+            EdgeType::SameHost { .. } => SAME_HOST_FIELDS,
+            EdgeType::Hypervisor { .. } => HYPERVISOR_FIELDS,
+            EdgeType::NetworkIdentity { .. } => NETWORK_IDENTITY_FIELDS,
+            EdgeType::ContainerRuntime { .. } => CONTAINER_RUNTIME_FIELDS,
+            EdgeType::SameContainer { .. } => SAME_CONTAINER_FIELDS,
+            EdgeType::PhysicalLink { .. } => PHYSICAL_LINK_FIELDS,
+            EdgeType::NeighborLink { .. } => NEIGHBOR_LINK_FIELDS,
+        }
     }
 }
 

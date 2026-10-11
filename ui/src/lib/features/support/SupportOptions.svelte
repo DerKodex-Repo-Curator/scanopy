@@ -69,7 +69,7 @@
 			return items;
 		}
 
-		// Full support options — used by SupportModal
+		// The full list lives in Settings → Support (settings/SupportTab.svelte)
 		return null;
 	});
 

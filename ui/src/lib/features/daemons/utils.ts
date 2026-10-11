@@ -90,7 +90,7 @@ export function hasSunsetWarning(daemon: Daemon): boolean {
 /// label where an OS identifier was expected.
 export type DaemonOS = components['schemas']['DaemonOs'];
 
-export function slugifyNetworkName(name: string): string {
+export function slugifySiteName(name: string): string {
 	return name
 		.toLowerCase()
 		.replace(/[^a-z0-9-]/g, '-')
@@ -104,26 +104,6 @@ export function detectOS(): DaemonOS {
 	if (ua.includes('win')) return 'windows';
 	if (ua.includes('mac')) return 'macos';
 	return 'linux';
-}
-
-const DEFAULT_DAEMON_NAME = 'scanopy-daemon';
-
-/**
- * Service/unit identifier the `scanopy-daemon install` engine registers for a given daemon name
- * (systemd unit, Windows SCM service, FreeBSD rc.d). Mirrors `service_id()` in
- * backend/src/daemon/install/mod.rs: the default name keeps its bare id; custom names are
- * namespaced under the `scanopy-daemon-` prefix.
- */
-export function daemonServiceId(name: string): string {
-	return name === DEFAULT_DAEMON_NAME ? DEFAULT_DAEMON_NAME : `scanopy-daemon-${name}`;
-}
-
-/**
- * launchd label the installer uses on macOS. Mirrors `label()` in
- * backend/src/daemon/install/macos.rs.
- */
-export function daemonLaunchdLabel(name: string): string {
-	return name === DEFAULT_DAEMON_NAME ? 'com.scanopy.daemon' : `com.scanopy.daemon.${name}`;
 }
 
 /**

@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::server::shared::{
     entities::ChangeTriggersTopologyStaleness,
-    types::{Color, api::deserialize_empty_string_as_none},
+    types::{Color, Icon, api::deserialize_empty_string_as_none},
 };
 use chrono::DateTime;
 use chrono::Utc;
@@ -11,6 +11,59 @@ use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
+
+/// A lucide icon a person chose for a tag.
+///
+/// A newtype because `lucide_icons::Icon` derives neither `Eq` nor `Hash`, which every entity
+/// base needs. The icon is a fieldless enum, so its discriminant is a complete identity.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
+#[serde(transparent)]
+#[schema(value_type = String)]
+pub struct TagIcon(pub Icon);
+
+impl TagIcon {
+    /// Every icon in the linked lucide build, ordered by name.
+    ///
+    /// The crate lists its icons only as font glyphs, which all sit in the Private Use Area, so
+    /// walking that block finds each one exactly once.
+    pub fn all() -> impl Iterator<Item = TagIcon> {
+        let mut icons: Vec<TagIcon> = ('\u{e000}'..='\u{f8ff}')
+            .filter_map(|glyph| Icon::try_from(glyph).ok().map(TagIcon))
+            .collect();
+        icons.sort_by_cached_key(|icon| icon.to_string());
+        icons.into_iter()
+    }
+}
+
+impl PartialEq for TagIcon {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 as u32 == other.0 as u32
+    }
+}
+
+impl Eq for TagIcon {}
+
+impl std::hash::Hash for TagIcon {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (self.0 as u32).hash(state);
+    }
+}
+
+impl Display for TagIcon {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::str::FromStr for TagIcon {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Icon::try_from(s)
+            .map(TagIcon)
+            .map_err(|_| anyhow::anyhow!("Unknown icon {s}"))
+    }
+}
 
 #[derive(Debug, Clone, Validate, Serialize, Deserialize, Eq, PartialEq, Hash, ToSchema)]
 pub struct TagBase {
@@ -28,9 +81,18 @@ pub struct TagBase {
     pub color: Color,
     /// The organization that owns this record.
     pub organization_id: Uuid,
-    /// Whether this tag groups an application, so it drives the application view.
+    /// The tag group this tag belongs to, if any. An entity holds at most one tag of a group.
     #[serde(default)]
-    pub is_application: bool,
+    #[schema(required)]
+    pub tag_group_id: Option<Uuid>,
+    /// The tag's place in its group's order, from 1. `null` when the tag is in no group. Set by
+    /// the server: a tag joins the end of its group, and the group's tag order endpoint reorders.
+    #[serde(default)]
+    #[schema(read_only, required)]
+    pub position: Option<i32>,
+    /// Icon drawn on the tag. Application tags always use the application icon.
+    #[serde(default)]
+    pub icon: Option<TagIcon>,
 }
 
 impl Default for TagBase {
@@ -40,7 +102,9 @@ impl Default for TagBase {
             description: None,
             color: Color::Yellow,
             organization_id: Uuid::nil(),
-            is_application: false,
+            tag_group_id: None,
+            position: None,
+            icon: None,
         }
     }
 }
@@ -79,6 +143,14 @@ pub struct Tag {
     pub base: TagBase,
 }
 
+impl Tag {
+    /// Whether this tag belongs to the group `group_id`. `None` matches nothing, so an
+    /// organization without the group has no tags in it.
+    pub fn in_group(&self, group_id: Option<Uuid>) -> bool {
+        group_id.is_some() && self.base.tag_group_id == group_id
+    }
+}
+
 impl ChangeTriggersTopologyStaleness<Tag> for Tag {
     /// Always returns true — the actual determination of whether a Tag change
     /// should mark a topology stale lives downstream in the topology subscriber,
@@ -93,5 +165,30 @@ impl ChangeTriggersTopologyStaleness<Tag> for Tag {
 impl Display for Tag {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Tag {}: {}", self.base.name, self.id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unknown_icon_name_is_refused() {
+        assert!(serde_json::from_value::<TagIcon>(serde_json::json!("not-an-icon")).is_err());
+        assert!(serde_json::from_value::<TagIcon>(serde_json::json!("archive-x")).is_ok());
+    }
+
+    /// The picker offers exactly what `all` lists, so every entry must round-trip through the
+    /// API's name for it, and none may repeat.
+    #[test]
+    fn every_listed_icon_round_trips_through_its_name() {
+        let icons: Vec<TagIcon> = TagIcon::all().collect();
+        assert!(icons.len() > 1000, "expected the full lucide set");
+        let names: std::collections::HashSet<String> =
+            icons.iter().map(|icon| icon.to_string()).collect();
+        assert_eq!(names.len(), icons.len());
+        for icon in icons {
+            assert_eq!(icon.to_string().parse::<TagIcon>().unwrap(), icon);
+        }
     }
 }

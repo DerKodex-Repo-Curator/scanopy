@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 use uuid::Uuid;
@@ -20,20 +19,6 @@ use crate::server::{
     },
     topology::types::edges::EdgeStyle,
 };
-
-/// CSV row representation for Dependency export (excludes nested members)
-#[derive(Serialize)]
-pub struct DependencyCsvRow {
-    pub id: Uuid,
-    pub name: String,
-    pub description: Option<String>,
-    pub dependency_type: String,
-    pub color: String,
-    pub network_id: Uuid,
-    pub source: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
 impl Storable for Dependency {
     type BaseData = DependencyBase;
@@ -77,7 +62,7 @@ impl Storable for Dependency {
             base:
                 Self::BaseData {
                     name,
-                    network_id,
+                    site_id,
                     description,
                     dependency_type,
                     ref members, // member_type stored on table, IDs in junction table
@@ -97,7 +82,7 @@ impl Storable for Dependency {
                 "updated_at",
                 "name",
                 "description",
-                "network_id",
+                "site_id",
                 "source",
                 "dependency_type",
                 "color",
@@ -113,7 +98,7 @@ impl Storable for Dependency {
                 SqlValue::Timestamp(updated_at),
                 SqlValue::String(name),
                 SqlValue::OptionalString(description),
-                SqlValue::Uuid(network_id),
+                SqlValue::Uuid(site_id),
                 SqlValue::EntitySource(source),
                 SqlValue::String(dependency_type_str.to_string()),
                 SqlValue::String(color.to_string()),
@@ -163,7 +148,7 @@ impl Storable for Dependency {
             base: DependencyBase {
                 name: row.get("name"),
                 description: row.get("description"),
-                network_id: row.get("network_id"),
+                site_id: row.get("site_id"),
                 source,
                 edge_style,
                 dependency_type,
@@ -200,23 +185,6 @@ impl Entity for Dependency {
         self.created_at = time;
     }
 
-    type CsvRow = DependencyCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        let dependency_type_str: &'static str = self.base.dependency_type.into();
-        DependencyCsvRow {
-            id: self.id,
-            name: self.base.name.clone(),
-            description: self.base.description.clone(),
-            dependency_type: dependency_type_str.to_string(),
-            color: self.base.color.to_string(),
-            network_id: self.base.network_id,
-            source: format!("{:?}", self.base.source),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Dependency
     }
@@ -230,8 +198,8 @@ impl Entity for Dependency {
         EntityCategory::Visualization
     }
 
-    fn network_id(&self) -> Option<Uuid> {
-        Some(self.base.network_id)
+    fn site_id(&self) -> Option<Uuid> {
+        Some(self.base.site_id)
     }
 
     fn organization_id(&self) -> Option<Uuid> {
@@ -290,5 +258,5 @@ impl Snapshotable for Dependency {
     fn set_lineage_id(&mut self, id: Option<Uuid>) {
         self.lineage_id = id;
     }
-    // Dependency is top-level network-scoped — no within-tracked-set FKs to remap.
+    // Dependency is top-level site-scoped — no within-tracked-set FKs to remap.
 }

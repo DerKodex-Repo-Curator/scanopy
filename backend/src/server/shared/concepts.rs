@@ -34,6 +34,9 @@ pub enum Concept {
     L2,
     L3,
     Application,
+    Status,
+    /// Hosts left out of topology: the Visibility tag group.
+    Visibility,
 }
 
 impl HasId for Concept {
@@ -61,6 +64,8 @@ impl EntityMetadataProvider for Concept {
             Concept::Containerization => Color::Blue,
 
             Concept::Application => Color::Purple,
+            Concept::Status => Color::Blue,
+            Concept::Visibility => Color::Gray,
         }
     }
 
@@ -81,7 +86,9 @@ impl EntityMetadataProvider for Concept {
             Concept::Virtualization => Icon::MonitorCog,
             Concept::Containerization => Icon::Box,
 
-            Concept::Application => Icon::Workflow,
+            Concept::Application => Icon::Component,
+            Concept::Status => Icon::ListChecks,
+            Concept::Visibility => Icon::EyeOff,
         }
     }
 }

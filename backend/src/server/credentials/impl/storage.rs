@@ -1,8 +1,6 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
-use strum::IntoDiscriminant;
 use uuid::Uuid;
 
 use crate::server::{
@@ -17,23 +15,19 @@ use crate::server::{
     },
 };
 
-/// CSV row representation for Credential export
-#[derive(Serialize)]
-pub struct CredentialCsvRow {
-    pub id: Uuid,
-    pub organization_id: Uuid,
-    pub name: String,
-    pub credential_type: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 impl Storable for Credential {
     const HAS_SCD2: bool = false;
     type BaseData = CredentialBase;
 
     fn table_name() -> &'static str {
         "credentials"
+    }
+
+    fn search_predicates() -> &'static [&'static str] {
+        &[
+            "credentials.name ILIKE {}",
+            "credentials.description ILIKE {}",
+        ]
     }
 
     fn new(base: Self::BaseData) -> Self {
@@ -62,9 +56,9 @@ impl Storable for Credential {
                     description,
                     credential_type,
                     daemon_os,
-                    tags: _,                 // Stored in entity_tags junction table
-                    assigned_network_ids: _, // Stored in network_credentials junction table
-                    host_assignments: _,     // Stored in host_credentials junction table
+                    tags: _,              // Stored in entity_tags junction table
+                    assigned_site_ids: _, // Stored in site_credentials junction table
+                    host_assignments: _,  // Stored in host_credentials junction table
                 },
         } = self.clone();
 
@@ -111,8 +105,8 @@ impl Storable for Credential {
                 credential_type,
                 daemon_os,
                 tags: Vec::new(), // Hydrated from entity_tags junction table
-                assigned_network_ids: Vec::new(), // Hydrated from network_credentials junction table
-                host_assignments: Vec::new(),     // Hydrated from host_credentials junction table
+                assigned_site_ids: Vec::new(), // Hydrated from site_credentials junction table
+                host_assignments: Vec::new(), // Hydrated from host_credentials junction table
             },
         })
     }
@@ -135,32 +129,20 @@ impl Entity for Credential {
         self.created_at = time;
     }
 
-    type CsvRow = CredentialCsvRow;
-
-    fn to_csv_row(&self) -> Self::CsvRow {
-        CredentialCsvRow {
-            id: self.id,
-            organization_id: self.base.organization_id,
-            name: self.base.name.clone(),
-            credential_type: self.base.credential_type.discriminant().to_string(),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-
     fn entity_type() -> EntityDiscriminants {
         EntityDiscriminants::Credential
     }
 
     const ENTITY_NAME_SINGULAR: &'static str = "Credential";
     const ENTITY_NAME_PLURAL: &'static str = "Credentials";
-    const ENTITY_DESCRIPTION: &'static str = "Credentials for network device discovery and management. Supports SNMP, Docker proxy, and other credential types.";
+    const ENTITY_DESCRIPTION: &'static str =
+        "Credentials the daemon uses to collect from integrations during discovery.";
 
     fn entity_category() -> EntityCategory {
-        EntityCategory::DiscoveryAndDaemons
+        EntityCategory::Platform
     }
 
-    fn network_id(&self) -> Option<Uuid> {
+    fn site_id(&self) -> Option<Uuid> {
         None
     }
 

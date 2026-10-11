@@ -66,6 +66,13 @@ pub fn register_service(spec: &ServiceSpec) -> Result<()> {
     Ok(())
 }
 
+pub fn restart_service(spec: &ServiceSpec) -> Result<()> {
+    run(
+        "systemctl",
+        &["restart", &format!("{}.service", spec.service_id)],
+    )
+}
+
 /// Returns whether a unit was present before removal. Best-effort stop/disable; missing service
 /// is not an error (idempotent).
 pub fn deregister_service(spec: &ServiceSpec) -> Result<bool> {

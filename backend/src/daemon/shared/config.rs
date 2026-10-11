@@ -19,12 +19,13 @@ use std::net::IpAddr;
 use crate::server::credentials::r#impl::mapping::IntegrationTarget;
 use crate::server::daemons::r#impl::{api::LegacyCapabilities, base::DaemonMode};
 use crate::server::shared::env_file::apply_file_env_vars;
+use crate::server::shared::legacy::rewrite_from_network_wire;
 use crate::server::shared::trusted_ca::TrustedCaBundle;
 
 /// Parse the `SCANOPY_CREDENTIAL_IDS` / `--credential-id` compact token grammar into per-daemon
 /// [`IntegrationTarget`]s. Every token references a stored credential by id; the suffix is the
 /// target IP(s) — the daemon host is just its loopback address, like any other IP target:
-/// - `<uuid>` → `Network` (broadcast default)
+/// - `<uuid>` → `Site` (broadcast default)
 /// - `<uuid>@127.0.0.1` (a sole loopback) → `DaemonHost` (the daemon's own host, e.g. a local
 ///   Docker/Podman socket credential)
 /// - `<uuid>@<ip>[+<ip>...]` → `Hosts` (specific host IP overrides)
@@ -70,11 +71,36 @@ fn parse_integration_target_token(token: &str) -> anyhow::Result<IntegrationTarg
                 Ok(IntegrationTarget::Hosts { credential_id, ips })
             }
         }
-        // `<uuid>` → network-level default.
-        None => Ok(IntegrationTarget::Network {
+        // `<uuid>` → site-level default.
+        None => Ok(IntegrationTarget::Site {
             credential_id: parse_credential_id(token, token)?,
         }),
     }
+}
+
+/// The daemon config file's contents with the names it was written under before the site rename
+/// read as the current ones: `network_id` as `site_id`, and an integration target's
+/// `"scope":"Network"` as `"Site"`. A file holding both ids keeps `site_id`. The next save writes
+/// the new names. Every reader of `config.json` goes through this (or
+/// [`config_with_site_names`] when it already holds the contents).
+pub(crate) fn config_file_with_site_names(path: &Path) -> anyhow::Result<String> {
+    let raw = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read config file {}", path.display()))?;
+    let value = config_with_site_names(&raw)
+        .with_context(|| format!("Config file {} is not valid JSON", path.display()))?;
+    Ok(value.to_string())
+}
+
+/// [`config_file_with_site_names`] over contents already read.
+pub(crate) fn config_with_site_names(raw: &str) -> serde_json::Result<serde_json::Value> {
+    let mut value: serde_json::Value = serde_json::from_str(raw)?;
+    if let Some(map) = value.as_object_mut()
+        && map.contains_key("site_id")
+    {
+        map.remove("network_id");
+    }
+    rewrite_from_network_wire(&mut value);
+    Ok(value)
 }
 
 fn parse_credential_id(value: &str, token: &str) -> anyhow::Result<Uuid> {
@@ -126,8 +152,19 @@ pub enum DaemonCommand {
     Install(InstallArgs),
     /// Stop and remove the daemon's system service and delete its `config.json`.
     Uninstall(UninstallArgs),
+    /// Restart an installed daemon's system service, e.g. to pick up a newly downloaded binary.
+    Restart(RestartArgs),
     /// List the Scanopy daemons installed on this host, with the selector to use for each.
     List,
+}
+
+/// Flags for `scanopy-daemon restart`.
+#[derive(Args)]
+pub struct RestartArgs {
+    /// Which installed daemon to restart: its daemon id, name, slot, or service id (see
+    /// `scanopy-daemon list`). Optional when the host has only one daemon installed.
+    #[arg(long)]
+    pub instance: Option<String>,
 }
 
 /// Flags for `scanopy-daemon install`: the shared daemon flags plus install-only options.
@@ -186,11 +223,12 @@ pub struct DaemonArgs {
     #[arg(long)]
     pub server_url: Option<String>,
 
-    /// Network ID to join
-    // Server-controlled: the tenancy boundary, taken from the provisioned record.
+    /// Site ID to join
+    // Server-controlled: the tenancy boundary, taken from the provisioned record. Service units
+    // written before the site rename pass `--network-id`.
     #[serde(skip)]
-    #[arg(long)]
-    pub network_id: Option<String>,
+    #[arg(long, alias = "network-id")]
+    pub site_id: Option<String>,
 
     /// Port the daemon listens on.
     // Server-controlled: derived from the daemon record's `url` for ServerPoll daemons.
@@ -386,7 +424,7 @@ impl DaemonArgs {
         // compile until it is either emitted here or explicitly marked as not emitted.
         let Self {
             server_url,
-            network_id: _, // Identity travels via the 1:1 api key binding, not a flag
+            site_id: _, // Identity travels via the 1:1 api key binding, not a flag
             daemon_port,
             name,
             log_level,
@@ -544,12 +582,19 @@ fn render_mode(mode: Option<&DaemonMode>) -> Option<String> {
 /// agree without either side having to remember the literal.
 pub const DEFAULT_DAEMON_NAME: &str = "scanopy-daemon";
 
+/// Where the daemon image keeps `config.json`: the mount target of the `daemon-config` volume in
+/// every compose file. `Dockerfile.daemon` symlinks the daemon's default per-user dir
+/// (`/root/.config/daemon`) onto it, so the default path and pre-v0.16.1 composes that mount
+/// `/root/.config/daemon` both land on the volume. A guard test in the server's install artifacts
+/// holds the compose files and Dockerfiles to this path.
+pub const DOCKER_CONFIG_DIR: &str = "/root/.config/scanopy/daemon";
+
 /// Unified configuration struct that handles both startup and runtime config
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     // Server connection
     pub server_url: Option<String>,
-    pub network_id: Option<Uuid>,
+    pub site_id: Option<Uuid>,
 
     // Legacy server connection
     pub server_target: Option<String>,
@@ -661,7 +706,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             server_url: None,
-            network_id: None,
+            site_id: None,
             daemon_port: 60073,
             bind_address: "0.0.0.0".to_string(),
             name: DEFAULT_DAEMON_NAME.to_string(),
@@ -782,7 +827,7 @@ impl AppConfig {
 
         // Add config file if it exists
         if config_exists {
-            figment = figment.merge(Json::file(&config_path));
+            figment = figment.merge(Json::string(&config_file_with_site_names(&config_path)?));
         }
 
         // Handle SCANOPY_INTERFACES specially - Figment doesn't auto-split comma-separated values
@@ -809,27 +854,25 @@ impl AppConfig {
 
         // Add environment variables (interfaces and credential_ids handled above to support
         // comma-separated values)
-        figment = figment
-            .merge(Env::prefixed("NETVISOR_").ignore(&["INTERFACES", "CREDENTIAL_IDS"]))
-            .merge(Env::prefixed("SCANOPY_").ignore(&["INTERFACES", "CREDENTIAL_IDS"]));
-
-        for (key, _) in std::env::vars() {
-            if key.starts_with("NETVISOR_") {
-                tracing::warn!(
-                    "Env vars prefixed with NETVISOR_ Will be deprecated in v0.13.0: {} - please migrate to SCANOPY_{}",
-                    key,
-                    key.trim_start_matches("NETVISOR_")
-                );
-                break; // Only warn once
-            }
-        }
+        figment = figment.merge(
+            Env::prefixed("SCANOPY_")
+                .ignore(&["INTERFACES", "CREDENTIAL_IDS"])
+                // Composes written before the site rename set SCANOPY_NETWORK_ID.
+                .map(|key| {
+                    if key == "network_id" {
+                        "site_id".into()
+                    } else {
+                        key.into()
+                    }
+                }),
+        );
 
         // Add CLI overrides (highest priority) - only if explicitly provided
         if let Some(server_url) = cli_args.server_url {
             figment = figment.merge(("server_url", server_url));
         }
-        if let Some(network_id) = cli_args.network_id {
-            figment = figment.merge(("network_id", network_id));
+        if let Some(site_id) = cli_args.site_id {
+            figment = figment.merge(("site_id", site_id));
         }
         if let Some(port) = cli_args.daemon_port {
             figment = figment.merge(("daemon_port", port));
@@ -868,9 +911,7 @@ impl AppConfig {
         // inferred from server_url presence after extraction below, so the
         // two-flag install works: `--server-url … --api-key …` => DaemonPoll,
         // `--api-key …` (no server url) => ServerPoll.
-        let mode_explicitly_set = cli_args.mode.is_some()
-            || std::env::var("SCANOPY_MODE").is_ok()
-            || std::env::var("NETVISOR_MODE").is_ok();
+        let mode_explicitly_set = cli_args.mode.is_some() || std::env::var("SCANOPY_MODE").is_ok();
         if let Some(mode) = cli_args.mode {
             figment = figment.merge(("mode", mode));
         }
@@ -1042,8 +1083,9 @@ impl ConfigStore {
             .await
             .context("Failed to read config file")?;
 
-        let loaded_config: AppConfig =
-            serde_json::from_str(&content).context("Failed to parse config file")?;
+        let loaded_config: AppConfig = config_with_site_names(&content)
+            .and_then(serde_json::from_value)
+            .context("Failed to parse config file")?;
 
         // Merge loaded runtime state with current config
         let mut config = self.config.write().await;
@@ -1159,16 +1201,16 @@ impl ConfigStore {
         Ok(config.mode)
     }
 
-    pub async fn set_network_id(&self, network_id: Uuid) -> Result<()> {
+    pub async fn set_site_id(&self, site_id: Uuid) -> Result<()> {
         let mut config = self.config.write().await;
-        config.network_id = Some(network_id);
+        config.site_id = Some(site_id);
         self.save(&config.clone()).await
     }
 
-    pub async fn get_network_id(&self) -> Result<Option<Uuid>> {
+    pub async fn get_site_id(&self) -> Result<Option<Uuid>> {
         let config = self.config.read().await;
 
-        Ok(config.network_id)
+        Ok(config.site_id)
     }
 
     pub async fn get_daemon_url(&self) -> Result<Option<String>> {
@@ -1322,7 +1364,9 @@ mod tests {
 
     use serial_test::serial;
 
-    use crate::daemon::shared::config::{DaemonCli, parse_integration_target_tokens};
+    use crate::daemon::shared::config::{
+        ConfigStore, DaemonArgs, DaemonCli, config_with_site_names, parse_integration_target_tokens,
+    };
     use crate::server::credentials::r#impl::mapping::IntegrationTarget;
     use crate::{daemon::shared::config::AppConfig, tests::DAEMON_CONFIG_FIXTURE};
     use clap::{CommandFactory, Parser};
@@ -1340,7 +1384,8 @@ mod tests {
             let config_json =
                 std::fs::read_to_string(config_path).expect("Failed to read daemon config fixture");
 
-            let loaded: Result<AppConfig, _> = serde_json::from_str(&config_json);
+            let loaded: Result<AppConfig, _> =
+                config_with_site_names(&config_json).and_then(serde_json::from_value);
 
             assert!(
                 loaded.is_ok(),
@@ -1364,6 +1409,139 @@ mod tests {
         }
     }
 
+    /// The last release's `config.json` names the site `network_id`; loading it through the
+    /// daemon's own loader yields that id as `site_id`, and saving writes only the new key.
+    #[test]
+    #[serial]
+    fn a_config_written_before_the_site_rename_keeps_its_site() {
+        let (dir, network_id, credential_id) = pre_rename_config_dir();
+
+        let config = AppConfig::load(DaemonArgs {
+            config_dir: Some(dir.path().to_path_buf()),
+            ..Default::default()
+        })
+        .expect("a pre-rename config loads");
+        assert_eq!(config.site_id, Some(network_id));
+        assert_eq!(
+            config.integration_targets,
+            vec![IntegrationTarget::Site { credential_id }]
+        );
+
+        let saved = serde_json::to_value(&config).unwrap();
+        assert_eq!(saved["site_id"], network_id.to_string());
+        assert!(saved.get("network_id").is_none());
+        assert_eq!(saved["integration_targets"][0]["scope"], "Site");
+    }
+
+    /// A pre-rename `config.json` (named `network_id`) in a temp config dir, with a broadcast
+    /// credential as `--credential-id <uuid>` persisted it before the rename. Built from the
+    /// release fixture, whose `site_id` is moved back to `network_id` once the fixture comes from
+    /// a release after the rename. Returns the dir, the network id and the credential id.
+    fn pre_rename_config_dir() -> (tempfile::TempDir, Uuid, Uuid) {
+        let mut fixture: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(DAEMON_CONFIG_FIXTURE).unwrap()).unwrap();
+        let object = fixture.as_object_mut().unwrap();
+        if let Some(site_id) = object.remove("site_id") {
+            object.insert("network_id".to_string(), site_id);
+        }
+        let network_id: Uuid = fixture["network_id"].as_str().unwrap().parse().unwrap();
+        let credential_id = Uuid::new_v4();
+        fixture["integration_targets"] =
+            serde_json::json!([{ "scope": "Network", "credential_id": credential_id }]);
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("config.json"), fixture.to_string()).unwrap();
+        (dir, network_id, credential_id)
+    }
+
+    /// GH #760: the runtime store re-reads `config.json` at startup. A pre-rename file loads
+    /// there without being written, and the next save writes the new names.
+    #[tokio::test]
+    #[serial]
+    async fn the_runtime_store_loads_a_pre_rename_config_and_saves_new_names() {
+        let (dir, network_id, _) = pre_rename_config_dir();
+        let path = dir.path().join("config.json");
+        let before = std::fs::read_to_string(&path).unwrap();
+        let fixture_id: Uuid = serde_json::from_str::<serde_json::Value>(&before).unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+
+        let config = AppConfig::load(DaemonArgs {
+            config_dir: Some(dir.path().to_path_buf()),
+            ..Default::default()
+        })
+        .unwrap();
+        let store = ConfigStore::new(path.clone(), config);
+        store
+            .initialize()
+            .await
+            .expect("a pre-rename config loads into the runtime store");
+        assert_eq!(store.get_id().await.unwrap(), fixture_id);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+
+        store.persist().await.unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(saved["site_id"], network_id.to_string());
+        assert!(saved.get("network_id").is_none());
+        assert_eq!(saved["integration_targets"][0]["scope"], "Site");
+    }
+
+    /// A file holding both ids keeps `site_id`; a current-format file comes back as written.
+    #[test]
+    fn site_names_keep_site_id_and_leave_current_files_alone() {
+        let site_id = Uuid::new_v4();
+        let both = serde_json::json!({ "network_id": Uuid::new_v4(), "site_id": site_id });
+        let migrated = config_with_site_names(&both.to_string()).unwrap();
+        assert_eq!(migrated, serde_json::json!({ "site_id": site_id }));
+
+        let current = serde_json::to_value(AppConfig {
+            site_id: Some(site_id),
+            integration_targets: vec![IntegrationTarget::Site {
+                credential_id: Uuid::new_v4(),
+            }],
+            ..AppConfig::default()
+        })
+        .unwrap();
+        assert_eq!(
+            config_with_site_names(&current.to_string()).unwrap(),
+            current
+        );
+    }
+
+    /// Composes and service units written before the site rename set `SCANOPY_NETWORK_ID` or pass
+    /// `--network-id`; each still sets the site, and the CLI flag still outranks the env var.
+    #[test]
+    #[serial]
+    fn pre_rename_env_var_and_flag_set_the_site() {
+        let from_env = Uuid::new_v4();
+        let from_flag = Uuid::new_v4();
+        let original = std::env::var("SCANOPY_NETWORK_ID").ok();
+        // SAFETY: This test runs serially and restores the original value after
+        unsafe { std::env::set_var("SCANOPY_NETWORK_ID", from_env.to_string()) };
+
+        let env_only = AppConfig::load(DaemonCli::parse_from::<[&str; 0], &str>([]).run_args);
+        let flag = from_flag.to_string();
+        let with_flag = AppConfig::load(
+            DaemonCli::parse_from(["scanopy-daemon", "--network-id", &flag]).run_args,
+        );
+
+        // SAFETY: This test runs serially
+        unsafe {
+            match original {
+                Some(val) => std::env::set_var("SCANOPY_NETWORK_ID", val),
+                None => std::env::remove_var("SCANOPY_NETWORK_ID"),
+            }
+        }
+
+        assert_eq!(env_only.expect("env config loads").site_id, Some(from_env));
+        assert_eq!(
+            with_flag.expect("flag config loads").site_id,
+            Some(from_flag)
+        );
+    }
+
     /// The `install` subcommand doubles as reconfigure: it is re-run against an already-installed
     /// daemon with only the settings that changed, and layers them over that daemon's existing
     /// `config.json` before writing it back. The reconfigure command deliberately carries no
@@ -1373,8 +1551,6 @@ mod tests {
     #[test]
     #[serial]
     fn a_reconfigure_load_keeps_the_settings_it_does_not_carry() {
-        use crate::daemon::shared::config::DaemonArgs;
-
         let dir = tempfile::tempdir().unwrap();
         let daemon_id = Uuid::new_v4();
         std::fs::write(
@@ -1417,8 +1593,6 @@ mod tests {
     #[test]
     #[serial]
     fn a_trusted_ca_bundle_is_loaded_at_startup_and_fails_closed() {
-        use crate::daemon::shared::config::DaemonArgs;
-
         let dir = tempfile::tempdir().unwrap();
         let load = |bundle: std::path::PathBuf| {
             AppConfig::load(DaemonArgs {
@@ -1454,7 +1628,7 @@ mod tests {
 
     const EXCLUDED_FIELDS: [&str; 20] = [
         "daemon_api_key",
-        "network_id",
+        "site_id",
         "server_url",
         // Locator baked into system services by `install`, not a user-facing config field
         "config_dir",
@@ -1583,13 +1757,13 @@ mod tests {
 
         // COMPLETENESS: the MSI must expose every config field the UI does (the UI's fieldDefs
         // == DaemonArgs minus EXCLUDED_FIELDS, enforced by config_fields_are_in_sync), except
-        // the ones a Windows service install genuinely can't/shouldn't carry: network + user
+        // the ones a Windows service install genuinely can't/shouldn't carry: site + user
         // come from the 1:1 key, the reachable url is captured at provision, credential refs are
         // seeded at provision, and config-dir is baked by the installer. Without this direction,
         // a field could be dropped from the MSI silently (the validity check above only rejects
         // *extra* flags, not missing ones).
         const MSI_EXCLUDED_FLAGS: &[&str] = &[
-            "network-id",
+            "site-id",
             "user-id",
             "daemon-url",
             "credential-id",
@@ -1737,7 +1911,7 @@ mod tests {
             config.integration_targets,
             vec![
                 IntegrationTarget::DaemonHost { credential_id: id1 },
-                IntegrationTarget::Network { credential_id: id1 },
+                IntegrationTarget::Site { credential_id: id1 },
                 IntegrationTarget::Hosts {
                     credential_id: id2,
                     ips: vec!["10.0.0.5".parse().unwrap(), "10.0.0.6".parse().unwrap()],
@@ -1761,8 +1935,8 @@ mod tests {
         assert_eq!(
             parsed,
             vec![
-                // bare uuid → network default
-                IntegrationTarget::Network { credential_id: id },
+                // bare uuid → site default
+                IntegrationTarget::Site { credential_id: id },
                 // sole loopback (v4 or v6) → the daemon host
                 IntegrationTarget::DaemonHost { credential_id: id },
                 IntegrationTarget::DaemonHost { credential_id: id },
@@ -1798,7 +1972,7 @@ mod tests {
     fn integration_target_tokens_round_trip_through_display() {
         let id = Uuid::new_v4();
         let targets = vec![
-            IntegrationTarget::Network { credential_id: id },
+            IntegrationTarget::Site { credential_id: id },
             IntegrationTarget::DaemonHost { credential_id: id },
             IntegrationTarget::Hosts {
                 credential_id: id,

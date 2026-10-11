@@ -86,7 +86,7 @@ async fn demo_seed_persists_every_virtualization_relationship() {
     storage.users.create(&owner).await.unwrap();
 
     // Held rather than regenerated: `DemoData::generate` mints fresh UUIDs every call.
-    let demo_data = DemoData::generate(org.id, owner.id);
+    let demo_data = DemoData::generate(org.id, owner.id, org.base.use_case);
     let declared = DeclaredOwners::from(&demo_data);
     assert!(
         !declared.is_empty(),
@@ -103,7 +103,7 @@ async fn demo_seed_persists_every_virtualization_relationship() {
     .await
     .expect("demo seeding must satisfy the virtualization_service_id foreign keys");
 
-    // Live rows only: step 14 snapshots each network, and close-and-clone leaves a closed copy of
+    // Live rows only: step 14 snapshots each site, and close-and-clone leaves a closed copy of
     // every entity behind. Counting those would double every figure below.
     let subnets: Vec<Subnet> = storage
         .subnets
@@ -247,7 +247,7 @@ async fn demo_seed_writes_daemon_subnets_and_the_demo_logins_api_keys() {
     let owner = user(&org.id);
     storage.users.create(&owner).await.unwrap();
 
-    let demo_data = DemoData::generate(org.id, owner.id);
+    let demo_data = DemoData::generate(org.id, owner.id, org.base.use_case);
     let declared_subnets: HashMap<Uuid, HashSet<Uuid>> = demo_data
         .daemon_interfaced_subnets
         .iter()
@@ -291,6 +291,6 @@ async fn demo_seed_writes_daemon_subnets_and_the_demo_logins_api_keys() {
     assert!(
         demo_login_keys
             .iter()
-            .all(|key| !key.base.network_ids.is_empty())
+            .all(|key| !key.base.site_ids.is_empty())
     );
 }

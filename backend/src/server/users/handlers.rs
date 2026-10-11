@@ -74,11 +74,11 @@ pub async fn get_user_by_id(
         return Err(ApiError::permission_denied());
     }
 
-    // Hydrate network_ids from junction table
+    // Hydrate site_ids from junction table
     state
         .services
         .user_service
-        .hydrate_network_ids(&mut user)
+        .hydrate_site_ids(&mut user)
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
@@ -126,11 +126,7 @@ pub async fn get_all_users(
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?
         .into_iter()
-        .filter(|u| {
-            permissions == UserOrgPermissions::Owner
-                || u.base.permissions < permissions
-                || u.id == user_id
-        })
+        .filter(|u| u.is_listed_for(permissions, user_id))
         .collect();
 
     // Apply pagination in-memory after filtering
@@ -148,11 +144,11 @@ pub async fn get_all_users(
         None => all_users.into_iter().skip(offset).collect(),
     };
 
-    // Hydrate network_ids from junction table
+    // Hydrate site_ids from junction table
     state
         .services
         .user_service
-        .hydrate_network_ids_batch(&mut users)
+        .hydrate_site_ids_batch(&mut users)
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
@@ -265,6 +261,12 @@ pub async fn update_user(
         .map_err(|e| ApiError::internal_error(&e.to_string()))?
         .ok_or_else(|| ApiError::entity_not_found::<User>(id))?;
 
+    // The update writes the row named by the body's id, so pin it to the path
+    // id the checks above ran against, and keep every server-owned field.
+    request.set_id(existing.id);
+    request.set_created_at(existing.created_at);
+    request.preserve_immutable_fields(&existing);
+
     if request.base.organization_id != existing.base.organization_id {
         return Err(ApiError::permission_denied());
     }
@@ -272,13 +274,6 @@ pub async fn update_user(
     if request.base.permissions != existing.base.permissions {
         return Err(ApiError::permission_denied());
     }
-
-    // Preserve fields that shouldn't be changed via this endpoint
-    request.base.email = existing.base.email.clone();
-    request.base.password_hash = existing.base.password_hash.clone();
-    request.base.oidc_provider = existing.base.oidc_provider.clone();
-    request.base.oidc_subject = existing.base.oidc_subject.clone();
-    request.base.oidc_linked_at = existing.base.oidc_linked_at;
 
     if !request.base.display_settings.has_valid_time_zone() {
         return Err(ApiError::bad_request(
@@ -366,28 +361,27 @@ async fn admin_update_user(
         return Err(ApiError::permission_denied());
     }
 
-    // Preserve fields that shouldn't be changed via this endpoint
-    request.base.email = existing.base.email.clone();
-    request.base.password_hash = existing.base.password_hash.clone();
-    request.base.oidc_provider = existing.base.oidc_provider.clone();
-    request.base.oidc_subject = existing.base.oidc_subject.clone();
-    request.base.oidc_linked_at = existing.base.oidc_linked_at;
+    // Pin the write to the path id and keep every server-owned field. An
+    // admin also can't change another user's own preferences.
+    request.set_id(existing.id);
+    request.set_created_at(existing.created_at);
+    request.preserve_immutable_fields(&existing);
     request.base.email_settings = existing.base.email_settings.clone();
     request.base.display_settings = existing.base.display_settings.clone();
 
-    // Capture network_ids before update (they're stored in junction table, not user record)
-    let network_ids = request.base.network_ids.clone();
+    // Capture site_ids before update (they're stored in junction table, not user record)
+    let site_ids = request.base.site_ids.clone();
 
     let updated = service
         .update(&mut request, auth.into_entity())
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
-    // Persist network_ids to the junction table
+    // Persist site_ids to the junction table
     state
         .services
         .user_service
-        .set_network_ids(&id, &network_ids)
+        .set_site_ids(&id, &site_ids)
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 

@@ -1,7 +1,4 @@
-use super::{
-    BILLING_DETAILS_TAGLINE, Body, Content, Email, EmailCategory, EmailPreference,
-    PausableCategory, links,
-};
+use super::{BILLING_DETAILS_TAGLINE, Body, Content, Email, EmailCategory, links};
 
 /// Sent when a trial begins: welcomes the user and points them at adding a
 /// payment method before the trial ends.
@@ -17,11 +14,7 @@ impl Email for TrialStarted<'_> {
     }
 
     fn category(&self) -> EmailCategory {
-        EmailCategory::Billing
-    }
-
-    fn preference(&self) -> EmailPreference {
-        EmailPreference::Pausable(PausableCategory::TrialAndUsage)
+        EmailCategory::TrialAndUsage
     }
 
     fn campaign(&self) -> &'static str {

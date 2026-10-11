@@ -2,7 +2,7 @@
  * Enriched topology helpers.
  *
  * The slim backend `Topology` row carries only the user's grouping
- * `options` (plus `id`/`network_id`). The per-view graph (`nodes`/`edges`)
+ * `options` (plus `id`/`site_id`). The per-view graph (`nodes`/`edges`)
  * is built on request and returned on the `TopologyData` bundle alongside
  * the entity arrays (`hosts`, `services`, `subnets`, …). This module wraps
  * the row + bundle so consumers can keep reading `topology.nodes` /
@@ -20,19 +20,14 @@ import type {
 	TopologyEdge,
 	Binding,
 	Vlan,
-	FilteredOutCounts
+	FilteredOutCounts,
+	TopologyHost,
+	TopologyService,
+	TopologyInterface
 } from './types/base';
 import type { TopologyView } from './queries';
 import type { components } from '$lib/api/schema';
-import type {
-	Host,
-	IPAddress,
-	Interface,
-	Port,
-	InterfaceNeighborRow,
-	InterfaceNeighborCandidate
-} from '$lib/features/hosts/types/base';
-import type { Service } from '$lib/features/services/types/base';
+import type { IPAddress, Port, InterfaceNeighborRow } from '$lib/features/hosts/types/base';
 import type { Subnet } from '$lib/features/subnets/types/base';
 import type { Dependency } from '$lib/features/dependencies/types/base';
 import type { Tag } from '$lib/features/tags/types/base';
@@ -40,16 +35,16 @@ import type { Tag } from '$lib/features/tags/types/base';
 type TopologyData = components['schemas']['TopologyData'];
 
 export interface EntityBundle {
-	hosts: Host[];
-	services: Service[];
+	hosts: TopologyHost[];
+	services: TopologyService[];
 	subnets: Subnet[];
 	ip_addresses: IPAddress[];
 	ports: Port[];
 	bindings: Binding[];
-	interfaces: Interface[];
+	interfaces: TopologyInterface[];
 	/**
-	 * GH #701: resolved adjacencies + their raw evidence, built on request alongside `nodes`/`edges`
-	 * — see `TopologyData.neighbours`/`.candidates`.
+	 * GH #701: resolved adjacencies, built on request alongside `nodes`/`edges` — see
+	 * `TopologyData.neighbours`.
 	 *
 	 * Required, not optional. These were optional "for a caller that never asked for them", and
 	 * that is exactly how the topology tab came to build its bundle without them: the literal
@@ -58,12 +53,13 @@ export interface EntityBundle {
 	 * `entityBundleFrom` rather than by hand.
 	 */
 	neighbours: InterfaceNeighborRow[];
-	candidates: InterfaceNeighborCandidate[];
 	/** Server-side filter drop tally — see `RenderableTopology.filtered_out`. */
 	filtered_out: FilteredOutCounts;
 	dependencies: Dependency[];
 	vlans: Vlan[];
 	entity_tags: Tag[];
+	/** The organization's Application tag group: its tags place entities in applications. */
+	application_group_id: string | null;
 	/** Per-view graph built on request by the backend (keyed by view). */
 	nodes?: Partial<Record<TopologyView, TopologyNode[]>>;
 	edges?: Partial<Record<TopologyView, TopologyEdge[]>>;
@@ -78,11 +74,11 @@ export const EMPTY_ENTITY_BUNDLE: EntityBundle = {
 	bindings: [],
 	interfaces: [],
 	neighbours: [],
-	candidates: [],
 	filtered_out: {},
 	dependencies: [],
 	vlans: [],
-	entity_tags: []
+	entity_tags: [],
+	application_group_id: null
 };
 
 /**
@@ -94,15 +90,15 @@ export const EMPTY_ENTITY_BUNDLE: EntityBundle = {
  * real translation is `tags` → `entity_tags`.
  */
 export function entityBundleFrom(data: TopologyData): EntityBundle {
-	const { tags, neighbours, candidates, filtered_out, ...rest } = data;
+	const { tags, neighbours, filtered_out, ...rest } = data;
 	return {
 		...rest,
 		// Absent only on a response from a backend older than the field — `#[serde(default)]`
 		// makes them optional in the generated schema, not in what a current server sends.
 		neighbours: neighbours ?? [],
-		candidates: candidates ?? [],
 		filtered_out: filtered_out ?? {},
-		entity_tags: tags
+		entity_tags: tags,
+		application_group_id: data.application_group_id ?? null
 	};
 }
 
@@ -110,11 +106,11 @@ export function entityBundleFrom(data: TopologyData): EntityBundle {
  * Combine a slim `Topology` row with the entity arrays + built graph from the
  * `TopologyData` bundle.
  *
- * `name` is a UI-side display string supplied by the caller (network
+ * `name` is a UI-side display string supplied by the caller (site
  * name for live view, formatted `taken_at` for snapshots, share name
  * for read-only shared topologies).
  *
- * Filters entity arrays to the topology's network so a multi-network
+ * Filters entity arrays to the topology's site so a multi-site
  * cache doesn't leak into the inspector.
  *
  * `view` selects which per-view node/edge slice (built on request, carried on
@@ -127,25 +123,24 @@ export function toRenderableTopology(
 	name: string,
 	view: TopologyView
 ): RenderableTopology {
-	const networkId = topology.network_id;
+	const siteId = topology.site_id;
 	const nodes = bundle.nodes?.[view] ?? [];
 	const edges = bundle.edges?.[view] ?? [];
-	const hosts = bundle.hosts.filter((h) => h.network_id === networkId);
-	const subnets = bundle.subnets.filter((s) => s.network_id === networkId);
-	const dependencies = bundle.dependencies.filter((d) => d.network_id === networkId);
-	const vlans = bundle.vlans.filter((v) => v.network_id === networkId);
+	const hosts = bundle.hosts.filter((h) => h.site_id === siteId);
+	const subnets = bundle.subnets.filter((s) => s.site_id === siteId);
+	const dependencies = bundle.dependencies.filter((d) => d.site_id === siteId);
+	const vlans = bundle.vlans.filter((v) => v.site_id === siteId);
 	const hostIds = new Set(hosts.map((h) => h.id));
 	const services = bundle.services.filter((s) => hostIds.has(s.host_id));
 	const ipAddresses = bundle.ip_addresses.filter((i) => hostIds.has(i.host_id));
 	const ports = bundle.ports.filter((p) => hostIds.has(p.host_id));
 	const interfaces = bundle.interfaces.filter((i) => hostIds.has(i.host_id));
-	// Resolved adjacencies + raw evidence are scoped through the interfaces they belong to, the
-	// same way ports/ip_addresses are scoped through hosts above — neither row carries its own
-	// host or interface array to filter against directly.
+	// Resolved adjacencies are scoped through the interfaces they belong to, the
+	// same way ports/ip_addresses are scoped through hosts above — the row carries
+	// no host id to filter against directly.
 	const interfaceIds = new Set(interfaces.map((i) => i.id));
 	const neighbours = (bundle.neighbours ?? []).filter((n) => interfaceIds.has(n.interface_id));
-	const candidates = (bundle.candidates ?? []).filter((c) => interfaceIds.has(c.base.interface_id));
-	const bindings = bundle.bindings.filter((b) => b.network_id === networkId);
+	const bindings = bundle.bindings.filter((b) => b.site_id === siteId);
 	// Tags are org-scoped; keep the ones referenced by entities here, plus tags
 	// referenced by grouping rules (ByTag / ByApplication) — those may apply to no
 	// entity but still need their name/color to label the group (the backend ships
@@ -178,13 +173,13 @@ export function toRenderableTopology(
 		bindings,
 		interfaces,
 		neighbours,
-		candidates,
-		// Network-scoped already: the bundle is fetched per network, so its tally needs no
+		// Site-scoped already: the bundle is fetched per site, so its tally needs no
 		// filtering the way the entity arrays above do.
 		filtered_out: bundle.filtered_out ?? {},
 		dependencies,
 		vlans,
 		entity_tags: entityTags,
+		application_group_id: bundle.application_group_id,
 		name
 	};
 }
