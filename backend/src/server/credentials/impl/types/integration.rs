@@ -151,6 +151,20 @@ impl CredentialIntegration {
         }
     }
 
+    /// Whether a successful collection contributes interfaces to the hosts it reaches. Gates the
+    /// onboarding prompts that point at interface and neighbor data, and names the integrations
+    /// those prompts list.
+    ///
+    /// Exhaustive (no wildcard). The daemon declares the same fact per transport as its
+    /// `interface_view_scope`, and a test in the daemon's integration registry fails when the two
+    /// disagree.
+    pub fn reports_interfaces(&self) -> bool {
+        match self {
+            Self::Snmp | Self::Gnmi | Self::UnifiController | Self::InstantOn | Self::Ssh => true,
+            Self::Docker | Self::Podman | Self::WakeOnLan | Self::Proxmox => false,
+        }
+    }
+
     /// The kinds of host virtualization this integration reports: the relationships it records
     /// between a host and what runs it.
     ///
@@ -255,6 +269,7 @@ impl TypeMetadataProvider for CredentialIntegration {
         let service = self.service();
         serde_json::json!({
             "docs_path": self.docs_path(),
+            "reports_interfaces": self.reports_interfaces(),
             // The logo is named after the service, as for credential types.
             "associated_service": ServiceDefinition::name(&*service),
             "has_logo": service.has_logo(),

@@ -308,3 +308,20 @@ impl Entity for Organization {
         self.base.license_server_version = existing.base.license_server_version.clone();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `from_row` drops onboarding values it cannot parse, so a renamed milestone without an alias
+    /// silently un-onboards every org that reached it under the old name.
+    #[test]
+    fn a_milestone_persisted_under_its_former_name_still_parses() {
+        let parsed: OnboardingOperationDiscriminants =
+            serde_json::from_value(serde_json::json!("FirstSnmpCredentialCreated")).unwrap();
+        assert_eq!(
+            parsed,
+            OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated
+        );
+    }
+}

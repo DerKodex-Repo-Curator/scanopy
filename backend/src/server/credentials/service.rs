@@ -179,19 +179,22 @@ impl CrudService<Credential> for CredentialService {
                     .await?;
             }
 
-            // SNMP-specific event (feeds PostHog) — any SNMP version counts.
-            if matches!(
-                created.base.credential_type,
-                CredentialType::SnmpV1 { .. }
-                    | CredentialType::SnmpV2c { .. }
-                    | CredentialType::SnmpV3 { .. }
-            ) && organization
-                .not_onboarded(&OnboardingOperationDiscriminants::FirstSnmpCredentialCreated)
+            // Clears the interface prompts on home and the L2 view; a container or Wake-on-LAN
+            // credential adds no interfaces, so it does not count.
+            if created
+                .base
+                .credential_type
+                .discriminant()
+                .integration()
+                .reports_interfaces()
+                && organization.not_onboarded(
+                    &OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated,
+                )
             {
                 self.event_bus
                     .publish(Event::new(
                         OrgScope { organization_id },
-                        OnboardingOperation::FirstSnmpCredentialCreated,
+                        OnboardingOperation::FirstInterfaceCredentialCreated,
                         authentication,
                     ))
                     .await?;

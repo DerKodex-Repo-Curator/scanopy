@@ -34312,7 +34312,7 @@
           "FirstTagCreated",
           "FirstDependencyCreated",
           "FirstUserApiKeyCreated",
-          "FirstSnmpCredentialCreated",
+          "FirstInterfaceCredentialCreated",
           "FirstApplicationTagCreated",
           "FirstCredentialCreated",
           "FirstSnapshotCreated",
@@ -41663,7 +41663,7 @@
     },
     {
       "name": "Credentials",
-      "description": "Credentials for network device discovery and management. Supports SNMP, Docker proxy, and other credential types."
+      "description": "Credentials the daemon uses to collect from integrations during discovery."
     },
     {
       "name": "Subnets",

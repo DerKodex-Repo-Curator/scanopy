@@ -346,7 +346,7 @@ impl TypeMetadataProvider for DiscoveryType {
             }
             DiscoveryType::Rescan { .. } => "Re-check a single host's known addresses and ports",
             DiscoveryType::Unified { .. } => {
-                "Unified discovery combining self-report, network scanning, and Docker container detection"
+                "Unified discovery combining self-report, network scanning, and integrations"
             }
         }
     }

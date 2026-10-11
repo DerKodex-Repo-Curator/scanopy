@@ -871,3 +871,29 @@ mod classification_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod registry_tests {
+    use super::*;
+    use strum::IntoEnumIterator;
+
+    /// The server gates its interface prompts on `CredentialIntegration::reports_interfaces`; the
+    /// daemon decides what each transport contributes with `interface_view_scope`. A transport
+    /// that starts or stops reporting interfaces without the server hearing about it would clear
+    /// the prompts on the wrong credential, or never.
+    #[test]
+    fn server_interface_flag_matches_each_transports_interface_scope() {
+        for d in CredentialQueryPayloadDiscriminants::iter() {
+            let (Some(integration), Some(transport)) =
+                (d.integration(), IntegrationRegistry::get(d))
+            else {
+                continue;
+            };
+            assert_eq!(
+                integration.reports_interfaces(),
+                transport.interface_view_scope() != InterfaceViewScope::NoInterfaces,
+                "{d:?} disagrees with {integration:?}::reports_interfaces"
+            );
+        }
+    }
+}

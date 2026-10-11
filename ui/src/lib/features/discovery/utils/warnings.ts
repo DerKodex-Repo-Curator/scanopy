@@ -13,7 +13,6 @@
  * without a renderer for it.
  */
 
-import { getLocale } from '$lib/paraglide/runtime';
 import type { components } from '$lib/api/schema';
 import type { EntityDiscriminants } from '$lib/api/entities';
 import claimSources from '$lib/data/claim-sources.json';
@@ -24,10 +23,10 @@ import snmpWalkGroups from '$lib/data/snmp-walk-groups.json';
 import warningCodes from '$lib/data/warning-codes.json';
 import warningRemedies from '$lib/data/warning-remedies.json';
 import { metaDescription, metaDescriptionWith, metaName } from '$lib/i18n/metadata';
+import { joinList, MAX_LISTED } from '$lib/i18n/list';
 import { toColor, type Color } from '$lib/shared/utils/styling';
 import { osLabel } from '$lib/features/daemons/utils';
 import {
-	common_andNMore,
 	common_host,
 	common_moreItems,
 	common_unknown,
@@ -119,9 +118,6 @@ export interface WarningSection {
 	entries: WarningEntry[];
 }
 
-/** How many items a list names before eliding the rest. A line long enough to scroll is not read. */
-const MAX_LISTED = 10;
-
 type Params = Record<string, string | number>;
 type WarningOf<C extends DiscoveryWarningCode> = Extract<DiscoveryWarning, { code: C }>;
 
@@ -198,24 +194,6 @@ export const integration = (id: string) =>
 
 /** An `OsFamily`'s display name ("Linux, macOS, BSD", "Windows"). */
 const osFamily = (id: string) => nameOf(osFamilies, 'os_families', id);
-
-/**
- * Join as a localized list, capped, saying how many were left out.
- *
- * `conjunction` for things that are all true at once ("A, B, and C stopped responding"),
- * `disjunction` for the alternatives a single failure applies to ("LLDP neighbours or the ARP
- * table"). That is the same and/or split the Rust joiners made, now made by `Intl`.
- */
-function joinList(values: string[], type: 'conjunction' | 'disjunction'): string {
-	const unique = [...new Set(values)];
-	const listed = unique.slice(0, MAX_LISTED);
-	const elided = unique.length - listed.length;
-	if (elided > 0) {
-		// A capped list that simply stops reads as though that was all of them.
-		listed.push(common_andNMore({ count: elided }));
-	}
-	return new Intl.ListFormat(getLocale(), { style: 'long', type }).format(listed);
-}
 
 const addressesOf = (group_: { address: string }[]) =>
 	joinList(

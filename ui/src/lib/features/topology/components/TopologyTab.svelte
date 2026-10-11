@@ -909,7 +909,7 @@
 						/>
 					{:else if showL2EmptyState}
 						<L2EmptyStateOverlay
-							hasSnmpCredential={onboarding.includes('FirstSnmpCredentialCreated')}
+							hasInterfaceCredential={onboarding.includes('FirstInterfaceCredentialCreated')}
 						/>
 					{/if}
 				</div>

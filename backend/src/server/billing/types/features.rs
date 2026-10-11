@@ -259,7 +259,7 @@ impl TypeMetadataProvider for Feature {
             }
             Feature::ScheduledDiscovery => "Schedule automatic network discovery scans",
             Feature::DiscoveryIntegrations => {
-                "Discover Docker containers and query network devices via SNMP"
+                "Add credentials so discovery also collects from network devices, controllers, hypervisors, container runtimes and hosts"
             }
             Feature::CsvExport => {
                 "Download host, service, and network data as CSV for use in spreadsheets and other tools"

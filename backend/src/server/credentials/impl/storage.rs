@@ -135,7 +135,8 @@ impl Entity for Credential {
 
     const ENTITY_NAME_SINGULAR: &'static str = "Credential";
     const ENTITY_NAME_PLURAL: &'static str = "Credentials";
-    const ENTITY_DESCRIPTION: &'static str = "Credentials for network device discovery and management. Supports SNMP, Docker proxy, and other credential types.";
+    const ENTITY_DESCRIPTION: &'static str =
+        "Credentials the daemon uses to collect from integrations during discovery.";
 
     fn entity_category() -> EntityCategory {
         EntityCategory::Platform
