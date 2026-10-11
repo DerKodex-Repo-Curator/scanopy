@@ -133,6 +133,7 @@ jobs:
           cp ui/src/lib/data/features.json website/src/lib/fixtures/
           cp ui/src/lib/data/billing-plans.json website/src/lib/fixtures/
           cp ui/src/lib/data/integrations.json website/src/lib/fixtures/
+          cp ui/src/lib/data/collected-data.json website/src/lib/fixtures/
           # Rendered directly by docs pages instead of being restated in prose
           # (website/docs/src/components/). generate-fixtures emits more than we
           # sync — add a line here when a docs page starts consuming one.

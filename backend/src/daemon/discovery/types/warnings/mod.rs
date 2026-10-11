@@ -500,7 +500,8 @@ pub struct CredentialAttempt {
     /// communities the address does not narrow to a record, which is what this is for.
     ///
     /// `None` on a warning written before the id was carried, on one from a daemon that predates
-    /// it, and on the daemon's own injected "public" fallback, which has no stored row.
+    /// it, and on the `public` fallback older daemons injected themselves, which has no stored
+    /// row.
     #[serde(default)]
     #[schema(required)]
     pub credential_id: Option<Uuid>,

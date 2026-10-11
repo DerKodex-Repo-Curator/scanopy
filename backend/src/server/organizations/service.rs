@@ -1,5 +1,6 @@
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::billing::types::base::BillingPlan;
+use crate::server::credentials::service::CredentialService;
 use crate::server::license::mint::MintError;
 use crate::server::license::types::LicenseKeyType;
 use crate::server::organizations::demo_status::DemoPopulateStatus;
@@ -24,7 +25,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use semver::Version;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -34,6 +35,9 @@ pub struct OrganizationService {
     /// In-memory status of each org's background demo-populate task, polled by
     /// the frontend after the `202`. See [`super::demo_status`].
     demo_status: RwLock<HashMap<Uuid, DemoPopulateStatus>>,
+    /// Seeds each new organization's default credentials. Set after construction, since the
+    /// credential service depends on this one.
+    credential_service: OnceLock<Arc<CredentialService>>,
 }
 
 impl EventBusService<Organization> for OrganizationService {
@@ -57,6 +61,26 @@ impl CrudService<Organization> for OrganizationService {
 
     fn entity_tag_service(&self) -> Option<&Arc<EntityTagService>> {
         None
+    }
+
+    /// A new organization starts with its default credentials, before anything creates its
+    /// first site, so that site can be assigned the SNMP default.
+    async fn create(
+        &self,
+        entity: Organization,
+        authentication: AuthenticatedEntity,
+    ) -> Result<Organization, Error> {
+        let created = self.create_base(entity, authentication).await?;
+        match self.credential_service.get() {
+            Some(credentials) => {
+                credentials.seed_defaults(created.id).await?;
+            }
+            None => tracing::warn!(
+                organization_id = %created.id,
+                "Credential service not set; the organization starts without default credentials"
+            ),
+        }
+        Ok(created)
     }
 }
 
@@ -384,7 +408,16 @@ impl OrganizationService {
             storage,
             event_bus,
             demo_status: RwLock::new(HashMap::new()),
+            credential_service: OnceLock::new(),
         }
+    }
+
+    /// Set the credential service dependency after construction (breaks circular dep).
+    pub fn set_credential_service(
+        &self,
+        service: Arc<CredentialService>,
+    ) -> Result<(), Arc<CredentialService>> {
+        self.credential_service.set(service)
     }
 
     /// Claim the single-flight demo-populate slot for `org_id`. Returns the

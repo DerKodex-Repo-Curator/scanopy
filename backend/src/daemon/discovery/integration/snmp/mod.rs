@@ -221,9 +221,8 @@ impl DiscoveryIntegration for SnmpIntegration {
             }
         }
 
-        // No "public" fallback here — the daemon injects a broadcast SNMP credential
-        // with community "public" into credential_mappings, so it's tried as its own
-        // integration dispatch. No special-casing needed.
+        // No "public" fallback here. SNMP `public` is a stored default credential the server
+        // sends like any other, so it is tried as its own integration dispatch.
 
         let (outcome, message) = best.unwrap_or((
             AttemptOutcome::TimedOut,

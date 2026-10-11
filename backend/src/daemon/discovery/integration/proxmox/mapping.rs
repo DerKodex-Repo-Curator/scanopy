@@ -678,6 +678,7 @@ mod tests {
     use super::*;
     use crate::daemon::discovery::integration::proxmox::types::{PveEnvelope, PveVersion};
     use crate::server::credentials::r#impl::types::CredentialIntegration;
+    use crate::server::discovery::r#impl::collection::undeclared_in_submitted_host;
     use crate::server::hosts::r#impl::virtualization::undeclared_virtualization;
 
     // ------------------------------------------------------------------------------------
@@ -904,6 +905,17 @@ mod tests {
         // What the docs list as Proxmox's relationships covers what it builds.
         assert_eq!(
             undeclared_virtualization(CredentialIntegration::Proxmox, &host),
+            None
+        );
+        assert_eq!(
+            undeclared_in_submitted_host(
+                CredentialIntegration::Proxmox,
+                &host,
+                &ips,
+                &[],
+                &[],
+                &interfaces
+            ),
             None
         );
         assert_eq!(host.base.virtualization_service_id, Some(owner));

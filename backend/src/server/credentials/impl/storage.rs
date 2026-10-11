@@ -31,13 +31,7 @@ impl Storable for Credential {
     }
 
     fn new(base: Self::BaseData) -> Self {
-        let now = Utc::now();
-        Self {
-            id: Uuid::new_v4(),
-            created_at: now,
-            updated_at: now,
-            base,
-        }
+        Credential::new(base)
     }
 
     fn get_base(&self) -> Self::BaseData {
@@ -49,6 +43,7 @@ impl Storable for Credential {
             id,
             created_at,
             updated_at,
+            is_default: _, // Computed from credential_type
             base:
                 Self::BaseData {
                     organization_id,
@@ -94,10 +89,12 @@ impl Storable for Credential {
             .map(|s| serde_json::from_str(&s))
             .transpose()?;
 
+        let is_default = credential_type.is_default();
         Ok(Credential {
             id: row.get("id"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
+            is_default,
             base: CredentialBase {
                 organization_id: row.get("organization_id"),
                 name: row.get("name"),

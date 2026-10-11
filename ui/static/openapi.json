@@ -18308,7 +18308,8 @@
                 "required": [
                   "id",
                   "created_at",
-                  "updated_at"
+                  "updated_at",
+                  "is_default"
                 ],
                 "properties": {
                   "created_at": {
@@ -18321,6 +18322,11 @@
                     "type": "string",
                     "format": "uuid",
                     "description": "Server-assigned unique identifier.",
+                    "readOnly": true
+                  },
+                  "is_default": {
+                    "type": "boolean",
+                    "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                     "readOnly": true
                   },
                   "updated_at": {
@@ -22851,7 +22857,8 @@
                   "required": [
                     "id",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "is_default"
                   ],
                   "properties": {
                     "created_at": {
@@ -22864,6 +22871,11 @@
                       "type": "string",
                       "format": "uuid",
                       "description": "Server-assigned unique identifier.",
+                      "readOnly": true
+                    },
+                    "is_default": {
+                      "type": "boolean",
+                      "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                       "readOnly": true
                     },
                     "updated_at": {
@@ -25003,7 +25015,8 @@
             "required": [
               "id",
               "created_at",
-              "updated_at"
+              "updated_at",
+              "is_default"
             ],
             "properties": {
               "created_at": {
@@ -25016,6 +25029,11 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "Server-assigned unique identifier.",
+                "readOnly": true
+              },
+              "is_default": {
+                "type": "boolean",
+                "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                 "readOnly": true
               },
               "updated_at": {
@@ -25074,7 +25092,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "The stored credential this attempt used, so the report can open it rather than sending the\nreader to the list to find it. `integration` narrows to a type; on a network with two SNMP\ncommunities the address does not narrow to a record, which is what this is for.\n\n`None` on a warning written before the id was carried, on one from a daemon that predates\nit, and on the daemon's own injected \"public\" fallback, which has no stored row."
+            "description": "The stored credential this attempt used, so the report can open it rather than sending the\nreader to the list to find it. `integration` narrows to a type; on a network with two SNMP\ncommunities the address does not narrow to a record, which is what this is for.\n\n`None` on a warning written before the id was carried, on one from a daemon that predates\nit, and on the `public` fallback older daemons injected themselves, which has no stored\nrow."
           },
           "detail": {
             "type": [
@@ -34689,7 +34707,8 @@
                   "required": [
                     "id",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "is_default"
                   ],
                   "properties": {
                     "created_at": {
@@ -34702,6 +34721,11 @@
                       "type": "string",
                       "format": "uuid",
                       "description": "Server-assigned unique identifier.",
+                      "readOnly": true
+                    },
+                    "is_default": {
+                      "type": "boolean",
+                      "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                       "readOnly": true
                     },
                     "updated_at": {

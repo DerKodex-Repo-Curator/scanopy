@@ -404,6 +404,8 @@ pub fn map_clients(
 mod tests {
     use super::*;
     use crate::daemon::discovery::integration::unifi::types::UnifiEnvelope;
+    use crate::server::credentials::r#impl::types::CredentialIntegration;
+    use crate::server::discovery::r#impl::collection::undeclared_in_submitted_host;
     use crate::server::ip_addresses::r#impl::base::mac_of;
     use crate::server::shared::types::entities::EntitySource;
     use crate::server::subnets::r#impl::base::SubnetBase;
@@ -562,6 +564,20 @@ mod tests {
 
         assert_eq!(subnet_of("192.168.20.77"), real);
         assert_eq!(subnet_of("10.99.99.99"), Uuid::nil());
+        // What the docs list as UniFi's collection covers the client hosts it submits.
+        for client in &clients {
+            assert_eq!(
+                undeclared_in_submitted_host(
+                    CredentialIntegration::UnifiController,
+                    &client.identity.clone().into_host(site_id),
+                    std::slice::from_ref(&client.ip_address),
+                    &[],
+                    &[],
+                    &[]
+                ),
+                None
+            );
+        }
     }
 
     fn map(json: &str) -> Vec<MappedDevice> {
@@ -838,6 +854,19 @@ mod tests {
         for device in &devices {
             assert_eq!(device.identity.manufacturer.as_deref(), Some("Ubiquiti"));
             assert!(device.identity.chassis_id.is_some());
+            assert_eq!(
+                undeclared_in_submitted_host(
+                    CredentialIntegration::UnifiController,
+                    &device.identity.clone().into_host(Uuid::new_v4()),
+                    std::slice::from_ref(&device.ip_address),
+                    &[],
+                    &[],
+                    &device.interfaces
+                ),
+                None,
+                "{:?}",
+                device.identity.name
+            );
         }
     }
 }

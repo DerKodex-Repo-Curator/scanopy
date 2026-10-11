@@ -67,8 +67,8 @@ pub struct CredentialMapping<T> {
     /// the time it reached the daemon. A credential warning could then name the address it failed
     /// at but never the record to go and fix, which is the whole point of carrying it.
     ///
-    /// `None` on a mapping from a server too old to send it, and on the daemon's own injected
-    /// "public" fallback, which has no stored row behind it.
+    /// `None` on a mapping from a server too old to send it, and on the `public` fallback that
+    /// daemons before the seeded SNMP default injected themselves, which has no stored row.
     #[serde(default)]
     pub default_credential_id: Option<Uuid>,
     /// The OS the credential's files and sockets were declared for, `None` when it reads nothing

@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use anyhow::{Error, Result};
 use futures::stream::FuturesUnordered;
 use futures::stream::StreamExt;
-use snmp2::{AsyncSession, Oid};
+use snmp2::Oid;
 use std::collections::HashMap;
 #[cfg(any(unix, test))]
 use std::io::ErrorKind;
@@ -461,65 +461,6 @@ pub async fn scan_tcp_ports(
     Ok(open_ports)
 }
 
-/// Probe the two SNMP ports, one session at a time per host.
-///
-/// What is left of `scan_udp_ports` after the four non-credentialed probes moved onto the
-/// application-probe stage. It keeps its own function because SNMP is not batched with anything:
-/// sessions are sequential per host, and credentials are tried in specificity order.
-///
-/// **Not dead when `snmp_credentials` is empty.** The network scan passes `&[]` because
-/// `SnmpIntegration` owns credentialed probing, and this still tries the hardcoded `public`
-/// community on both ports — which is the only reason an SNMP device with a default community is
-/// found on a network with no credential configured at all.
-pub async fn probe_snmp_ports(
-    ip: IpAddr,
-    cancel: CancellationToken,
-    snmp_credentials: &[SnmpQueryCredential],
-) -> Result<Vec<PortType>, Error> {
-    let snmp_port_numbers: Vec<u16> = vec![161, 1161];
-    let mut open_ports: Vec<PortType> = Vec::new();
-
-    // Don't short-circuit: both ports could be open, and different communities can expose
-    // different MIB views.
-    if !cancel.is_cancelled() {
-        for &port in &snmp_port_numbers {
-            if cancel.is_cancelled() {
-                break;
-            }
-
-            let mut port_detected = false;
-
-            // Try each credential in specificity order (IP override → site default → public)
-            for cred in snmp_credentials {
-                if let SnmpProbeOutcome::Answered(p) =
-                    try_snmp_with_credential_on_port(ip, cred, port).await
-                {
-                    if !port_detected {
-                        open_ports.push(PortType::new_udp(p));
-                        port_detected = true;
-                    }
-                    break; // port detected with this credential, move to next port
-                }
-            }
-
-            // If no configured credential worked, try hardcoded "public"
-            // (covers case where snmp_credentials is empty)
-            if !port_detected && let Ok(Some(p)) = try_snmp_with_public_on_port(ip, port).await {
-                open_ports.push(PortType::new_udp(p));
-            }
-        }
-    }
-
-    tracing::debug!(
-        ip = %ip,
-        ports_scanned = %snmp_port_numbers.len(),
-        responses = %open_ports.len(),
-        "SNMP ports probed"
-    );
-
-    Ok(open_ports)
-}
-
 /// Requests `endpoint` at each of `urls` in order and returns the first response.
 ///
 /// A `400 Bad Request` is held back while another URL remains. TLS listeners (cockpit-tls,
@@ -776,39 +717,6 @@ pub async fn try_snmp_with_credential_on_port(
             AttemptOutcome::TimedOut,
             "no answer to sysDescr".to_string(),
         ),
-    }
-}
-
-/// Try an SNMP GET on a specific port using the default "public" community string
-pub async fn try_snmp_with_public_on_port(ip: IpAddr, port: u16) -> Result<Option<u16>, Error> {
-    let sys_descr_oid =
-        Oid::from(&[1, 3, 6, 1, 2, 1, 1, 1, 0]).map_err(|e| anyhow!("Invalid Oid: {:?}", e))?;
-
-    let target = format!("{}:{}", ip, port);
-    let community = b"public";
-
-    let session_result = timeout(
-        Duration::from_millis(2000),
-        AsyncSession::new_v2c(&target, community, 0),
-    )
-    .await;
-
-    match session_result {
-        Ok(Ok(mut session)) => {
-            match timeout(Duration::from_millis(2000), session.get(&sys_descr_oid)).await {
-                Ok(Ok(mut response)) => {
-                    if response.varbinds.next().is_some() {
-                        Ok(Some(port))
-                    } else {
-                        Ok(None)
-                    }
-                }
-                Ok(Err(_)) => Ok(None),
-                Err(_) => Ok(None),
-            }
-        }
-        Ok(Err(_)) => Ok(None),
-        Err(_) => Ok(None),
     }
 }
 

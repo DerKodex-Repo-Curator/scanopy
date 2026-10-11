@@ -2,7 +2,6 @@ use crate::daemon::discovery::integration::container::ContainerRuntime;
 use crate::daemon::discovery::service::base::DiscoveryRunner;
 use crate::daemon::discovery::service::ops::DiscoveryOps;
 use crate::daemon::utils::base::{DaemonUtils, merge_host_and_docker_subnets};
-use crate::server::credentials::r#impl::mapping::{CredentialMapping, CredentialQueryPayload};
 use crate::server::daemons::r#impl::api::DaemonDiscoveryRequest;
 use crate::server::discovery::r#impl::types::DiscoveryType;
 use crate::server::hosts::r#impl::base::Host;
@@ -76,18 +75,8 @@ impl DiscoveryRunner {
         // container integration resolves the concrete local socket path (rootful/rootless Podman,
         // Docker socket) when it sees these payloads.
 
-        // Always try SNMP "public" community on all hosts.
-        // Injected as a broadcast default — user-configured credentials (IP overrides) take priority.
-        self.credential_mappings.push(CredentialMapping {
-            daemon_os: Default::default(),
-            default_credential: Some(CredentialQueryPayload::Snmp(
-                crate::server::credentials::r#impl::mapping::SnmpQueryCredential::public_default(),
-            )),
-            // Synthesized here, not stored anywhere, so there is no record for a warning about it
-            // to point at.
-            default_credential_id: None,
-            ip_overrides: vec![],
-        });
+        // SNMP `public` arrives the same way: it is a stored default credential, assigned to the
+        // site, so the daemon tries only what the server sends.
 
         // The session starts first, so the server hears `Started` before any subnet work. That
         // work can take minutes (in ServerPoll each subnet waits up to two minutes for the server

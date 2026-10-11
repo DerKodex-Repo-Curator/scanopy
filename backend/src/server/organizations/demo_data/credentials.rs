@@ -2,8 +2,9 @@
 
 use super::*;
 use crate::server::credentials::r#impl::types::{
-    OsFamily, ScriptSource, SnmpV3AuthProtocol, SnmpV3PrivProtocol,
+    CredentialTypeDiscriminants, OsFamily, ScriptSource, SnmpV3AuthProtocol, SnmpV3PrivProtocol,
 };
+use strum::IntoDiscriminant;
 
 pub(super) fn generate_credentials(organization_id: Uuid, now: DateTime<Utc>) -> Vec<Credential> {
     let credential = |name: &str,
@@ -13,6 +14,7 @@ pub(super) fn generate_credentials(organization_id: Uuid, now: DateTime<Utc>) ->
         id: Uuid::new_v4(),
         created_at: now,
         updated_at: now,
+        is_default: credential_type.is_default(),
         base: CredentialBase {
             organization_id,
             daemon_os,
@@ -27,16 +29,22 @@ pub(super) fn generate_credentials(organization_id: Uuid, now: DateTime<Utc>) ->
     let inline = |value: &str| SecretValue::Inline {
         value: SecretString::from(value.to_string()),
     };
+    // The credentials every organization starts with, exactly as seeding creates them, so the demo
+    // shows them the way a new organization sees them.
+    let seeded = |discriminant: CredentialTypeDiscriminants| {
+        let seeded = discriminant
+            .seeded_default()
+            .expect("the demo seeds only types that have a default");
+        credential(
+            seeded.name,
+            seeded.description,
+            None,
+            seeded.credential_type,
+        )
+    };
 
     vec![
-        credential(
-            "Default SNMPv2c",
-            "Read-only public community most switches ship with.",
-            None,
-            CredentialType::SnmpV2c {
-                community: inline("public"),
-            },
-        ),
+        seeded(CredentialTypeDiscriminants::SnmpV2c),
         credential(
             "Network Devices",
             "Community for core and access switches, firewalls and APs. Rotated each quarter by the network team.",
@@ -91,13 +99,7 @@ pub(super) fn generate_credentials(organization_id: Uuid, now: DateTime<Utc>) ->
                 ssl_chain: None,
             },
         ),
-        credential(
-            "Local Docker Socket",
-            "Docker socket on each daemon host, read directly by the daemon.",
-            None,
-            // No path: the daemon finds the socket at its platform default.
-            CredentialType::DockerSocket { socket_path: None },
-        ),
+        seeded(CredentialTypeDiscriminants::DockerSocket),
         credential(
             "Podman API Proxy",
             "Podman API exposed over TCP on the rootless container hosts.",
@@ -110,12 +112,7 @@ pub(super) fn generate_credentials(organization_id: Uuid, now: DateTime<Utc>) ->
                 ssl_chain: None,
             },
         ),
-        credential(
-            "Local Podman Socket",
-            "Podman socket for daemons installed on Podman hosts.",
-            None,
-            CredentialType::PodmanSocket { socket_path: None },
-        ),
+        seeded(CredentialTypeDiscriminants::PodmanSocket),
         credential(
             "UniFi Controller Admin",
             "Read-only local admin on the self-hosted UniFi Network controller.",
@@ -212,6 +209,17 @@ pub(super) fn generate_credentials(organization_id: Uuid, now: DateTime<Utc>) ->
     ]
 }
 
+/// The organization's default credential of a seeded type.
+pub(super) fn find_default(
+    credentials: &[Credential],
+    discriminant: CredentialTypeDiscriminants,
+) -> &Credential {
+    credentials
+        .iter()
+        .find(|c| c.is_default && c.base.credential_type.discriminant() == discriminant)
+        .expect("the demo holds every seeded default")
+}
+
 pub(super) fn generate_site_credential_assignments(
     sites: &[Site],
     credentials: &[Credential],
@@ -224,7 +232,7 @@ pub(super) fn generate_site_credential_assignments(
             .unwrap()
     };
 
-    let default_snmp = find_cred("Default SNMPv2c");
+    let default_snmp = find_default(credentials, CredentialTypeDiscriminants::SnmpV2c);
     let network_snmp = find_cred("Network Devices");
     let hq = find_site("Headquarters");
     let dc = find_site("Data Center");
