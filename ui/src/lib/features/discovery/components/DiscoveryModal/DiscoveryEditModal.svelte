@@ -759,7 +759,7 @@
 	unsavedState={() => (isHistoricalRun ? null : { formData, pendingCredentials, credentialIds })}
 	{onClose}
 	onOpen={handleOpen}
-	size="wide"
+	size="full"
 	fixedHeight={true}
 	showCloseButton={true}
 	{tabs}

@@ -74,7 +74,7 @@
 	import { useActiveSessionsQuery } from '$lib/features/discovery/queries';
 	import { entityBundleFrom, toRenderableTopology } from '$lib/features/topology/enriched';
 	import type { RenderableTopology } from '$lib/features/topology/types/base';
-	import { formatTimestamp } from '$lib/shared/utils/formatting';
+	import { formatDate, formatTimestamp } from '$lib/shared/utils/formatting';
 	import ApplicationSetupWizard from './application-wizard/ApplicationSetupWizard.svelte';
 	import L2EmptyStateOverlay from './L2EmptyStateOverlay.svelte';
 	import ViewFiltersEmptyState from './ViewFiltersEmptyState.svelte';
@@ -238,7 +238,7 @@
 	let currentTopologyName = $derived.by(() => {
 		if (!currentTopologyRow) return '';
 		if (selectedSnapshot) {
-			return formatTimestamp(selectedSnapshot.taken_at);
+			return formatDate(selectedSnapshot.taken_at);
 		}
 		return currentSiteName;
 	});

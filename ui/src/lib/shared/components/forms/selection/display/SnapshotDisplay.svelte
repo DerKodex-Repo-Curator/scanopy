@@ -1,11 +1,11 @@
 <script lang="ts" module>
 	import { entities } from '$lib/shared/stores/metadata';
-	import { formatTimestamp } from '$lib/shared/utils/formatting';
+	import { formatDate } from '$lib/shared/utils/formatting';
 	import type { Snapshot } from '$lib/features/snapshots/queries';
 
 	export const SnapshotDisplay: EntityDisplayComponent<Snapshot, object> = {
 		getId: (snapshot: Snapshot) => snapshot.id,
-		getLabel: (snapshot: Snapshot) => formatTimestamp(snapshot.taken_at),
+		getLabel: (snapshot: Snapshot) => formatDate(snapshot.taken_at),
 		getIcon: () => entities.getIconComponent('Snapshot'),
 		getIconColor: () => entities.getColorHelper('Snapshot').icon
 	};

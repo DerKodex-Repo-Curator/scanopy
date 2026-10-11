@@ -34,7 +34,6 @@
 		common_save,
 		common_saving,
 		common_share,
-		common_shares,
 		common_validation_entityField,
 		shares_manageShares,
 		shares_noSharesSubtitle,
@@ -258,7 +257,7 @@
 	{isOpen}
 	title={modalTitle}
 	{name}
-	size="xl"
+	size="wide"
 	{onClose}
 	showCloseButton={true}
 	fixedHeight={true}
@@ -296,7 +295,7 @@
 					let:onMoveDown
 				>
 					<ListManager
-						label={common_shares()}
+						label=""
 						emptyMessage={shares_noSharesSubtitle()}
 						allowAddFromOptions={false}
 						allowCreateNew={true}
