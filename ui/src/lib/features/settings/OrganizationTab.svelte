@@ -283,21 +283,6 @@
 
 					{#if isOwner}
 						{#if !isLicensedPlan}
-							<!-- Reset Organization Data (available to all org owners) -->
-							<InfoCard>
-								<div class="flex items-center justify-between">
-									<div>
-										<p class="text-primary text-sm font-medium">{settings_org_resetData()}</p>
-										<p class="text-secondary text-xs">
-											{settings_org_resetDataHelp()}
-										</p>
-									</div>
-									<button onclick={handleReset} disabled={resetting} class="btn-danger">
-										{resetting ? common_loading() : common_reset()}
-									</button>
-								</div>
-							</InfoCard>
-
 							{#if isDemoOrg}
 								<!-- Populate Demo Data (only for Demo orgs) -->
 								<InfoCard>
@@ -314,26 +299,43 @@
 									</div>
 								</InfoCard>
 							{/if}
+
+							<!-- Reset Organization Data (available to all org owners) -->
+							<InfoCard>
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-primary text-sm font-medium">{settings_org_resetData()}</p>
+										<p class="text-secondary text-xs">
+											{settings_org_resetDataHelp()}
+										</p>
+									</div>
+									<button onclick={handleReset} disabled={resetting} class="btn-danger">
+										{resetting ? common_loading() : common_reset()}
+									</button>
+								</div>
+							</InfoCard>
 						{/if}
 
-						<!-- Delete Organization -->
-						<InfoCard>
-							<div class="flex items-center justify-between">
-								<div>
-									<p class="text-primary text-sm font-medium">{settings_org_delete()}</p>
-									<p class="text-secondary text-xs">
-										{settings_org_deleteHelp()}
-									</p>
+						{#if !isDemoOrg}
+							<!-- Delete Organization (not offered on Demo orgs) -->
+							<InfoCard>
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-primary text-sm font-medium">{settings_org_delete()}</p>
+										<p class="text-secondary text-xs">
+											{settings_org_deleteHelp()}
+										</p>
+									</div>
+									<button
+										onclick={() => (showDeleteConfirm = true)}
+										disabled={deleting}
+										class="btn-danger"
+									>
+										{deleting ? common_loading() : common_delete()}
+									</button>
 								</div>
-								<button
-									onclick={() => (showDeleteConfirm = true)}
-									disabled={deleting}
-									class="btn-danger"
-								>
-									{deleting ? common_loading() : common_delete()}
-								</button>
-							</div>
-						</InfoCard>
+							</InfoCard>
+						{/if}
 					{/if}
 				</div>
 			</div>
