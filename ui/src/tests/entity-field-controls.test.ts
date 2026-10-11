@@ -275,6 +275,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			name: IDENTITY,
 			group_type: YES,
 			entity_types: SHARED_ARRAY,
+			ordered: YES,
 			// Each tag is in one group, so filtering by one finds its group.
 			tags: SHARED_ARRAY,
 			created_at: DATE,

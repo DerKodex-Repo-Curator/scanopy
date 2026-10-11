@@ -7,15 +7,15 @@
 	import EntityMetadataSection from '$lib/shared/components/forms/EntityMetadataSection.svelte';
 	import TextInput from '$lib/shared/components/forms/input/TextInput.svelte';
 	import RadioGroup from '$lib/shared/components/forms/input/RadioGroup.svelte';
-	import Tag from '$lib/shared/components/data/Tag.svelte';
-	import { ChevronDown, ChevronUp } from 'lucide-svelte';
+	import ListManager from '$lib/shared/components/forms/selection/ListManager.svelte';
+	import { TagDisplay } from '$lib/shared/components/forms/selection/display/TagDisplay.svelte';
 	import { entities } from '$lib/shared/stores/metadata';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { pushError } from '$lib/shared/stores/feedback';
 	import type { components } from '$lib/api/schema';
 	import { createDefaultTagGroup, type Tag as TagType, type TagGroup } from '../types/base';
-	import { applicationGroupId, isSystemGroup, tagGroupHelp, tagIcon, tagsInGroup } from '../groups';
-	import { useTagGroupsQuery, useTagsQuery } from '../queries';
+	import { compareTagOrder, isSystemGroup, tagGroupHelp } from '../groups';
+	import { useTagsQuery } from '../queries';
 	import {
 		common_cancel,
 		common_couldNotLoadOrganization,
@@ -25,24 +25,28 @@
 		common_editName,
 		common_name,
 		common_saving,
+		common_tags,
 		common_update,
 		tags_appliesTo,
 		tags_appliesToEvery,
-		tags_appliesToHelp,
+		tags_appliesToEveryHelp,
 		tags_appliesToSome,
+		tags_appliesToSomeHelp,
 		tags_chooseEntityType,
 		tags_createTagGroup,
 		tags_groupNamePlaceholder,
-		tags_moveTagDown,
-		tags_moveTagUp,
 		tags_noTagsInGroup,
+		tags_orderByName,
+		tags_orderByNameHelp,
+		tags_orderSet,
+		tags_orderSetHelp,
 		tags_systemGroupFixed,
-		tags_tagOrder,
-		tags_tagOrderHelp
+		tags_tagOrder
 	} from '$lib/paraglide/messages';
 
 	type EntityDiscriminants = components['schemas']['EntityDiscriminants'];
 	type Scope = 'every' | 'some';
+	type Ordering = 'set' | 'name';
 
 	let {
 		group = null,
@@ -66,8 +70,6 @@
 	const organizationQuery = useOrganizationQuery();
 	let organization = $derived(organizationQuery.data);
 	const tagsQuery = useTagsQuery();
-	const tagGroupsQuery = useTagGroupsQuery();
-	let applicationGroup = $derived(applicationGroupId(tagGroupsQuery.data ?? []));
 
 	/** Every entity type a tag can be applied to, from the entity metadata. */
 	const taggableTypes = entities
@@ -84,11 +86,12 @@
 		isEditing ? common_editName({ name: group?.name ?? '' }) : tags_createTagGroup()
 	);
 
-	// Scope, chosen types and tag order are source of truth here and synced into the form:
-	// TanStack's field values aren't tracked by Svelte, and these change programmatically.
+	// Scope, ordering, chosen types and tag order are source of truth here and synced into the
+	// form: TanStack's field values aren't tracked by Svelte, and these change programmatically.
 	let scope = $state<Scope>('every');
+	let ordering = $state<Ordering>('set');
 	let chosenTypes = $state<EntityDiscriminants[]>([]);
-	let orderedTags = $state<TagType[]>([]);
+	let groupTags = $state<TagType[]>([]);
 	let initialOrder = $state<string[]>([]);
 
 	const form = createForm(() => ({
@@ -107,10 +110,11 @@
 				...(value as TagGroup),
 				name: value.name.trim(),
 				entity_types: scope === 'every' ? null : [...chosenTypes],
+				ordered: ordering === 'set',
 				organization_id: organization.id
 			};
-			const order = orderedTags.map((tag) => tag.id);
-			const orderChanged = order.some((id, index) => id !== initialOrder[index]);
+			const order = groupTags.map((tag) => tag.id);
+			const orderChanged = data.ordered && order.some((id, index) => id !== initialOrder[index]);
 
 			loading = true;
 			try {
@@ -126,14 +130,25 @@
 		const defaults = group ? { ...group } : createDefaultTagGroup(organization?.id ?? '');
 		form.reset(defaults);
 		scope = defaults.entity_types ? 'some' : 'every';
+		ordering = defaults.ordered ? 'set' : 'name';
 		chosenTypes = defaults.entity_types ? [...defaults.entity_types] : [];
-		orderedTags = group ? tagsInGroup(tagsQuery.data ?? [], group.id) : [];
-		initialOrder = orderedTags.map((tag) => tag.id);
+		groupTags = group
+			? (tagsQuery.data ?? []).filter((tag) => tag.tag_group_id === group.id).sort(compareTagOrder)
+			: [];
+		initialOrder = groupTags.map((tag) => tag.id);
 	}
 
 	function handleScopeChange(next: Scope) {
 		scope = next;
 		form.setFieldValue('entity_types', next === 'every' ? null : [...chosenTypes]);
+	}
+
+	function handleOrderingChange(next: Ordering) {
+		ordering = next;
+		form.setFieldValue('ordered', next === 'set');
+		// An unordered group lists by name, which is also where a newly ordered one starts.
+		groupTags = [...groupTags].sort((a, b) => a.name.localeCompare(b.name));
+		if (next === 'name') initialOrder = groupTags.map((tag) => tag.id);
 	}
 
 	function toggleType(entityType: EntityDiscriminants) {
@@ -143,12 +158,11 @@
 		form.setFieldValue('entity_types', [...chosenTypes]);
 	}
 
-	function move(index: number, by: -1 | 1) {
-		const target = index + by;
-		if (target < 0 || target >= orderedTags.length) return;
-		const next = [...orderedTags];
-		[next[index], next[target]] = [next[target], next[index]];
-		orderedTags = next;
+	function move(fromIndex: number, toIndex: number) {
+		if (toIndex < 0 || toIndex >= groupTags.length) return;
+		const next = [...groupTags];
+		[next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+		groupTags = next;
 	}
 
 	async function handleDelete() {
@@ -214,10 +228,17 @@
 									{field}
 									value={scope}
 									onChange={handleScopeChange}
-									variant="inline"
 									options={[
-										{ value: 'every', label: tags_appliesToEvery() },
-										{ value: 'some', label: tags_appliesToSome() }
+										{
+											value: 'every',
+											label: tags_appliesToEvery(),
+											helpText: tags_appliesToEveryHelp()
+										},
+										{
+											value: 'some',
+											label: tags_appliesToSome(),
+											helpText: tags_appliesToSomeHelp()
+										}
 									]}
 								/>
 								{#if scope === 'some'}
@@ -234,57 +255,43 @@
 											</label>
 										{/each}
 									</div>
-									<p class="text-tertiary text-xs">{tags_appliesToHelp()}</p>
 								{/if}
 							</div>
+						{/snippet}
+					</form.Field>
+
+					<!-- Fixed for a system group: statuses have an order, applications don't. -->
+					<form.Field name="ordered">
+						{#snippet children(field)}
+							<RadioGroup
+								label={tags_tagOrder()}
+								id="ordered"
+								{field}
+								value={ordering}
+								onChange={handleOrderingChange}
+								disabled={isSystem}
+								options={[
+									{ value: 'set', label: tags_orderSet(), helpText: tags_orderSetHelp() },
+									{ value: 'name', label: tags_orderByName(), helpText: tags_orderByNameHelp() }
+								]}
+							/>
 						{/snippet}
 					</form.Field>
 				</div>
 
 				{#if isEditing}
-					<div class="space-y-2">
-						<div class="text-secondary text-sm font-medium">{tags_tagOrder()}</div>
-						{#if orderedTags.length === 0}
-							<p class="text-tertiary text-xs">{tags_noTagsInGroup()}</p>
-						{:else}
-							<ol class="space-y-1">
-								{#each orderedTags as tag, index (tag.id)}
-									<li class="flex items-center gap-2">
-										<span class="text-tertiary w-5 text-right text-xs">{index + 1}</span>
-										<Tag
-											label={tag.name}
-											color={tag.color}
-											icon={tagIcon(tag, applicationGroup)}
-											pill={true}
-										/>
-										<div class="ml-auto flex gap-1">
-											<button
-												type="button"
-												class="btn-icon"
-												disabled={index === 0}
-												aria-label={tags_moveTagUp({ name: tag.name })}
-												title={tags_moveTagUp({ name: tag.name })}
-												onclick={() => move(index, -1)}
-											>
-												<ChevronUp class="h-4 w-4" />
-											</button>
-											<button
-												type="button"
-												class="btn-icon"
-												disabled={index === orderedTags.length - 1}
-												aria-label={tags_moveTagDown({ name: tag.name })}
-												title={tags_moveTagDown({ name: tag.name })}
-												onclick={() => move(index, 1)}
-											>
-												<ChevronDown class="h-4 w-4" />
-											</button>
-										</div>
-									</li>
-								{/each}
-							</ol>
-							<p class="text-tertiary text-xs">{tags_tagOrderHelp()}</p>
-						{/if}
-					</div>
+					<ListManager
+						label={common_tags()}
+						emptyMessage={tags_noTagsInGroup()}
+						items={groupTags}
+						itemDisplayComponent={TagDisplay}
+						optionDisplayComponent={TagDisplay}
+						allowAddFromOptions={false}
+						allowReorder={ordering === 'set'}
+						allowItemRemove={() => false}
+						onMoveUp={move}
+						onMoveDown={move}
+					/>
 				{/if}
 			</div>
 		</div>

@@ -66,7 +66,7 @@ impl CrudService<Tag> for TagService {
     /// A tag joins the end of its group.
     async fn create(&self, mut entity: Tag, authentication: AuthenticatedEntity) -> Result<Tag> {
         entity.base.position = match self.group_for(&entity).await? {
-            Some(group) => Some(self.tag_group_service.next_position(group.id).await?),
+            Some(group) => self.tag_group_service.next_position(&group).await?,
             None => None,
         };
         self.create_base(entity, authentication).await
@@ -99,7 +99,7 @@ impl CrudService<Tag> for TagService {
                 self.tag_group_service
                     .refuse_tag_out_of_scope(entity, group)
                     .await?;
-                entity.base.position = Some(self.tag_group_service.next_position(group.id).await?);
+                entity.base.position = self.tag_group_service.next_position(group).await?;
             }
         }
 

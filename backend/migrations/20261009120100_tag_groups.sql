@@ -25,9 +25,11 @@
 --
 -- `tags` and `entity_tags` are SCD2. The `tags` updates cover live, closed (`valid_to IS NOT NULL`)
 -- and snapshot (`snapshot_id IS NOT NULL`) rows and touch no validity, lineage or snapshot column,
--- so every row version keeps its group. `position` is set on live rows only: it is the order the
--- group's tags are listed in now, and a closed or snapshot row is never listed. Live tags of a
--- seeded starter group keep the seeded order; any other tag follows, by name. The dedupe closes
+-- so every row version keeps its group. `position` is set on live rows of ordered groups only: it
+-- is the order the group's tags are listed in now, and a closed or snapshot row is never listed.
+-- Live tags of a seeded starter group keep the seeded order; any other tag follows, by name. The
+-- Application group is created unordered (`ordered = false`): applications have no sequence, so
+-- its tags list by name and carry no position. Every other group starts ordered. The dedupe closes
 -- live assignments only; snapshot rows are a frozen record and stay as they were.
 --
 -- Nothing is discarded: after the backfill every non-null `tag_group` and every true
@@ -52,6 +54,7 @@ CREATE TABLE IF NOT EXISTS tag_groups (
     name TEXT NOT NULL,
     group_type TEXT NOT NULL,
     entity_types TEXT[],
+    ordered BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -134,9 +137,9 @@ UPDATE entity_tags
  WHERE entity_tags.id = held.id
    AND held.rank > 1;
 
--- The system groups, for every organization.
-INSERT INTO tag_groups (id, organization_id, name, group_type)
-SELECT gen_random_uuid(), o.id, s.name, s.name
+-- The system groups, for every organization. Applications have no order; statuses do.
+INSERT INTO tag_groups (id, organization_id, name, group_type, ordered)
+SELECT gen_random_uuid(), o.id, s.name, s.name, s.name <> 'Application'
   FROM organizations o
  CROSS JOIN (VALUES ('Application'), ('Status')) AS s(name)
  WHERE NOT EXISTS (
@@ -183,7 +186,7 @@ BEGIN
     END LOOP;
 END $$;
 
--- Order each group's live tags: the seeded starter order first, then by name. Batched by group:
+-- Order each ordered group's live tags: the seeded starter order first, then by name. Batched by group:
 -- a group holds tens of tags, so 100 groups stay well under the row limit per batch.
 DO $$
 DECLARE
@@ -221,6 +224,7 @@ BEGIN
                 ) AS s(group_name, tag_name, rank)
                   ON s.group_name = g.name AND lower(s.tag_name) = lower(t.name)
                WHERE t.tag_group_id = ANY(batch)
+                 AND g.ordered
                  AND t.valid_to IS NULL
                  AND t.snapshot_id IS NULL
           ) ranked

@@ -188,9 +188,10 @@ pub struct TagGroupOrdering {
 
 impl TagGroupOrdering {
     /// The expression a list grouped by a tag group is grouped on, and the key of each group in
-    /// the response's `group_counts`: `<position padded to 10 digits>:<tag id>`. Leading with the
-    /// position keeps groups in the tag group's order; rows holding no tag of the group have no
-    /// key and come last.
+    /// the response's `group_counts`: `<position padded to 10 digits>:<tag name>:<tag id>`. Leading
+    /// with the position keeps groups in the tag group's order; an unordered group's tags have
+    /// position 0, so they follow the name. Rows holding no tag of the group have no key and come
+    /// last.
     pub const GROUP_SQL: &'static str = "tag_group_grouped.group_key";
 
     pub fn is_set(&self) -> bool {
@@ -204,13 +205,14 @@ impl TagGroupOrdering {
         // `entity_tags.entity_type` holds the JSON-encoded discriminant, as `SqlValue` binds it.
         let entity_type = serde_json::to_string(&entity_type).unwrap_or_default();
         format!(
-            "LEFT JOIN LATERAL (SELECT t.position, \
-             lpad(t.position::text, 10, '0') || ':' || t.id::text AS group_key \
+            "LEFT JOIN LATERAL (SELECT COALESCE(t.position, 0) AS position, t.name, \
+             lpad(COALESCE(t.position, 0)::text, 10, '0') || ':' || t.name || ':' || t.id::text \
+             AS group_key \
              FROM entity_tags et JOIN tags t ON t.id = et.tag_id \
              WHERE et.entity_id = {table}.id AND et.entity_type = '{entity_type}' \
              AND et.valid_to IS NULL AND et.snapshot_id IS NULL \
              AND t.tag_group_id = '{group_id}' \
-             ORDER BY t.position LIMIT 1) AS {alias} ON true"
+             ORDER BY t.position, t.name LIMIT 1) AS {alias} ON true"
         )
     }
 
@@ -255,7 +257,10 @@ impl TagGroupOrdering {
         if let Some(group_id) = self.order_by {
             filter = filter.join(&Self::join::<T>("tag_group_sorted", entity_type, group_id));
             let dir = direction.unwrap_or_default().to_sql();
-            parts.push(format!("tag_group_sorted.position {dir} NULLS LAST"));
+            // An unordered group's tags share position 0, so the name decides between them.
+            parts.push(format!(
+                "tag_group_sorted.position {dir} NULLS LAST, tag_group_sorted.name {dir}"
+            ));
         }
         parts.push(id_term);
         (filter, parts.join(", "))
@@ -302,7 +307,8 @@ mod tag_group_ordering_tests {
         assert_eq!(terms.first(), Some(&"tag_group_grouped.group_key ASC"));
         assert_eq!(terms.last(), Some(&"hosts.id ASC"));
         assert!(terms.contains(&"tag_group_sorted.position DESC NULLS LAST"));
+        assert!(terms.contains(&"tag_group_sorted.name DESC"));
         // The host field it replaced is gone.
-        assert_eq!(terms.len(), 3);
+        assert_eq!(terms.len(), 4);
     }
 }

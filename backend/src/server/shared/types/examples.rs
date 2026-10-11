@@ -331,6 +331,7 @@ pub fn tag_group() -> TagGroup {
             organization_id: ids::ORGANIZATION,
             group_type: TagGroupType::Custom,
             entity_types: None,
+            ordered: true,
         },
     }
 }

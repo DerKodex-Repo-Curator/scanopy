@@ -22,12 +22,12 @@ export function tagGroupIdOf(fieldKey: string | null | undefined): string | null
 
 /**
  * The key a server-paged list groups a row under for a tag-group column: the held tag's position
- * padded to ten digits, then its id. It matches the server's `TagGroupOrdering::GROUP_SQL`, so a
- * group finds its total in `group_counts`.
+ * padded to ten digits (0 in an unordered group), its name, then its id. It matches the server's
+ * `TagGroupOrdering::GROUP_SQL`, so a group finds its total in `group_counts`.
  */
 function serverGroupKey(tag: Tag | null): string | null {
-	if (!tag || tag.position == null) return null;
-	return `${String(tag.position).padStart(10, '0')}:${tag.id}`;
+	if (!tag) return null;
+	return `${String(tag.position ?? 0).padStart(10, '0')}:${tag.name}:${tag.id}`;
 }
 
 /**

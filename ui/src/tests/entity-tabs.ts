@@ -250,6 +250,7 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				name: 'name',
 				group_type: 'group_type',
 				entity_types: 'entity_types',
+				ordered: 'ordered',
 				created_at: 'created_at',
 				updated_at: 'updated_at',
 				id: ID,

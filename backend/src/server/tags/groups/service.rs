@@ -93,6 +93,9 @@ impl CrudService<TagGroup> for TagGroupService {
 
         entity.base.group_type = current.base.group_type;
         entity.base.organization_id = current.base.organization_id;
+        if current.is_system() {
+            entity.base.ordered = current.base.ordered;
+        }
         entity.base.name = entity.base.name.trim().to_string();
         if current.is_system() && entity.base.name != current.base.name {
             return Err(ValidationError::new(format!(
@@ -110,6 +113,9 @@ impl CrudService<TagGroup> for TagGroupService {
         updated.created_at = current.created_at;
         updated.updated_at = chrono::Utc::now();
         self.storage.update(&mut updated).await?;
+        if updated.base.ordered != current.base.ordered {
+            self.renumber_tags(&updated).await?;
+        }
         self.publish_change(&updated, authentication, false).await?;
         Ok(updated)
     }
@@ -260,15 +266,33 @@ impl TagGroupService {
         self.get_for_org(&organization_id).await
     }
 
-    /// The position a tag joining `group_id` takes: after every live tag already in it.
-    pub async fn next_position(&self, group_id: Uuid) -> Result<i32> {
-        let tags = self.live_tags_in(group_id).await?;
-        Ok(tags
+    /// The position a tag joining `group` takes: after every live tag already in it, or none when
+    /// the group is unordered.
+    pub async fn next_position(&self, group: &TagGroup) -> Result<Option<i32>> {
+        if !group.base.ordered {
+            return Ok(None);
+        }
+        let tags = self.live_tags_in(group.id).await?;
+        let last = tags
             .iter()
             .filter_map(|t| t.base.position)
             .max()
-            .unwrap_or(0)
-            + 1)
+            .unwrap_or(0);
+        Ok(Some(last + 1))
+    }
+
+    /// After `group` turns ordered or unordered: an ordered group numbers its tags by name, an
+    /// unordered one clears their positions.
+    async fn renumber_tags(&self, group: &TagGroup) -> Result<()> {
+        let mut tags = self.live_tags_in(group.id).await?;
+        tags.sort_by_key(|t| t.base.name.to_lowercase());
+        for (index, tag) in tags.iter_mut().enumerate() {
+            tag.base.position = group.base.ordered.then_some(index as i32 + 1);
+        }
+        if !tags.is_empty() {
+            self.tags.update_many(&tags).await?;
+        }
+        Ok(())
     }
 
     async fn live_tags_in(&self, group_id: Uuid) -> Result<Vec<Tag>> {
@@ -279,6 +303,13 @@ impl TagGroupService {
 
     /// Set the order of a group's tags. `tag_ids` must name every live tag of the group, once.
     pub async fn reorder_tags(&self, group: &TagGroup, tag_ids: &[Uuid]) -> Result<Vec<Tag>> {
+        if !group.base.ordered {
+            return Err(ValidationError::new(format!(
+                "The \"{}\" group lists its tags by name; it has no order to set",
+                group.base.name
+            ))
+            .into());
+        }
         let mut tx = self.tags.begin_transaction().await?;
         tx.lock(
             LockKey::TagGroups {
