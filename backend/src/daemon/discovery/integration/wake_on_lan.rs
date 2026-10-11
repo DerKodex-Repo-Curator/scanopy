@@ -11,7 +11,7 @@ use async_trait::async_trait;
 
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscriminants;
@@ -27,10 +27,6 @@ impl DiscoveryIntegration for WakeOnLanIntegration {
 
     fn estimated_seconds(&self) -> u32 {
         0
-    }
-
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::NoInterfaces
     }
 
     /// No client probe: a NIC that took a magic packet has no service to identify, and the

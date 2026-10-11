@@ -42,7 +42,7 @@ use mac_address::MacAddress;
 
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::server::credentials::r#impl::mapping::{
@@ -520,12 +520,6 @@ async fn collect_profile(
 
 #[async_trait]
 impl DiscoveryIntegration for GnmiIntegration {
-    /// `/interfaces/interface` is the device's own account of every interface it has, the
-    /// same standing as an ifTable walk.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::FullIfTable
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::Gnmi
     }

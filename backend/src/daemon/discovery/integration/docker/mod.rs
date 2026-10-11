@@ -25,7 +25,7 @@ use crate::server::ports::r#impl::base::PortType;
 use super::container::{self, CONTAINER_SCAN_TIMEOUT, ContainerRuntime};
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::daemon::shared::config::ConfigStore;
@@ -34,11 +34,6 @@ pub struct DockerIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for DockerIntegration {
-    /// Container runtimes report networks and containers, never the host's ports.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::NoInterfaces
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::DockerProxy
     }
@@ -81,11 +76,6 @@ pub struct DockerSocketIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for DockerSocketIntegration {
-    /// Container runtimes report networks and containers, never the host's ports.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::NoInterfaces
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::DockerSocket
     }

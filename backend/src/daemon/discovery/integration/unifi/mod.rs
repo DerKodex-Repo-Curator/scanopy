@@ -42,7 +42,7 @@ use crate::server::services::r#impl::patterns::{ClientProbe, ManagedDevice};
 use super::controller;
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceSource, InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    InterfaceSource, ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::daemon::discovery::service::warnings::AttemptOutcome;
@@ -58,12 +58,6 @@ pub struct UnifiIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for UnifiIntegration {
-    /// A `port_table` is every physical port and nothing else: the same switch under SNMP also
-    /// reports the VLAN, loopback and CPU interfaces UniFi never mentions.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::PhysicalPortsOnly
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::UnifiController
     }
