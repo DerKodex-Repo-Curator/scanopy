@@ -211,13 +211,14 @@ BEGIN
         END LOOP;
     END LOOP;
 
-    -- The survivor gets the seeded description when it has none.
+    -- Each organization's default gets the seeded description when it has none: the survivor of
+    -- a merge, or the only copy when there was nothing to merge.
     UPDATE credentials c
        SET description = t.description
       FROM default_credentials d
       JOIN seeded_default_types t ON t.type = d.type
      WHERE c.id = d.id
-       AND d.id IN (SELECT survivor_id FROM default_credential_merge)
+       AND d.id NOT IN (SELECT duplicate_id FROM default_credential_merge)
        AND coalesce(btrim(c.description), '') = '';
     COMMIT;
 
