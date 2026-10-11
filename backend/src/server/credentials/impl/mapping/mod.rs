@@ -10,7 +10,6 @@ use strum::EnumDiscriminants;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::types::CredentialIntegration;
 use crate::server::shared::types::metadata::{EntityMetadataProvider, HasId, TypeMetadataProvider};
 use crate::server::shared::types::{Color, Icon};
 
@@ -441,24 +440,6 @@ impl EntityMetadataProvider for CredentialQueryPayloadDiscriminants {
 
     fn icon(&self) -> Icon {
         Icon::KeyRound
-    }
-}
-
-impl CredentialQueryPayloadDiscriminants {
-    /// The integration this payload is a transport of. `None` for the forward-compat `Unknown`.
-    pub fn integration(&self) -> Option<CredentialIntegration> {
-        Some(match self {
-            Self::Snmp => CredentialIntegration::Snmp,
-            Self::DockerProxy | Self::DockerSocket => CredentialIntegration::Docker,
-            Self::PodmanProxy | Self::PodmanSocket => CredentialIntegration::Podman,
-            Self::UnifiController => CredentialIntegration::UnifiController,
-            Self::InstantOn => CredentialIntegration::InstantOn,
-            Self::Gnmi => CredentialIntegration::Gnmi,
-            Self::Ssh => CredentialIntegration::Ssh,
-            Self::WakeOnLan => CredentialIntegration::WakeOnLan,
-            Self::Proxmox => CredentialIntegration::Proxmox,
-            Self::Unknown => return None,
-        })
     }
 }
 

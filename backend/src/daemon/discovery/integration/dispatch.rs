@@ -615,16 +615,18 @@ pub async fn execute_integrations(
             .get(&discriminant)
             .map(|h| h.as_ref() as &(dyn std::any::Any + Send + Sync));
 
+        let integration_type =
+            CredentialTypeDiscriminants::from(integration.credential_type()).integration();
+
         let ctx = IntegrationContext {
             ip: params.ip,
             credential,
             credential_id: *cred_id,
             interface_source: InterfaceSource {
                 credential: discriminant,
-                scope: integration.interface_view_scope(),
+                scope: integration_type.interface_view_scope(),
             },
-            integration: CredentialTypeDiscriminants::from(integration.credential_type())
-                .integration(),
+            integration: integration_type,
             cancel: params.cancel,
             ops: params.ops,
             utils: params.utils,

@@ -81,7 +81,7 @@ use crate::{
 
 use super::{
     Checkpoint, Completeness, DiscoveryIntegration, IntegrationContext, IntegrationFailure,
-    InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
+    ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 pub use crate::daemon::discovery::service::warnings::LocalPortPlacementReason;
@@ -142,11 +142,6 @@ pub struct SnmpIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for SnmpIntegration {
-    /// An ifTable walk is the device's own account of every interface it has.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::FullIfTable
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::Snmp
     }

@@ -48,8 +48,7 @@ use crate::server::services::r#impl::patterns::{ClientProbe, ManagedDevice};
 use super::controller::{self, MappedClient};
 use super::{
     Checkpoint, CollectionShortfall, Completeness, DiscoveryIntegration, IntegrationContext,
-    IntegrationFailure, InterfaceSource, InterfaceViewScope, ProbeContext, ProbeFailure,
-    ProbeSuccess,
+    IntegrationFailure, InterfaceSource, ProbeContext, ProbeFailure, ProbeSuccess,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::daemon::discovery::service::warnings::AttemptOutcome;
@@ -65,11 +64,6 @@ pub struct InstantOnIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for InstantOnIntegration {
-    /// The portal reports switch ports and AP uplinks, not a device's whole ifTable.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::PhysicalPortsOnly
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::InstantOn
     }

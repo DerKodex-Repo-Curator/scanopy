@@ -49,6 +49,7 @@ use crate::{
 };
 
 use super::service::ops::{DiscoveryOps, HostData};
+pub use crate::server::credentials::r#impl::types::InterfaceViewScope;
 pub use failure::{IntegrationFailure, ProbeFailure};
 
 // ============================================================================
@@ -73,30 +74,6 @@ pub enum Completeness {
     /// It did not. Becomes the operator's warning; the collection that did land is still merged,
     /// because a coherent subset is worth more than nothing as long as it is labelled.
     Partial(CollectionShortfall),
-}
-
-/// How much of a device's interface list an integration can see when it succeeds.
-///
-/// Deliberately not the same fact as `interfaces_complete`, which says whether *this* collection
-/// finished. This says what a finished collection covers, and it is a property of the protocol,
-/// not of the run: a UniFi `port_table` is a complete list of physical ports and still omits the
-/// VLAN, loopback and CPU interfaces the same switch reports over SNMP, on every successful sync.
-///
-/// Several integrations can collect one host in a single scan, sharing one `HostData`. Before
-/// this existed, the last one to call the old `replace_interfaces` simply overwrote the others,
-/// and the only brake was a hand-written `if !host_data.interfaces.is_empty()` in two of them —
-/// which made the answer depend on dispatch order and read "richer" as "non-empty".
-///
-/// Ordered: `NoInterfaces` < `PhysicalPortsOnly` < `FullIfTable`. The order breaks ties *per
-/// interface*, never for the set as a whole — see `HostData::contribute_interfaces`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum InterfaceViewScope {
-    /// Contributes no interfaces at all — the container integrations.
-    NoInterfaces,
-    /// Every physical port, and nothing else. A controller API reporting the ports it manages.
-    PhysicalPortsOnly,
-    /// The device's whole ifTable, virtual interfaces included. An SNMP walk.
-    FullIfTable,
 }
 
 /// Who contributed an interface set, and how much of the device they can see.
@@ -176,13 +153,6 @@ pub trait DiscoveryIntegration: Send + Sync {
     /// Estimated execution time per invocation, in seconds.
     /// Used for cost-based progress estimation.
     fn estimated_seconds(&self) -> u32;
-
-    /// How much of a host's interface list this integration sees when it succeeds.
-    ///
-    /// No default: several integrations can collect one host in one scan and this is what decides
-    /// whose row survives where they disagree, so a new integration must say which it is rather
-    /// than inherit an answer.
-    fn interface_view_scope(&self) -> InterfaceViewScope;
 
     /// Maximum execution time before the caller cancels.
     fn timeout(&self) -> Duration {
@@ -377,7 +347,7 @@ pub struct IntegrationContext<'a> {
     pub credential: &'a CredentialQueryPayload,
     pub credential_id: Option<Uuid>,
     /// Who this integration is, for the purposes of contributing interfaces. Built by dispatch
-    /// from the integration's own `interface_view_scope`, so a call site cannot disagree with the
+    /// from `CredentialIntegration::interface_view_scope`, so a call site cannot disagree with the
     /// declaration.
     pub interface_source: InterfaceSource,
     /// The integration running, for checking what it submits against what it declares it
@@ -869,31 +839,5 @@ mod classification_tests {
             IntegrationFailure::with_outcome(AttemptOutcome::TimedOut, "slow").outcome(),
             AttemptOutcome::TimedOut
         );
-    }
-}
-
-#[cfg(test)]
-mod registry_tests {
-    use super::*;
-    use strum::IntoEnumIterator;
-
-    /// The server gates its interface prompts on `CredentialIntegration::reports_interfaces`; the
-    /// daemon decides what each transport contributes with `interface_view_scope`. A transport
-    /// that starts or stops reporting interfaces without the server hearing about it would clear
-    /// the prompts on the wrong credential, or never.
-    #[test]
-    fn server_interface_flag_matches_each_transports_interface_scope() {
-        for d in CredentialQueryPayloadDiscriminants::iter() {
-            let (Some(integration), Some(transport)) =
-                (d.integration(), IntegrationRegistry::get(d))
-            else {
-                continue;
-            };
-            assert_eq!(
-                integration.reports_interfaces(),
-                transport.interface_view_scope() != InterfaceViewScope::NoInterfaces,
-                "{d:?} disagrees with {integration:?}::reports_interfaces"
-            );
-        }
     }
 }

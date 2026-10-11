@@ -52,8 +52,7 @@ use crate::server::subnets::r#impl::inference::placeable_subnet;
 
 use super::{
     Checkpoint, CollectionShortfall, Completeness, DiscoveryIntegration, IntegrationContext,
-    IntegrationFailure, InterfaceViewScope, ProbeContext, ProbeFailure, ProbeSuccess,
-    merge_subnets,
+    IntegrationFailure, ProbeContext, ProbeFailure, ProbeSuccess, merge_subnets,
 };
 use crate::daemon::discovery::service::ops::HostData;
 use crate::daemon::discovery::service::warnings::AttemptOutcome;
@@ -75,12 +74,6 @@ pub struct ProxmoxIntegration;
 
 #[async_trait]
 impl DiscoveryIntegration for ProxmoxIntegration {
-    /// The node's own NICs come from SNMP or SSH; the API's view of them is the Linux bridge
-    /// config, not an interface table.
-    fn interface_view_scope(&self) -> InterfaceViewScope {
-        InterfaceViewScope::NoInterfaces
-    }
-
     fn credential_type(&self) -> CredentialQueryPayloadDiscriminants {
         CredentialQueryPayloadDiscriminants::Proxmox
     }
