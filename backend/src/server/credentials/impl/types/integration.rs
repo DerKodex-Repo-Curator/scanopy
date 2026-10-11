@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
-use strum::{EnumIter, IntoStaticStr};
+use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
 use utoipa::ToSchema;
 
 use crate::server::{
+    discovery::r#impl::collection::CollectedData,
     hosts::r#impl::virtualization::HostVirtualizationDiscriminants,
     services::{
         definitions::{
@@ -230,6 +231,83 @@ impl CredentialIntegration {
             | Self::InstantOn
             | Self::Ssh
             | Self::WakeOnLan => &[],
+        }
+    }
+
+    /// Whether any of this integration's credential types has a seeded default
+    /// ([`CredentialTypeDiscriminants::seeded_default`]), so every org holds one from the start.
+    pub fn seeded_by_default(&self) -> bool {
+        CredentialTypeDiscriminants::iter()
+            .any(|t| t.integration() == *self && t.seeded_default().is_some())
+    }
+
+    /// The categories of data this integration collects when it succeeds. Shared by all of its
+    /// transports.
+    ///
+    /// Exhaustive (no wildcard), so a new integration cannot compile without answering. What an
+    /// integration submits is checked against this (`undeclared_collection`), which fails tests
+    /// and debug builds when the two disagree. The security page lists what each integration
+    /// collects from it, through the `collected-data` and `integrations` fixtures.
+    pub fn collects(&self) -> &'static [CollectedData] {
+        use CollectedData::*;
+        match self {
+            // sys* and ENTITY-MIB details, the ifTable with LLDP/CDP neighbors, FDB and per-port
+            // VLANs, ipAddrTable addresses, routes as subnets, and ARP entries as new hosts.
+            Self::Snmp => &[
+                Addresses,
+                DeviceDetails,
+                Interfaces,
+                Neighbors,
+                ForwardingTables,
+                Vlans,
+                Subnets,
+                ConnectedClients,
+            ],
+            // Interfaces and LLDP neighbors. The chassis id it reads is an identifier.
+            Self::Gnmi => &[Interfaces, Neighbors],
+            // Managed devices with their identity, ports, FDB, uplinks and the service matched
+            // from their device type; clients as hosts, with UniFi's DHCP hostnames.
+            Self::UnifiController => &[
+                Addresses,
+                Hostnames,
+                PortsAndServices,
+                DeviceDetails,
+                Interfaces,
+                Neighbors,
+                ForwardingTables,
+                ConnectedClients,
+            ],
+            // As UniFi, except the portal reports no client hostnames.
+            Self::InstantOn => &[
+                Addresses,
+                PortsAndServices,
+                DeviceDetails,
+                Interfaces,
+                Neighbors,
+                ForwardingTables,
+                ConnectedClients,
+            ],
+            Self::Ssh => &[Hostnames, OperatingSystem, DeviceDetails, Interfaces],
+            // The engine host's OS, its bridge networks, container services and published ports,
+            // endpoint addresses, and macvlan/ipvlan containers as hosts of their own.
+            Self::Docker | Self::Podman => &[
+                Addresses,
+                OperatingSystem,
+                PortsAndServices,
+                Subnets,
+                Containers,
+            ],
+            // Nodes with the Proxmox VE service, and guests with hostname, OS, addresses, the
+            // interfaces of address-less guests and their network identities.
+            Self::Proxmox => &[
+                Addresses,
+                Hostnames,
+                OperatingSystem,
+                PortsAndServices,
+                Interfaces,
+                VirtualMachines,
+            ],
+            Self::WakeOnLan => &[],
         }
     }
 

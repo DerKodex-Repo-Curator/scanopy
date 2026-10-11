@@ -5,6 +5,7 @@ use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscrimin
 use crate::server::credentials::r#impl::run_results::{
     CredentialRunOutcome, CredentialRunResult, WakeOnLanResult,
 };
+use crate::server::credentials::r#impl::types::CredentialTypeDiscriminants;
 use crate::server::credentials::r#impl::types::ssh_script::{SshScriptOutcome, SshScriptRun};
 
 // ============================================================================
@@ -30,11 +31,8 @@ pub(super) fn generate_discoveries(
     };
 
     // Credential IDs for integration targets.
-    let default_snmp_cred_id = credentials
-        .iter()
-        .find(|c| c.base.name == "Default SNMPv2c")
-        .unwrap()
-        .id;
+    let default_snmp_cred_id =
+        super::credentials::find_default(credentials, CredentialTypeDiscriminants::SnmpV2c).id;
     let linux_inventory_cred_id = credentials
         .iter()
         .find(|c| c.base.name == "Linux Inventory")
@@ -50,11 +48,8 @@ pub(super) fn generate_discoveries(
         .find(|c| c.base.name == "Network Devices")
         .unwrap()
         .id;
-    let docker_socket_cred_id = credentials
-        .iter()
-        .find(|c| c.base.name == "Local Docker Socket")
-        .unwrap()
-        .id;
+    let docker_socket_cred_id =
+        super::credentials::find_default(credentials, CredentialTypeDiscriminants::DockerSocket).id;
 
     // Both SNMP creds are broadcast to every site (see
     // `generate_site_credential_assignments`), so every discovery targets both.

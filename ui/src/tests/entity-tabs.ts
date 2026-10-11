@@ -470,7 +470,10 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				tags: 'tags',
 				updated_at: 'updated_at',
 				id: ID,
-				organization_id: ORGANIZATION
+				organization_id: ORGANIZATION,
+				is_default: excluded(
+					"A default's description says what it is, and its row has no delete action"
+				)
 			})
 		]
 	}

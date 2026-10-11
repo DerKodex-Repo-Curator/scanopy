@@ -61,6 +61,12 @@ export const ERROR_CODES = {
 	email_delivery_failed:
 		"Scanopy could not send this email. Ask an administrator to check the server logs for the mail server's response.",
 	email_feedback_rejected: 'Not an authentic message for the configured topic',
+	credential_default_exists:
+		"This credential is identical to the default credential '{name}'. Use that one instead.",
+	credential_default_delete_forbidden:
+		"'{name}' is a default credential and can't be deleted. Unassign it from sites and hosts instead.",
+	credential_default_settings_locked:
+		"'{name}' is a default credential. Its name, description and tags can change, but its settings can't.",
 	discovery_historical_read_only: 'Historical discovery cannot be modified via API',
 	discovery_subnet_site_mismatch: "Subnet '{subnet}' is on a different site",
 	discovery_session_not_found: "Discovery session '{id}' not found",
@@ -156,6 +162,9 @@ export interface ErrorParams {
 	invite_email_mismatch: Record<string, never>;
 	email_delivery_failed: Record<string, never>;
 	email_feedback_rejected: Record<string, never>;
+	credential_default_exists: { name: string | number };
+	credential_default_delete_forbidden: { name: string | number };
+	credential_default_settings_locked: { name: string | number };
 	discovery_historical_read_only: Record<string, never>;
 	discovery_subnet_site_mismatch: { subnet: string | number };
 	discovery_session_not_found: { id: string | number };

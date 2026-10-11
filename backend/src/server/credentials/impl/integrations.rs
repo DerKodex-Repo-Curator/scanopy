@@ -63,6 +63,13 @@ pub struct Integration {
     /// so the docs can list which integrations report which relationship without a fixture of
     /// their own.
     pub host_virtualizations: Vec<IntegrationVirtualization>,
+    /// The categories of data this integration collects
+    /// ([`super::types::CredentialIntegration::collects`]), by `CollectedData` id. Their names and
+    /// descriptions are in `collected-data.json`.
+    pub collects: Vec<String>,
+    /// Whether every org holds a seeded default credential for this integration
+    /// ([`super::types::CredentialIntegration::seeded_by_default`]).
+    pub seeded_by_default: bool,
     /// One-line summary: the discovery text plus the available transports.
     pub summary: String,
     /// Maturity and daemon-version floors are deliberately *not* summarized here.
@@ -162,6 +169,13 @@ pub fn all_integrations() -> Vec<Integration> {
                     name: TypeMetadataProvider::name(v).to_string(),
                 })
                 .collect(),
+            collects: disc
+                .integration()
+                .collects()
+                .iter()
+                .map(|c| c.id().to_string())
+                .collect(),
+            seeded_by_default: disc.integration().seeded_by_default(),
             summary: String::new(), // filled in after all transports are collected
             transports: vec![transport],
         });

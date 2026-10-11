@@ -2,7 +2,6 @@
 
 use crate::server::credentials::r#impl::mapping::{
     BannerField, BannerFieldValue, CredentialMapping, IpOverride, ResolvableSecret,
-    ResolvedCredential,
 };
 use crate::server::shared::types::field_definition::SelectOption;
 use serde::{Deserialize, Serialize};
@@ -223,18 +222,6 @@ impl std::fmt::Debug for SnmpQueryCredential {
     }
 }
 
-impl SnmpQueryCredential {
-    pub fn public_default() -> Self {
-        Self {
-            version: SnmpVersion::default(),
-            community: ResolvableSecret::Value {
-                value: "public".to_string(),
-            },
-            v3: None,
-        }
-    }
-}
-
 // ============================================================================
 // Banner / metadata
 // ============================================================================
@@ -290,57 +277,6 @@ impl SnmpQueryCredential {
 
 /// Legacy: SNMP credential mapping type alias for pre-v0.15.0 daemon DiscoveryType::Network.
 pub type SnmpCredentialMapping = CredentialMapping<SnmpQueryCredential>;
-
-/// Legacy: SNMP-specific resolution: IP override → site default → "public" fallback.
-/// Deduplicates by community string.
-/// Returns `ResolvedCredential` wrappers that pair each credential with its server-side ID.
-impl SnmpCredentialMapping {
-    pub fn get_credentials_by_specificity(
-        &self,
-        ip: &IpAddr,
-    ) -> Vec<ResolvedCredential<SnmpQueryCredential>> {
-        let mut credentials: Vec<ResolvedCredential<SnmpQueryCredential>> = Vec::new();
-
-        // 1. IP-specific override (most specific) — host-scoped, should be auto-assigned
-        if let Some(override_cred) = self.ip_overrides.iter().find(|o| &o.ip == ip) {
-            let cred_id = override_cred.credential_id;
-            credentials.push(ResolvedCredential {
-                credential: override_cred.credential.clone(),
-                credential_id: if cred_id != uuid::Uuid::nil() {
-                    Some(cred_id)
-                } else {
-                    None
-                },
-            });
-        }
-
-        // 2. Site default — already site-wide, don't auto-assign
-        if let Some(ref default) = self.default_credential
-            && !credentials
-                .iter()
-                .any(|c| c.credential.community == default.community)
-        {
-            credentials.push(ResolvedCredential {
-                credential: default.clone(),
-                credential_id: None,
-            });
-        }
-
-        // 3. "public" fallback (least specific) — synthetic, no server-side credential
-        let public_default = SnmpQueryCredential::public_default();
-        if !credentials
-            .iter()
-            .any(|c| c.credential.community == public_default.community)
-        {
-            credentials.push(ResolvedCredential {
-                credential: public_default,
-                credential_id: None,
-            });
-        }
-
-        credentials
-    }
-}
 
 /// Legacy: Exposed SNMP credential for daemon serialization (plaintext secrets).
 #[derive(Serialize)]
@@ -401,8 +337,6 @@ impl From<&SnmpCredentialMapping> for SnmpCredentialMappingExposed {
 mod tests {
     use super::*;
     use crate::server::credentials::r#impl::mapping::CredentialQueryPayload;
-    use std::net::IpAddr;
-    use uuid::Uuid;
 
     fn cred(community: &str) -> SnmpQueryCredential {
         SnmpQueryCredential {
@@ -454,84 +388,6 @@ mod tests {
                 value: "********".to_string()
             }
         );
-    }
-
-    #[test]
-    fn specificity_ordering() {
-        let ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let other_ip: IpAddr = "10.0.0.2".parse().unwrap();
-        let cred_id = Uuid::new_v4();
-
-        let mapping = SnmpCredentialMapping {
-            default_credential: Some(cred("default-community")),
-            ip_overrides: vec![IpOverride {
-                ip,
-                credential: cred("override-community"),
-                credential_id: cred_id,
-                host_id: None,
-                mac_address: None,
-            }],
-            ..Default::default()
-        };
-
-        // IP with override: override first, then default, then public
-        let creds = mapping.get_credentials_by_specificity(&ip);
-        assert_eq!(creds.len(), 3);
-        assert_eq!(community_value(&creds[0].credential), "override-community");
-        assert_eq!(creds[0].credential_id, Some(cred_id)); // IP override has credential_id
-        assert_eq!(community_value(&creds[1].credential), "default-community");
-        assert_eq!(creds[1].credential_id, None); // Site default has no credential_id
-        assert_eq!(community_value(&creds[2].credential), "public");
-        assert_eq!(creds[2].credential_id, None); // Fallback has no credential_id
-
-        // IP without override: default, then public
-        let creds = mapping.get_credentials_by_specificity(&other_ip);
-        assert_eq!(creds.len(), 2);
-        assert_eq!(community_value(&creds[0].credential), "default-community");
-        assert_eq!(community_value(&creds[1].credential), "public");
-    }
-
-    #[test]
-    fn specificity_deduplicates() {
-        let ip: IpAddr = "10.0.0.1".parse().unwrap();
-
-        // Override and default are both "public" — should not duplicate
-        let mapping = SnmpCredentialMapping {
-            default_credential: Some(cred("public")),
-            ip_overrides: vec![IpOverride {
-                ip,
-                credential: cred("public"),
-                credential_id: Uuid::nil(),
-                host_id: None,
-                mac_address: None,
-            }],
-            ..Default::default()
-        };
-
-        let creds = mapping.get_credentials_by_specificity(&ip);
-        assert_eq!(creds.len(), 1);
-        assert_eq!(community_value(&creds[0].credential), "public");
-        // nil UUID override should result in None credential_id
-        assert_eq!(creds[0].credential_id, None);
-    }
-
-    #[test]
-    fn specificity_nil_credential_id_becomes_none() {
-        let ip: IpAddr = "10.0.0.1".parse().unwrap();
-
-        let mapping = SnmpCredentialMapping {
-            ip_overrides: vec![IpOverride {
-                ip,
-                credential: cred("secret"),
-                credential_id: Uuid::nil(),
-                host_id: None,
-                mac_address: None,
-            }],
-            ..Default::default()
-        };
-
-        let creds = mapping.get_credentials_by_specificity(&ip);
-        assert_eq!(creds[0].credential_id, None);
     }
 
     #[test]

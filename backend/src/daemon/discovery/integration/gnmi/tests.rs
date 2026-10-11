@@ -1,6 +1,9 @@
 use super::parse::{Leaf, normalised_names};
 use super::*;
 use crate::server::credentials::r#impl::mapping::ResolvableSecret;
+use crate::server::credentials::r#impl::types::CredentialIntegration;
+use crate::server::discovery::r#impl::collection::undeclared_in_submitted_host;
+use crate::server::hosts::r#impl::base::{Host, HostBase};
 use crate::server::interfaces::r#impl::base::{IfAdminStatus, IfOperStatus, if_type};
 use crate::server::lldp::LldpPortId;
 use crate::server::snmp::generated::get_if_type_number;
@@ -282,6 +285,18 @@ async fn arcos_rows_join_interfaces_and_lldp() {
         rows.len(),
         7,
         "one row per /interfaces entry, LLDP adds none"
+    );
+    // What the docs list as gNMI's collection covers the rows it builds.
+    assert_eq!(
+        undeclared_in_submitted_host(
+            CredentialIntegration::Gnmi,
+            &Host::new(HostBase::default()),
+            &[],
+            &[],
+            &[],
+            &rows
+        ),
+        None
     );
 
     let swp1 = row(&rows, "swp1");

@@ -340,8 +340,18 @@ where
         Ok(())
     }
 
-    /// Delete entity by ID
+    /// Delete entity by ID. Override this to refuse a delete, delegating to `delete_base()` for
+    /// the standard behavior.
     async fn delete(
+        &self,
+        id: &Uuid,
+        authentication: AuthenticatedEntity,
+    ) -> Result<(), anyhow::Error> {
+        self.delete_base(id, authentication).await
+    }
+
+    /// Base delete implementation: storage, tag cleanup and the Deleted event.
+    async fn delete_base(
         &self,
         id: &Uuid,
         authentication: AuthenticatedEntity,
@@ -459,8 +469,18 @@ where
         Ok(created)
     }
 
-    /// Update entity
+    /// Update entity. Override this to check or adjust an update, delegating to `update_base()`
+    /// for the standard behavior.
     async fn update(
+        &self,
+        entity: &mut T,
+        authentication: AuthenticatedEntity,
+    ) -> Result<T, anyhow::Error> {
+        self.update_base(entity, authentication).await
+    }
+
+    /// Base update implementation: storage, tags and the Updated event.
+    async fn update_base(
         &self,
         entity: &mut T,
         authentication: AuthenticatedEntity,
@@ -501,7 +521,18 @@ where
         Ok(updated)
     }
 
+    /// Delete entities by ID. Override this to refuse a delete, delegating to
+    /// `delete_many_base()` for the standard behavior.
     async fn delete_many(
+        &self,
+        ids: &[Uuid],
+        authentication: AuthenticatedEntity,
+    ) -> Result<usize, anyhow::Error> {
+        self.delete_many_base(ids, authentication).await
+    }
+
+    /// Base bulk delete implementation: tag cleanup, a Deleted event per entity, then storage.
+    async fn delete_many_base(
         &self,
         ids: &[Uuid],
         authentication: AuthenticatedEntity,

@@ -42,6 +42,7 @@ use uuid::Uuid;
 
 pub mod billing_emails_zero_amount;
 pub mod cloud_setup;
+pub mod default_credentials;
 pub mod demo_data_seeding;
 pub mod dependencies;
 pub mod email_unsubscribe;
