@@ -10,35 +10,27 @@ import { serverFilterViolations } from '$lib/shared/components/data/controls/fil
 import { columnControls } from '$lib/shared/components/data/controls/headerControls';
 import { getFieldKey, type FieldConfig } from '$lib/shared/components/data/types';
 import {
-	COVERAGE,
 	FEATURES,
 	OPENAPI,
-	SCHEMAS,
-	UI,
 	columnKeys,
+	dataControlsProps,
 	dataControlsTabs,
-	definedOrderField,
-	orderFieldSchema,
-	readTab,
-	registryEntity,
-	registryFieldsOf,
-	registryOmitted,
+	tabColumns,
 	type SchemaNode
 } from './entity-tabs';
-import { columnType } from '$lib/shared/entity-fields/table';
 
 /**
  * Every column on every entity tab has a recorded sort, group and filter decision, and the tab
  * offers exactly what was decided.
  *
  * A new column fails here until someone decides whether it sorts, groups and filters, and writes
- * down why not when it doesn't. The tab's flags are read from its source and run through the same
- * `isSortableField` / `isGroupableField` rules the controls use, so a flag added or dropped
- * without updating the decision fails too.
+ * down why not when it doesn't. The tab's columns, as its `<Tab>.columns.ts` builds them, run
+ * through the same `isSortableField` / `isGroupableField` rules the controls use, so a flag added
+ * or dropped without updating the decision fails too.
  *
- * On a server-paginated tab (one that passes `serverPagination=`), only `*OrderField` variants
- * sort and group, and every filter is applied by the server through a query parameter of the
- * tab's list operation, named here as `{ param }` and checked against `static/openapi.json`.
+ * On a server-paginated tab (one that passes `serverPagination` to `DataControls`), only order
+ * fields sort and group, and every filter is applied by the server through a query parameter of
+ * the tab's list operation, named here as `{ param }` and checked against `static/openapi.json`.
  */
 
 /** `true` means the column offers it; a string means it doesn't, and says why. */
@@ -100,7 +92,6 @@ const server = (param: string): ColumnDecision => ({ sort: true, group: true, fi
 /** Sorted by the server's order field only. */
 const serverIdentity = (group: string): ColumnDecision => ({ sort: true, group, filter: SEARCH });
 
-const RUN_RESULT = none('Run result; a scan configuration has none');
 /** The run that first or last found an entity: one chip, and Created and Last seen already say when. */
 const FOUND_BY = none('A scan run; Created and Last seen order by when');
 
@@ -212,11 +203,6 @@ const DECISIONS: Record<string, TabDecisions> = {
 			daemon_id: YES,
 			site_id: YES,
 			discovery_type: YES,
-			phase: RUN_RESULT,
-			started_at: RUN_RESULT,
-			finished_at: RUN_RESULT,
-			duration: RUN_RESULT,
-			warnings: RUN_RESULT,
 			scan_count: { sort: true, group: COUNT, filter: COUNT },
 			force_full_scan: BOOLEAN,
 			legacy: YES,
@@ -385,292 +371,19 @@ const DECISIONS: Record<string, TabDecisions> = {
 };
 
 // ============================================================================
-// Reading field flags from source
+// Reading the tab's columns
 // ============================================================================
 
-const OPENERS = '{([';
-const CLOSERS = '})]';
-const FLAGS = ['sortable', 'groupable', 'filterable', 'serverFiltered', 'staleFilter'] as const;
-type Flag = (typeof FLAGS)[number];
-
-/** A field as its tab declares it. */
-interface ParsedField {
-	orderable: boolean;
-	type: FieldConfig<unknown>['type'];
-	flags: Partial<Record<Flag, boolean>>;
-	/** `display.hidden`: the field renders no column. */
-	columnless: boolean;
-}
-
-/** Index just past the string, template literal or comment opening at `i`; `i` when none does. */
-function skipLiteral(src: string, i: number): number {
-	const c = src[i];
-	if (c === '/' && src[i + 1] === '/') {
-		const end = src.indexOf('\n', i);
-		return end === -1 ? src.length : end;
-	}
-	if (c === '/' && src[i + 1] === '*') {
-		const end = src.indexOf('*/', i + 2);
-		if (end === -1) throw new Error(`unterminated comment at ${i}`);
-		return end + 2;
-	}
-	if (c !== "'" && c !== '"' && c !== '`') return i;
-	for (let j = i + 1; j < src.length;) {
-		if (src[j] === '\\') j += 2;
-		else if (src[j] === c) return j + 1;
-		else if (c === '`' && src[j] === '$' && src[j + 1] === '{') j = closingBracket(src, j + 1) + 1;
-		else j++;
-	}
-	throw new Error(`unterminated string at ${i}`);
-}
-
-/** Index of the bracket closing the one at `open`, skipping strings and comments. */
-function closingBracket(src: string, open: number): number {
-	let depth = 0;
-	for (let i = open; i < src.length;) {
-		const skipped = skipLiteral(src, i);
-		if (skipped !== i) {
-			i = skipped;
-			continue;
-		}
-		if (OPENERS.includes(src[i])) depth++;
-		else if (CLOSERS.includes(src[i]) && --depth === 0) return i;
-		i++;
-	}
-	throw new Error(`unbalanced bracket at ${open}`);
-}
-
-/** Every `{ … }` pair in `src` as [open, close], skipping strings and comments. */
-function bracePairs(src: string): [number, number][] {
-	const pairs: [number, number][] = [];
-	const stack: number[] = [];
-	for (let i = 0; i < src.length;) {
-		const skipped = skipLiteral(src, i);
-		if (skipped !== i) {
-			i = skipped;
-			continue;
-		}
-		if (src[i] === '{') stack.push(i);
-		else if (src[i] === '}') pairs.push([stack.pop()!, i]);
-		i++;
-	}
-	return pairs;
-}
-
-/** One top-level entry of an object literal: `name: value`, or `...` for a spread. */
-interface Entry {
-	name: string;
-	value: string;
-	valueStart: number;
-}
-
-/** The top-level entries of the object literal whose `{` is at `open`. */
-function objectEntries(src: string, open: number): Entry[] {
-	const close = closingBracket(src, open);
-	const entries: Entry[] = [];
-	let start = open + 1;
-	let depth = 0;
-	for (let i = open + 1; i <= close;) {
-		const skipped = skipLiteral(src, i);
-		if (skipped !== i) {
-			i = skipped;
-			continue;
-		}
-		if (OPENERS.includes(src[i])) depth++;
-		else if (CLOSERS.includes(src[i])) depth--;
-		if ((src[i] === ',' && depth === 0) || i === close) {
-			const entry = parseEntry(src, start, i);
-			if (entry) entries.push(entry);
-			start = i + 1;
-		}
-		i++;
-	}
-	return entries;
-}
-
-function parseEntry(src: string, start: number, end: number): Entry | null {
-	let i = start;
-	while (i < end) {
-		if (/\s/.test(src[i])) i++;
-		else if (src[i] === '/' && skipLiteral(src, i) !== i) i = skipLiteral(src, i);
-		else break;
-	}
-	const head = /^(\.\.\.|[A-Za-z_$][\w$]*|'[^']*')\s*(:?)/.exec(src.slice(i, end));
-	if (!head) return null;
-	const name = head[1].replace(/'/g, '');
-	if (name === '...' || head[2]) {
-		let valueStart = i + head[0].length;
-		while (valueStart < end && /\s/.test(src[valueStart])) valueStart++;
-		return { name, value: src.slice(valueStart, end).trim(), valueStart };
-	}
-	return { name, value: name, valueStart: i };
-}
-
-/**
- * The flags of the field object literal at `open`, or why they cannot be read. `registryType` is
- * the type a registry-backed column gets when the literal leaves it out.
- */
-function parseField(
-	src: string,
-	open: number,
-	orderable: boolean,
-	registryType?: FieldConfig<unknown>['type']
-): ParsedField | string {
-	const entries = objectEntries(src, open);
-	if (entries.some((entry) => entry.name === '...')) {
-		return 'spreads another object into the field, so its flags cannot be read here';
-	}
-	const byName = new Map(entries.map((entry) => [entry.name, entry.value]));
-	const type = byName.get('type')?.match(/^'(string|boolean|date|array)'$/)?.[1] ?? registryType;
-	if (!type) return `has no literal \`type\` ('string', 'boolean', 'date' or 'array')`;
-	const flags: ParsedField['flags'] = {};
-	for (const flag of FLAGS) {
-		const value = byName.get(flag);
-		if (value === undefined) continue;
-		if (value !== 'true' && value !== 'false') {
-			return `sets \`${flag}: ${value}\`; write it as a literal true or false`;
-		}
-		flags[flag] = value === 'true';
-	}
-	const columnless = /\bhidden:\s*true\b/.test(byName.get('display') ?? '');
-	return { orderable, type: type as ParsedField['type'], flags, columnless };
-}
-
-/** Where the `n`th (0-based) top-level argument of the call whose `(` is at `paren` starts. */
-function argumentStart(src: string, paren: number, n: number): number {
-	let depth = 0;
-	let seen = 0;
-	for (let i = paren + 1; i < src.length;) {
-		const skipped = skipLiteral(src, i);
-		if (skipped !== i) {
-			i = skipped;
-			continue;
-		}
-		if (OPENERS.includes(src[i])) depth++;
-		else if (CLOSERS.includes(src[i])) depth--;
-		else if (src[i] === ',' && depth === 0 && ++seen === n) {
-			i++;
-			while (/\s/.test(src[i])) i++;
-			return i;
-		}
-		i++;
-	}
-	return paren + 1;
-}
-
-/** The `<script>` blocks of a Svelte file: the template's text would derail the brace matcher. */
-function scriptOf(source: string): string {
-	return [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\b[^>]*>/gi)]
-		.map((m) => m[1])
-		.join('\n');
-}
-
-/**
- * The source and `{` position of the orderable-fields object a tab passes to `defineFields`.
- *
- * Usually an object literal in the call. Otherwise the argument calls an imported function that
- * returns one (`discoveryFields` in `discovery/queries.ts`), read from that module. A local
- * wrapper around it (the scheduled tab's `withSharedDisplay`) may change `display` only.
- */
-function orderableFieldsObject(
-	tab: string,
-	script: string
-): { src: string; open: number } | string {
-	const call = /define(Registry)?Fields<[^>]*>\s*\(\s*/.exec(script);
-	if (!call) return 'calls no defineFields';
-	let argStart = call.index + call[0].length;
-	// `defineRegistryFields(entity, lookup, orderable, ...)`: the orderable object is the third.
-	if (call[1]) argStart = argumentStart(script, call.index + call[0].lastIndexOf('('), 2);
-	if (script[argStart] === '{') return { src: script, open: argStart };
-
-	const paren = call.index + call[0].lastIndexOf('(');
-	const argument = script.slice(argStart, closingBracket(script, paren));
-	const imports = [...script.matchAll(/import\s*\{([^}]*)\}\s*from\s*'([^']+)'/g)];
-	for (const [, name] of argument.matchAll(/\b(\w+)\(/g)) {
-		const from = imports.find(([, names]) => names.split(',').some((n) => n.trim() === name))?.[2];
-		if (!from || !/^(\$lib\/|\.)/.test(from)) continue;
-		const module = from.startsWith('$lib/')
-			? path.join(UI, 'src/lib', from.slice('$lib/'.length))
-			: path.resolve(path.dirname(path.join(FEATURES, tab)), from);
-		const src = fs.readFileSync(module.endsWith('.ts') ? module : `${module}.ts`, 'utf-8');
-		const declaration = src.indexOf(`export const ${name} =`);
-		const body = declaration === -1 ? -1 : src.indexOf('=> ({', declaration);
-		if (body !== -1) return { src, open: body + '=> ('.length };
-	}
-	return `passes defineFields "${argument.trim()}", which this test cannot trace to an object literal`;
-}
-
-/** Every field a tab declares, by column key, plus anything that could not be read. */
-function tabFields(
-	tab: string,
-	source: string
-): { fields: Map<string, ParsedField>; problems: string[] } {
-	const script = scriptOf(source);
-	const fields = new Map<string, ParsedField>();
+/** Every column a tab renders, by key, plus a problem for each key it declares twice. */
+function tabFields(tab: string): { fields: Map<string, FieldConfig<unknown>>; problems: string[] } {
+	const fields = new Map<string, FieldConfig<unknown>>();
 	const problems: string[] = [];
-	// Registry-backed tabs take a column's type from the registry when they don't declare one.
-	const entity = registryEntity(source);
-	const registry = new Map(
-		entity ? registryFieldsOf(entity).map((field) => [field.id, columnType(field)]) : []
-	);
-
-	if (definedOrderField(source)) {
-		const object = orderableFieldsObject(tab, script);
-		if (typeof object === 'string') problems.push(object);
-		else {
-			for (const entry of objectEntries(object.src, object.open)) {
-				const field =
-					object.src[entry.valueStart] === '{'
-						? parseField(object.src, entry.valueStart, true, registry.get(entry.name))
-						: 'is not an object literal';
-				if (typeof field === 'string') problems.push(`orderable field "${entry.name}" ${field}`);
-				else fields.set(entry.name, field);
-			}
-		}
-	}
-
-	const pairs = bracePairs(script);
-	for (const match of script.matchAll(/\bkey:\s*'([^']+)'/g)) {
-		const key = match[1];
-		const at = match.index!;
-		const enclosing = pairs
-			.filter(([open, close]) => open < at && close > at)
-			.reduce<[number, number] | undefined>(
-				(inner, pair) => (!inner || pair[0] > inner[0] ? pair : inner),
-				undefined
-			);
-		const declaresKey =
-			enclosing &&
-			objectEntries(script, enclosing[0]).some(
-				(entry) => entry.name === 'key' && entry.value === `'${key}'`
-			);
-		if (!enclosing || !declaresKey) {
-			problems.push(`cannot find the field object that declares key '${key}'`);
-			continue;
-		}
-		if (fields.has(key)) {
-			problems.push(`declares the column "${key}" twice`);
-			continue;
-		}
-		const field = parseField(script, enclosing[0], false, registry.get(key));
-		if (typeof field === 'string') problems.push(`display field "${key}" ${field}`);
-		else fields.set(key, field);
-	}
-	// Registry fields the tab neither lists nor omits are appended as plain display columns.
-	const omitted = registryOmitted(source);
-	for (const [id, type] of registry) {
-		if (fields.has(id) || omitted.has(id)) continue;
-		fields.set(id, { orderable: false, type, flags: {}, columnless: false });
+	for (const config of tabColumns(tab)) {
+		const key = getFieldKey(config);
+		if (fields.has(key)) problems.push(`declares the column "${key}" twice`);
+		else fields.set(key, config);
 	}
 	return { fields, problems };
-}
-
-/** The field as the runtime sees it, built from the parsed flags. */
-function fieldConfig(column: string, field: ParsedField): FieldConfig<unknown> {
-	const base = { label: column, type: field.type, ...field.flags };
-	return (
-		field.orderable ? { ...base, orderField: column } : { ...base, key: column }
-	) as FieldConfig<unknown>;
 }
 
 /** The query parameter names of `GET path`, following `$ref` into `components.parameters`. */
@@ -695,20 +408,20 @@ const VERB: Record<Capability, string> = { sort: 'sorts', group: 'groups', filte
 
 /** Everything wrong with one tab's decisions, as messages naming the tab, column and fix. */
 function decisionProblems(tab: string, decided: TabDecisions): string[] {
-	const source = readTab(tab);
 	const problems: string[] = [];
 	const at = `DECISIONS["${tab}"].columns`;
 
-	// A field this test cannot read would surface as a disagreement on every capability, so stop
-	// at the cause.
-	const { fields, problems: unreadable } = tabFields(tab, source);
-	if (unreadable.length > 0) return unreadable.map((problem) => `${tab}: ${problem}.`);
+	const { fields: configs, problems: duplicates } = tabFields(tab);
+	if (duplicates.length > 0) return duplicates.map((problem) => `${tab}: ${problem}.`);
 
-	const serverPaginated = /serverPagination=/.test(source);
-	const serverTags = /onTagFilterChange=/.test(source);
-	const enumSchema = COVERAGE[tab] ? orderFieldSchema(COVERAGE[tab]) : definedOrderField(source);
-	const variants = new Set<string>(SCHEMAS[enumSchema ?? '']?.enum ?? []);
-	const columns = columnKeys(source, enumSchema);
+	const props = dataControlsProps(tab);
+	const serverPaginated = props.has('serverPagination');
+	const serverTags = props.has('onTagFilterChange');
+	// The tab's order fields: the columns the server can sort and group by.
+	const variants = new Set(
+		[...configs.values()].filter((config) => 'orderField' in config).map(getFieldKey)
+	);
+	const columns = columnKeys(tab);
 
 	if (serverPaginated && !decided.listPath) {
 		problems.push(
@@ -724,16 +437,8 @@ function decisionProblems(tab: string, decided: TabDecisions): string[] {
 		problems.push(`${tab}: listPath "${decided.listPath}" has no GET operation in openapi.json.`);
 	}
 
-	for (const variant of variants) {
-		if (!(variant in decided.columns)) {
-			problems.push(
-				`${tab}: ${enumSchema} variant "${variant}" has no decision. Add ${at}.${variant} ` +
-					`with { sort, group, filter }, each true or the reason it is not offered.`
-			);
-		}
-	}
 	for (const column of columns) {
-		if (!variants.has(column) && !(column in decided.columns)) {
+		if (!(column in decided.columns)) {
 			problems.push(
 				`${tab}: column "${column}" has no decision. Add ${at}.${column} with ` +
 					`{ sort, group, filter }, each true or the reason it is not offered.`
@@ -741,15 +446,12 @@ function decisionProblems(tab: string, decided: TabDecisions): string[] {
 		}
 	}
 
-	const configs = new Map(
-		[...fields].map(([column, field]) => [column, fieldConfig(column, field)] as const)
-	);
 	if (serverPaginated) {
 		for (const column of serverOrderViolations([...configs.values()], true)) {
 			problems.push(
 				`${tab}: display field "${column}" sets sortable or groupable on a server-paginated ` +
-					`list, which would order only the loaded page. Drop the flag, or add a ` +
-					`${enumSchema} variant for it.`
+					`list, which would order only the loaded page. Drop the flag, or add an ` +
+					`order field for it.`
 			);
 		}
 		for (const column of serverFilterViolations([...configs.values()], true, {
@@ -800,9 +502,9 @@ function decisionProblems(tab: string, decided: TabDecisions): string[] {
 
 			if (serverPaginated && yes && capability !== 'filter' && !variants.has(column)) {
 				problems.push(
-					`${where} is true, but "${column}" is not a ${enumSchema} variant and a ` +
-						`server-paginated list ${VERB[capability]} only by order fields. Add the variant ` +
-						`to the backend enum, or record the reason it does not ${capability}.`
+					`${where} is true, but "${column}" is not an order field of the tab and a ` +
+						`server-paginated list ${VERB[capability]} only by order fields. Add the variant to ` +
+						`the backend order-field enum, or record the reason it does not ${capability}.`
 				);
 			} else if (yes && !offered[capability]) {
 				problems.push(
@@ -845,22 +547,21 @@ function decisionProblems(tab: string, decided: TabDecisions): string[] {
  * and groups only from column headers.
  */
 function headerControlProblems(tab: string): string[] {
-	const source = readTab(tab);
-	const { fields, problems: unreadable } = tabFields(tab, source);
-	if (unreadable.length > 0) return unreadable.map((problem) => `${tab}: ${problem}.`);
+	const { fields, problems: duplicates } = tabFields(tab);
+	if (duplicates.length > 0) return duplicates.map((problem) => `${tab}: ${problem}.`);
 
-	const serverPaginated = /serverPagination=/.test(source);
-	const staleWired = /onStaleFilterChange=/.test(source);
-	const configs = [...fields].map(([column, field]) => fieldConfig(column, field));
+	const props = dataControlsProps(tab);
+	const serverPaginated = props.has('serverPagination');
+	const staleWired = props.has('onStaleFilterChange');
+	const configs = [...fields.values()];
 	const problems: string[] = [];
 
-	for (const [column, field] of fields) {
-		const config = configs.find((c) => getFieldKey(c) === column)!;
+	for (const [column, config] of fields) {
 		const filters = config.filterable === true;
 		const groups = isGroupableField(config, serverPaginated);
 		if (!filters && !groups) continue;
 
-		if (field.columnless) {
+		if (config.display?.hidden === true) {
 			problems.push(
 				`${tab}: "${column}" ${filters ? 'filters' : 'groups'} but sets display.hidden, so it ` +
 					`has no column header to do it from. Move the filter onto a column, or drop the flag.`
@@ -873,7 +574,7 @@ function headerControlProblems(tab: string): string[] {
 		}
 	}
 
-	const staleColumns = [...fields].filter(([, field]) => field.flags.staleFilter === true);
+	const staleColumns = configs.filter((config) => config.staleFilter === true);
 	if (staleWired && staleColumns.length !== 1) {
 		problems.push(
 			`${tab}: passes onStaleFilterChange, so exactly one field needs staleFilter: true to ` +

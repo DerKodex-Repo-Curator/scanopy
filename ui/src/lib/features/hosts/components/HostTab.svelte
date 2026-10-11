@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
-	import { lastSeenItems } from '$lib/shared/utils/freshness';
 	import type {
 		Host,
 		CreateHostWithServicesRequest,
@@ -21,12 +20,10 @@
 	import HostExportModal from './HostExportModal.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { entityRef, type CardAction } from '$lib/shared/components/data/types';
-	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import type { CardAction } from '$lib/shared/components/data/types';
+	import { hostColumns } from './HostTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
-	import { tagNames } from '$lib/features/tags/columns';
-	import { credentialItems } from '$lib/features/credentials/columns';
-	import { entities, entitySources, concepts } from '$lib/shared/stores/metadata';
+	import { entitySources } from '$lib/shared/stores/metadata';
 	import { Plus, Trash2, RefreshCw, Replace, Edit } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -36,61 +33,18 @@
 		common_confirmDeleteName,
 		common_consolidate,
 		common_create,
-		common_created,
 		common_delete,
-		common_description,
 		common_edit,
-		common_hostname,
-		common_credentials,
 		common_hosts,
-		common_interfaces,
-		common_ports,
-		common_firstFoundBy,
-		common_lastFoundBy,
-		common_ipAddresses,
-		common_lastSeen,
-		common_macAddress,
 		common_confirmBulkDelete,
-		common_manufacturer,
-		common_model,
-		common_name,
-		common_site,
 		common_noEntityYet,
 		common_rescan,
-		common_serialNumber,
-		common_assetTag,
-		common_source,
-		common_firmwareRevision,
-		common_softwareRevision,
-		common_operatingSystem,
-		common_host,
-		common_service,
-		common_services,
-		common_tags,
-		common_unknownEntity,
-		common_unknownSite,
-		common_updated,
-		common_contact,
-		common_location,
 		daemons_installPromptHosts,
-		hosts_fields_presentedBy,
-		hosts_fields_virtualizedBy,
-		hosts_notVirtualized,
-		hosts_snmp_chassisId,
-		hosts_snmp_managementUrl,
-		hosts_snmp_sysDescr,
-		hosts_snmp_sysName,
-		hosts_snmp_sysObjectId
+		hosts_notVirtualized
 	} from '$lib/paraglide/messages';
-	import { entitySourceItems } from '$lib/shared/utils/entity-source';
 
 	let { isReadOnly = false }: TabProps = $props();
-	import {
-		missingRootIds,
-		virtualizationGroupKey,
-		virtualizationGroupLabel,
-		virtualizationTree
-	} from '../virtualization-tree';
+	import { missingRootIds } from '../virtualization-tree';
 	import {
 		useHostsQuery,
 		useHostsByIds,
@@ -106,25 +60,16 @@
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { useIPAddressesQuery } from '$lib/features/ip-addresses/queries';
 	import { usePortsQuery } from '$lib/features/ports/queries';
-	import { formatPort } from '$lib/shared/utils/formatting';
 	import { useInterfacesByIds, useInterfacesQuery } from '$lib/features/interfaces/queries';
 	import { useDiscoveriesByIds } from '$lib/features/discovery/queries';
-	import { discoveryRunIds, discoveryRunItems } from '$lib/features/discovery/columns';
+	import { discoveryRunIds } from '$lib/features/discovery/columns';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
-	import { useSubnetsQuery, isContainerSubnet } from '$lib/features/subnets/queries';
-	import type { Credential } from '$lib/features/credentials/types/base';
-	import type { Interface } from '$lib/features/credentials/types/base';
-	import { formatIPAddress } from '../address-labels';
+	import { useSubnetsQuery } from '$lib/features/subnets/queries';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import type { components } from '$lib/api/schema';
 	import { hasDaemon } from '$lib/shared/onboarding/checklist';
-	import {
-		fieldValueOptions,
-		hasEmptyFieldValue,
-		labelledFieldValueOptions,
-		useFieldValuesQuery
-	} from '$lib/shared/api/field-values';
+	import { useFieldValuesQuery } from '$lib/shared/api/field-values';
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
 	type HostOrderField = components['schemas']['HostOrderField'];
@@ -474,37 +419,8 @@
 		}
 	});
 
-	// What a host holds, resolved here for the table's columns.
-	function hostCredentials(host: Host): Credential[] {
-		return (host.credential_assignments ?? [])
-			.map((a) => credentialsData.find((c) => c.id === a.credential_id))
-			.filter((c): c is Credential => c != null);
-	}
-
-	function hostInterfaces(host: Host): Interface[] {
-		return interfacesData.filter((i) => i.host_id === host.id);
-	}
-
 	function hostIPAddresses(host: Host) {
 		return ipAddressesData.filter((i) => i.host_id === host.id);
-	}
-
-	function hostPorts(host: Host) {
-		return portsData.filter((p) => p.host_id === host.id).sort((a, b) => a.number - b.number);
-	}
-
-	/** The host's distinct MACs across its IP addresses and interfaces, lowest first — the
-	 *  first is the one the server sorts the host by. */
-	function hostMacAddresses(host: Host): string[] {
-		const macs = [...hostIPAddresses(host), ...hostInterfaces(host)]
-			.map((i) => i.mac_address?.toUpperCase())
-			.filter((m): m is string => !!m);
-		return [...new Set(macs)].sort();
-	}
-
-	function isContainerSubnetFn(subnetId: string): boolean {
-		const subnet = subnetsData.find((s) => s.id === subnetId);
-		return subnet ? isContainerSubnet(subnet) : false;
 	}
 
 	// Related entities the registry's host fields read, from the collections this page already
@@ -522,357 +438,31 @@
 		})
 	);
 
-	// Columns from the entity field registry; this tab adds how each one searches, filters, sorts
-	// and groups. Every HostOrderField value must be listed.
 	let hostFields = $derived(
-		defineRegistryFields<Host, HostOrderField>(
-			'Host',
-			() => lookup,
-			{
-				// Identity fields: grouping by one would render a header per host.
-				name: {
-					label: common_name(),
-					searchable: true,
-					groupable: false,
-					// The title, not the stored `name`. `getValue` rather than `display.cell`
-					// because this one accessor also feeds the row header cell and the row
-					// checkbox's accessible name. A `cell` snippet would fix the cell and
-					// leave those two rendering an empty string.
-					//
-					// The key stays `name`: it is the `HostOrderField` sent to the server, which
-					// now orders by the same ladder this renders.
-					getValue: (host) => hostDisplayName(host),
-					display: {
-						primary: true,
-						width: 220,
-						order: 0,
-						// Only when the name shown is the stored one, not a rung further down the ladder.
-						getSource: (host) => (host.display_name_rung === 'Name' ? host.name_source : null)
-					}
-				},
-				hostname: {
-					label: common_hostname(),
-					searchable: true,
-					groupable: false,
-					display: { hiddenByDefault: true }
-				},
-				virtualized_by: {
-					label: hosts_fields_virtualizedBy(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					// The names of the services that virtualize some host, and "Not Virtualized"
-					// only when some host has no virtualizing service (counted as '').
-					filterOptions: fieldValueOptions(virtualizedByValuesQuery.data).concat(
-						hasEmptyFieldValue(virtualizedByValuesQuery.data) ? [hosts_notVirtualized()] : []
-					),
-					groupable: true,
-					// Grouped as a tree: every host under the host at the top of its chain, parent
-					// first. The server groups, orders and counts by the root's id ('' for a host in no
-					// tree); the column itself still shows, sorts and filters on the immediate runtime.
-					getGroupValue: virtualizationGroupKey,
-					getGroupLabel: (host) =>
-						virtualizationGroupLabel(host, virtualizationRoots, {
-							notVirtualized: hosts_notVirtualized(),
-							unknownRoot: common_unknownEntity({ entity: common_host() })
-						}),
-					tree: virtualizationTree,
-					getValue: (host) => {
-						if (host.virtualization_service_id) {
-							const virtualizationService = servicesData.find(
-								(s) => s.id === host.virtualization_service_id
-							);
-							if (virtualizationService) {
-								return (
-									virtualizationService?.name || common_unknownEntity({ entity: common_service() })
-								);
-							}
-						}
-						return hosts_notVirtualized();
-					}
-					// The registry's chips: none when a host isn't virtualized, so the cell renders
-					// the em dash rather than repeating "Not Virtualized" down the column.
-					// `getValue` keeps the phrase, so the filter still offers it.
-				},
-				interface_ip: {
-					label: common_ipAddresses(),
-					type: 'string',
-					searchable: true,
-					// Near-unique per host, so grouping by it is one header per host.
-					groupable: false,
-					getValue: (host) => {
-						const iface = ipAddressesData
-							.filter((i) => i.host_id === host.id)
-							.sort((a, b) => (a.position ?? 0) - (b.position ?? 0))[0];
-						return iface?.ip_address ?? '';
-					},
-					display: {
-						order: 5,
-						// The server orders on the primary address, but a host usually has
-						// several — showing only the first would misrepresent the row.
-						getItems: (host) =>
-							hostIPAddresses(host)
-								.sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-								.map((i) => ({
-									id: i.id,
-									label: formatIPAddress(i, isContainerSubnetFn),
-									color: entities.getColorHelper('IPAddress').color,
-									entityRef: entityRef('IPAddress', i.id, i, { subnets: subnetsData })
-								}))
-					}
-				},
-				mac_address: {
-					label: common_macAddress(),
-					type: 'string',
-					searchable: true,
-					groupable: false,
-					getValue: (host) => hostMacAddresses(host)[0] ?? null,
-					display: {
-						order: 5,
-						getItems: (host) =>
-							hostMacAddresses(host).map((mac) => ({
-								id: mac,
-								label: mac
-							}))
-					}
-				},
-				site_id: {
-					label: common_site(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					groupable: true,
-					// The sites some host is on, by name.
-					filterOptions: labelledFieldValueOptions(
-						siteValuesQuery.data,
-						(id) => sitesData.find((n) => n.id === id)?.name
-					),
-					// Displayed as a name, but grouped by id on the server.
-					getGroupValue: (item) => item.site_id,
-					getValue: (item) =>
-						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
-					// The registry's site chip.
-					display: { order: 2 }
-				},
-				// Audit dates stay available but off by default: 12 columns at once
-				// is unreadable, and these are rarely what someone is scanning for.
-				created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
-				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } },
-				last_seen_at: {
-					label: common_lastSeen(),
-					type: 'date',
-					staleFilter: true,
-					display: { recency: true, order: 1, getItems: lastSeenItems(() => sitesData, 'Host') }
-				},
-				// How the host came to exist, read from `source.type`. An inferred host (one a
-				// neighbour advertised and nothing scanned) looks the same as a down device by its
-				// ports and services, so the chip and filter read the stamped source, never those.
-				source: {
-					label: common_source(),
-					filterable: true,
-					serverFiltered: true,
-					// The sources some host was stamped with, by name.
-					filterOptions: labelledFieldValueOptions(sourceValuesQuery.data, (id) =>
-						entitySources.getName(id)
-					),
-					// The server groups on the raw `source.type`.
-					getGroupValue: (host) => host.source.type,
-					display: { order: 1, getItems: (host) => entitySourceItems(host.source) }
-				},
-				// Hardware identity, off by default: populated only for hosts a credentialed scan
-				// reached. The options come from every stored value, and the server groups on the
-				// stored string, which is also what renders.
-				manufacturer: {
-					label: common_manufacturer(),
-					filterable: true,
-					serverFiltered: true,
-					filterOptions: fieldValueOptions(manufacturerValuesQuery.data),
-					display: { hiddenByDefault: true }
-				},
-				model: {
-					label: common_model(),
-					filterable: true,
-					serverFiltered: true,
-					filterOptions: fieldValueOptions(modelValuesQuery.data),
-					display: { hiddenByDefault: true }
-				},
-				sys_location: {
-					label: common_location(),
-					filterable: true,
-					serverFiltered: true,
-					filterOptions: fieldValueOptions(sysLocationValuesQuery.data),
-					display: { hiddenByDefault: true }
-				},
-				// Sorted, grouped and filtered by family; the cell shows the full product and release.
-				os_family: {
-					label: common_operatingSystem(),
-					filterable: true,
-					serverFiltered: true,
-					// The families some host runs, resolved through the same list the handler
-					// maps names back with.
-					filterOptions: labelledFieldValueOptions(osFamilyValuesQuery.data, (value) => {
-						const family = hostOsFamilyIds.find((id) => id === value);
-						return family ? hostOsFamilyName(family) : null;
-					}),
-					getValue: (host) => (host.os ? hostOsFamilyName(host.os.family) : null),
-					getGroupValue: (host) => host.os?.family ?? null,
-					display: { hiddenByDefault: true, cell: osCell }
-				}
-			},
-			[
-				{
-					key: 'description',
-					label: common_description(),
-					searchable: true,
-					display: { hiddenByDefault: true }
-				},
-				// Off by default: populated only for hosts a credentialed scan reached. Identifiers,
-				// vendor version strings, opaque OIDs and free text, so none sorts, groups or filters.
-				{
-					key: 'serial_number',
-					label: common_serialNumber(),
-					display: { hiddenByDefault: true }
-				},
-				{ key: 'asset_tag', label: common_assetTag(), display: { hiddenByDefault: true } },
-				{
-					key: 'firmware_revision',
-					label: common_firmwareRevision(),
-					display: { hiddenByDefault: true }
-				},
-				{
-					key: 'software_revision',
-					label: common_softwareRevision(),
-					display: { hiddenByDefault: true }
-				},
-				{ key: 'sys_name', label: hosts_snmp_sysName(), display: { hiddenByDefault: true } },
-				{ key: 'sys_descr', label: hosts_snmp_sysDescr(), display: { hiddenByDefault: true } },
-				{
-					key: 'sys_object_id',
-					label: hosts_snmp_sysObjectId(),
-					display: { hiddenByDefault: true }
-				},
-				{ key: 'sys_contact', label: common_contact(), display: { hiddenByDefault: true } },
-				{ key: 'chassis_id', label: hosts_snmp_chassisId(), display: { hiddenByDefault: true } },
-				{
-					key: 'management_url',
-					label: hosts_snmp_managementUrl(),
-					display: { hiddenByDefault: true }
-				},
-				// The registry's chip for the interface on the virtualizing host.
-				{
-					key: 'presented_by',
-					label: hosts_fields_presentedBy(),
-					display: { hiddenByDefault: true }
-				},
-				{
-					key: 'first_found_by',
-					label: common_firstFoundBy(),
-					type: 'string',
-					display: {
-						hiddenByDefault: true,
-						getItems: (host) => discoveryRunItems(host.first_discovery_id, discoveryRunsData)
-					}
-				},
-				{
-					key: 'last_found_by',
-					label: common_lastFoundBy(),
-					type: 'string',
-					display: {
-						hiddenByDefault: true,
-						getItems: (host) => discoveryRunItems(host.last_discovery_id, discoveryRunsData)
-					}
-				},
-				{
-					key: 'tags',
-					label: common_tags(),
-					type: 'array',
-					searchable: true,
-					filterable: true,
-					// Search and filter match the same names the cell renders, so a row
-					// can never show a tag the filter above it disagrees with.
-					getValue: (entity) => tagNames(entity.tags, tagsData)
-				},
-				{
-					key: 'credentials',
-					label: common_credentials(),
-					type: 'array',
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					// Names, resolved back to ids for the server. Only credentials assigned to some host:
-					// the rest match nothing.
-					filterOptions: credentialsData
-						.filter((c) => (c.host_assignments ?? []).length > 0)
-						.map((c) => c.name),
-					getValue: (host) => hostCredentials(host).map((c) => c.name),
-					display: {
-						order: 3,
-						getItems: (host) => credentialItems(hostCredentials(host))
-					}
-				},
-				// The registry's interface names and chips.
-				{
-					key: 'interfaces',
-					label: common_interfaces(),
-					searchable: true,
-					display: { order: 4 }
-				},
-				{
-					// Off by default: Services already says what answers on a port, and the open ports
-					// alone matter when nothing was matched to them.
-					key: 'ports',
-					label: common_ports(),
-					searchable: true,
-					// Lowest port first, which the registry's collection order doesn't give.
-					getValue: (host) => hostPorts(host).map((p) => formatPort(p)),
-					display: {
-						hiddenByDefault: true,
-						getItems: (host) =>
-							hostPorts(host).map((port) => ({
-								id: port.id,
-								label: formatPort(port),
-								color: entities.getColorHelper('Port').color,
-								// What the popover needs to name the service on the port and its addresses.
-								entityRef: entityRef('Port', port.id, port, {
-									currentServices: allServicesData.filter((s) => s.host_id === host.id),
-									ip_addresses: hostIPAddresses(host),
-									isContainerSubnet: isContainerSubnetFn
-								})
-							}))
-					}
-				},
-				{
-					key: 'services',
-					label: common_services(),
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					// Names, not ids: the server matches a host's services by name. The options are
-					// every live service name the server counts; the services cache only holds the
-					// loaded page's.
-					filterOptions: fieldValueOptions(serviceNameValuesQuery.data),
-					display: {
-						order: 6,
-						// Containers are services too, so they share this column rather
-						// than getting one of their own; the colour carries the
-						// distinction instead of a second header.
-						getItems: (host) =>
-							allServicesData
-								.filter((s) => s.host_id === host.id)
-								.map((s) => ({
-									id: s.id,
-									label: s.name,
-									color: s.virtualization_metadata
-										? concepts.getColorHelper('Containerization').color
-										: entities.getColorHelper('Service').color,
-									entityRef: entityRef('Service', s.id, s)
-								}))
-					}
-				}
-			]
-		)
+		hostColumns({
+			lookup: () => lookup,
+			services: () => servicesData,
+			allServices: () => allServicesData,
+			ipAddresses: () => ipAddressesData,
+			ports: () => portsData,
+			interfaces: () => interfacesData,
+			credentials: () => credentialsData,
+			subnets: () => subnetsData,
+			sites: () => sitesData,
+			tags: () => tagsData,
+			discoveryRuns: () => discoveryRunsData,
+			virtualizationRoots: () => virtualizationRoots,
+			hostIPAddresses,
+			siteValues: () => siteValuesQuery.data,
+			virtualizedByValues: () => virtualizedByValuesQuery.data,
+			sourceValues: () => sourceValuesQuery.data,
+			osFamilyValues: () => osFamilyValuesQuery.data,
+			manufacturerValues: () => manufacturerValuesQuery.data,
+			modelValues: () => modelValuesQuery.data,
+			sysLocationValues: () => sysLocationValuesQuery.data,
+			serviceNameValues: () => serviceNameValuesQuery.data,
+			osCell
+		})
 	);
 
 	function handleCreateHost() {

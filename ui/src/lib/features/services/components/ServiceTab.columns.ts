@@ -1,0 +1,342 @@
+import { lastSeenItems } from '$lib/shared/utils/freshness';
+import { entityRef, type LabelledCardFieldItem } from '$lib/shared/components/data/types';
+import { tagNames } from '$lib/features/tags/columns';
+import { entities, entitySources, matchConfidences } from '$lib/shared/stores/metadata';
+import { entitySourceItems } from '$lib/shared/utils/entity-source';
+import { discoveryRunItems } from '$lib/features/discovery/columns';
+import { hostDisplayName } from '$lib/features/hosts/host-display-name';
+import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+import type { EntityLookup } from '$lib/shared/entity-fields';
+import type { components } from '$lib/api/schema';
+import type { Host } from '$lib/features/hosts/types/base';
+import type { Site } from '$lib/features/sites/types';
+import type { Tag } from '$lib/features/tags/types/base';
+import type { Discovery } from '$lib/features/discovery/types/base';
+import type { Service } from '../types/base';
+import {
+	common_containerizedBy,
+	common_firstFoundBy,
+	common_lastFoundBy,
+	common_created,
+	common_host,
+	common_lastSeen,
+	common_category,
+	common_tags,
+	common_type,
+	common_portBindings,
+	common_ipAddressBindings,
+	common_unknown,
+	common_unknownEntity,
+	common_unknownSite,
+	common_updated,
+	services_matchConfidence,
+	services_notContainerized,
+	services_notDiscovered
+} from '$lib/paraglide/messages';
+import {
+	serviceDefinitions,
+	serviceCategories as serviceCategoryMeta,
+	concepts
+} from '$lib/shared/stores/metadata';
+import {
+	fieldValueOptions,
+	hasEmptyFieldValue,
+	labelledFieldValueOptions,
+	type FieldValueCount
+} from '$lib/shared/api/field-values';
+
+type ServiceOrderField = components['schemas']['ServiceOrderField'];
+
+/** What the service columns read from the tab, each as a getter so values stay live. */
+export interface ServiceColumnsContext {
+	lookup: () => EntityLookup;
+	/** The host each visible service runs on, by service id. */
+	serviceHosts: () => Map<string, Host | undefined>;
+	sites: () => Site[];
+	tags: () => Tag[];
+	discoveryRuns: () => Discovery[];
+	/** The runtimes containerizing the visible services. */
+	runtimes: () => Service[];
+	/** Server-counted filter options, one per server-filtered field. */
+	hostValues: () => FieldValueCount[] | undefined;
+	siteValues: () => FieldValueCount[] | undefined;
+	definitionValues: () => FieldValueCount[] | undefined;
+	containerizedByValues: () => FieldValueCount[] | undefined;
+	matchConfidenceValues: () => FieldValueCount[] | undefined;
+	sourceValues: () => FieldValueCount[] | undefined;
+	wellKnownPortNumbers: () => string[];
+	serviceCategories: () => string[];
+	portBindingItems: (service: Service) => LabelledCardFieldItem[];
+	ipBindingItems: (service: Service) => LabelledCardFieldItem[];
+}
+
+/**
+ * Columns from the entity field registry; this adds how each one searches, filters and sorts,
+ * and keeps the tab's own cells where they show more than the registry's. Every
+ * ServiceOrderField value must be listed.
+ */
+export function serviceColumns(ctx: ServiceColumnsContext) {
+	return defineRegistryFields<Service, ServiceOrderField>(
+		'Service',
+		ctx.lookup,
+		{
+			// Identity field: grouping by it would render a header per service.
+			name: {
+				searchable: true,
+				groupable: false,
+				display: { order: 0, primary: true, width: 220 }
+			},
+			host: {
+				type: 'string',
+				searchable: true,
+				filterable: true,
+				serverFiltered: true,
+				// The titles of the hosts some service runs on: the server counts the same
+				// title ladder `hostDisplayName` renders, and the handler maps each back to
+				// ids through the full host list.
+				filterOptions: fieldValueOptions(ctx.hostValues()),
+				groupable: true,
+				// The server groups on the host's title — the same full ladder rendered below —
+				// coalescing services with no host to an empty string. Both sides have to walk
+				// every rung or two hosts the server lumps into one group get two alternating
+				// headers drawn over their interleaved rows.
+				getGroupValue: (service) => {
+					const host = ctx.serviceHosts().get(service.id);
+					return host ? hostDisplayName(host) : '';
+				},
+				getValue: (service) => {
+					const host = ctx.serviceHosts().get(service.id);
+					return host ? hostDisplayName(host) : common_unknownEntity({ entity: common_host() });
+				},
+				display: {
+					order: 3,
+					getItems: (service) => {
+						const host = ctx.serviceHosts().get(service.id);
+						if (!host) return [];
+						return [
+							{
+								id: host.id,
+								label: hostDisplayName(host),
+								color: entities.getColorHelper('Host').color,
+								entityRef: entityRef('Host', host.id, host)
+							}
+						];
+					}
+				}
+			},
+			site_id: {
+				type: 'string',
+				searchable: true,
+				filterable: true,
+				serverFiltered: true,
+				// The sites some service is on, by name.
+				filterOptions: labelledFieldValueOptions(
+					ctx.siteValues(),
+					(id) => ctx.sites().find((n) => n.id === id)?.name
+				),
+				groupable: true,
+				// Displayed as a name, but grouped by id on the server.
+				getGroupValue: (item) => item.site_id,
+				getValue: (item) =>
+					ctx.sites().find((n) => n.id == item.site_id)?.name || common_unknownSite(),
+				display: { order: 2 }
+			},
+			// Per-service ordinal, so grouping by it is one header per service.
+			position: {
+				groupable: false,
+				display: { hiddenByDefault: true, align: 'right' }
+			},
+			service_definition: {
+				label: common_type(),
+				searchable: true,
+				filterable: true,
+				serverFiltered: true,
+				// The definitions some service matched, by name.
+				filterOptions: labelledFieldValueOptions(ctx.definitionValues(), (id) =>
+					serviceDefinitions.getName(id)
+				),
+				groupable: true,
+				// The server groups on the raw definition id; the UI renders its
+				// friendly name, so the group key has to be supplied separately.
+				getGroupValue: (service) => service.service_definition,
+				display: {
+					order: 4,
+					getItems: (service) => [
+						{
+							id: service.service_definition,
+							...serviceDefinitions.getTag(service.service_definition),
+							icon: serviceDefinitions.getIconComponent(service.service_definition)
+						}
+					]
+				}
+			},
+			created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
+			updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } },
+			// Staleness rides on the date rather than a Status column of its own: a
+			// service has no status, and `getFreshnessTag` returns a tag only when
+			// the row is past its site's window — so the column was empty on
+			// every healthy service. `getItems` returning undefined falls back to
+			// the date.
+			last_seen_at: {
+				label: common_lastSeen(),
+				type: 'date',
+				staleFilter: true,
+				display: {
+					recency: true,
+					order: 1,
+					getItems: lastSeenItems(ctx.sites, 'Service')
+				}
+			},
+			containerized_by: {
+				type: 'string',
+				label: common_containerizedBy(),
+				searchable: true,
+				filterable: true,
+				serverFiltered: true,
+				// The names of the runtimes that containerize some service, and "Not
+				// Containerized" only when some service has none (counted as '').
+				filterOptions: fieldValueOptions(ctx.containerizedByValues()).concat(
+					hasEmptyFieldValue(ctx.containerizedByValues()) ? [services_notContainerized()] : []
+				),
+				getValue: (item) =>
+					ctx.runtimes().find((s) => s.id == item.virtualization_service_id)?.name ||
+					services_notContainerized(),
+				// The server groups on the containerizing service's name, coalescing
+				// services without one to an empty string.
+				getGroupValue: (item) =>
+					ctx.runtimes().find((s) => s.id == item.virtualization_service_id)?.name ?? '',
+				display: {
+					hiddenByDefault: true,
+					// No chip when a service isn't containerized, so the cell shows an
+					// em dash rather than repeating the phrase down the column. The
+					// phrase stays in `getValue`, so the filter still offers it.
+					getItems: (item) => {
+						const runtime = ctx.runtimes().find((s) => s.id == item.virtualization_service_id);
+						if (!runtime) return [];
+						return [
+							{
+								id: runtime.id,
+								label: runtime.name,
+								color: concepts.getColorHelper('Containerization').color,
+								entityRef: entityRef('Service', runtime.id, runtime)
+							}
+						];
+					}
+				}
+			},
+			match_confidence: {
+				label: services_matchConfidence(),
+				type: 'string',
+				searchable: true,
+				filterable: true,
+				serverFiltered: true,
+				// The confidences some match carries, by name.
+				filterOptions: labelledFieldValueOptions(ctx.matchConfidenceValues(), (id) =>
+					matchConfidences.getName(id)
+				),
+				getValue: (item) =>
+					item.source.type == 'DiscoveryWithMatch'
+						? matchConfidences.getName(item.source.details.confidence)
+						: services_notDiscovered(),
+				// The server groups on the raw confidence id, null for services matched
+				// without one.
+				getGroupValue: (item) =>
+					item.source.type == 'DiscoveryWithMatch' ? item.source.details.confidence : null,
+				display: { hiddenByDefault: true }
+			},
+			source: {
+				filterable: true,
+				serverFiltered: true,
+				// The sources some service was stamped with, by name.
+				filterOptions: labelledFieldValueOptions(ctx.sourceValues(), (id) =>
+					entitySources.getName(id)
+				),
+				// The server groups on the raw `source.type`.
+				getGroupValue: (service) => service.source.type,
+				display: {
+					hiddenByDefault: true,
+					getItems: (service) => entitySourceItems(service.source)
+				}
+			}
+		},
+		[
+			{
+				key: 'port_bindings',
+				label: common_portBindings(),
+				type: 'array',
+				searchable: true,
+				// Filters by port number, which the server matches against each
+				// binding's port, so the options are numbers while the cells show
+				// the full binding.
+				filterable: true,
+				serverFiltered: true,
+				filterOptions: ctx.wellKnownPortNumbers(),
+				getValue: (service) => ctx.portBindingItems(service).map((b) => b.label),
+				display: { hiddenByDefault: true, getItems: ctx.portBindingItems }
+			},
+			{
+				key: 'ip_bindings',
+				label: common_ipAddressBindings(),
+				type: 'array',
+				searchable: true,
+				getValue: (service) => ctx.ipBindingItems(service).map((b) => b.label),
+				display: { hiddenByDefault: true, getItems: ctx.ipBindingItems }
+			},
+			{
+				key: 'category',
+				label: common_category(),
+				type: 'string',
+				searchable: true,
+				filterable: true,
+				serverFiltered: true,
+				filterMode: 'exclude',
+				filterOptions: ctx.serviceCategories(),
+				filterDefaults: ['OpenPorts'],
+				getValue: (item) =>
+					serviceDefinitions.getCategory(item.service_definition) || common_unknown(),
+				display: {
+					order: 5,
+					getItems: (item) => {
+						const category = serviceDefinitions.getCategory(item.service_definition);
+						if (!category) return [];
+						// Categories carry their own colour in the metadata fixture, so
+						// use it rather than rendering every category identically grey.
+						return [
+							{
+								id: category,
+								...serviceCategoryMeta.getTag(category),
+								icon: serviceCategoryMeta.getIconComponent(category)
+							}
+						];
+					}
+				}
+			},
+			{
+				key: 'first_found_by',
+				label: common_firstFoundBy(),
+				type: 'string',
+				display: {
+					hiddenByDefault: true,
+					getItems: (item) => discoveryRunItems(item.first_discovery_id, ctx.discoveryRuns())
+				}
+			},
+			{
+				key: 'last_found_by',
+				label: common_lastFoundBy(),
+				type: 'string',
+				display: {
+					hiddenByDefault: true,
+					getItems: (item) => discoveryRunItems(item.last_discovery_id, ctx.discoveryRuns())
+				}
+			},
+			{
+				key: 'tags',
+				label: common_tags(),
+				type: 'array',
+				searchable: true,
+				filterable: true,
+				getValue: (entity) => tagNames(entity.tags, ctx.tags())
+			}
+		]
+	);
+}

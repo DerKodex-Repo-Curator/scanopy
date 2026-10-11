@@ -13,62 +13,36 @@
 	import type { CredentialOrderField } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import {
-		entityRef,
-		type CardAction,
-		type CardFieldItem
-	} from '$lib/shared/components/data/types';
-	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import type { CardAction, CardFieldItem } from '$lib/shared/components/data/types';
+	import { credentialColumns } from './CredentialsTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
 	import type { Site } from '$lib/features/sites/types';
 	import { Plus, Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import {
-		permissions,
-		credentialTypes,
-		billingPlans,
-		entities
-	} from '$lib/shared/stores/metadata';
-	import {
-		getCredentialTypeId,
-		getStabilityTagProps,
-		getTargetTagProps,
-		getUpstreamSupportTagProps
-	} from '$lib/features/credentials/types/base';
+	import { permissions, credentialTypes, billingPlans } from '$lib/shared/stores/metadata';
+	import { getCredentialTypeId } from '$lib/features/credentials/types/base';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import type { TabProps } from '$lib/shared/types';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import type { Host } from '$lib/features/hosts/types/base';
-	import { hostDisplayName } from '$lib/features/hosts/host-display-name';
-	import osFamilies from '$lib/data/os-families.json';
 	import {
-		common_beta,
 		common_confirmDeleteName,
 		common_create,
-		common_created,
 		common_delete,
 		common_edit,
-		common_type,
-		common_updated,
 		credentials_bulkDeleteConfirm,
 		credentials_bulkDeleteImpact,
 		credentials_deleteImpact,
 		credentials_emptySubtitle,
 		credentials_subtitle,
-		credentials_unofficialApi,
 		common_credentials,
-		common_hosts,
-		common_sites,
 		common_notApplicable,
-		common_noEntityYet,
-		common_tags,
-		common_targets
+		common_noEntityYet
 	} from '$lib/paraglide/messages';
 	import { useTagsQuery } from '$lib/features/tags/queries';
-	import { tagNames } from '$lib/features/tags/columns';
 
 	let { isReadOnly = false }: TabProps = $props();
 
@@ -291,193 +265,15 @@
 	// The registry's credential fields are all the credential's own, so the lookup holds nothing.
 	const lookup = collectionLookup({});
 
-	// Columns from the entity field registry; this tab adds how each one searches, filters and
-	// sorts. Every CredentialOrderField value must be listed.
-	const credentialFields = defineRegistryFields<Credential, CredentialOrderField>(
-		'Credential',
-		() => lookup,
-		{
-			// Identity field: grouping by it would render a header per credential.
-			name: {
-				searchable: true,
-				groupable: false,
-				display: { primary: true, width: 220 }
-			},
-			created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
-			updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
-		},
-		[
-			{
-				// Set only on credentials that read files or sockets on the daemon; empty otherwise.
-				key: 'daemon_os',
-				filterable: true,
-				groupable: true,
-				sortable: true,
-				// The field holds an OS family, so the options are every family, named the same way.
-				filterOptions: osFamilies.map((family) => family.name),
-				getValue: (item: Credential) =>
-					item.daemon_os
-						? (osFamilies.find((family) => family.id === item.daemon_os)?.name ?? item.daemon_os)
-						: null,
-				display: { hiddenByDefault: true }
-			},
-			{
-				key: 'credential_type',
-				label: common_type(),
-				type: 'string',
-				searchable: true,
-				filterable: true,
-				// Type is the axis credentials are actually organized by.
-				groupable: true,
-				sortable: true,
-				filterMode: 'include',
-				filterOptions: credentialTypes.getItems().map((t) => credentialTypes.getName(t.id)),
-				getValue: (item: Credential) => credentialTypes.getName(getCredentialTypeId(item)),
-				display: {
-					getItems: (item: Credential) => {
-						const typeId = getCredentialTypeId(item);
-						return [
-							{
-								id: typeId,
-								...credentialTypes.getTag(typeId),
-								icon: credentialTypes.getIconComponent(typeId)
-							}
-						];
-					}
-				}
-			},
-			{
-				// Beta and unofficial API are properties of the type, each with its own column so
-				// either can be grouped and filtered on its own. A cell shows the tag the wizard and
-				// the type dropdown use, and stays empty for a stable or vendor-supported type.
-				key: 'beta',
-				label: common_beta(),
-				type: 'boolean',
-				filterable: true,
-				groupable: true,
-				getValue: (item: Credential) =>
-					credentialTypes.getMetadata(getCredentialTypeId(item))?.stability === 'Beta',
-				display: {
-					getItems: (item: Credential) => {
-						const typeId = getCredentialTypeId(item);
-						const tag = getStabilityTagProps(credentialTypes.getMetadata(typeId)?.stability);
-						return tag ? [{ id: `${typeId}-beta`, ...tag }] : [];
-					}
-				}
-			},
-			{
-				key: 'unofficial_api',
-				label: credentials_unofficialApi(),
-				type: 'boolean',
-				filterable: true,
-				groupable: true,
-				getValue: (item: Credential) =>
-					credentialTypes.getMetadata(getCredentialTypeId(item))?.upstream_support ===
-					'Undocumented',
-				display: {
-					getItems: (item: Credential) => {
-						const typeId = getCredentialTypeId(item);
-						const tag = getUpstreamSupportTagProps(
-							credentialTypes.getMetadata(typeId)?.upstream_support
-						);
-						return tag ? [{ id: `${typeId}-unofficial-api`, ...tag }] : [];
-					}
-				}
-			},
-			{ key: 'description', searchable: true },
-			{
-				key: 'assigned_sites',
-				label: common_sites(),
-				type: 'array',
-				searchable: true,
-				// Credentials share sites, so this filters. Hosts are near-unique per credential,
-				// so search covers those.
-				filterable: true,
-				getValue: (item: Credential) => sitesForCredential(item).map((n) => n.name),
-				display: {
-					getItems: (item: Credential) =>
-						assignmentItems(
-							targetsFor(item).includes('Site'),
-							sitesForCredential(item).map((site) => ({
-								id: site.id,
-								label: site.name,
-								color: entities.getColorHelper('Site').color,
-								entityRef: entityRef('Site', site.id, site)
-							}))
-						)
-				}
-			},
-			{
-				key: 'assigned_hosts',
-				label: common_hosts(),
-				type: 'array',
-				searchable: true,
-				getValue: (item: Credential) => hostsForCredential(item).map(hostDisplayName),
-				display: {
-					getItems: (item: Credential) =>
-						assignmentItems(
-							// DaemonHost-only credentials (Docker/Podman sockets) are
-							// assigned to their daemon's host through the same junction.
-							targetsFor(item).some((t) => t === 'Hosts' || t === 'DaemonHost'),
-							hostsForCredential(item).map((host) => ({
-								id: host.id,
-								label: hostDisplayName(host),
-								// A daemon-host credential reaches that host *through* its
-								// daemon, so it reads as a daemon relationship rather than a
-								// host one. Only credentials that target hosts generally get
-								// the host colour.
-								color: entities.getColorHelper(daemonHostOnly(item) ? 'Daemon' : 'Host').color,
-								entityRef: entityRef('Host', host.id, host)
-							}))
-						)
-				}
-			},
-			{
-				key: 'target',
-				label: common_targets(),
-				type: 'array',
-				searchable: true,
-				filterable: true,
-				filterMode: 'include',
-				// Every scope a credential type declares, read from the type metadata.
-				filterOptions: [
-					...new Set(
-						credentialTypes
-							.getItems()
-							.flatMap((t) => credentialTypes.getMetadata(t.id).targets ?? [])
-					)
-				],
-				getValue: (item: Credential) => {
-					const typeId = getCredentialTypeId(item);
-					const meta = credentialTypes.getMetadata(typeId);
-					return meta?.targets ?? [];
-				},
-				display: {
-					// Off by default: the target set is a property of the credential *type*, so it repeats
-					// down the column for every credential of the same type and earns its width
-					// only when someone is actually filtering by it. Still filterable. An array, so
-					// it neither sorts nor groups.
-					hiddenByDefault: true,
-					// Coloured chips per target rather than undifferentiated grey.
-					getItems: (item: Credential) => {
-						const meta = credentialTypes.getMetadata(getCredentialTypeId(item));
-						return (meta?.targets ?? []).map((target: string) => ({
-							id: target,
-							...getTargetTagProps(target)
-						}));
-					}
-				}
-			},
-			{
-				key: 'tags',
-				label: common_tags(),
-				type: 'array',
-				searchable: true,
-				filterable: true,
-				getValue: (entity: Credential) => tagNames(entity.tags, tagsData)
-			}
-		]
-	);
+	const credentialFields = credentialColumns({
+		lookup: () => lookup,
+		tags: () => tagsData,
+		sitesForCredential,
+		hostsForCredential,
+		targetsFor,
+		daemonHostOnly,
+		assignmentItems
+	});
 </script>
 
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->

@@ -14,21 +14,14 @@
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import type { CardAction } from '$lib/shared/components/data/types';
-	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { tagColumns } from './TagTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { Plus, Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { permissions, billingPlans } from '$lib/shared/stores/metadata';
 	import type { TabProps } from '$lib/shared/types';
-	import {
-		applicationGroupId,
-		compareTagsByGroup,
-		groupOf,
-		tagGroupLabel,
-		tagIcon
-	} from '../groups';
-	import { tagItems } from '../columns';
+	import { applicationGroupId } from '../groups';
 	import type { components } from '$lib/api/schema';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
@@ -36,13 +29,10 @@
 		common_confirmBulkDelete,
 		common_confirmDeleteName,
 		common_create,
-		common_created,
 		common_delete,
 		common_edit,
 		common_noEntityYet,
 		common_tags,
-		common_updated,
-		tags_tagGroup,
 		tags_noTagsHelp,
 		tags_subtitle
 	} from '$lib/paraglide/messages';
@@ -173,69 +163,13 @@
 		sort: { field: 'tag_group', direction: 'asc' }
 	};
 
-	// Columns from the entity field registry; this tab adds how each one searches, filters and
-	// sorts. Every TagOrderField value must be listed.
 	let lookup = $derived(collectionLookup({ TagGroup: tagGroups }));
 	let tagFields = $derived(
-		defineRegistryFields<Tag, TagOrderField>(
-			'Tag',
-			() => lookup,
-			{
-				// Identity field: grouping by it would render a header per tag. Drawn as the tag itself,
-				// with its icon and colour, as it appears on every entity carrying it.
-				name: {
-					searchable: true,
-					groupable: false,
-					display: {
-						primary: true,
-						width: 220,
-						getItems: (tag) => tagItems([tag.id], [tag], tagGroups)
-					}
-				},
-				color: {
-					searchable: true,
-					filterable: true,
-					// A colour name is worth showing in its own colour. Hidden by default: the name column
-					// already draws it, so this column is there to group and filter by.
-					display: {
-						hiddenByDefault: true,
-						getItems: (tag) => [
-							{
-								id: tag.color,
-								label: tag.color.charAt(0).toUpperCase() + tag.color.slice(1),
-								color: tag.color
-							}
-						]
-					}
-				},
-				tag_group: {
-					label: tags_tagGroup(),
-					filterable: true,
-					// A system group reads under its translated name.
-					getValue: (tag) => tagGroupLabel(groupOf(tag, tagGroups)),
-					// Groups in the server's order, each group's tags in its own order.
-					compare: compareTagsByGroup(tagGroups)
-				},
-				created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
-				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
-			},
-			[
-				{ key: 'description', searchable: true },
-				{
-					// Hidden by default for the same reason as colour: the name column draws the icon.
-					key: 'icon',
-					filterable: true,
-					groupable: true,
-					display: {
-						hiddenByDefault: true,
-						getItems: (tag) => {
-							const icon = tagIcon(tag, applicationGroup);
-							return icon && tag.icon ? [{ id: tag.icon, label: tag.icon, icon }] : [];
-						}
-					}
-				}
-			]
-		)
+		tagColumns({
+			lookup: () => lookup,
+			tagGroups: () => tagGroups,
+			applicationGroup: () => applicationGroup
+		})
 	);
 </script>
 
