@@ -636,7 +636,7 @@ impl TypeMetadataProvider for AttributeSourceDiscriminants {
             Self::ArpReply => "ARP",
             Self::IcmpEcho => "Ping",
             Self::PortScan => "Port scan",
-            Self::DaemonSelfReport => "The daemon on this host",
+            Self::DaemonSelfReport => "Daemon self-report",
             Self::ProfinetDcp => "PROFINET DCP",
             Self::ContainerRuntimeInfo => "Container engine",
             Self::HypervisorConfig => "Hypervisor or runtime configuration",
@@ -697,7 +697,9 @@ impl TypeMetadataProvider for AttributeSourceDiscriminants {
             Self::PortScan => {
                 "The host accepted a connection on a port Scanopy scanned, or answered a UDP probe."
             }
-            Self::DaemonSelfReport => "The Scanopy daemon running on this host read it locally.",
+            Self::DaemonSelfReport => {
+                "The Scanopy daemon read it locally from the machine it runs on."
+            }
             Self::ProfinetDcp => "The device answered a PROFINET DCP identify request.",
             Self::ContainerRuntimeInfo => {
                 "The Docker or Podman engine on this host reported the machine it runs on."

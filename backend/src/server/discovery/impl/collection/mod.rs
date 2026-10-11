@@ -40,8 +40,7 @@ pub use check::{
 };
 pub use classify::{Producer, SourceCollection};
 pub use fixture::{
-    CollectedDataEntry, CollectedDataIntegrationEntry, CollectedDataMethodEntry,
-    CredentialTypeEntry, all_collected_data,
+    CollectedDataEntry, CollectedDataIntegrationEntry, CollectedDataMethodEntry, all_collected_data,
 };
 
 use serde::{Deserialize, Serialize};
