@@ -195,7 +195,6 @@ impl DiscoveryRunner {
             description: Some("Scanopy daemon".to_string()),
             tags: Vec::new(),
             source: EntitySource::Discovery,
-            hidden: false,
             virtualization_metadata: None,
             virtualization_service_id: None,
             virtualization_interface_id: None,

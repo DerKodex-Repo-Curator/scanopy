@@ -180,6 +180,29 @@ const STARTER_TAG_GROUPS: [(&str, &[StarterTag]); 4] = [
     ),
 ];
 
+/// The tag a new Visibility group starts with. The migration seeds the same tag.
+pub fn hidden_tag(organization_id: Uuid, visibility_group_id: Uuid) -> Tag {
+    Tag::new(TagBase {
+        name: "Hidden".to_string(),
+        description: Some("Left out of topology.".to_string()),
+        color: Color::Gray,
+        organization_id,
+        tag_group_id: Some(visibility_group_id),
+        position: None,
+        icon: Some(TagIcon(Icon::EyeOff)),
+    })
+}
+
+/// What a starter custom group is for.
+pub fn starter_group_description(name: &str) -> Option<&'static str> {
+    match name {
+        "Environment" => Some("Which stage of delivery an asset serves."),
+        "Criticality" => Some("How much an outage of the asset costs."),
+        "Management" => Some("Who administers the asset."),
+        _ => None,
+    }
+}
+
 /// The custom groups every organization starts with, besides the system groups.
 pub fn starter_custom_group_names() -> Vec<&'static str> {
     STARTER_TAG_GROUPS
@@ -269,7 +292,6 @@ pub fn create_remote_host(
         source: EntitySource::System,
         virtualization_metadata: None,
         virtualization_service_id: None,
-        hidden: false,
         ..Default::default()
     };
 
@@ -313,7 +335,6 @@ pub fn create_internet_connectivity_host(
         source: EntitySource::System,
         virtualization_metadata: None,
         virtualization_service_id: None,
-        hidden: false,
         ..Default::default()
     };
 
@@ -358,7 +379,6 @@ pub fn create_public_dns_host(
         source: EntitySource::System,
         virtualization_metadata: None,
         virtualization_service_id: None,
-        hidden: false,
         ..Default::default()
     };
 

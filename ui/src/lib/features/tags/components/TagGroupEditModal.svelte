@@ -6,15 +6,20 @@
 	import ModalHeaderIcon from '$lib/shared/components/layout/ModalHeaderIcon.svelte';
 	import EntityMetadataSection from '$lib/shared/components/forms/EntityMetadataSection.svelte';
 	import TextInput from '$lib/shared/components/forms/input/TextInput.svelte';
+	import TextArea from '$lib/shared/components/forms/input/TextArea.svelte';
 	import RadioGroup from '$lib/shared/components/forms/input/RadioGroup.svelte';
 	import ListManager from '$lib/shared/components/forms/selection/ListManager.svelte';
 	import { TagDisplay } from '$lib/shared/components/forms/selection/display/TagDisplay.svelte';
+	import {
+		EntityTypeDisplay,
+		type EntityTypeOption
+	} from '$lib/shared/components/forms/selection/display/EntityTypeDisplay.svelte';
 	import { entities } from '$lib/shared/stores/metadata';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { pushError } from '$lib/shared/stores/feedback';
 	import type { components } from '$lib/api/schema';
 	import { createDefaultTagGroup, type Tag as TagType, type TagGroup } from '../types/base';
-	import { compareTagOrder, isSystemGroup, tagGroupHelp } from '../groups';
+	import { compareTagOrder, isSystemGroup } from '../groups';
 	import { useTagsQuery } from '../queries';
 	import {
 		common_cancel,
@@ -22,7 +27,9 @@
 		common_create,
 		common_delete,
 		common_deleting,
+		common_description,
 		common_editName,
+		common_entityTypes,
 		common_name,
 		common_saving,
 		common_tags,
@@ -34,6 +41,8 @@
 		tags_appliesToSomeHelp,
 		tags_chooseEntityType,
 		tags_createTagGroup,
+		tags_groupDescriptionPlaceholder,
+		tags_noEntityTypesChosen,
 		tags_groupNamePlaceholder,
 		tags_noTagsInGroup,
 		tags_orderByName,
@@ -71,11 +80,18 @@
 	let organization = $derived(organizationQuery.data);
 	const tagsQuery = useTagsQuery();
 
-	/** Every entity type a tag can be applied to, from the entity metadata. */
-	const taggableTypes = entities
-		.getItems()
-		.filter((item) => (item.metadata as { is_taggable?: boolean } | null)?.is_taggable)
-		.map((item) => item.id as EntityDiscriminants);
+	/**
+	 * The entity types this group can apply to, from the entity metadata: every taggable type, less
+	 * those with a status of their own for the Status group.
+	 */
+	let eligibleTypes = $derived(
+		(entities.getItems() as EntityTypeOption[]).filter(
+			(item) =>
+				item.metadata?.is_taggable && !(group?.group_type === 'Status' && item.metadata?.has_status)
+		)
+	);
+	/** Visibility applies to hosts and nothing else. */
+	let scopeFixed = $derived(group?.group_type === 'Visibility');
 
 	let loading = $state(false);
 	let deleting = $state(false);
@@ -109,6 +125,7 @@
 			const data: TagGroup = {
 				...(value as TagGroup),
 				name: value.name.trim(),
+				description: value.description?.trim() || null,
 				entity_types: scope === 'every' ? null : [...chosenTypes],
 				ordered: ordering === 'set',
 				organization_id: organization.id
@@ -151,11 +168,26 @@
 		if (next === 'name') initialOrder = groupTags.map((tag) => tag.id);
 	}
 
-	function toggleType(entityType: EntityDiscriminants) {
-		chosenTypes = chosenTypes.includes(entityType)
-			? chosenTypes.filter((t) => t !== entityType)
-			: [...chosenTypes, entityType];
-		form.setFieldValue('entity_types', [...chosenTypes]);
+	let chosenTypeItems = $derived(
+		chosenTypes
+			.map((type) => eligibleTypes.find((item) => item.id === type))
+			.filter((item): item is EntityTypeOption => item !== undefined)
+	);
+	let typeOptions = $derived(
+		eligibleTypes.filter((item) => !chosenTypes.includes(item.id as EntityDiscriminants))
+	);
+
+	function setChosenTypes(next: EntityDiscriminants[]) {
+		chosenTypes = next;
+		form.setFieldValue('entity_types', [...next]);
+	}
+
+	function addType(id: string) {
+		setChosenTypes([...chosenTypes, id as EntityDiscriminants]);
+	}
+
+	function removeType(index: number) {
+		setChosenTypes(chosenTypes.filter((_, i) => i !== index));
 	}
 
 	function move(fromIndex: number, toIndex: number) {
@@ -213,8 +245,22 @@
 								{field}
 								placeholder={tags_groupNamePlaceholder()}
 								disabled={isSystem}
-								helpText={isSystem ? (tagGroupHelp(group) ?? tags_systemGroupFixed()) : ''}
+								helpText={isSystem ? tags_systemGroupFixed() : ''}
 								required
+							/>
+						{/snippet}
+					</form.Field>
+
+					<form.Field
+						name="description"
+						validators={{ onBlur: ({ value }) => max(500)(value || '') }}
+					>
+						{#snippet children(field)}
+							<TextArea
+								label={common_description()}
+								id="description"
+								{field}
+								placeholder={tags_groupDescriptionPlaceholder()}
 							/>
 						{/snippet}
 					</form.Field>
@@ -228,6 +274,7 @@
 									{field}
 									value={scope}
 									onChange={handleScopeChange}
+									disabled={scopeFixed}
 									options={[
 										{
 											value: 'every',
@@ -242,19 +289,20 @@
 									]}
 								/>
 								{#if scope === 'some'}
-									<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-										{#each taggableTypes as entityType (entityType)}
-											<label class="text-secondary flex items-center gap-2 text-sm">
-												<input
-													type="checkbox"
-													class="checkbox-card h-4 w-4"
-													checked={chosenTypes.includes(entityType)}
-													onchange={() => toggleType(entityType)}
-												/>
-												{entities.getMetadata(entityType)?.entity_name_plural ?? entityType}
-											</label>
-										{/each}
-									</div>
+									<ListManager
+										label={common_entityTypes()}
+										emptyMessage={tags_noEntityTypesChosen()}
+										items={chosenTypeItems}
+										options={typeOptions}
+										itemDisplayComponent={EntityTypeDisplay}
+										optionDisplayComponent={EntityTypeDisplay}
+										allowAddFromOptions={!scopeFixed}
+										allowReorder={false}
+										allowItemEdit={() => false}
+										allowItemRemove={() => !scopeFixed}
+										onAdd={addType}
+										onRemove={removeType}
+									/>
 								{/if}
 							</div>
 						{/snippet}
@@ -288,6 +336,7 @@
 						optionDisplayComponent={TagDisplay}
 						allowAddFromOptions={false}
 						allowReorder={ordering === 'set'}
+						allowItemEdit={() => false}
 						allowItemRemove={() => false}
 						onMoveUp={move}
 						onMoveDown={move}

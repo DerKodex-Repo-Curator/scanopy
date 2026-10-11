@@ -387,7 +387,6 @@ fn create_host(
             virtualization_metadata,
             virtualization_service_id,
             virtualization_interface_id: None,
-            hidden: false,
             tags,
             sys_descr: None,
             sys_object_id: None,

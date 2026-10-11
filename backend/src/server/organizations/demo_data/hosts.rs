@@ -171,6 +171,7 @@ pub(super) fn generate_hosts_and_services(
     let third_party_tag = find_tag("Third-party");
     let nightly_backup_tag = find_tag("Nightly");
     let weekly_backup_tag = find_tag("Weekly");
+    let hidden_tag = find_tag("Hidden");
 
     // Pre-generated service UUIDs for virtualization wiring
     let pve_hq1_svc_id = Uuid::new_v4(); // Proxmox VE on proxmox-hv01
@@ -892,7 +893,6 @@ pub(super) fn generate_hosts_and_services(
                 virtualization_metadata: None,
                 virtualization_service_id: None,
                 virtualization_interface_id: None,
-                hidden: false,
                 tags: production_tag.into_iter().collect(),
                 sys_descr: None,
                 sys_object_id: None,
@@ -1445,7 +1445,7 @@ pub(super) fn generate_hosts_and_services(
     ));
 
     // 25. Hue Bridge. Hidden from the topology: the lobby lighting has no bearing on the network.
-    let mut hue_bridge = host_with_services!(
+    let hue_bridge = host_with_services!(
         with_mac(
             create_host(
                 "hue-bridge",
@@ -1454,7 +1454,11 @@ pub(super) fn generate_hosts_and_services(
                 hq,
                 hq_iot,
                 Ipv4Addr::new(10, 0, 30, 10),
-                iot_tag.into_iter().chain(unmanaged_tag).collect(),
+                iot_tag
+                    .into_iter()
+                    .chain(unmanaged_tag)
+                    .chain(hidden_tag)
+                    .collect(),
                 None,
                 None,
                 now
@@ -1469,7 +1473,6 @@ pub(super) fn generate_hosts_and_services(
             iot_tag.into_iter().collect()
         ),
     );
-    hue_bridge.host.base.hidden = true;
     result.push(hue_bridge);
 
     // 26. HP Printer. Never named in Scanopy, so it is titled by the sysName it reports. Unplugged
@@ -1765,7 +1768,6 @@ pub(super) fn generate_hosts_and_services(
                 virtualization_metadata: None,
                 virtualization_service_id: None,
                 virtualization_interface_id: None,
-                hidden: false,
                 tags: vec![],
                 sys_descr: None,
                 sys_object_id: None,
@@ -2321,7 +2323,6 @@ pub(super) fn generate_hosts_and_services(
                 virtualization_metadata: None,
                 virtualization_service_id: None,
                 virtualization_interface_id: None,
-                hidden: false,
                 tags: production_tag.into_iter().collect(),
                 sys_descr: None,
                 sys_object_id: None,

@@ -123,7 +123,6 @@ const DECISIONS: Record<string, TabDecisions> = {
 			model: server('models'),
 			sys_location: server('sys_locations'),
 			os_family: server('os_families'),
-			hidden: server('hidden'),
 			description: TEXT,
 			serial_number: none('Identifier, unique per device; search finds one'),
 			asset_tag: none('Identifier, unique per device; search finds one'),
@@ -273,6 +272,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 	'tags/components/TagGroupTab.svelte': {
 		columns: {
 			name: IDENTITY,
+			description: TEXT,
 			group_type: YES,
 			entity_types: SHARED_ARRAY,
 			ordered: YES,

@@ -315,3 +315,28 @@ export function withTagColumn<T>(
 		...visible.filter((column) => column.display.trailing)
 	];
 }
+
+/** One heading's worth of the column menu: its columns in table order. */
+export interface ColumnSection<T> {
+	/** The heading; `null` for the columns listed first, under no heading. */
+	section: string | null;
+	columns: EntityColumn<T>[];
+}
+
+/**
+ * Split columns, already in table order, by `display.section`: the unsectioned ones first, then
+ * each section in the order its first column appears.
+ */
+export function columnSections<T>(columns: EntityColumn<T>[]): ColumnSection<T>[] {
+	const sections: ColumnSection<T>[] = [{ section: null, columns: [] }];
+	for (const column of columns) {
+		const name = column.display.section ?? null;
+		let entry = sections.find((s) => s.section === name);
+		if (!entry) {
+			entry = { section: name, columns: [] };
+			sections.push(entry);
+		}
+		entry.columns.push(column);
+	}
+	return sections.filter((s) => s.columns.length > 0);
+}

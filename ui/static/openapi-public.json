@@ -4772,21 +4772,6 @@
             }
           },
           {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
-              }
-            }
-          },
-          {
             "name": "virtualization_service_ids",
             "in": "query",
             "description": "Filter by the service virtualizing the host. Repeat for several.",
@@ -5299,21 +5284,6 @@
             }
           },
           {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
-              }
-            }
-          },
-          {
             "name": "virtualization_service_ids",
             "in": "query",
             "description": "Filter by the service virtualizing the host. Repeat for several.",
@@ -5706,21 +5676,6 @@
               "items": {
                 "type": "string",
                 "format": "uuid"
-              }
-            }
-          },
-          {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
               }
             }
           },
@@ -6126,21 +6081,6 @@
               "items": {
                 "type": "string",
                 "format": "uuid"
-              }
-            }
-          },
-          {
-            "name": "hidden",
-            "in": "query",
-            "description": "Filter by the `hidden` flag. Repeat the parameter to accept both values;\nomit it for no constraint.",
-            "required": false,
-            "schema": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "boolean"
               }
             }
           },
@@ -12223,6 +12163,7 @@
                         "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
                         "example": {
                           "created_at": "2026-01-15T10:30:00Z",
+                          "description": "Which stage of delivery an asset serves.",
                           "entity_types": null,
                           "group_type": "Custom",
                           "id": "550e8400-e29b-41d4-a716-446655440010",
@@ -14882,19 +14823,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-11T13:08:31.078292Z",
+              "created_at": "2026-10-11T15:00:17.096151Z",
               "first_discovery_id": null,
-              "id": "20732803-3661-4aae-aaa6-81188237883e",
+              "id": "95636e04-30ed-443b-8634-8a7471eaa5d3",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-11T13:08:31.078292Z",
+              "last_seen_at": "2026-10-11T15:00:17.096151Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-11T13:08:31.078292Z",
-              "valid_from": "2026-10-11T13:08:31.078292Z",
+              "updated_at": "2026-10-11T15:00:17.096151Z",
+              "valid_from": "2026-10-11T15:00:17.096151Z",
               "valid_to": null
             }
           },
@@ -16193,7 +16134,8 @@
               },
               "hidden": {
                 "type": "boolean",
-                "description": "Whether the host is hidden from topology views."
+                "description": "Always `false`. Kept because daemons before v0.17.23 require it when they read a host\nback; a host is hidden from topology by a tag of the Visibility group.",
+                "readOnly": true
               },
               "hostname": {
                 "type": [
@@ -16600,19 +16542,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-11T13:08:31.056330Z",
+                      "created_at": "2026-10-11T15:00:17.075643Z",
                       "first_discovery_id": null,
-                      "id": "1ccdada9-b810-4907-9702-628101dae9a1",
+                      "id": "aab86080-afd3-4fc8-9468-1531cebceccd",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-11T13:08:31.056330Z",
+                      "last_seen_at": "2026-10-11T15:00:17.075643Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-11T13:08:31.056330Z",
-                      "valid_from": "2026-10-11T13:08:31.056330Z",
+                      "updated_at": "2026-10-11T15:00:17.075643Z",
+                      "valid_from": "2026-10-11T15:00:17.075643Z",
                       "valid_to": null
                     }
                   ],
@@ -16625,7 +16567,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Nomad",
+                  "service_definition": "qBittorrent",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -17946,19 +17888,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-11T13:08:31.073921Z",
+                  "created_at": "2026-10-11T15:00:17.091950Z",
                   "first_discovery_id": null,
-                  "id": "c34da8c9-030c-4faa-bc57-b1789b62512f",
+                  "id": "4712f6de-b18a-4e21-8ee2-dd93f3a4d489",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-11T13:08:31.073921Z",
+                  "last_seen_at": "2026-10-11T15:00:17.091950Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-11T13:08:31.073921Z",
-                  "valid_from": "2026-10-11T13:08:31.073921Z",
+                  "updated_at": "2026-10-11T15:00:17.091950Z",
+                  "valid_from": "2026-10-11T15:00:17.091950Z",
                   "valid_to": null
                 }
               ],
@@ -17971,7 +17913,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Nomad",
+              "service_definition": "qBittorrent",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -18745,6 +18687,7 @@
             "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
             "example": {
               "created_at": "2026-01-15T10:30:00Z",
+              "description": "Which stage of delivery an asset serves.",
               "entity_types": null,
               "group_type": "Custom",
               "id": "550e8400-e29b-41d4-a716-446655440010",
@@ -20862,19 +20805,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-11T13:08:31.056773Z",
+          "created_at": "2026-10-11T15:00:17.076079Z",
           "first_discovery_id": null,
-          "id": "077103ba-6e0d-4458-a1c7-16f6bcaeaaa2",
+          "id": "0955bc42-c099-43b1-becc-ed9014d96403",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-11T13:08:31.056773Z",
+          "last_seen_at": "2026-10-11T15:00:17.076079Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-11T13:08:31.056773Z",
-          "valid_from": "2026-10-11T13:08:31.056773Z",
+          "updated_at": "2026-10-11T15:00:17.076079Z",
+          "valid_from": "2026-10-11T15:00:17.076079Z",
           "valid_to": null
         }
       },
@@ -21484,10 +21427,6 @@
             ],
             "description": "Free-text notes about the host."
           },
-          "hidden": {
-            "type": "boolean",
-            "description": "Hide the host from topology views without deleting it."
-          },
           "hostname": {
             "type": [
               "string",
@@ -21606,7 +21545,6 @@
         "example": {
           "credential_assignments": [],
           "description": "Primary web server",
-          "hidden": false,
           "hostname": "web-server-01.local",
           "interfaces": [],
           "ip_addresses": [
@@ -21640,7 +21578,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Nomad",
+              "service_definition": "qBittorrent",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -27467,7 +27405,6 @@
           "credential_assignments": [],
           "description": "Primary web server",
           "first_discovery_id": null,
-          "hidden": false,
           "hostname": "web-server-01.local",
           "hostname_source": "Manual",
           "id": "550e8400-e29b-41d4-a716-446655440003",
@@ -27576,7 +27513,6 @@
               "virtualization_metadata",
               "virtualization_service_id",
               "virtualization_interface_id",
-              "hidden",
               "tags",
               "credential_assignments"
             ],
@@ -27594,10 +27530,6 @@
                   "null"
                 ],
                 "description": "Free-text notes about the host."
-              },
-              "hidden": {
-                "type": "boolean",
-                "description": "Whether the host is hidden from topology views."
               },
               "site_id": {
                 "type": "string",
@@ -27858,8 +27790,7 @@
           "manufacturer",
           "model",
           "sys_location",
-          "os_family",
-          "hidden"
+          "os_family"
         ]
       },
       "HostOs": {
@@ -28073,7 +28004,8 @@
           },
           "hidden": {
             "type": "boolean",
-            "description": "Whether the host is hidden from topology views."
+            "description": "Always `false`. Kept because daemons before v0.17.23 require it when they read a host\nback; a host is hidden from topology by a tag of the Visibility group.",
+            "readOnly": true
           },
           "hostname": {
             "type": [
@@ -28480,19 +28412,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-11T13:08:31.055841Z",
+                  "created_at": "2026-10-11T15:00:17.075157Z",
                   "first_discovery_id": null,
-                  "id": "bfaa5e7e-28ba-407e-8ddd-6ab30603808b",
+                  "id": "86d0bc98-0bb7-4fc6-9ef5-75122ed05599",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-11T13:08:31.055841Z",
+                  "last_seen_at": "2026-10-11T15:00:17.075157Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-11T13:08:31.055841Z",
-                  "valid_from": "2026-10-11T13:08:31.055841Z",
+                  "updated_at": "2026-10-11T15:00:17.075157Z",
+                  "valid_from": "2026-10-11T15:00:17.075157Z",
                   "valid_to": null
                 }
               ],
@@ -28505,7 +28437,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Nomad",
+              "service_definition": "qBittorrent",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -31896,7 +31828,8 @@
                 },
                 "hidden": {
                   "type": "boolean",
-                  "description": "Whether the host is hidden from topology views."
+                  "description": "Always `false`. Kept because daemons before v0.17.23 require it when they read a host\nback; a host is hidden from topology by a tag of the Visibility group.",
+                  "readOnly": true
                 },
                 "hostname": {
                   "type": [
@@ -32303,19 +32236,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-11T13:08:31.048516Z",
+                        "created_at": "2026-10-11T15:00:17.068043Z",
                         "first_discovery_id": null,
-                        "id": "fac41634-d48d-45ff-988f-fe31a4e6d68b",
+                        "id": "a321f81f-6ad4-4d1e-a766-cab4c4b9144a",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-11T13:08:31.048516Z",
+                        "last_seen_at": "2026-10-11T15:00:17.068043Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-11T13:08:31.048516Z",
-                        "valid_from": "2026-10-11T13:08:31.048516Z",
+                        "updated_at": "2026-10-11T15:00:17.068043Z",
+                        "valid_from": "2026-10-11T15:00:17.068043Z",
                         "valid_to": null
                       }
                     ],
@@ -32328,7 +32261,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Nomad",
+                    "service_definition": "qBittorrent",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -32477,19 +32410,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-11T13:08:31.073220Z",
+                    "created_at": "2026-10-11T15:00:17.091286Z",
                     "first_discovery_id": null,
-                    "id": "cb88efef-78cf-43c0-855e-6e7abf7dd17c",
+                    "id": "b41166c7-4112-4612-9e4c-e646047dd954",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-11T13:08:31.073220Z",
+                    "last_seen_at": "2026-10-11T15:00:17.091286Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-11T13:08:31.073220Z",
-                    "valid_from": "2026-10-11T13:08:31.073220Z",
+                    "updated_at": "2026-10-11T15:00:17.091286Z",
+                    "valid_from": "2026-10-11T15:00:17.091286Z",
                     "valid_to": null
                   }
                 ],
@@ -32502,7 +32435,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Nomad",
+                "service_definition": "qBittorrent",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -34927,19 +34860,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-11T13:08:31.056642Z",
+              "created_at": "2026-10-11T15:00:17.075951Z",
               "first_discovery_id": null,
-              "id": "f112a739-c19d-42f5-b321-927b95559d5c",
+              "id": "8cd60a3f-0fce-4a15-bbb4-dea85de04929",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-11T13:08:31.056642Z",
+              "last_seen_at": "2026-10-11T15:00:17.075951Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-11T13:08:31.056642Z",
-              "valid_from": "2026-10-11T13:08:31.056642Z",
+              "updated_at": "2026-10-11T15:00:17.075951Z",
+              "valid_from": "2026-10-11T15:00:17.075951Z",
               "valid_to": null
             }
           ],
@@ -34952,7 +34885,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Nomad",
+          "service_definition": "qBittorrent",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -36259,6 +36192,7 @@
         "description": "A named set of tags of which an entity holds at most one, in an order the organization sets,\noptionally limited to some entity types.",
         "example": {
           "created_at": "2026-01-15T10:30:00Z",
+          "description": "Which stage of delivery an asset serves.",
           "entity_types": null,
           "group_type": "Custom",
           "id": "550e8400-e29b-41d4-a716-446655440010",
@@ -36272,12 +36206,20 @@
         "type": "object",
         "required": [
           "name",
+          "description",
           "organization_id",
           "group_type",
           "entity_types",
           "ordered"
         ],
         "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the group is for."
+          },
           "entity_types": {
             "type": [
               "array",
@@ -36286,7 +36228,7 @@
             "items": {
               "$ref": "#/components/schemas/EntityDiscriminants"
             },
-            "description": "The entity types this group's tags can be applied to. `null` allows every taggable type."
+            "description": "The entity types this group's tags can be applied to. `null` allows every taggable type the\ngroup type admits: Status leaves out types that carry a status of their own. Fixed for\nVisibility, which applies to hosts."
           },
           "group_type": {
             "$ref": "#/components/schemas/TagGroupType",
@@ -36309,10 +36251,11 @@
       },
       "TagGroupType": {
         "type": "string",
-        "description": "What kind of tag group this is.\n\n`Application` and `Status` are system groups: every organization has exactly one of each, and\nthey can't be renamed, deleted or recreated. Application tags drive the application view.\nStatus tags track where an asset is on its way from planned to decommissioned. `Custom` groups\nare named by the organization.",
+        "description": "What kind of tag group this is.\n\n`Application`, `Status` and `Visibility` are system groups: every organization has exactly one\nof each, and they can't be renamed, deleted or recreated. Application tags drive the\napplication view. Status tags track where an asset is on its way from planned to\ndecommissioned, on entities that have no status of their own. A host holding a Visibility tag\nis left out of topology. `Custom` groups are named by the organization.",
         "enum": [
           "Application",
           "Status",
+          "Visibility",
           "Custom"
         ]
       },
@@ -36828,7 +36771,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "15bf91b0-85e2-407b-888d-d21943679150",
+                  "id": "fa24679c-7e02-4899-95b0-cb781e31b728",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -36838,23 +36781,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "d81c7abc-5ed7-4018-bff6-6a788ed23209",
+                  "id": "1804f086-bf97-48cf-ab12-349e5dfae017",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "3c137555-8873-4781-b52b-e173bbf6fb18",
+                  "id": "fc3b7edf-6380-4587-80a6-96c03572db3e",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "5730f60a-90a9-4e5e-8fa7-94ee94e7002d",
+                  "id": "89249a6f-3923-4ace-b946-d3881d5c7acc",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "d81c7abc-5ed7-4018-bff6-6a788ed23209",
+                  "id": "1804f086-bf97-48cf-ab12-349e5dfae017",
                   "rule": "ByHost"
                 }
               ]
@@ -36884,19 +36827,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "96d5d2e5-0dbd-406c-ace4-6f926b4c055d",
+                "id": "2f88e5e5-a591-4d2c-9226-76f59c1e38b1",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "872b855d-0e87-4bef-9f24-b9715454173f",
+                "id": "28b1a5eb-3e90-4632-9f48-035e5f3aa9f0",
                 "rule": "ByVLAN"
               },
               {
-                "id": "68984453-0912-4b5c-8913-f9e2ea3eb20d",
+                "id": "fa6d9e9d-319e-4bfc-a5a4-b8e2c9bb5735",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "740840a8-a578-4306-970e-75106969e63a",
+                "id": "0cb53431-751d-4da8-9854-8b5b5330ca46",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -36917,7 +36860,7 @@
                 }
               },
               {
-                "id": "ff6873fc-d564-4b26-8ae3-a3c01aed613e",
+                "id": "e79d04d2-0f29-4ef0-a6a4-6059e76792bb",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -36926,15 +36869,15 @@
                 }
               },
               {
-                "id": "3f5327d1-9cca-4c74-81bf-6cc1436a5454",
+                "id": "0626a9a4-b590-4f42-9824-5205e05f5fd0",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "9af1632f-d740-4db5-8313-f4dc9d299181",
+                "id": "85dbb4bd-2f73-4c32-b50b-05bdee73f632",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "2212aca6-aebe-486c-af6c-eff11dcd4c39",
+                "id": "fca7ad2f-1127-4472-81c1-3ce62d0f45a9",
                 "rule": "ByStack"
               }
             ]
@@ -37265,7 +37208,6 @@
         "required": [
           "id",
           "name",
-          "hidden",
           "tags"
         ],
         "properties": {
@@ -37293,10 +37235,6 @@
             ],
             "format": "date-time",
             "description": "Optional: expected updated_at timestamp for optimistic locking."
-          },
-          "hidden": {
-            "type": "boolean",
-            "description": "Hide the host from topology views without deleting it."
           },
           "hostname": {
             "type": [

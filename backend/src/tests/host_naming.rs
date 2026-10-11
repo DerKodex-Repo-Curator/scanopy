@@ -165,7 +165,7 @@ async fn save_from_ui(
     services: &ServiceFactory,
     existing: &HostResponse,
     name: &str,
-    hidden: bool,
+    description: Option<&str>,
 ) -> HostResponse {
     services
         .host_service
@@ -174,11 +174,12 @@ async fn save_from_ui(
                 id: existing.id,
                 name: name.to_string(),
                 hostname: existing.hostname.clone(),
-                description: existing.description.clone(),
+                description: description
+                    .map(str::to_string)
+                    .or_else(|| existing.description.clone()),
                 virtualization_metadata: None,
                 virtualization_service_id: None,
                 virtualization_interface_id: None,
-                hidden,
                 tags: vec![],
                 expected_updated_at: None,
                 ip_addresses: None,
@@ -248,7 +249,7 @@ async fn a_hand_typed_name_survives_repeated_discovery() {
     )
     .await;
 
-    let typed = save_from_ui(&services, &discovered, "Rack 3 Top Switch", false).await;
+    let typed = save_from_ui(&services, &discovered, "Rack 3 Top Switch", None).await;
     assert_eq!(typed.name_source, AttributeSource::Manual);
 
     let resynced = submit(
@@ -269,7 +270,7 @@ async fn a_hand_typed_name_survives_repeated_discovery() {
 }
 
 /// The edit modal PUTs every field, so "the user saved the host" cannot be read as "the user
-/// named the host" — otherwise toggling `hidden` once would freeze the name for good.
+/// named the host" — otherwise editing its description once would freeze the name for good.
 #[tokio::test]
 async fn saving_an_unrelated_field_does_not_freeze_a_derived_name() {
     harness!(services, site_id, _container);
@@ -280,10 +281,16 @@ async fn saving_an_unrelated_field_does_not_freeze_a_derived_name() {
     )
     .await;
 
-    let hidden = save_from_ui(&services, &discovered, &discovered.name, true).await;
-    assert!(hidden.hidden);
+    let described = save_from_ui(
+        &services,
+        &discovered,
+        &discovered.name,
+        Some("Top of rack"),
+    )
+    .await;
+    assert_eq!(described.description.as_deref(), Some("Top of rack"));
     assert_eq!(
-        hidden.name_source,
+        described.name_source,
         AttributeSource::ServiceMatch,
         "an unchanged name is not a user assertion about the name"
     );
@@ -495,10 +502,10 @@ async fn clearing_a_typed_name_hands_naming_back_to_discovery() {
         submission(site_id, HostName::unnamed(), Some("switch.lan")),
     )
     .await;
-    let typed = save_from_ui(&services, &discovered, "Rack 3 Top Switch", false).await;
+    let typed = save_from_ui(&services, &discovered, "Rack 3 Top Switch", None).await;
     assert_eq!(typed.name_source, AttributeSource::Manual);
 
-    let cleared = save_from_ui(&services, &typed, "", false).await;
+    let cleared = save_from_ui(&services, &typed, "", None).await;
     assert_eq!(cleared.name, "");
     assert_eq!(cleared.name_source, AttributeSource::Unspecified);
     assert_eq!(cleared.display_name.as_deref(), Some("switch.lan"));

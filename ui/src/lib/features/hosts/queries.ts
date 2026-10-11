@@ -130,7 +130,6 @@ function toCreateHostRequest(formData: HostFormData): CreateHostRequest {
 		virtualization_metadata: formData.virtualization_metadata,
 		virtualization_service_id: formData.virtualization_service_id,
 		virtualization_interface_id: formData.virtualization_interface_id,
-		hidden: formData.hidden,
 		tags: formData.tags,
 		ip_addresses: formData.ip_addresses.map((iface, index): IPAddressInput => ({
 			id: iface.id,
@@ -166,8 +165,6 @@ export interface HostQueryOptions {
 	offset?: number;
 	/** Filter by site ID. Several narrows to the union of them. */
 	site_ids?: string[];
-	/** Filter by the `hidden` flag. Omit for no constraint. */
-	hidden?: boolean[];
 	/** Filter by the name of the service virtualizing the host, the value "Virtualized By" groups on. */
 	virtualization_service_names?: string[];
 	/** Also return hosts nothing virtualizes; on its own, only those. */
@@ -260,7 +257,6 @@ export function useHostsQuery(optionsOrGetter: HostQueryOptions | (() => HostQue
 								stale: options.stale,
 								search: options.search,
 								at: options.at,
-								hidden: options.hidden,
 								virtualization_service_names: options.virtualization_service_names,
 								include_unvirtualized: options.include_unvirtualized,
 								service_names: options.service_names,
@@ -581,7 +577,6 @@ export function useUpdateHostMutation() {
 				virtualization_metadata: data.host.virtualization_metadata,
 				virtualization_service_id: data.host.virtualization_service_id,
 				virtualization_interface_id: data.host.virtualization_interface_id,
-				hidden: data.host.hidden,
 				tags: data.host.tags,
 				credential_assignments: data.host.credential_assignments ?? undefined,
 				expected_updated_at: data.host.updated_at,
@@ -681,7 +676,6 @@ export function useUpdateHostDescriptionMutation() {
 						virtualization_metadata: data.host.virtualization_metadata,
 						virtualization_service_id: data.host.virtualization_service_id,
 						virtualization_interface_id: data.host.virtualization_interface_id,
-						hidden: data.host.hidden,
 						expected_updated_at: data.host.updated_at,
 						tags: data.host.tags ?? []
 					}
@@ -950,7 +944,6 @@ export function createEmptyHostFormData(defaultSiteId?: string): HostFormData {
 		virtualization_service_id: null,
 		virtualization_interface_id: null,
 		site_id: defaultSiteId ?? '',
-		hidden: false,
 		// The discovered attributes are simply absent on a host nothing has scanned yet. They each
 		// travel with the source that produced them, so there is no value here without one — which
 		// is why these are omitted rather than set to null.

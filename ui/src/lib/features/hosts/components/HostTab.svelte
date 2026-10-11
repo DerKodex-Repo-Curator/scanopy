@@ -27,7 +27,7 @@
 	import { tagNames } from '$lib/features/tags/columns';
 	import { credentialItems } from '$lib/features/credentials/columns';
 	import { entities, entitySources, concepts } from '$lib/shared/stores/metadata';
-	import { Plus, Trash2, RefreshCw, Replace, Eye, Edit } from 'lucide-svelte';
+	import { Plus, Trash2, RefreshCw, Replace, Edit } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import UpgradeButton from '$lib/shared/components/UpgradeButton.svelte';
@@ -40,8 +40,6 @@
 		common_delete,
 		common_description,
 		common_edit,
-		common_hide,
-		common_hidden,
 		common_hostname,
 		common_credentials,
 		common_hosts,
@@ -166,7 +164,6 @@
 	// client holds one page of hosts, so filtering here would narrow that page
 	// while the total count kept describing every match.
 	let filterSiteIds = $state<string[]>([]);
-	let filterHidden = $state<boolean[]>([]);
 	let filterVirtualizationServiceNames = $state<string[]>([]);
 	let filterIncludeUnvirtualized = $state(false);
 	let filterServiceNames = $state<string[]>([]);
@@ -221,7 +218,6 @@
 		search: search || undefined,
 		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
 		// Both values checked is no constraint, so it is sent as nothing.
-		hidden: filterHidden.length === 1 ? filterHidden : undefined,
 		virtualization_service_names:
 			filterVirtualizationServiceNames.length > 0 ? filterVirtualizationServiceNames : undefined,
 		include_unvirtualized: filterIncludeUnvirtualized || undefined,
@@ -371,9 +367,6 @@
 			case 'site_id':
 				filterSiteIds = idsForNames(values, sitesData);
 				break;
-			case 'hidden':
-				filterHidden = values.map((value) => value === 'true');
-				break;
 			case 'virtualized_by':
 				// "Not Virtualized" is a choice about absence, so it is carried as
 				// its own flag rather than as a name nothing would match. The rest are the
@@ -440,7 +433,6 @@
 		order_by: orderBy,
 		order_direction: orderDirection,
 		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
-		hidden: filterHidden.length === 1 ? filterHidden : undefined,
 		virtualization_service_names:
 			filterVirtualizationServiceNames.length > 0 ? filterVirtualizationServiceNames : undefined,
 		include_unvirtualized: filterIncludeUnvirtualized || undefined,
@@ -727,14 +719,6 @@
 					getValue: (host) => (host.os ? hostOsFamilyName(host.os.family) : null),
 					getGroupValue: (host) => host.os?.family ?? null,
 					display: { hiddenByDefault: true, cell: osCell }
-				},
-				hidden: {
-					label: common_hidden(),
-					filterable: true,
-					serverFiltered: true,
-					// Useful as a filter, but almost always false — a column of "false"
-					// earns none of the width it takes.
-					display: { hiddenByDefault: true }
 				}
 			},
 			[
@@ -911,12 +895,6 @@
 				: []),
 			{ label: common_consolidate(), icon: Replace, onClick: () => handleStartConsolidate(host) },
 			{
-				label: common_hide(),
-				icon: Eye,
-				class: host.hidden ? 'text-blue-400' : '',
-				onClick: () => handleHostHide(host)
-			},
-			{
 				label: common_delete(),
 				icon: Trash2,
 				class: 'btn-icon-danger',
@@ -987,16 +965,6 @@
 
 	function getHostTags(host: Host): string[] {
 		return host.tags;
-	}
-
-	async function handleHostHide(host: Host) {
-		const updatedHost = { ...host, hidden: !host.hidden };
-		await updateHostMutation.mutateAsync({
-			host: updatedHost,
-			ip_addresses: null,
-			ports: null,
-			services: null
-		});
 	}
 
 	function handleCloseHostEditor() {

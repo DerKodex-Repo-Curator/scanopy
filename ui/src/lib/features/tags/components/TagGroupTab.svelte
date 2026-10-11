@@ -27,6 +27,7 @@
 		common_create,
 		common_created,
 		common_custom,
+		common_description,
 		common_delete,
 		common_edit,
 		common_name,
@@ -171,6 +172,13 @@
 					}
 				]
 			}
+		},
+		{
+			key: 'description',
+			label: common_description(),
+			type: 'string',
+			searchable: true,
+			getValue: (group) => group.description
 		},
 		{
 			key: 'group_type',

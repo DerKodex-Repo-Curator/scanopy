@@ -150,7 +150,6 @@ pub fn host(site_id: &Uuid) -> Host {
         source: EntitySource::System,
         virtualization_metadata: None,
         virtualization_service_id: None,
-        hidden: false,
         tags: Vec::new(),
         ..Default::default()
     })

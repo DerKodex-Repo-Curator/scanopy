@@ -71,7 +71,6 @@ const HOST: &[F] = &[
         .format(FieldFormat::Identifier),
     F::new("management_url", "Management URL").source("management_url_source"),
     DESCRIPTION,
-    F::new("hidden", "Hidden").format(FieldFormat::Boolean),
     SOURCE,
     SITE,
 ];
@@ -241,6 +240,7 @@ const TAG: &[F] = &[
 
 const TAG_GROUP: &[F] = &[
     F::new("name", "Name").summary(),
+    F::new("description", "Description"),
     F::new("group_type", "Group Type"),
     F::new("entity_types", "Applies To").many(),
 ];

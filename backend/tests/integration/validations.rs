@@ -42,7 +42,6 @@ async fn test_service_site_validation(ctx: &TestContext) -> Result<(), String> {
         virtualization_metadata: None,
         virtualization_service_id: None,
         virtualization_interface_id: None,
-        hidden: false,
         tags: Vec::new(),
         // SNMP fields
         sys_descr: None,

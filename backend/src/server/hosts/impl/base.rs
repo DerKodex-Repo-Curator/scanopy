@@ -88,8 +88,6 @@ pub struct HostBase {
     #[serde(default)]
     #[schema(required)]
     pub virtualization_interface_id: Option<Uuid>,
-    /// Whether the host is hidden from topology views.
-    pub hidden: bool,
     /// Tags assigned to this entity.
     #[serde(default)]
     #[schema(required)]
@@ -184,7 +182,6 @@ impl Default for HostBase {
             virtualization_metadata: None,
             virtualization_service_id: None,
             virtualization_interface_id: None,
-            hidden: false,
             tags: Vec::new(),
             sys_descr: None,
             sys_object_id: None,
@@ -300,7 +297,7 @@ impl HostBase {
     /// and never refreshed. Here a new field fails to compile until it is classified: either it is
     /// a discovered attribute and gets merged, or it is named in the ignore list because something
     /// else owns it (`name` has its own entry point above, `tags` and `credential_assignments` are
-    /// user state, `hidden` is a user preference).
+    /// user state).
     pub fn apply_attributes_from(&mut self, incoming: &HostBase) -> bool {
         let HostBase {
             // Not attributes: owned by the naming ladder, by the user, or by the row itself.
@@ -312,7 +309,6 @@ impl HostBase {
             virtualization_metadata: _,
             virtualization_service_id: _,
             virtualization_interface_id: _,
-            hidden: _,
             tags: _,
             credential_assignments: _,
             // Discovered attributes.
@@ -589,7 +585,6 @@ impl ChangeTriggersTopologyStaleness<Host> for Host {
                 || self.base.virtualization_service_id != other_host.base.virtualization_service_id
                 || self.base.virtualization_interface_id
                     != other_host.base.virtualization_interface_id
-                || self.base.hidden != other_host.base.hidden
         } else {
             true
         }

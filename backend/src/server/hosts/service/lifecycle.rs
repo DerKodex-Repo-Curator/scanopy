@@ -152,15 +152,92 @@ impl HostService {
         include_children: bool,
     ) -> Result<PaginatedResult<HostResponse>> {
         let result = self.storage().get_paginated(filter, order_by).await?;
+        Ok(PaginatedResult {
+            items: self
+                .host_responses(result.items, at, include_children)
+                .await?,
+            total_count: result.total_count,
+        })
+    }
 
-        if result.items.is_empty() {
-            return Ok(PaginatedResult {
-                items: vec![],
-                total_count: result.total_count,
-            });
+    /// [`Self::get_all_host_responses_paginated`] for a list grouped by virtualization tree and
+    /// sorted by another field: each tree parent leads its subtree, and every set of siblings
+    /// follows `order_by`. SQL can't order siblings by a field of their own and their
+    /// ancestors', so the order is built here from every matching row's key, and the page is
+    /// sliced from it.
+    ///
+    /// `filter` carries [`VIRTUALIZATION_TREE_JOIN`] and whatever `order_by` joins, and no
+    /// pagination: `limit` and `offset` are applied to the ordered ids.
+    ///
+    /// [`VIRTUALIZATION_TREE_JOIN`]: crate::server::hosts::r#impl::virtualization_tree::VIRTUALIZATION_TREE_JOIN
+    pub async fn get_all_host_responses_tree_ordered(
+        &self,
+        filter: StorableFilter<Host>,
+        order_by: &str,
+        limit: Option<u32>,
+        offset: u32,
+        at: Option<DateTime<Utc>>,
+        include_children: bool,
+    ) -> Result<PaginatedResult<HostResponse>> {
+        use crate::server::hosts::r#impl::virtualization_tree::{
+            VIRTUALIZATION_TREE_GROUP_SQL, VIRTUALIZATION_TREE_PARENT_SQL, tree_order,
+        };
+
+        let keys = self
+            .storage()
+            .get_ordered_values(
+                filter,
+                order_by,
+                &[
+                    VIRTUALIZATION_TREE_GROUP_SQL,
+                    VIRTUALIZATION_TREE_PARENT_SQL,
+                ],
+            )
+            .await?;
+        let rows: Vec<(Uuid, String, Option<Uuid>)> = keys
+            .into_iter()
+            .map(|(id, values)| {
+                let group = values.first().cloned().flatten().unwrap_or_default();
+                let parent = values
+                    .get(1)
+                    .cloned()
+                    .flatten()
+                    .and_then(|v| v.parse().ok());
+                (id, group, parent)
+            })
+            .collect();
+        let total_count = rows.len() as u64;
+
+        let page: Vec<Uuid> = tree_order(&rows)
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit.map(|l| l as usize).unwrap_or(usize::MAX))
+            .collect();
+        let mut hosts = self
+            .storage()
+            .get_all(StorableFilter::<Host>::new_from_entity_ids(&page))
+            .await?;
+        let rank: HashMap<Uuid, usize> = page.iter().enumerate().map(|(i, id)| (*id, i)).collect();
+        hosts.sort_by_key(|h| rank.get(&h.id).copied().unwrap_or(usize::MAX));
+
+        Ok(PaginatedResult {
+            items: self.host_responses(hosts, at, include_children).await?,
+            total_count,
+        })
+    }
+
+    /// Responses for `hosts`, in their order: children, tags and tree placement hydrated.
+    async fn host_responses(
+        &self,
+        hosts: Vec<Host>,
+        at: Option<DateTime<Utc>>,
+        include_children: bool,
+    ) -> Result<Vec<HostResponse>> {
+        if hosts.is_empty() {
+            return Ok(vec![]);
         }
 
-        let host_ids: Vec<Uuid> = result.items.iter().map(|h| h.id).collect();
+        let host_ids: Vec<Uuid> = hosts.iter().map(|h| h.id).collect();
         // Hydrate children as-of the same instant as the host rows so a snapshot
         // view shows a coherent point-in-time host + children bundle.
         let (ip_addresses_map, ports_map, services_map, interfaces_map) = if include_children {
@@ -180,8 +257,7 @@ impl HostService {
             .get_tags_map(&host_ids, EntityDiscriminants::Host, None)
             .await?;
 
-        let responses = result
-            .items
+        let responses = hosts
             .into_iter()
             .map(|mut host| {
                 // Apply hydrated tags
@@ -203,11 +279,7 @@ impl HostService {
             .collect::<Vec<_>>();
         let mut responses = responses;
         self.place_in_virtualization_trees(&mut responses).await?;
-
-        Ok(PaginatedResult {
-            items: responses,
-            total_count: result.total_count,
-        })
+        Ok(responses)
     }
 
     /// Load all children for a single host.

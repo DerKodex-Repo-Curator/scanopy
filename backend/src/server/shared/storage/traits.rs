@@ -168,6 +168,15 @@ pub trait Storage<T: Storable>: Send + Sync {
     /// For internal count-only needs (dashboards, limit checks) — avoids the
     /// row fetch + tag hydration that `get_paginated`/`get_all` do.
     async fn count(&self, filter: StorableFilter<T>) -> Result<u64, anyhow::Error>;
+    /// Every matching row's id and the values of `exprs` rendered as text, in `order_by` order,
+    /// ignoring the filter's limit/offset. For orderings computed outside SQL, which need the
+    /// whole result set's keys but not its rows.
+    async fn get_ordered_values(
+        &self,
+        filter: StorableFilter<T>,
+        order_by: &str,
+        exprs: &[&str],
+    ) -> Result<Vec<(Uuid, Vec<Option<String>>)>, anyhow::Error>;
     /// Count rows per distinct value of `group_sql` under the same filter,
     /// ignoring its limit/offset. `group_sql` is the ORDER BY expression the
     /// list query groups on, so a paginated list can report how big each group

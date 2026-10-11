@@ -248,6 +248,7 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		schemas: [
 			decide('TagGroup', {
 				name: 'name',
+				description: 'description',
 				group_type: 'group_type',
 				entity_types: 'entity_types',
 				ordered: 'ordered',
@@ -338,7 +339,9 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				credential_assignments: 'credentials',
 				description: 'description',
 				firmware_revision: 'firmware_revision',
-				hidden: 'hidden',
+				hidden: excluded(
+					'Always false, kept for older daemons; the Visibility tag group hides a host'
+				),
 				hostname: 'hostname',
 				last_seen_at: 'last_seen_at',
 				management_url: 'management_url',

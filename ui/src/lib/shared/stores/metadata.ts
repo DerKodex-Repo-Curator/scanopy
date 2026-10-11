@@ -508,9 +508,11 @@ export const dependencyTypes = createTypeMetadataHelpers<
 	'dependency_types',
 	DependencyTypeMetadata
 >('dependency_types');
-interface EntityTypeMetadata {
+export interface EntityTypeMetadata {
 	parent_taggable_entity?: string;
 	is_taggable?: boolean;
+	/** Carries a status of its own, so the Status tag group never applies to it. */
+	has_status?: boolean;
 	entity_name_singular?: string;
 	entity_name_plural?: string;
 	/** What this entity type is described by; see `shared/entity-fields`. */

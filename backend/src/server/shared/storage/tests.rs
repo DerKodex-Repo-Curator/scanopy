@@ -998,13 +998,6 @@ async fn server_side_field_filters_are_valid_sql_against_the_live_schema() {
     // (label, table, WHERE clause) for each filter these tabs can send.
     let cases: Vec<(&str, &str, String)> = vec![
         (
-            "hosts.hidden",
-            Host::table_name(),
-            StorableFilter::<Host>::new_unfiltered()
-                .hidden_in(&[true])
-                .to_where_clause(),
-        ),
-        (
             "hosts.virtualized_by",
             Host::table_name(),
             StorableFilter::<Host>::new_unfiltered()

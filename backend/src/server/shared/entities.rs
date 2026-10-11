@@ -290,6 +290,38 @@ impl EntityDiscriminants {
         }
     }
 
+    /// Whether this entity type carries a status of its own: a daemon's health, a discovery's
+    /// schedule or run phase, an API key's enabled state and expiry. The Status tag group never
+    /// applies to these, since a status tag would contradict the status they already show.
+    /// Exhaustive match: adding a new variant forces a decision.
+    pub fn has_status(&self) -> bool {
+        match self {
+            EntityDiscriminants::Daemon
+            | EntityDiscriminants::Discovery
+            | EntityDiscriminants::DaemonApiKey
+            | EntityDiscriminants::UserApiKey
+            | EntityDiscriminants::Invite => true,
+            EntityDiscriminants::Host
+            | EntityDiscriminants::Service
+            | EntityDiscriminants::Subnet
+            | EntityDiscriminants::Dependency
+            | EntityDiscriminants::Site
+            | EntityDiscriminants::Credential
+            | EntityDiscriminants::Vlan
+            | EntityDiscriminants::Organization
+            | EntityDiscriminants::Share
+            | EntityDiscriminants::User
+            | EntityDiscriminants::Tag
+            | EntityDiscriminants::TagGroup
+            | EntityDiscriminants::Port
+            | EntityDiscriminants::Binding
+            | EntityDiscriminants::IPAddress
+            | EntityDiscriminants::Interface
+            | EntityDiscriminants::Topology
+            | EntityDiscriminants::Snapshot => false,
+        }
+    }
+
     /// The nearest taggable ancestor of this entity — used to resolve which
     /// entity's tags apply when a non-taggable entity is involved in tag-based
     /// rules, filters, or selections (e.g. IP addresses/interfaces/ports
@@ -412,6 +444,10 @@ impl TypeMetadataProvider for EntityDiscriminants {
         m.insert(
             "is_taggable".to_string(),
             serde_json::json!(self.is_taggable()),
+        );
+        m.insert(
+            "has_status".to_string(),
+            serde_json::json!(self.has_status()),
         );
         m.insert(
             "entity_name_singular".to_string(),

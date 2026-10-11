@@ -5,8 +5,7 @@ import { createIconComponent } from '$lib/shared/utils/styling';
 import {
 	common_application,
 	common_status,
-	tags_applicationHelp,
-	tags_statusHelp,
+	common_visibility,
 	tags_tagGroupTooltip
 } from '$lib/paraglide/messages';
 import type { Tag, TagGroup, TagGroupType } from './types/base';
@@ -23,9 +22,10 @@ export type SystemTagGroupType = Exclude<TagGroupType, 'Custom'>;
  * backend adds fails the type check until it is described here. Its icon is the concept of the same
  * name.
  */
-const SYSTEM_GROUPS: Record<SystemTagGroupType, { label: () => string; help: () => string }> = {
-	Application: { label: () => common_application(), help: () => tags_applicationHelp() },
-	Status: { label: () => common_status(), help: () => tags_statusHelp() }
+const SYSTEM_GROUPS: Record<SystemTagGroupType, { label: () => string }> = {
+	Application: { label: () => common_application() },
+	Status: { label: () => common_status() },
+	Visibility: { label: () => common_visibility() }
 };
 
 /** Whether Scanopy defines this group: it can't be renamed or deleted. */
@@ -37,11 +37,6 @@ export function isSystemGroup(group: Pick<TagGroup, 'group_type'> | null | undef
 export function tagGroupLabel(group: TagGroup | null | undefined): string | null {
 	if (!group) return null;
 	return group.group_type === 'Custom' ? group.name : SYSTEM_GROUPS[group.group_type].label();
-}
-
-/** The help text for a system group; `null` for a group the organization named. */
-export function tagGroupHelp(group: TagGroup | null | undefined): string | null {
-	return group && group.group_type !== 'Custom' ? SYSTEM_GROUPS[group.group_type].help() : null;
 }
 
 /** The icon a system group is drawn with; `null` for a group the organization named. */

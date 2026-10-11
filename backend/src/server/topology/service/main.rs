@@ -317,16 +317,26 @@ impl TopologyService {
         // the closed `entity_tags`), not from live `entity_tags` (which key on
         // live, not closed, entity ids). Other entity types don't surface tags
         // in the topology, so plain `get_all` (live hydration) is fine for them.
-        let hosts = self
+        let organization_id = self
+            .site_service
+            .get_by_id(&site_id)
+            .await?
+            .map(|site| site.base.organization_id);
+        let mut hosts = self
             .host_service
             .get_all_as_of_snapshot(
                 apply_snapshot(
-                    StorableFilter::<Host>::new_from_site_ids(&[site_id]).hidden_is(false),
+                    StorableFilter::<Host>::new_from_site_ids(&[site_id]),
                     snapshot_id,
                 ),
                 snapshot_id,
             )
             .await?;
+        // A host holding a Visibility tag (as of the snapshot, for a snapshot read) is left out.
+        if let Some(organization_id) = organization_id {
+            let hiding = self.tag_service.hiding_tag_ids(&organization_id).await?;
+            hosts.retain(|host| !host.base.tags.iter().any(|tag| hiding.contains(tag)));
+        }
         let ip_addresses = self
             .ip_address_service
             .get_all(apply_snapshot(

@@ -43,6 +43,7 @@ impl Storable for TagGroup {
             base:
                 Self::BaseData {
                     name,
+                    description,
                     organization_id,
                     group_type,
                     entity_types,
@@ -55,6 +56,7 @@ impl Storable for TagGroup {
                 "id",
                 "organization_id",
                 "name",
+                "description",
                 "group_type",
                 "entity_types",
                 "ordered",
@@ -65,6 +67,7 @@ impl Storable for TagGroup {
                 SqlValue::Uuid(id),
                 SqlValue::Uuid(organization_id),
                 SqlValue::String(name),
+                SqlValue::OptionalString(description),
                 SqlValue::String(group_type.to_string()),
                 SqlValue::OptionalStringArray(
                     entity_types.map(|types| types.iter().map(|t| t.to_string()).collect()),
@@ -84,6 +87,7 @@ impl Storable for TagGroup {
             updated_at: row.get("updated_at"),
             base: TagGroupBase {
                 name: row.get("name"),
+                description: row.get("description"),
                 organization_id: row.get("organization_id"),
                 group_type: group_type
                     .parse()

@@ -104,8 +104,6 @@ pub enum HostOrderField {
     SysLocation,
     /// Sort by operating system family (`os.family`). Hosts with no OS sort last.
     OsFamily,
-    /// Sort by the `hidden` flag.
-    Hidden,
 }
 
 /// The host title in SQL, built once: `to_sql` hands out `&'static str`.
@@ -130,7 +128,6 @@ impl OrderField for HostOrderField {
             Self::Model => "hosts.model",
             Self::SysLocation => "hosts.sys_location",
             Self::OsFamily => "hosts.os->>'family'",
-            Self::Hidden => "hosts.hidden",
         }
     }
 
@@ -196,9 +193,6 @@ pub struct HostFilterQuery {
     pub site_ids: Option<Vec<Uuid>>,
     /// Filter by specific entity IDs (for selective loading)
     pub ids: Option<Vec<Uuid>>,
-    /// Filter by the `hidden` flag. Repeat the parameter to accept both values;
-    /// omit it for no constraint.
-    pub hidden: Option<Vec<bool>>,
     /// Filter by the service virtualizing the host. Repeat for several.
     pub virtualization_service_ids: Option<Vec<Uuid>>,
     /// Filter by the name of the service virtualizing the host, the value "Virtualized By"
@@ -288,6 +282,31 @@ impl HostFilterQuery {
         )
     }
 
+    /// Whether the list is grouped by virtualization tree and sorted by a field. SQL orders a tree
+    /// group by its path, which leaves no room for the sort, so the handler builds that order with
+    /// `HostService::get_all_host_responses_tree_ordered` instead.
+    pub fn sorts_inside_virtualization_trees(&self) -> bool {
+        self.group_by_tag_group.is_none()
+            && matches!(self.group_by, Some(HostOrderField::VirtualizedBy))
+            && (self.order_by.is_some() || self.order_by_tag_group.is_some())
+    }
+
+    /// [`Self::apply_ordering`] without the grouping: the sort alone, with its JOINs.
+    pub fn apply_sort_only(&self, filter: StorableFilter<Host>) -> (StorableFilter<Host>, String) {
+        crate::server::shared::handlers::ordering::TagGroupOrdering {
+            group_by: None,
+            order_by: self.order_by_tag_group,
+        }
+        .apply(
+            EntityDiscriminants::Host,
+            None,
+            self.order_by,
+            self.order_direction,
+            filter,
+            "hosts.created_at ASC",
+        )
+    }
+
     /// Apply the field filters the Hosts tab offers.
     ///
     /// Shared by the list and the exports, for the same reason the staleness
@@ -296,11 +315,6 @@ impl HostFilterQuery {
     /// filtering the loaded page instead would hide matches on every other page
     /// and leave the total count describing a different set of rows.
     pub fn apply_field_filters(&self, filter: StorableFilter<Host>) -> StorableFilter<Host> {
-        let filter = match &self.hidden {
-            Some(values) if !values.is_empty() => filter.hidden_in(values),
-            _ => filter,
-        };
-
         // "Not Virtualized" is a choice about absence, so it can arrive without
         // any service ids or names beside it.
         let filter = filter.virtualization_parent(
@@ -477,7 +491,12 @@ async fn get_all_hosts(
     let filter = pagination.apply_to_filter(filter);
 
     // Apply ordering and JOINs
-    let (filter, order_by) = query.apply_ordering(filter);
+    let tree_sorted = query.sorts_inside_virtualization_trees();
+    let (filter, order_by) = if tree_sorted {
+        query.apply_sort_only(filter.join(&VIRTUALIZATION_TREE_JOIN))
+    } else {
+        query.apply_ordering(filter)
+    };
 
     // Grouped lists report each group's full size, not the slice of it that
     // landed on this page. Runs against the same filter — including the JOIN
@@ -500,16 +519,24 @@ async fn get_all_hosts(
         None => None,
     };
 
-    let mut result = state
-        .services
-        .host_service
-        .get_all_host_responses_paginated(
-            filter,
-            &order_by,
-            query.at,
-            query.include_children.unwrap_or(true),
-        )
-        .await?;
+    let host_service = &state.services.host_service;
+    let include_children = query.include_children.unwrap_or(true);
+    let mut result = if tree_sorted {
+        host_service
+            .get_all_host_responses_tree_ordered(
+                filter,
+                &order_by,
+                pagination.effective_limit(),
+                pagination.effective_offset(),
+                query.at,
+                include_children,
+            )
+            .await?
+    } else {
+        host_service
+            .get_all_host_responses_paginated(filter, &order_by, query.at, include_children)
+            .await?
+    };
 
     // Hydrate credential assignments from junction table
     let host_ids: Vec<Uuid> = result.items.iter().map(|h| h.id).collect();

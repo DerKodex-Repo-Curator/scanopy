@@ -118,6 +118,11 @@ export interface DisplayConfig<T> {
 	/** A real column, but unchecked in the column menu until the user asks for it. */
 	hiddenByDefault?: boolean;
 	/**
+	 * The heading the column is listed under in the column menu. Columns without one are listed
+	 * first, ungrouped; a column moves only among columns of its own section.
+	 */
+	section?: string;
+	/**
 	 * Rich chips: `EntityTag` when an item carries an `entityRef`, `Tag`
 	 * otherwise. Prefer this over `cell`: it is data rather than markup, so
 	 * `getValue` can derive from the same builder.

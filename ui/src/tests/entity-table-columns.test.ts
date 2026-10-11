@@ -8,6 +8,7 @@ import {
 	moveColumn,
 	moveColumnTo,
 	movableIds,
+	columnSections,
 	buildTagColumn,
 	columnWidth,
 	MAX_COLUMN_WIDTH,
@@ -353,5 +354,32 @@ describe('column widths', () => {
 		});
 		// A list without tags has no such column, so the entry is stale there.
 		expect(reconcileColumnState(columns, stored).sizing).toEqual({});
+	});
+});
+
+describe('columnSections', () => {
+	const sectioned = (): FieldConfig<Row>[] => [
+		{ key: 'name', label: 'Name', type: 'string', display: { primary: true } },
+		{ key: 'status', label: 'Status', type: 'string', display: { section: 'Tag Groups' } },
+		{ key: 'site_id', label: 'Site', type: 'string' },
+		{ key: 'env', label: 'Environment', type: 'string', display: { section: 'Tag Groups' } }
+	];
+
+	it('lists unsectioned columns first, then each section, keeping table order', () => {
+		const sections = columnSections(fieldsToColumns(sectioned()));
+		expect(sections.map((s) => [s.section, s.columns.map((c) => c.id)])).toEqual([
+			[null, ['name', 'site_id']],
+			['Tag Groups', ['status', 'env']]
+		]);
+	});
+
+	it('moves a column only among the columns of its section', () => {
+		const columns = fieldsToColumns(sectioned());
+		const order = columns.map((c) => c.id);
+		const tagGroups = columnSections(columns)[1].columns;
+		// `status` moving down within its section passes `site_id` and lands after `env`.
+		expect(moveColumn(order, tagGroups, 'status', 1)).toEqual(['name', 'site_id', 'env', 'status']);
+		// The first column of a section can't move up out of it.
+		expect(moveColumn(order, tagGroups, 'status', -1)).toBe(order);
 	});
 });

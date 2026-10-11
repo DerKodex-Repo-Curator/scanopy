@@ -377,6 +377,47 @@ mod tests {
         let older = assign(&pool, host, status, "2026-01-01T00:00:00Z").await;
         let newer = assign(&pool, host, shouted, "2026-02-01T00:00:00Z").await;
 
+        // A daemon holding a Status tag, live and in its history: Status no longer applies to it.
+        let daemon = Uuid::new_v4();
+        for valid_to in [None, Some("2026-03-01T00:00:00Z")] {
+            sqlx::query(
+                "INSERT INTO entity_tags (entity_id, entity_type, tag_id, valid_to) \
+                 VALUES ($1, '\"Daemon\"', $2, $3::timestamptz)",
+            )
+            .bind(daemon)
+            .bind(planned)
+            .bind(valid_to)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        // Hosts hidden in each kind of row, and one shown.
+        let insert_host = |hidden: bool, valid_to: Option<&'static str>, snapshot: Option<Uuid>| {
+            let pool = pool.clone();
+            async move {
+                let id = Uuid::new_v4();
+                sqlx::query(
+                    "INSERT INTO hosts (id, site_id, name, source, created_at, updated_at, \
+                     hidden, valid_to, snapshot_id) \
+                     VALUES ($1, $2, 'h', '{}', now(), now(), $3, $4::timestamptz, $5)",
+                )
+                .bind(id)
+                .bind(site)
+                .bind(hidden)
+                .bind(valid_to)
+                .bind(snapshot)
+                .execute(&pool)
+                .await
+                .unwrap();
+                id
+            }
+        };
+        let hidden_live = insert_host(true, None, None).await;
+        let hidden_closed = insert_host(true, Some("2026-01-01T00:00:00Z"), None).await;
+        let hidden_snapshot = insert_host(true, Some("2026-01-01T00:00:00Z"), Some(snapshot)).await;
+        let shown = insert_host(false, None, None).await;
+
         apply_migrations(&pool, Path::new(MIGRATIONS_DIR))
             .await
             .unwrap();
@@ -442,7 +483,42 @@ mod tests {
         .into_iter()
         .map(|row| row.get("group_type"))
         .collect();
-        assert_eq!(system_groups, vec!["Application", "Status"]);
+        assert_eq!(system_groups, vec!["Application", "Status", "Visibility"]);
+
+        // Every hidden host row holds the Hidden tag over the same span, in the same snapshot.
+        let hidden: Vec<(Uuid, Option<chrono::DateTime<chrono::Utc>>, Option<Uuid>)> =
+            sqlx::query(
+                "SELECT et.entity_id, et.valid_to, et.snapshot_id FROM entity_tags et \
+                 JOIN tags t ON t.id = et.tag_id JOIN tag_groups g ON g.id = t.tag_group_id \
+                 WHERE g.group_type = 'Visibility' AND t.name = 'Hidden' \
+                   AND et.entity_type = '\"Host\"' ORDER BY et.valid_to NULLS FIRST, et.snapshot_id NULLS FIRST",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| (row.get("entity_id"), row.get("valid_to"), row.get("snapshot_id")))
+            .collect();
+        let hidden_ids: Vec<Uuid> = hidden.iter().map(|(id, _, _)| *id).collect();
+        assert_eq!(
+            hidden_ids,
+            vec![hidden_live, hidden_closed, hidden_snapshot]
+        );
+        assert!(hidden[0].1.is_none() && hidden[1].1.is_some());
+        assert_eq!(hidden[2].2, Some(snapshot));
+        assert!(!hidden_ids.contains(&shown));
+
+        let daemon_status: i64 =
+            sqlx::query("SELECT count(*) AS n FROM entity_tags WHERE entity_id = $1")
+                .bind(daemon)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                .get("n");
+        assert_eq!(
+            daemon_status, 0,
+            "Status assignments on a daemon are deleted in every version"
+        );
 
         let live: Vec<Uuid> =
             sqlx::query("SELECT id FROM entity_tags WHERE entity_id = $1 AND valid_to IS NULL")
@@ -468,8 +544,8 @@ mod tests {
 
         let columns_left: bool = sqlx::query(
             "SELECT EXISTS (SELECT 1 FROM information_schema.columns \
-             WHERE table_name = 'tags' AND column_name IN ('is_application', 'tag_group')) \
-             AS present",
+             WHERE (table_name = 'tags' AND column_name IN ('is_application', 'tag_group')) \
+                OR (table_name = 'hosts' AND column_name = 'hidden')) AS present",
         )
         .fetch_one(&pool)
         .await

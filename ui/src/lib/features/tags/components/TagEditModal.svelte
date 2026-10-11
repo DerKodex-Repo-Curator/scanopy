@@ -17,7 +17,6 @@
 	import TagGroupSelect from './TagGroupSelect.svelte';
 	import { useCreateTagGroupMutation, useTagGroupsQuery } from '../queries';
 	import { createDefaultTagGroup } from '../types/base';
-	import { tagGroupHelp } from '../groups';
 	import tagIconsFixture from '$lib/data/tag-icons.json';
 	import {
 		common_cancel,
@@ -248,7 +247,7 @@
 								onCreate={handleGroupCreate}
 							/>
 							<p class="text-tertiary text-xs">
-								{tagGroupHelp(selectedGroup) ?? tags_tagGroupHelp()}
+								{selectedGroup?.description || tags_tagGroupHelp()}
 							</p>
 						</div>
 					</form.Field>
