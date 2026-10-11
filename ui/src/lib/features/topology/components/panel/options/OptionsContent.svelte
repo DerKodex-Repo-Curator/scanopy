@@ -17,7 +17,9 @@
 		activeView,
 		clearedViewHideSet,
 		hiddenEdgeTypes,
-		updateHiddenEdgeTypes
+		updateHiddenEdgeTypes,
+		activeTagFilter,
+		updateActiveTagFilter
 	} from '../../../queries';
 	import {
 		coversSeveralEntities,
@@ -275,31 +277,28 @@
 		return m;
 	});
 
+	/**
+	 * The Visibility group's tags, when the group applies to `entityType`. Entities holding one never
+	 * reach the topology, so they are listed from the organization's tags rather than the bundle.
+	 */
+	function visibilityTagsFor(entityType: EntityType) {
+		const group = (tagGroupsQuery.data ?? []).find((g) => g.group_type === 'Visibility');
+		if (!group?.entity_types?.includes(entityType)) return [];
+		return allTags.filter((tag) => tag.tag_group_id === group.id);
+	}
+
 	function hiddenTagIdsForEntity(entityType: EntityType): string[] {
-		return $topologyOptions.local.tag_filter?.hidden_tag_ids?.[entityType] ?? [];
+		return $activeTagFilter.hidden_tag_ids?.[entityType] ?? [];
 	}
 
-	/** Set `entityType`'s hidden tag list, leaving every other type's as it is. */
-	function withHiddenTagIds(
-		opts: TopologyOptions,
-		entityType: EntityType,
-		ids: string[]
-	): TopologyOptions['local'] {
-		return {
-			...opts.local,
-			tag_filter: {
-				hidden_tag_ids: { ...(opts.local.tag_filter?.hidden_tag_ids ?? {}), [entityType]: ids }
-			}
-		};
-	}
-
+	/** Toggle `tagId` in the active view's hidden list for `entityType`. */
 	function onToggleTagForEntity(entityType: EntityType, tagId: string) {
-		updateTopologyOptions((opts) => {
-			const hiddenIds = opts.local.tag_filter?.hidden_tag_ids?.[entityType] ?? [];
+		updateActiveTagFilter((filter) => {
+			const hiddenIds = filter.hidden_tag_ids?.[entityType] ?? [];
 			const next = hiddenIds.includes(tagId)
 				? hiddenIds.filter((id) => id !== tagId)
 				: [...hiddenIds, tagId];
-			return { ...opts, local: withHiddenTagIds(opts, entityType, next) };
+			return { hidden_tag_ids: { ...(filter.hidden_tag_ids ?? {}), [entityType]: next } };
 		});
 	}
 
@@ -357,7 +356,18 @@
 
 			return {
 				...opts,
-				local: withHiddenTagIds(opts, entityType, []),
+				local: {
+					...opts.local,
+					tag_filter: {
+						...opts.local.tag_filter,
+						[view]: {
+							hidden_tag_ids: {
+								...(opts.local.tag_filter[view]?.hidden_tag_ids ?? {}),
+								[entityType]: []
+							}
+						}
+					}
+				},
 				request: {
 					...opts.request,
 					hide_metadata_values: hideMeta
@@ -392,7 +402,7 @@
 				...opts,
 				local: {
 					...opts.local,
-					tag_filter: { hidden_tag_ids: {} }
+					tag_filter: { ...opts.local.tag_filter, [view]: { hidden_tag_ids: {} } }
 				},
 				request: {
 					...opts.request,
@@ -709,8 +719,11 @@
 
 		{#each filterSections as section (section.entityType)}
 			{@const tagBundle = tagListByEntity[section.entityType]}
+			{@const visibilityTags = visibilityTagsFor(section.entityType)}
 			{@const metadataFilters = sectionFilters(section.entityType)}
-			{@const hasTagBody = !!tagBundle && (tagBundle.tags.length > 0 || tagBundle.hasUntagged)}
+			{@const hasTagBody =
+				(!!tagBundle && (tagBundle.tags.length > 0 || tagBundle.hasUntagged)) ||
+				visibilityTags.length > 0}
 			{@const hasContent = hasTagBody || metadataFilters.length > 0 || section.togglePresent}
 			{#if hasContent}
 				{@const sectionFilterCount = userFilterCountFor(section.entityType)}
@@ -726,14 +739,16 @@
 						onClearSection={clearFiltersForEntity}
 					/>
 					{#if !section.hidden}
-						{#if hasTagBody && tagBundle}
+						{#if hasTagBody}
 							<TagFilterGroup
 								label={metadataFilters.length > 0 ? common_byTag() : undefined}
-								tags={tagBundle.tags}
+								tags={tagBundle?.tags ?? []}
+								groups={tagGroupsQuery.data ?? []}
+								{visibilityTags}
 								hiddenTagIds={hiddenTagIdsForEntity(section.entityType)}
 								onToggle={(id) => onToggleTagForEntity(section.entityType, id)}
 								entityType={section.entityType}
-								hasUntagged={tagBundle.hasUntagged}
+								hasUntagged={tagBundle?.hasUntagged ?? false}
 								applicationGroupId={renderableTopology?.application_group_id ?? null}
 							/>
 						{/if}

@@ -1,19 +1,21 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 import {
+	activeTagFilter,
 	activeView,
 	hiddenEdgeTypes,
 	hydrateStoresFromTopology,
 	resetTopologyOptions,
 	topologyOptions,
+	updateActiveTagFilter,
 	updateHiddenEdgeTypes,
 	updateTopologyOptions
 } from '$lib/features/topology/queries';
 import type { Topology, TopologyOptions } from '$lib/features/topology/types/base';
 
 /**
- * Local options (minimap, edge bundling, fading, tag filter) are saved as one value for every
- * view; hidden edge types are saved per view. Switching views or reloading on a non-default view
+ * Local options (minimap, edge bundling, fading) are saved as one value for every view; hidden
+ * edge types and the tag filter are saved per view. Switching views or reloading on a non-default view
  * must keep what the user saved.
  */
 
@@ -32,7 +34,7 @@ function savedOptions(): TopologyOptions {
 			show_minimap: false,
 			bundle_edges: false,
 			no_fade_edges: true,
-			tag_filter: { hidden_tag_ids: { Host: [TAG_ID] } },
+			tag_filter: { L3Logical: { hidden_tag_ids: { Host: [TAG_ID] } } },
 			hide_edge_types: {
 				L3Logical: ['Hypervisor'],
 				L2Physical: ['SameHost'],
@@ -53,7 +55,7 @@ function expectSavedSharedLocal() {
 	expect(local.show_minimap).toBe(false);
 	expect(local.bundle_edges).toBe(false);
 	expect(local.no_fade_edges).toBe(true);
-	expect(local.tag_filter.hidden_tag_ids).toEqual({ Host: [TAG_ID] });
+	expect(local.tag_filter.L3Logical?.hidden_tag_ids).toEqual({ Host: [TAG_ID] });
 }
 
 describe('topology local options across views', () => {
@@ -101,10 +103,25 @@ describe('topology local options across views', () => {
 		expect(get(topologyOptions).local.hide_edge_types.Application).toEqual(['ContainerRuntime']);
 	});
 
+	it('keeps the tag filter per view', () => {
+		hydrateStoresFromTopology(topologyWith(savedOptions()));
+		expect(get(activeTagFilter).hidden_tag_ids).toEqual({ Host: [TAG_ID] });
+
+		activeView.set('Workloads');
+		expect(get(activeTagFilter).hidden_tag_ids).toEqual({});
+		updateActiveTagFilter(() => ({ hidden_tag_ids: { Service: [TAG_ID] } }));
+
+		activeView.set('L3Logical');
+		expect(get(activeTagFilter).hidden_tag_ids).toEqual({ Host: [TAG_ID] });
+		expect(get(topologyOptions).local.tag_filter.Workloads?.hidden_tag_ids).toEqual({
+			Service: [TAG_ID]
+		});
+	});
+
 	it('share viewers get defaults, not the saved options', () => {
 		hydrateStoresFromTopology(topologyWith(savedOptions()), true, true);
 		const local = get(topologyOptions).local;
 		expect(local.show_minimap).toBe(true);
-		expect(local.tag_filter.hidden_tag_ids).toEqual({});
+		expect(local.tag_filter).toEqual({});
 	});
 });

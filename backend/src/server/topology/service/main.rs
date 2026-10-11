@@ -317,11 +317,17 @@ impl TopologyService {
         // the closed `entity_tags`), not from live `entity_tags` (which key on
         // live, not closed, entity ids). Other entity types don't surface tags
         // in the topology, so plain `get_all` (live hydration) is fine for them.
-        let organization_id = self
-            .site_service
-            .get_by_id(&site_id)
-            .await?
-            .map(|site| site.base.organization_id);
+        // The organization's Visibility tags. A host, service or subnet holding one (as of the
+        // snapshot, for a snapshot read) is left out; a hidden host takes what it holds with it.
+        let hiding = match self.site_service.get_by_id(&site_id).await? {
+            Some(site) => {
+                self.tag_service
+                    .hiding_tag_ids(&site.base.organization_id)
+                    .await?
+            }
+            None => vec![],
+        };
+        let is_hidden = |tags: &[Uuid]| tags.iter().any(|tag| hiding.contains(tag));
         let mut hosts = self
             .host_service
             .get_all_as_of_snapshot(
@@ -332,11 +338,7 @@ impl TopologyService {
                 snapshot_id,
             )
             .await?;
-        // A host holding a Visibility tag (as of the snapshot, for a snapshot read) is left out.
-        if let Some(organization_id) = organization_id {
-            let hiding = self.tag_service.hiding_tag_ids(&organization_id).await?;
-            hosts.retain(|host| !host.base.tags.iter().any(|tag| hiding.contains(tag)));
-        }
+        hosts.retain(|host| !is_hidden(&host.base.tags));
         let ip_addresses = self
             .ip_address_service
             .get_all(apply_snapshot(
@@ -344,7 +346,7 @@ impl TopologyService {
                 snapshot_id,
             ))
             .await?;
-        let subnets = self
+        let mut subnets = self
             .subnet_service
             .get_all_as_of_snapshot(
                 apply_snapshot(
@@ -354,6 +356,7 @@ impl TopologyService {
                 snapshot_id,
             )
             .await?;
+        subnets.retain(|subnet| !is_hidden(&subnet.base.tags));
         let dependencies = self
             .dependency_service
             .get_all(apply_snapshot(
@@ -394,7 +397,7 @@ impl TopologyService {
             .interface_neighbor_service
             .candidates_for_site(site_id)
             .await?;
-        let services = self
+        let mut services = self
             .service_service
             .get_all_as_of_snapshot(
                 apply_snapshot(
@@ -404,6 +407,7 @@ impl TopologyService {
                 snapshot_id,
             )
             .await?;
+        services.retain(|service| !is_hidden(&service.base.tags));
         let vlans = self
             .vlan_service
             .get_all(apply_snapshot(

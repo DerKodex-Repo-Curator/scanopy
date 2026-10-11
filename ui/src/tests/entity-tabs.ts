@@ -252,6 +252,9 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				group_type: 'group_type',
 				entity_types: 'entity_types',
 				ordered: 'ordered',
+				scope_computed: excluded(
+					"Read-only flag behind the editor's locked scope; the Applies To column shows the list"
+				),
 				created_at: 'created_at',
 				updated_at: 'updated_at',
 				id: ID,

@@ -71,11 +71,20 @@ export function groupItems<T>(
 
 	// A field that orders its values (a CIDR, a tag group's tags) orders its groups the same way;
 	// every row of a group holds the same value, so its first row stands for it.
+	// The group of rows with no value comes last, as those rows do in a sort.
 	const compare = field.compare;
+	const missing = (item: T) => {
+		const value = getFieldValue(item, field);
+		return value === null || value === undefined;
+	};
 	return new Map(
-		[...groups.entries()].sort((a, b) =>
-			compare ? compare(a[1][0], b[1][0]) || a[0].localeCompare(b[0]) : a[0].localeCompare(b[0])
-		)
+		[...groups.entries()].sort((a, b) => {
+			const [aMissing, bMissing] = [missing(a[1][0]), missing(b[1][0])];
+			if (aMissing !== bMissing) return aMissing ? 1 : -1;
+			return compare
+				? compare(a[1][0], b[1][0]) || a[0].localeCompare(b[0])
+				: a[0].localeCompare(b[0]);
+		})
 	);
 }
 

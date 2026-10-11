@@ -322,6 +322,12 @@ impl EntityDiscriminants {
         }
     }
 
+    /// Whether some topology view draws this entity type, as container, element or inline entity.
+    /// Derived from the views' own hierarchies.
+    pub fn drawn_in_topology(&self) -> bool {
+        crate::server::topology::types::views::TopologyView::drawn_entities().contains(self)
+    }
+
     /// The nearest taggable ancestor of this entity — used to resolve which
     /// entity's tags apply when a non-taggable entity is involved in tag-based
     /// rules, filters, or selections (e.g. IP addresses/interfaces/ports
@@ -448,6 +454,10 @@ impl TypeMetadataProvider for EntityDiscriminants {
         m.insert(
             "has_status".to_string(),
             serde_json::json!(self.has_status()),
+        );
+        m.insert(
+            "drawn_in_topology".to_string(),
+            serde_json::json!(self.drawn_in_topology()),
         );
         m.insert(
             "entity_name_singular".to_string(),

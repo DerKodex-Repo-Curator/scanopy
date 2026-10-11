@@ -16,6 +16,7 @@ import {
 } from '$lib/features/tags/types/base';
 import { getFieldKey, isOrderableField } from '$lib/shared/components/data/types';
 import { groupItems } from '$lib/shared/components/data/controls/grouping';
+import { sortItems } from '$lib/shared/components/data/controls/sorting';
 
 function group(
 	id: string,
@@ -156,12 +157,10 @@ describe('tag group table columns', () => {
 
 	it("sorts and groups rows in the group's tag order, rows without a tag last", () => {
 		const status = fieldsFor(false)[1];
-		expect([...rows].sort(status.compare!).map((r) => r.id)).toEqual([
-			'new',
-			'live',
-			'retired',
-			'untagged'
-		]);
+		const sorted = (direction: 'asc' | 'desc') =>
+			sortItems(rows, [status], { field: getFieldKey(status), direction }).map((r) => r.id);
+		expect(sorted('asc')).toEqual(['new', 'live', 'retired', 'untagged']);
+		expect(sorted('desc')).toEqual(['retired', 'live', 'new', 'untagged']);
 		const grouped = groupItems(
 			rows,
 			[status],

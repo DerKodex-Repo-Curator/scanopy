@@ -25,26 +25,31 @@ export type TopologyView = components['schemas']['TopologyView'];
 
 /** Strip UI-only sentinel values from options before sending to the API */
 export function sanitizeOptionsForApi(options: TopologyOptions): TopologyOptions {
-	const tf = options.local?.tag_filter;
 	const isSentinel = (id: string) => id === UNTAGGED_SENTINEL;
 	return {
 		...options,
 		local: {
 			...options.local,
-			tag_filter: {
-				hidden_tag_ids: Object.fromEntries(
-					Object.entries(tf?.hidden_tag_ids ?? {}).map(([entityType, ids]) => [
-						entityType,
-						(ids ?? []).filter((id) => !isSentinel(id))
-					])
-				)
-			}
+			tag_filter: Object.fromEntries(
+				Object.entries(options.local?.tag_filter ?? {}).map(([view, tf]) => [
+					view,
+					{
+						hidden_tag_ids: Object.fromEntries(
+							Object.entries(tf?.hidden_tag_ids ?? {}).map(([entityType, ids]) => [
+								entityType,
+								(ids ?? []).filter((id) => !isSentinel(id))
+							])
+						)
+					}
+				])
+			)
 		}
 	};
 }
 
 type TopologyLocalOptions = components['schemas']['TopologyLocalOptions'];
 type EdgeTypeDiscriminants = components['schemas']['EdgeTypeDiscriminants'];
+type TopologyTagFilter = components['schemas']['TopologyTagFilter'];
 
 /** Get the org's use case from the query cache, defaulting to 'other' */
 export function getOrgUseCase(): string {
@@ -152,7 +157,7 @@ function defaultLocalOptions(): TopologyLocalOptions {
 		),
 		no_fade_edges: false,
 		bundle_edges: true,
-		tag_filter: { hidden_tag_ids: {} },
+		tag_filter: {},
 		show_minimap: true
 	};
 }
@@ -550,6 +555,29 @@ export function updateTopologyOptions(
 	});
 }
 
+/** The tag filter of the active view. */
+export const activeTagFilter = derived(
+	[topologyOptionsStore, activeView],
+	([$store, $view]): TopologyTagFilter => $store.local.tag_filter[$view] ?? { hidden_tag_ids: {} }
+);
+
+/** Replace the active view's tag filter, leaving other views' as they are. */
+export function updateActiveTagFilter(
+	updater: (current: TopologyTagFilter) => TopologyTagFilter
+): void {
+	const view = get(activeView);
+	updateTopologyOptions((opts) => ({
+		...opts,
+		local: {
+			...opts.local,
+			tag_filter: {
+				...opts.local.tag_filter,
+				[view]: updater(opts.local.tag_filter[view] ?? { hidden_tag_ids: {} })
+			}
+		}
+	}));
+}
+
 /** Replace the active view's hidden edge types, leaving other views' entries as they are. */
 export function updateHiddenEdgeTypes(
 	updater: (current: EdgeTypeDiscriminants[]) => EdgeTypeDiscriminants[]
@@ -600,7 +628,7 @@ export function showEverythingIn(view: string): void {
 			},
 			local: {
 				...opts.local,
-				tag_filter: { hidden_tag_ids: {} }
+				tag_filter: { ...opts.local.tag_filter, [view]: { hidden_tag_ids: {} } }
 			}
 		};
 	});

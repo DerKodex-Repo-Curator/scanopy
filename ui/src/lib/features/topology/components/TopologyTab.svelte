@@ -33,6 +33,7 @@
 		consumePreferredSite,
 		loadSelectedSiteFromStorage,
 		activeView,
+		activeTagFilter,
 		topologyReadOnly,
 		topologyOptions,
 		updateTopologyOptions,
@@ -290,7 +291,7 @@
 						>
 					)[$activeView],
 					(($topologyOptions.request.hide_entities ?? {}) as Record<string, string[]>)[$activeView],
-					$topologyOptions.local.tag_filter,
+					$activeTagFilter,
 					sitesData.find((n) => n.id === currentTopology?.site_id)
 				)
 			: []
@@ -330,7 +331,7 @@
 		const hideEntities = ($topologyOptions.request.hide_entities ?? {}) as Record<string, string[]>;
 		updateTagFilter(
 			currentTopology ?? undefined,
-			$topologyOptions.local.tag_filter,
+			$activeTagFilter,
 			$activeView,
 			hideMetadata[$activeView],
 			hideEntities[$activeView] ?? [],

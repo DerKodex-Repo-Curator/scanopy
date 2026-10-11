@@ -28,8 +28,9 @@
 --
 -- Every organization gets an Application, a Status and a Visibility group, whether or not it has
 -- tags, and the Visibility group gets one tag, Hidden (named 'Hidden (topology)' where the
--- organization already has a live tag called Hidden). Visibility applies to hosts only, and a host
--- holding any tag of it is left out of topology.
+-- organization already has a live tag called Hidden). Visibility applies to every taggable entity a
+-- topology draws (hosts, services, subnets), and one holding any tag of it is left out of every
+-- topology.
 --
 -- DATA DROPPED: Status applies only to entity types without a status of their own. Every
 -- `entity_tags` row (live, closed and snapshot) that puts a Status tag on a daemon, a discovery, a
@@ -151,7 +152,8 @@ UPDATE entity_tags
    AND held.rank > 1;
 
 -- The system groups, for every organization. Statuses have an order; applications and visibility
--- don't. Visibility applies to hosts only. Descriptions match `TagGroupType::default_description`.
+-- don't. Status and Visibility scopes are computed from entity metadata and never stored, so their
+-- entity_types stay NULL. Descriptions match `TagGroupType::default_description`.
 INSERT INTO tag_groups (id, organization_id, name, description, group_type, entity_types, ordered)
 SELECT gen_random_uuid(), o.id, s.name, s.description, s.name, s.entity_types, s.ordered
   FROM organizations o
@@ -163,8 +165,8 @@ SELECT gen_random_uuid(), o.id, s.name, s.description, s.name, s.entity_types, s
       'Where an asset is in its lifecycle.',
       NULL::TEXT[], true),
      ('Visibility',
-      'Hosts holding a tag of this group are left out of topology.',
-      ARRAY['Host']::TEXT[], false)
+      'Entities holding a tag of this group are left out of every topology.',
+      NULL::TEXT[], false)
  ) AS s(name, description, entity_types, ordered)
  WHERE NOT EXISTS (
      SELECT 1 FROM tag_groups g

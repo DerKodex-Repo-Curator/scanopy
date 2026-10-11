@@ -1,5 +1,6 @@
 import type { components } from '$lib/api/schema';
 import type { FieldConfig } from '$lib/shared/components/data/types';
+import type { Snippet } from 'svelte';
 import { tagItems } from './columns';
 import { compareTagOrder, groupsFor, tagGroupLabel, tagsInGroup } from './groups';
 import type { Tag, TagGroup } from './types/base';
@@ -44,13 +45,16 @@ export function tagGroupFields<T>({
 	tags,
 	entityType,
 	getItemTags,
-	serverPaginated
+	serverPaginated,
+	cell
 }: {
 	groups: TagGroup[];
 	tags: Tag[];
 	entityType: EntityDiscriminants;
 	getItemTags: (item: T) => string[];
 	serverPaginated: boolean;
+	/** Renders an editable cell, called with the row and the column id; absent for read-only viewers. */
+	cell?: Snippet<[T, string]>;
 }): FieldConfig<T>[] {
 	return groupsFor(groups, entityType).map((group) => {
 		const groupTags = tagsInGroup(tags, group.id);
@@ -66,15 +70,15 @@ export function tagGroupFields<T>({
 			filterable: true,
 			filterOptions: groupTags.map((tag) => tag.name),
 			getValue: (item: T) => held(item)?.name ?? null,
-			// Rows holding no tag of the group sort last.
+			// Rows holding no tag of the group have no value, so `compareByField` sorts them last.
 			compare: (a: T, b: T) => {
 				const [ta, tb] = [held(a), held(b)];
-				if (!ta || !tb) return ta ? -1 : tb ? 1 : 0;
-				return compareTagOrder(ta, tb);
+				return ta && tb ? compareTagOrder(ta, tb) : 0;
 			},
 			display: {
 				hiddenByDefault: true,
 				section: tags_tagGroups(),
+				cell,
 				getItems: (item: T) => {
 					const tag = held(item);
 					return tag ? tagItems([tag.id], tags, groups) : [];

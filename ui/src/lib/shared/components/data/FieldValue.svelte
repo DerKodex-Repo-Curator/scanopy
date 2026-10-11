@@ -56,7 +56,7 @@
 </script>
 
 {#if column.display.cell}
-	{@render column.display.cell(item)}
+	{@render column.display.cell(item, column.id)}
 {:else if items !== null}
 	{#if items.length === 0}
 		<!-- An em dash on its own is read as "dash", or skipped entirely. -->

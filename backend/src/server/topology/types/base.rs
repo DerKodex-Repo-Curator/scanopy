@@ -170,7 +170,7 @@ impl From<TagFilterWire> for TopologyTagFilter {
     }
 }
 
-/// Viewer settings. All but `hide_edge_types` apply to every view.
+/// Viewer settings. `hide_edge_types` and `tag_filter` are per view; the rest apply to every view.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, ToSchema)]
 #[serde(default)]
 pub struct TopologyLocalOptions {
@@ -181,9 +181,9 @@ pub struct TopologyLocalOptions {
     /// than failing the topology.
     #[serde(deserialize_with = "deserialize_hide_edge_types")]
     pub hide_edge_types: HashMap<TopologyView, Vec<EdgeTypeDiscriminants>>,
-    /// Restrict the view to entities carrying these tags.
-    #[serde(default)]
-    pub tag_filter: TopologyTagFilter,
+    /// Tags whose entities are left out, per view. A view with no entry hides nothing by tag.
+    #[serde(default, deserialize_with = "deserialize_tag_filter")]
+    pub tag_filter: HashMap<TopologyView, TopologyTagFilter>,
     /// Show the minimap.
     #[serde(default = "default_true")]
     pub show_minimap: bool,
@@ -260,12 +260,63 @@ where
     Ok(stored)
 }
 
+/// Read `tag_filter` in either stored shape: the per-view map, or the single filter v0.17.22 and
+/// earlier wrote. A single filter goes into every view: its tags were hidden on purpose, and a tag
+/// filter has no per-view defaults it could override. Unknown views are dropped.
+///
+/// The shape is told apart by its keys, since serde would read either shape as the other: a
+/// single filter's keys are its own field names.
+fn deserialize_tag_filter<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<TopologyView, TopologyTagFilter>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    const SINGLE_FILTER_KEYS: [&str; 4] = [
+        "hidden_tag_ids",
+        "hidden_host_tag_ids",
+        "hidden_service_tag_ids",
+        "hidden_subnet_tag_ids",
+    ];
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let Some(object) = value.as_object() else {
+        return Ok(HashMap::new());
+    };
+    if object
+        .keys()
+        .any(|key| SINGLE_FILTER_KEYS.contains(&key.as_str()))
+    {
+        let filter: TopologyTagFilter =
+            serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+        return Ok(TopologyView::iter()
+            .map(|view| (view, filter.clone()))
+            .collect());
+    }
+    Ok(object
+        .iter()
+        .filter_map(|(key, filter)| {
+            let view =
+                serde_json::from_value::<TopologyView>(serde_json::Value::String(key.clone()));
+            match (
+                view,
+                serde_json::from_value::<TopologyTagFilter>(filter.clone()),
+            ) {
+                (Ok(view), Ok(filter)) => Some((view, filter)),
+                _ => {
+                    tracing::warn!(view = %key, "Unrecognized view in tag_filter; dropping it");
+                    None
+                }
+            }
+        })
+        .collect())
+}
+
 impl Default for TopologyLocalOptions {
     fn default() -> Self {
         Self {
             no_fade_edges: false,
             hide_edge_types: default_hide_edge_types(),
-            tag_filter: TopologyTagFilter::default(),
+            tag_filter: HashMap::new(),
             show_minimap: true,
             bundle_edges: true,
         }
@@ -590,7 +641,44 @@ mod tests {
         let empty: TopologyTagFilter = serde_json::from_value(serde_json::json!({})).unwrap();
         assert!(empty.hidden_tag_ids.is_empty());
         let local: TopologyLocalOptions = serde_json::from_value(serde_json::json!({})).unwrap();
-        assert!(local.tag_filter.hidden_tag_ids.is_empty());
+        assert!(local.tag_filter.is_empty());
+    }
+
+    /// v0.17.22 and earlier stored one tag filter for every view. Each view keeps hiding its tags.
+    #[test]
+    fn stored_single_tag_filter_reads_into_every_view() {
+        let tag = Uuid::new_v4();
+        for stored in [
+            serde_json::json!({ "hidden_tag_ids": { "Host": [tag] } }),
+            serde_json::json!({ "hidden_host_tag_ids": [tag] }),
+        ] {
+            let local: TopologyLocalOptions =
+                serde_json::from_value(serde_json::json!({ "tag_filter": stored })).unwrap();
+            for view in TopologyView::iter() {
+                assert_eq!(
+                    local.tag_filter[&view].hidden_tag_ids[&EntityDiscriminants::Host],
+                    vec![tag],
+                    "{view:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn per_view_tag_filter_keeps_each_view_apart() {
+        let tag = Uuid::new_v4();
+        let local: TopologyLocalOptions = serde_json::from_value(serde_json::json!({
+            "tag_filter": { "L3Logical": { "hidden_tag_ids": { "Host": [tag] } }, "SomeFutureView": {} }
+        }))
+        .unwrap();
+        assert_eq!(local.tag_filter.len(), 1);
+        assert_eq!(
+            local.tag_filter[&TopologyView::L3Logical].hidden_tag_ids[&EntityDiscriminants::Host],
+            vec![tag]
+        );
+        let round_trip: TopologyLocalOptions =
+            serde_json::from_value(serde_json::to_value(&local).unwrap()).unwrap();
+        assert_eq!(round_trip, local);
     }
 
     /// Saved options that hide an edge type or name a view this binary doesn't know still load,

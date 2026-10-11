@@ -28,6 +28,7 @@ export function createDefaultTagGroup(organization_id: string): TagGroup {
 		group_type: 'Custom',
 		entity_types: null,
 		ordered: true,
+		scope_computed: false,
 		id: uuidv4Sentinel,
 		created_at: utcTimeZoneSentinel,
 		updated_at: utcTimeZoneSentinel,

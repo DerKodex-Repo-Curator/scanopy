@@ -43,6 +43,7 @@
 		tags_createTagGroup,
 		tags_groupDescriptionPlaceholder,
 		tags_noEntityTypesChosen,
+		tags_scopeComputedHelp,
 		tags_groupNamePlaceholder,
 		tags_noTagsInGroup,
 		tags_orderByName,
@@ -80,18 +81,15 @@
 	let organization = $derived(organizationQuery.data);
 	const tagsQuery = useTagsQuery();
 
-	/**
-	 * The entity types this group can apply to, from the entity metadata: every taggable type, less
-	 * those with a status of their own for the Status group.
-	 */
-	let eligibleTypes = $derived(
-		(entities.getItems() as EntityTypeOption[]).filter(
-			(item) =>
-				item.metadata?.is_taggable && !(group?.group_type === 'Status' && item.metadata?.has_status)
-		)
+	/** Every taggable entity type, from the entity metadata. */
+	const eligibleTypes = (entities.getItems() as EntityTypeOption[]).filter(
+		(item) => item.metadata?.is_taggable
 	);
-	/** Visibility applies to hosts and nothing else. */
-	let scopeFixed = $derived(group?.group_type === 'Visibility');
+	/**
+	 * A scope the server computes from entity metadata (Status, Visibility): shown as the list it
+	 * returns, never edited.
+	 */
+	let scopeFixed = $derived(group?.scope_computed ?? false);
 
 	let loading = $state(false);
 	let deleting = $state(false);
@@ -214,7 +212,7 @@
 	{name}
 	entityId={group?.id}
 	{form}
-	size="lg"
+	size="xl"
 	{onClose}
 	onOpen={handleOpen}
 	showCloseButton={true}
@@ -292,6 +290,7 @@
 									<ListManager
 										label={common_entityTypes()}
 										emptyMessage={tags_noEntityTypesChosen()}
+										helpText={scopeFixed ? tags_scopeComputedHelp() : ''}
 										items={chosenTypeItems}
 										options={typeOptions}
 										itemDisplayComponent={EntityTypeDisplay}

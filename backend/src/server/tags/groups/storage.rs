@@ -10,7 +10,7 @@ use crate::server::{
         entity_metadata::EntityCategory,
         storage::traits::{Entity, SqlValue, Storable},
     },
-    tags::groups::base::{TagGroup, TagGroupBase},
+    tags::groups::base::{TagGroup, TagGroupBase, TagGroupType},
 };
 
 impl Storable for TagGroup {
@@ -48,6 +48,8 @@ impl Storable for TagGroup {
                     group_type,
                     entity_types,
                     ordered,
+                    // Derived from `group_type` on every read; not a column.
+                    scope_computed: _,
                 },
         } = self.clone();
 
@@ -69,8 +71,11 @@ impl Storable for TagGroup {
                 SqlValue::String(name),
                 SqlValue::OptionalString(description),
                 SqlValue::String(group_type.to_string()),
+                // A computed scope is never stored: it is read from entity metadata on every load.
                 SqlValue::OptionalStringArray(
-                    entity_types.map(|types| types.iter().map(|t| t.to_string()).collect()),
+                    entity_types
+                        .filter(|_| !group_type.has_computed_scope())
+                        .map(|types| types.iter().map(|t| t.to_string()).collect()),
                 ),
                 SqlValue::Bool(ordered),
                 SqlValue::Timestamp(created_at),
@@ -81,6 +86,9 @@ impl Storable for TagGroup {
 
     fn from_row(row: &PgRow) -> Result<Self, anyhow::Error> {
         let group_type: String = row.get("group_type");
+        let group_type: TagGroupType = group_type
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Unknown tag group type {group_type}"))?;
         Ok(TagGroup {
             id: row.get("id"),
             created_at: row.get("created_at"),
@@ -89,21 +97,22 @@ impl Storable for TagGroup {
                 name: row.get("name"),
                 description: row.get("description"),
                 organization_id: row.get("organization_id"),
-                group_type: group_type
-                    .parse()
-                    .map_err(|_| anyhow::anyhow!("Unknown tag group type {group_type}"))?,
-                // A type name this build no longer knows is dropped rather than failing the list.
+                group_type,
                 ordered: row.get("ordered"),
-                entity_types: row
-                    .get::<Option<Vec<String>>, _>("entity_types")
-                    .map(|names| {
-                        names
-                            .iter()
-                            .filter_map(|name| {
-                                EntityDiscriminants::iter().find(|t| t.to_string() == *name)
-                            })
-                            .collect()
-                    }),
+                scope_computed: group_type.has_computed_scope(),
+                // A computed scope is read from entity metadata, not the row. A type name this build
+                // no longer knows is dropped rather than failing the list.
+                entity_types: group_type.computed_entity_types().or_else(|| {
+                    row.get::<Option<Vec<String>>, _>("entity_types")
+                        .map(|names| {
+                            names
+                                .iter()
+                                .filter_map(|name| {
+                                    EntityDiscriminants::iter().find(|t| t.to_string() == *name)
+                                })
+                                .collect()
+                        })
+                }),
             },
         })
     }

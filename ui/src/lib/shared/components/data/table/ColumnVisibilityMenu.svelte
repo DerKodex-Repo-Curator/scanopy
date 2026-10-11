@@ -35,6 +35,27 @@
 	} = $props();
 
 	let open = $state(false);
+	let panelElement = $state<HTMLDivElement | undefined>();
+	/** The panel reaches down to the bottom of the screen, less this gap, and scrolls past that. */
+	const BOTTOM_GAP_PX = 16;
+	let panelMaxHeight = $state<number | null>(null);
+
+	function fitPanel() {
+		if (!panelElement) return;
+		const top = panelElement.getBoundingClientRect().top;
+		panelMaxHeight = Math.max(window.innerHeight - top - BOTTOM_GAP_PX, 160);
+	}
+
+	$effect(() => {
+		if (!open || !panelElement) return;
+		fitPanel();
+		window.addEventListener('resize', fitPanel);
+		window.addEventListener('scroll', fitPanel, true);
+		return () => {
+			window.removeEventListener('resize', fitPanel);
+			window.removeEventListener('scroll', fitPanel, true);
+		};
+	});
 	let menuElement = $state<HTMLDivElement | undefined>();
 
 	/**
@@ -154,8 +175,10 @@
 			a drag could start.
 		-->
 		<div
+			bind:this={panelElement}
 			tabindex="-1"
-			class="card absolute right-0 z-30 mt-1 max-h-96 w-72 overflow-y-auto !rounded-lg !p-3 shadow-lg outline-none"
+			class="card absolute right-0 z-30 mt-1 w-72 overflow-y-auto !rounded-lg !p-3 shadow-lg outline-none"
+			style:max-height={panelMaxHeight === null ? undefined : `${panelMaxHeight}px`}
 		>
 			<div class="mb-2 flex items-center justify-between">
 				<span class="text-primary text-sm font-semibold">{common_fields()}</span>
