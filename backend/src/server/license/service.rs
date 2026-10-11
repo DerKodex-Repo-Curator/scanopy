@@ -518,15 +518,20 @@ mod tests {
 
         tokio::spawn(license.clone().run_check_ins());
         // The retry lands within CHECK_IN_RETRY_MIN_DELAY, jittered. Give it
-        // twice that before calling it a regression, rather than hanging.
+        // twice that before calling it a regression, rather than hanging. Wait
+        // on the status, not the attempt count: the cloud counts the request
+        // before the service has applied its response.
         let deadline = tokio::time::Instant::now() + CHECK_IN_RETRY_MIN_DELAY * 2;
-        while attempts.load(Ordering::SeqCst) < 2 && tokio::time::Instant::now() < deadline {
+        while !matches!(license.current_status().await, LicenseStatus::Valid(_))
+            && tokio::time::Instant::now() < deadline
+        {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
 
         assert!(
             matches!(license.current_status().await, LicenseStatus::Valid(_)),
-            "the retried check-in should have applied the entitlement"
+            "the retried check-in should have applied the entitlement (attempts: {})",
+            attempts.load(Ordering::SeqCst)
         );
     }
 
