@@ -15,17 +15,25 @@ use utoipa::ToSchema;
 #[serde(tag = "type")]
 pub enum Hop {
     /// The entities named by `key` on the current object: one id, or an array of ids.
+    #[schema(title = "Parent")]
     Parent {
         entity: EntityDiscriminants,
+        /// Field on the current object holding the parent's id or ids.
         key: &'static str,
     },
     /// Every entity of type `entity` whose `key` holds the current object's id.
+    #[schema(title = "Children")]
     Children {
         entity: EntityDiscriminants,
+        /// Field on each child holding the current object's id.
         key: &'static str,
     },
     /// The array of objects held on the current object under `key`, such as a service's bindings.
-    Embedded { key: &'static str },
+    #[schema(title = "Embedded")]
+    Embedded {
+        /// Field on the current object holding the array.
+        key: &'static str,
+    },
 }
 
 impl Hop {
@@ -62,24 +70,38 @@ pub enum MetadataFixture {
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, ToSchema)]
 #[serde(tag = "type")]
 pub enum FieldFormat {
+    /// Plain text.
+    #[schema(title = "Text")]
     Text,
+    /// A number, written as is.
+    #[schema(title = "Number")]
     Number,
+    /// True or false.
+    #[schema(title = "Boolean")]
     Boolean,
+    /// A point in time, written as a date and time.
+    #[schema(title = "Timestamp")]
     Timestamp,
     /// A value read as a code rather than prose (MAC, CIDR, chassis id): monospace, copyable.
+    #[schema(title = "Identifier")]
     Identifier,
     /// `speed_bps`, written as 1G / 100M.
+    #[schema(title = "BitsPerSecond")]
     BitsPerSecond,
     /// A `{number, protocol}` port, written as 80/tcp.
+    #[schema(title = "Port")]
     Port,
     /// A host `os` object, written as its name and version.
+    #[schema(title = "OperatingSystem")]
     OperatingSystem,
     /// An enum value, named through a metadata fixture.
+    #[schema(title = "Metadata")]
     Metadata {
         fixture: MetadataFixture,
     },
     /// A related entity. The UI links it; CSV writes its id; text-only outputs write its display
     /// field.
+    #[schema(title = "Entity")]
     Entity,
 }
 

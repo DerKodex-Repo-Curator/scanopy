@@ -32,6 +32,7 @@ pub struct ReleaseNoteResponse {
     pub version: String,
     /// The day the release was prepared.
     pub date: NaiveDate,
+    /// The release's headline.
     pub title: String,
     /// The notes, as HTML rendered from the reviewed markdown, without raw HTML.
     pub html: String,
