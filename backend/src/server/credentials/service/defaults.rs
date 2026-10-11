@@ -61,12 +61,13 @@ impl CredentialService {
         Ok(created)
     }
 
-    /// Assign a new site every default whose type applies site-wide (SNMP `public`).
-    pub async fn assign_defaults_to_site(
+    /// The organization's defaults whose type applies site-wide (SNMP `public`): what a new site
+    /// is assigned when its create request names no credentials.
+    pub async fn site_default_credential_ids(
         &self,
         organization_id: Uuid,
-        site_id: Uuid,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<Uuid>, Error> {
+        let mut ids = Vec::new();
         for discriminant in CredentialTypeDiscriminants::iter() {
             let Some(seeded) = discriminant.seeded_default() else {
                 continue;
@@ -75,19 +76,15 @@ impl CredentialService {
                 continue;
             }
             match self.find_default(organization_id, discriminant).await? {
-                Some(default) => {
-                    self.create_site_credentials(&[(site_id, default.id)])
-                        .await?
-                }
+                Some(default) => ids.push(default.id),
                 None => tracing::warn!(
                     %organization_id,
-                    %site_id,
                     credential_type = %discriminant,
-                    "The organization has no default credential of this type; the new site gets none"
+                    "The organization has no default credential of this type; a new site gets none"
                 ),
             }
         }
-        Ok(())
+        Ok(ids)
     }
 
     /// Refuse a new or edited credential that would be a second copy of an existing default.

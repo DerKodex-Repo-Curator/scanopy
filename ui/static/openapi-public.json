@@ -35710,17 +35710,19 @@
           "name",
           "organization_id",
           "tags",
-          "credential_ids",
           "stale_after_hours"
         ],
         "properties": {
           "credential_ids": {
-            "type": "array",
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
             },
-            "description": "Credential IDs associated with this site (hydrated from junction table)."
+            "description": "Credential IDs assigned to this site (hydrated from the junction table, so always present\nin a response). On create, omitting it assigns the organization's site-wide default\ncredentials and a list, even an empty one, is used exactly. On update, omitting it leaves\nthe assignments unchanged."
           },
           "name": {
             "type": "string",

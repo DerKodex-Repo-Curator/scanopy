@@ -13492,8 +13492,13 @@ export interface components {
             readonly updated_at: string;
         };
         SiteBase: {
-            /** @description Credential IDs associated with this site (hydrated from junction table). */
-            credential_ids: string[];
+            /**
+             * @description Credential IDs assigned to this site (hydrated from the junction table, so always present
+             *     in a response). On create, omitting it assigns the organization's site-wide default
+             *     credentials and a list, even an empty one, is used exactly. On update, omitting it leaves
+             *     the assignments unchanged.
+             */
+            credential_ids?: string[] | null;
             /** @description Human-facing name for this site. */
             name: string;
             /**
