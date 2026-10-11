@@ -540,6 +540,6 @@ export function registryFieldsOf(entity: string): RegistryField[] {
  * string literals closing the call.
  */
 export function registryOmitted(source: string): Set<string> {
-	const match = [...source.matchAll(/\[\s*((?:'\w+'\s*,?\s*)+)\]\s*\)\s*\);/g)].pop();
+	const match = [...source.matchAll(/\[\s*((?:'\w+'\s*(?:,\s*)?)+)\]\s*\)\s*\);/g)].pop();
 	return new Set([...(match?.[1].matchAll(/'(\w+)'/g) ?? [])].map((m) => m[1]));
 }
