@@ -66,7 +66,7 @@
 	import ColumnVisibilityMenu from './table/ColumnVisibilityMenu.svelte';
 	import TagCell from './TagCell.svelte';
 	import { tagItems } from '$lib/features/tags/columns';
-	import { tagGroupFields } from '$lib/features/tags/groupFields';
+	import { tagGroupFields, tagGroupIdOf } from '$lib/features/tags/groupFields';
 	import {
 		fieldsToColumns,
 		reconcileColumnState,
@@ -227,7 +227,8 @@
 					tags: allTags,
 					entityType,
 					getItemTags,
-					serverPaginated: serverPagination !== null && onPageChange !== null
+					serverPaginated: serverPagination !== null && onPageChange !== null,
+					cell: canEditTags ? tagGroupCell : undefined
 				})
 			: [])
 	]);
@@ -1000,6 +1001,20 @@
 		entityId={getItemId(item)}
 		entityType={entityType ?? undefined}
 		editable={canEditTags && Boolean(entityType)}
+	/>
+{/snippet}
+
+{#snippet tagGroupCell(item: T, columnId: string)}
+	{@const groupId = tagGroupIdOf(columnId)}
+	{@const groupTags = allTags.filter((tag) => tag.tag_group_id === groupId)}
+	{@const ids = getItemTags ? getItemTags(item) : []}
+	<TagPickerInline
+		selectedTagIds={groupTags.filter((tag) => ids.includes(tag.id)).map((tag) => tag.id)}
+		availableTags={groupTags}
+		entityId={getItemId(item)}
+		entityType={entityType ?? undefined}
+		disabled={!entityType}
+		allowCreate={false}
 	/>
 {/snippet}
 

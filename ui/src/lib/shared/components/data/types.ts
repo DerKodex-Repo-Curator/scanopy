@@ -133,8 +133,11 @@ export interface DisplayConfig<T> {
 	 * everywhere else, rather than needing a second, mostly-empty column.
 	 */
 	getItems?: (item: T) => CardFieldItem[] | undefined;
-	/** Escape hatch for genuinely bespoke content: a status tag, a link, an icon. */
-	cell?: Snippet<[T]>;
+	/**
+	 * Escape hatch for genuinely bespoke content: a status tag, a link, an icon. Called with the
+	 * row and the column's id, so one snippet can serve several columns.
+	 */
+	cell?: Snippet<[T, string]>;
 	/**
 	 * Where a plain value came from, for a field that records its provenance (a host's
 	 * `hostname_source`). The value's tooltip explains the source under the value, the way

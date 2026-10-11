@@ -388,3 +388,24 @@ describe('defaultOrderingViolations', () => {
 		expect(defaultOrderingViolations([site], { group: 'site' }, true)).toHaveLength(1);
 	});
 });
+
+describe('a field with its own compare', () => {
+	// Ranks by a fixed order, the way a tag group column ranks its tags.
+	const rank = ['Planned', 'Active', 'Retired'];
+	const field: FieldConfig<Row> = {
+		key: 'name',
+		label: 'Status',
+		type: 'string',
+		sortable: true,
+		getValue: (r) => r.name,
+		compare: (a, b) => rank.indexOf(a.name!) - rank.indexOf(b.name!)
+	};
+	const rows = [row({ name: null }), row({ name: 'Retired' }), row({ name: 'Planned' })];
+	const names = (direction: 'asc' | 'desc') =>
+		sortItems(rows, [field], { field: 'name', direction }).map((r) => r.name);
+
+	it('keeps rows without a value last in both directions, as the server does', () => {
+		expect(names('asc')).toEqual(['Planned', 'Retired', null]);
+		expect(names('desc')).toEqual(['Retired', 'Planned', null]);
+	});
+});

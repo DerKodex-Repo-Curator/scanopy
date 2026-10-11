@@ -96,8 +96,8 @@ impl CrudService<TagGroup> for TagGroupService {
         if current.is_system() {
             entity.base.ordered = current.base.ordered;
         }
-        if current.base.group_type.fixed_entity_types().is_some() {
-            entity.base.entity_types = current.base.entity_types.clone();
+        if let Some(types) = current.base.group_type.computed_entity_types() {
+            entity.base.entity_types = Some(types);
         }
         entity.base.name = entity.base.name.trim().to_string();
         if current.is_system() && entity.base.name != current.base.name {

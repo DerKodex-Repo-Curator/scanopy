@@ -29,16 +29,17 @@ export function compareByField<T>(
 	field: FieldConfig<T>,
 	direction: SortDirection
 ): number {
+	const aVal = getFieldValue(a, field);
+	const bVal = getFieldValue(b, field);
+
+	const aMissing = aVal === null || aVal === undefined;
+	const bMissing = bVal === null || bVal === undefined;
+	if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
+
 	if (field.compare) {
 		const comparison = field.compare(a, b);
 		return direction === 'asc' ? comparison : -comparison;
 	}
-
-	const aVal = getFieldValue(a, field);
-	const bVal = getFieldValue(b, field);
-
-	if (aVal === null || aVal === undefined) return 1;
-	if (bVal === null || bVal === undefined) return -1;
 
 	let comparison: number;
 

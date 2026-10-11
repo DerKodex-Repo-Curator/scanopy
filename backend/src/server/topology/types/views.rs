@@ -198,6 +198,18 @@ const STALENESS_FILTERED_ENTITIES: [EntityDiscriminants; 5] = [
 ];
 
 impl ViewElementConfig {
+    /// The entity types this view draws: its container, its elements and their inline entities.
+    pub fn drawn_entities(&self) -> Vec<EntityDiscriminants> {
+        self.container_entity
+            .into_iter()
+            .chain(
+                self.element_entities
+                    .iter()
+                    .flat_map(|e| std::iter::once(e.entity_type).chain(e.inline_entities.clone())),
+            )
+            .collect()
+    }
+
     /// Attach the staleness filter to every entity in this view that both
     /// carries a freshness verdict and can actually be hidden by one.
     ///
@@ -775,6 +787,14 @@ impl TypeMetadataProvider for TopologyView {
 // ---------------------------------------------------------------------------
 
 impl TopologyView {
+    /// Every entity type some view draws, as container, element or inline entity. Read from each
+    /// view's hierarchy, so a view that starts drawing a type adds it here.
+    pub fn drawn_entities() -> HashSet<EntityDiscriminants> {
+        Self::iter()
+            .flat_map(|view| view.base_element_config().drawn_entities())
+            .collect()
+    }
+
     /// The entity hierarchy for this view: parent → element → inline
     pub fn element_config(&self) -> ViewElementConfig {
         let mut config = self.base_element_config();

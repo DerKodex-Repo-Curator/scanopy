@@ -65,20 +65,32 @@ impl TagGroupType {
         }
     }
 
-    /// The entity types a group of this type is fixed to, when its scope can't be changed.
-    pub fn fixed_entity_types(&self) -> Option<Vec<EntityDiscriminants>> {
+    /// Whether this type's scope is computed from entity metadata rather than set by the
+    /// organization. A computed scope is never stored: it is read from [`Self::admits`] each time,
+    /// so it follows entity types as they gain or lose a status or a place in topology.
+    pub fn has_computed_scope(&self) -> bool {
         match self {
-            TagGroupType::Visibility => Some(vec![EntityDiscriminants::Host]),
-            TagGroupType::Application | TagGroupType::Status | TagGroupType::Custom => None,
+            TagGroupType::Status | TagGroupType::Visibility => true,
+            TagGroupType::Application | TagGroupType::Custom => false,
         }
     }
 
+    /// The entity types a group of this type applies to, when its scope is computed.
+    pub fn computed_entity_types(&self) -> Option<Vec<EntityDiscriminants>> {
+        self.has_computed_scope().then(|| {
+            EntityDiscriminants::iter()
+                .filter(|t| t.is_taggable() && self.admits(*t))
+                .collect()
+        })
+    }
+
     /// Whether a group of this type can ever apply to `entity_type`, whatever its scope says. A
-    /// status tag would compete with the status an entity already carries.
+    /// status tag would compete with the status an entity already carries, and Visibility only
+    /// means something on an entity a topology draws.
     pub fn admits(&self, entity_type: EntityDiscriminants) -> bool {
         match self {
             TagGroupType::Status => !entity_type.has_status(),
-            TagGroupType::Visibility => entity_type == EntityDiscriminants::Host,
+            TagGroupType::Visibility => entity_type.drawn_in_topology(),
             TagGroupType::Application | TagGroupType::Custom => true,
         }
     }
@@ -92,7 +104,7 @@ impl TagGroupType {
             ),
             TagGroupType::Status => Some("Where an asset is in its lifecycle."),
             TagGroupType::Visibility => {
-                Some("Hosts holding a tag of this group are left out of topology.")
+                Some("Entities holding a tag of this group are left out of every topology.")
             }
             TagGroupType::Custom => None,
         }
@@ -182,6 +194,11 @@ pub struct TagGroupBase {
     #[serde(default = "default_ordered")]
     #[schema(required)]
     pub ordered: bool,
+    /// Whether `entity_types` is computed from entity metadata (Status, Visibility) rather than set
+    /// by the organization. A computed scope is read-only and never stored.
+    #[serde(default)]
+    #[schema(read_only, required)]
+    pub scope_computed: bool,
 }
 
 impl TagGroupBase {
@@ -191,8 +208,9 @@ impl TagGroupBase {
             description: group_type.default_description().map(str::to_string),
             organization_id,
             group_type,
-            entity_types: group_type.fixed_entity_types(),
+            entity_types: group_type.computed_entity_types(),
             ordered: group_type.default_ordered(),
+            scope_computed: group_type.has_computed_scope(),
         }
     }
 
@@ -332,6 +350,22 @@ mod tests {
             .validate()
             .is_ok()
         );
+    }
+
+    #[test]
+    fn visibility_covers_exactly_the_taggable_types_a_topology_draws() {
+        let visibility =
+            TagGroupBase::new(Uuid::nil(), "Visibility".into(), TagGroupType::Visibility);
+        let drawn = crate::server::topology::types::views::TopologyView::drawn_entities();
+        let expected: Vec<EntityDiscriminants> = EntityDiscriminants::iter()
+            .filter(|t| t.is_taggable() && drawn.contains(t))
+            .collect();
+        assert!(!expected.is_empty());
+        assert_eq!(
+            visibility.entity_types.as_deref(),
+            Some(expected.as_slice())
+        );
+        assert_eq!(visibility.allowed_types(), expected);
     }
 
     #[test]

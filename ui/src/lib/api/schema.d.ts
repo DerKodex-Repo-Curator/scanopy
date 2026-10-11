@@ -3687,19 +3687,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-11T15:00:17.032802Z",
+             *       "created_at": "2026-10-11T16:41:29.549545Z",
              *       "first_discovery_id": null,
-             *       "id": "23343abf-59a2-4da6-b48a-4649929a3491",
+             *       "id": "71439343-0fda-45f1-8f04-2d79a11573a7",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-11T15:00:17.032802Z",
+             *       "last_seen_at": "2026-10-11T16:41:29.549545Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-11T15:00:17.032802Z",
-             *       "valid_from": "2026-10-11T15:00:17.032802Z",
+             *       "updated_at": "2026-10-11T16:41:29.549545Z",
+             *       "valid_from": "2026-10-11T16:41:29.549545Z",
              *       "valid_to": null
              *     }
              */
@@ -4552,19 +4552,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-11T15:00:17.009201Z",
+             *               "created_at": "2026-10-11T16:41:29.524741Z",
              *               "first_discovery_id": null,
-             *               "id": "1c1fb032-1a2f-4727-84d1-23a53f9cb56e",
+             *               "id": "225c7773-640c-428a-8426-522c03f1f284",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-11T15:00:17.009201Z",
+             *               "last_seen_at": "2026-10-11T16:41:29.524741Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-11T15:00:17.009201Z",
-             *               "valid_from": "2026-10-11T15:00:17.009201Z",
+             *               "updated_at": "2026-10-11T16:41:29.524741Z",
+             *               "valid_from": "2026-10-11T16:41:29.524741Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4577,7 +4577,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "qBittorrent",
+             *           "service_definition": "mailcow",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5484,19 +5484,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-11T15:00:17.028082Z",
+             *           "created_at": "2026-10-11T16:41:29.544734Z",
              *           "first_discovery_id": null,
-             *           "id": "557c877d-6e69-4d01-8a30-2239eeb9886f",
+             *           "id": "38d55e21-2d19-407f-8a2c-2cf6fceef3e0",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-11T15:00:17.028082Z",
+             *           "last_seen_at": "2026-10-11T16:41:29.544734Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-11T15:00:17.028082Z",
-             *           "valid_from": "2026-10-11T15:00:17.028082Z",
+             *           "updated_at": "2026-10-11T16:41:29.544734Z",
+             *           "valid_from": "2026-10-11T16:41:29.544734Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5509,7 +5509,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "qBittorrent",
+             *       "service_definition": "mailcow",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6030,6 +6030,7 @@ export interface components {
              *       "name": "Environment",
              *       "ordered": true,
              *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+             *       "scope_computed": false,
              *       "updated_at": "2026-01-15T10:30:00Z"
              *     }
              */
@@ -6834,19 +6835,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-11T15:00:17.009646Z",
+         *       "created_at": "2026-10-11T16:41:29.525197Z",
          *       "first_discovery_id": null,
-         *       "id": "fe6deb41-1e22-41ca-b949-ed64fd8d63b6",
+         *       "id": "c063f82c-5a5d-4e64-befb-34772216ff67",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-11T15:00:17.009646Z",
+         *       "last_seen_at": "2026-10-11T16:41:29.525197Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-11T15:00:17.009646Z",
-         *       "valid_from": "2026-10-11T15:00:17.009646Z",
+         *       "updated_at": "2026-10-11T16:41:29.525197Z",
+         *       "valid_from": "2026-10-11T16:41:29.525197Z",
          *       "valid_to": null
          *     }
          */
@@ -7192,7 +7193,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "qBittorrent",
+         *           "service_definition": "mailcow",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -9892,19 +9893,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-11T15:00:17.008708Z",
+         *               "created_at": "2026-10-11T16:41:29.524242Z",
          *               "first_discovery_id": null,
-         *               "id": "4011ab2c-cc09-40b2-acb1-667c6c5bc802",
+         *               "id": "399a77b9-c93f-4dca-bd24-3d0f286570f9",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-11T15:00:17.008708Z",
+         *               "last_seen_at": "2026-10-11T16:41:29.524242Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-11T15:00:17.008708Z",
-         *               "valid_from": "2026-10-11T15:00:17.008708Z",
+         *               "updated_at": "2026-10-11T16:41:29.524242Z",
+         *               "valid_from": "2026-10-11T16:41:29.524242Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -9917,7 +9918,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "qBittorrent",
+         *           "service_definition": "mailcow",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -13064,19 +13065,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-11T15:00:17.009516Z",
+         *           "created_at": "2026-10-11T16:41:29.525066Z",
          *           "first_discovery_id": null,
-         *           "id": "06134578-8d6e-4899-a294-98f4ce9345c0",
+         *           "id": "98297e0c-38fc-40be-bcdc-2492083ad0fc",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-11T15:00:17.009516Z",
+         *           "last_seen_at": "2026-10-11T16:41:29.525066Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-11T15:00:17.009516Z",
-         *           "valid_from": "2026-10-11T15:00:17.009516Z",
+         *           "updated_at": "2026-10-11T16:41:29.525066Z",
+         *           "valid_from": "2026-10-11T16:41:29.525066Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13089,7 +13090,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "qBittorrent",
+         *       "service_definition": "mailcow",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13784,6 +13785,7 @@ export interface components {
          *       "name": "Environment",
          *       "ordered": true,
          *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+         *       "scope_computed": false,
          *       "updated_at": "2026-01-15T10:30:00Z"
          *     }
          */
@@ -13830,6 +13832,11 @@ export interface components {
              * @description The organization that owns this record.
              */
             organization_id: string;
+            /**
+             * @description Whether `entity_types` is computed from entity metadata (Status, Visibility) rather than set
+             *     by the organization. A computed scope is read-only and never stored.
+             */
+            readonly scope_computed: boolean;
         };
         /**
          * @description What kind of tag group this is.
@@ -14041,7 +14048,7 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /** @description Viewer settings. All but `hide_edge_types` apply to every view. */
+        /** @description Viewer settings. `hide_edge_types` and `tag_filter` are per view; the rest apply to every view. */
         TopologyLocalOptions: {
             /**
              * @description Collapse parallel edges between the same pair of nodes into one.
@@ -14085,11 +14092,12 @@ export interface components {
              */
             show_minimap: boolean;
             /**
-             * @default {
-             *       "hidden_tag_ids": {}
-             *     }
+             * @description Tags whose entities are left out, per view. A view with no entry hides nothing by tag.
+             * @default {}
              */
-            tag_filter: components["schemas"]["TopologyTagFilter"];
+            tag_filter: {
+                [key: string]: components["schemas"]["TopologyTagFilter"];
+            };
         };
         TopologyOptions: {
             /** @description Settings applied in the viewer, which do not change what the server returns. */
@@ -14103,7 +14111,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "7d43c1a0-be57-495a-8775-78ec53e129d3",
+             *           "id": "87fe9dc1-3208-4034-8b83-cf008a60b51d",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14113,23 +14121,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "7f58b1fa-3407-40fd-bfe3-c8dc07512320",
+             *           "id": "570a9c98-1581-4348-aa8a-b98b83ca9a52",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "f9972a9c-7b5b-4d9c-9493-e27c8972d0a4",
+             *           "id": "0944fd50-6056-4162-b1e4-71986c9a6b6c",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "2c90fcae-110e-4362-8412-5eb3a34963d5",
+             *           "id": "a1ec290f-1471-4c75-822d-361d6171b908",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "7f58b1fa-3407-40fd-bfe3-c8dc07512320",
+             *           "id": "570a9c98-1581-4348-aa8a-b98b83ca9a52",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14143,19 +14151,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "c9b507a8-73f5-4dcc-b8b5-f44bad90ebfd",
+             *         "id": "a9fd1f88-b792-494a-bd8f-5be2aa1742b0",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "7cb428ac-1e63-4f89-8a9a-c740e5e5122d",
+             *         "id": "73aba7f1-0537-4062-8098-8a35a62b5eaf",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "15893717-ac7a-43ea-866e-ff0b5989c992",
+             *         "id": "4a698ebd-3448-4f38-83e0-481485c93aba",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "87d1f9a1-4823-4a45-a084-d6aac1b8af19",
+             *         "id": "693685d3-65eb-425d-a4ba-a743e2f66b4f",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14176,7 +14184,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "1b1d1f55-1210-4eb1-a133-eab8f6caf8f4",
+             *         "id": "2441bb19-66f0-424c-a7b0-49c2a3ee2427",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14185,15 +14193,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "f0b1c6f0-ecdf-48f5-8c1c-4e783968ae82",
+             *         "id": "2e608e23-001a-45f8-afb6-8eea33abf5f8",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "c31a931f-d80d-4824-83a8-005bf57d2631",
+             *         "id": "e72e03dd-fddc-475e-b137-015d16caefa4",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "f1fe7a80-bb0b-4118-bd8f-c2da72077470",
+             *         "id": "db6b3fa7-c31f-4356-9868-04a945c4ea11",
              *         "rule": "ByStack"
              *       }
              *     ]
