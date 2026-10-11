@@ -484,6 +484,7 @@ impl ServiceFactory {
             user_service.clone(),
             email_service.clone(),
             bulk_email_quota,
+            config.hold_release_email,
         ));
 
         let email_feedback_service = config
