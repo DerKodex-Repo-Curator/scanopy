@@ -5,11 +5,12 @@ PLAN ?= standard
 
 # A value in .env can be a 1Password reference rather than the secret itself, e.g.
 #   SCANOPY_LICENSE_SIGNING_KEY=op://Scanopy/License Key Pair/scanopy_license_private.pem
+# The reference may be quoted ("op://..." or 'op://...').
 # When .env holds at least one and the `op` CLI is installed, the dev server runs under
 # `op run`, which resolves the references into its environment at launch. The server's own
 # dotenv load then leaves those values alone, so the resolved secret wins over the reference.
 # With no references in .env, no .env, or no op CLI, the command runs unchanged.
-OP_RUN := $(shell [ -f .env ] && grep -qE '^[A-Za-z_][A-Za-z0-9_]*=op://' .env && command -v op >/dev/null 2>&1 && echo 'op run --env-file=$(CURDIR)/.env --')
+OP_RUN := $(shell [ -f .env ] && grep -qE '^[A-Za-z_][A-Za-z0-9_]*=["'\'']?op://' .env && command -v op >/dev/null 2>&1 && echo 'op run --env-file=$(CURDIR)/.env --')
 
 # Opt-in shared compilation cache across worktrees: `SCCACHE=1 make <target>`, with sccache
 # installed (`brew install sccache`).
