@@ -74,7 +74,7 @@ pub struct ServiceFactory {
     pub email_service: Option<Arc<EmailService>>,
     /// Present only when `email_feedback_sns_topic_arn` is configured.
     pub email_feedback_service: Option<Arc<EmailFeedbackService>>,
-    /// Present only when `aws_region` and both AWS keys are configured.
+    /// Present only when `aws_region` and both `email_validation_aws_*` keys are configured.
     pub email_validator: Option<Arc<SesEmailValidator>>,
     pub posthog_service: Option<Arc<PosthogService>>,
     pub event_bus: Arc<EventBus>,
