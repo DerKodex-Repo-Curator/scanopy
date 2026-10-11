@@ -36,6 +36,9 @@
 		common_updated,
 		tags_appliesTo,
 		tags_appliesToEvery,
+		tags_orderByName,
+		tags_orderSet,
+		tags_tagOrder,
 		tags_tagGroups,
 		tags_tagGroupsSubtitle
 	} from '$lib/paraglide/messages';
@@ -177,6 +180,15 @@
 			filterable: true,
 			groupable: true,
 			getValue: (group) => (isSystemGroup(group) ? common_system() : common_custom())
+		},
+		{
+			key: 'ordered',
+			label: tags_tagOrder(),
+			type: 'string',
+			sortable: true,
+			filterable: true,
+			groupable: true,
+			getValue: (group) => (group.ordered ? tags_orderSet() : tags_orderByName())
 		},
 		{
 			key: 'entity_types',

@@ -158,7 +158,11 @@ pub(super) fn generate_tags(
         .iter()
         .map(|(name, description, color, group, icon)| {
             let tag_group_id = group_id(group);
-            let position = tag_group_id.map(|id| {
+            // Only an ordered group numbers its tags; Application lists by name.
+            let ordered = groups
+                .iter()
+                .any(|g| Some(g.id) == tag_group_id && g.base.ordered);
+            let position = tag_group_id.filter(|_| ordered).map(|id| {
                 let next = positions.entry(id).or_default();
                 *next += 1;
                 *next

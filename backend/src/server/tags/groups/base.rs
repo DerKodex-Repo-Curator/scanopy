@@ -51,6 +51,14 @@ impl TagGroupType {
         }
     }
 
+    /// Whether a new group of this type orders its tags. Applications have no sequence.
+    pub fn default_ordered(&self) -> bool {
+        match self {
+            TagGroupType::Application => false,
+            TagGroupType::Status | TagGroupType::Custom => true,
+        }
+    }
+
     /// The system group a name refers to, ignoring case.
     pub fn system_named(name: &str) -> Option<TagGroupType> {
         Self::system().find(|t| t.to_string().eq_ignore_ascii_case(name.trim()))
@@ -59,6 +67,10 @@ impl TagGroupType {
 
 /// A limited group names at least one entity type, and only taggable ones. (`None`, every type, is
 /// never passed here.)
+fn default_ordered() -> bool {
+    true
+}
+
 fn validate_entity_types(
     entity_types: &Vec<EntityDiscriminants>,
 ) -> Result<(), validator::ValidationError> {
@@ -103,6 +115,11 @@ pub struct TagGroupBase {
     #[schema(required)]
     #[validate(custom(function = "validate_entity_types"))]
     pub entity_types: Option<Vec<EntityDiscriminants>>,
+    /// Whether the group's tags have an order the organization sets. An unordered group lists its
+    /// tags by name. Fixed for system groups: statuses are ordered, applications are not.
+    #[serde(default = "default_ordered")]
+    #[schema(required)]
+    pub ordered: bool,
 }
 
 impl TagGroupBase {
@@ -112,6 +129,7 @@ impl TagGroupBase {
             organization_id,
             group_type,
             entity_types: None,
+            ordered: group_type.default_ordered(),
         }
     }
 

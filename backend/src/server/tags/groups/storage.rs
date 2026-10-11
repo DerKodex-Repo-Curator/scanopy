@@ -46,6 +46,7 @@ impl Storable for TagGroup {
                     organization_id,
                     group_type,
                     entity_types,
+                    ordered,
                 },
         } = self.clone();
 
@@ -56,6 +57,7 @@ impl Storable for TagGroup {
                 "name",
                 "group_type",
                 "entity_types",
+                "ordered",
                 "created_at",
                 "updated_at",
             ],
@@ -67,6 +69,7 @@ impl Storable for TagGroup {
                 SqlValue::OptionalStringArray(
                     entity_types.map(|types| types.iter().map(|t| t.to_string()).collect()),
                 ),
+                SqlValue::Bool(ordered),
                 SqlValue::Timestamp(created_at),
                 SqlValue::Timestamp(updated_at),
             ],
@@ -86,6 +89,7 @@ impl Storable for TagGroup {
                     .parse()
                     .map_err(|_| anyhow::anyhow!("Unknown tag group type {group_type}"))?,
                 // A type name this build no longer knows is dropped rather than failing the list.
+                ordered: row.get("ordered"),
                 entity_types: row
                     .get::<Option<Vec<String>>, _>("entity_types")
                     .map(|names| {

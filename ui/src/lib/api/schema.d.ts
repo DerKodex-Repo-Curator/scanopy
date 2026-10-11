@@ -3687,19 +3687,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-10T16:21:28.122801Z",
+             *       "created_at": "2026-10-11T13:08:31.012860Z",
              *       "first_discovery_id": null,
-             *       "id": "139ae335-00b2-4bce-8d0e-f7e55cf4193f",
+             *       "id": "bc3923f3-8fee-4b52-bbd2-63be9d80e6ab",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-10T16:21:28.122801Z",
+             *       "last_seen_at": "2026-10-11T13:08:31.012860Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-10T16:21:28.122801Z",
-             *       "valid_from": "2026-10-10T16:21:28.122801Z",
+             *       "updated_at": "2026-10-11T13:08:31.012860Z",
+             *       "valid_from": "2026-10-11T13:08:31.012860Z",
              *       "valid_to": null
              *     }
              */
@@ -4552,19 +4552,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-10T16:21:28.095411Z",
+             *               "created_at": "2026-10-11T13:08:30.987613Z",
              *               "first_discovery_id": null,
-             *               "id": "a3a4f3fd-feb4-4a62-90dc-89504f746378",
+             *               "id": "ec05463e-72e7-4ec9-84f6-79740d13177b",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-10T16:21:28.095411Z",
+             *               "last_seen_at": "2026-10-11T13:08:30.987613Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-10T16:21:28.095411Z",
-             *               "valid_from": "2026-10-10T16:21:28.095411Z",
+             *               "updated_at": "2026-10-11T13:08:30.987613Z",
+             *               "valid_from": "2026-10-11T13:08:30.987613Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4577,7 +4577,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "RabbitMQ",
+             *           "service_definition": "Nomad",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5481,19 +5481,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-10T16:21:28.117397Z",
+             *           "created_at": "2026-10-11T13:08:31.007747Z",
              *           "first_discovery_id": null,
-             *           "id": "e3d5b3d3-c184-4454-9bc5-940c950923b9",
+             *           "id": "0c0b41b6-a972-4f22-aa39-43c679489b21",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-10T16:21:28.117397Z",
+             *           "last_seen_at": "2026-10-11T13:08:31.007747Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-10T16:21:28.117397Z",
-             *           "valid_from": "2026-10-10T16:21:28.117397Z",
+             *           "updated_at": "2026-10-11T13:08:31.007747Z",
+             *           "valid_from": "2026-10-11T13:08:31.007747Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5506,7 +5506,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "RabbitMQ",
+             *       "service_definition": "Nomad",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6024,6 +6024,7 @@ export interface components {
              *       "group_type": "Custom",
              *       "id": "550e8400-e29b-41d4-a716-446655440010",
              *       "name": "Environment",
+             *       "ordered": true,
              *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
              *       "updated_at": "2026-01-15T10:30:00Z"
              *     }
@@ -6829,19 +6830,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-10T16:21:28.095913Z",
+         *       "created_at": "2026-10-11T13:08:30.988097Z",
          *       "first_discovery_id": null,
-         *       "id": "20ff50d3-399e-4fe4-9560-ec61db080021",
+         *       "id": "aa6b3ecd-997c-4d39-b513-9bee8eca6c74",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-10T16:21:28.095913Z",
+         *       "last_seen_at": "2026-10-11T13:08:30.988097Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-10T16:21:28.095913Z",
-         *       "valid_from": "2026-10-10T16:21:28.095913Z",
+         *       "updated_at": "2026-10-11T13:08:30.988097Z",
+         *       "valid_from": "2026-10-11T13:08:30.988097Z",
          *       "valid_to": null
          *     }
          */
@@ -7188,7 +7189,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "RabbitMQ",
+         *           "service_definition": "Nomad",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -9893,19 +9894,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-10T16:21:28.094874Z",
+         *               "created_at": "2026-10-11T13:08:30.987080Z",
          *               "first_discovery_id": null,
-         *               "id": "4c255961-b5d0-489c-a9ad-1ec6ff6664f9",
+         *               "id": "9505e6e2-e282-4c79-accd-0d9b164446ee",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-10T16:21:28.094874Z",
+         *               "last_seen_at": "2026-10-11T13:08:30.987080Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-10T16:21:28.094874Z",
-         *               "valid_from": "2026-10-10T16:21:28.094874Z",
+         *               "updated_at": "2026-10-11T13:08:30.987080Z",
+         *               "valid_from": "2026-10-11T13:08:30.987080Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -9918,7 +9919,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "RabbitMQ",
+         *           "service_definition": "Nomad",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -13059,19 +13060,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-10T16:21:28.095768Z",
+         *           "created_at": "2026-10-11T13:08:30.987954Z",
          *           "first_discovery_id": null,
-         *           "id": "73073b35-549f-4e57-8a2a-317995f1e9f8",
+         *           "id": "c2c7a0f5-eaac-46b0-b6d4-893124a6b603",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-10T16:21:28.095768Z",
+         *           "last_seen_at": "2026-10-11T13:08:30.987954Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-10T16:21:28.095768Z",
-         *           "valid_from": "2026-10-10T16:21:28.095768Z",
+         *           "updated_at": "2026-10-11T13:08:30.987954Z",
+         *           "valid_from": "2026-10-11T13:08:30.987954Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13084,7 +13085,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "RabbitMQ",
+         *       "service_definition": "Nomad",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13776,6 +13777,7 @@ export interface components {
          *       "group_type": "Custom",
          *       "id": "550e8400-e29b-41d4-a716-446655440010",
          *       "name": "Environment",
+         *       "ordered": true,
          *       "organization_id": "550e8400-e29b-41d4-a716-446655440001",
          *       "updated_at": "2026-01-15T10:30:00Z"
          *     }
@@ -13807,6 +13809,11 @@ export interface components {
             group_type: components["schemas"]["TagGroupType"];
             /** @description The group's name. A system group's name is fixed. */
             name: string;
+            /**
+             * @description Whether the group's tags have an order the organization sets. An unordered group lists its
+             *     tags by name. Fixed for system groups: statuses are ordered, applications are not.
+             */
+            ordered: boolean;
             /**
              * Format: uuid
              * @description The organization that owns this record.
@@ -14084,7 +14091,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "a4c19e50-edfd-4bdf-8fa5-9765822ac057",
+             *           "id": "2947d82e-5e2d-49f2-9a03-9ca77d8fadfb",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14094,23 +14101,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
+             *           "id": "2ef9ed77-a10e-40a9-ba89-1d1c379a228d",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "e9ad12fa-e14a-4559-b3cb-9bd1b29694dd",
+             *           "id": "390e5cb5-7cb6-4ec8-9610-ef620acb9d0a",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "f36626ff-3d50-4358-829d-8e17064f837f",
+             *           "id": "d6fdf75b-29f8-497f-8fd2-bda26050bc2e",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "247bb83b-694a-4a9a-822a-1cafcb436d4b",
+             *           "id": "2ef9ed77-a10e-40a9-ba89-1d1c379a228d",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14124,19 +14131,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "c5cf1ee7-baba-4246-af1e-e4f1de81c0e3",
+             *         "id": "a198b1ba-4dfc-4e54-8ed0-a8dc9decbd63",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "cbd31d25-a127-42fa-93eb-2b1ab6c11ceb",
+             *         "id": "e7668cda-602c-437f-800d-191c67d7bb59",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "a7eb932a-c387-49d3-825d-6dcdf0328af8",
+             *         "id": "e0411f8d-2386-4d7d-8d1a-8035763cf514",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "8f26697a-6016-44b4-9595-5a6d6d10c3f0",
+             *         "id": "a390a963-746f-4178-a338-afc988afe351",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14157,7 +14164,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "32ab774a-c602-4375-9bee-a7acc805bb43",
+             *         "id": "d508a335-7813-4602-b57c-f1b8cdefec1a",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14166,15 +14173,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "7ed0bd46-03eb-44aa-8d5e-8a9a8ac94612",
+             *         "id": "81ba1bb7-06e7-44f2-9a8c-964540b7d7bc",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "28c1ad75-9b7b-4e9a-a306-ab8d329fb044",
+             *         "id": "08d3b750-bc4c-4bf5-9435-bead07237c01",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "8e27c2ec-0de3-4ca3-9dc2-85a040a381b6",
+             *         "id": "60217aef-a2f2-45b5-9f04-56e350c5305c",
              *         "rule": "ByStack"
              *       }
              *     ]

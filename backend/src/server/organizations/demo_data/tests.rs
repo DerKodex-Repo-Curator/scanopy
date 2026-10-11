@@ -475,17 +475,26 @@ fn demo_tags_sit_only_on_types_their_group_allows() {
     }
 }
 
-/// Positions within each demo group run 1, 2, 3… with no gap or repeat, so tables and pickers
-/// list them in the order written.
+/// Positions within each ordered demo group run 1, 2, 3… with no gap or repeat, so tables and
+/// pickers list them in the order written. An unordered group's tags carry none.
 #[test]
-fn demo_tag_positions_run_from_one_in_each_group() {
+fn demo_tag_positions_run_from_one_in_each_ordered_group() {
     let demo = DemoData::generate(Uuid::new_v4(), Uuid::new_v4(), UseCase::default());
     for group in &demo.tag_groups {
-        let mut positions: Vec<i32> = demo
+        let in_group = demo
             .tags
             .iter()
-            .filter(|t| t.base.tag_group_id == Some(group.id))
-            .map(|t| t.base.position.expect("a grouped tag has a position"))
+            .filter(|t| t.base.tag_group_id == Some(group.id));
+        if !group.base.ordered {
+            assert!(in_group.clone().all(|t| t.base.position.is_none()));
+            continue;
+        }
+        let mut positions: Vec<i32> = in_group
+            .map(|t| {
+                t.base
+                    .position
+                    .expect("a tag in an ordered group has a position")
+            })
             .collect();
         positions.sort();
         let expected: Vec<i32> = (1..=positions.len() as i32).collect();

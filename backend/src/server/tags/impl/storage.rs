@@ -419,6 +419,17 @@ mod tests {
         assert_eq!(group_of(&pool, status).await.2, Some(2));
         assert_eq!(group_of(&pool, shouted).await.2, Some(3));
         assert_eq!(group_of(&pool, app_closed).await.2, None);
+        // Applications have no order.
+        assert_eq!(group_of(&pool, app_live).await.2, None);
+        let application_ordered: bool = sqlx::query(
+            "SELECT ordered FROM tag_groups WHERE organization_id = $1 AND group_type = 'Application'",
+        )
+        .bind(org)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .get("ordered");
+        assert!(!application_ordered);
         assert_eq!(group_of(&pool, app_snapshot).await.2, None);
 
         let system_groups: Vec<String> = sqlx::query(

@@ -27,7 +27,7 @@ function group(
 
 const statusGroup = group('Status', 'Status');
 const environmentGroup = group('Environment');
-const applicationGroup = group('Application', 'Application');
+const applicationGroup = { ...group('Application', 'Application'), ordered: false };
 const backupGroup = group('Backup', 'Custom', ['Host']);
 const groups = [applicationGroup, statusGroup, backupGroup, environmentGroup];
 
@@ -45,8 +45,9 @@ const planned = tag('planned', statusGroup, 1);
 const active = tag('active', statusGroup, 2);
 const decommissioned = tag('decommissioned', statusGroup, 3);
 const production = tag('production', environmentGroup, 1);
-const web = tag('web', applicationGroup, 1);
-const db = tag('db', applicationGroup, 2);
+// Application is unordered: its tags carry no position and list by name.
+const web = tag('web', applicationGroup);
+const db = tag('db', applicationGroup);
 const nightly = tag('nightly', backupGroup, 1);
 const critical = tag('critical');
 const tags = [decommissioned, planned, active, production, web, db, nightly, critical];
@@ -90,8 +91,8 @@ describe('entity-type scope', () => {
 describe('compareTagsByGroup', () => {
 	it('lists groups in the server order, each group in its own order, ungrouped tags last', () => {
 		expect([...tags].sort(compareTagsByGroup(groups)).map((t) => t.id)).toEqual([
-			'web',
 			'db',
+			'web',
 			'planned',
 			'active',
 			'decommissioned',
@@ -175,8 +176,11 @@ describe('tag group table columns', () => {
 		const status = fieldsFor(true)[1];
 		expect(isOrderableField(status)).toBe(true);
 		expect(status.serverFiltered).toBe(true);
-		expect(status.getGroupValue!(rows[2])).toBe('0000000001:planned');
+		expect(status.getGroupValue!(rows[2])).toBe('0000000001:planned:planned');
 		expect(status.getGroupValue!(rows[1])).toBeNull();
+		// An unordered group's tags key at position 0, so the name orders them.
+		const application = fieldsFor(true)[0];
+		expect(application.getGroupValue!({ id: 'x', tags: ['web'] })).toBe('0000000000:web:web');
 	});
 });
 
