@@ -16,30 +16,17 @@
 	import { Plus, Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { entities, permissions, billingPlans } from '$lib/shared/stores/metadata';
+	import { permissions, billingPlans } from '$lib/shared/stores/metadata';
 	import type { TabProps } from '$lib/shared/types';
-	import { isSystemGroup, tagGroupIcon, tagGroupLabel, tagsInGroup } from '../groups';
-	import { tagItems } from '../columns';
+	import { isSystemGroup } from '../groups';
+	import { tagGroupColumns } from './TagGroupTab.columns';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import {
 		common_confirmBulkDelete,
 		common_confirmDeleteName,
 		common_create,
-		common_created,
-		common_custom,
-		common_description,
 		common_delete,
 		common_edit,
-		common_name,
-		common_system,
-		common_tags,
-		common_type,
-		common_updated,
-		tags_appliesTo,
-		tags_appliesToEvery,
-		tags_orderByName,
-		tags_orderSet,
-		tags_tagOrder,
 		tags_tagGroups,
 		tags_tagGroupsSubtitle
 	} from '$lib/paraglide/messages';
@@ -147,95 +134,12 @@
 		}
 	}
 
-	function scopeNames(group: TagGroup): string[] {
-		return group.entity_types
-			? group.entity_types.map((type) => entities.getMetadata(type)?.entity_name_plural ?? type)
-			: [tags_appliesToEvery()];
-	}
-
-	let fields = $derived<FieldConfig<TagGroup>[]>([
-		{
-			key: 'name',
-			label: common_name(),
-			type: 'string',
-			searchable: true,
-			sortable: true,
-			getValue: (group) => tagGroupLabel(group),
-			display: {
-				primary: true,
-				width: 220,
-				getItems: (group) => [
-					{
-						id: group.id,
-						label: tagGroupLabel(group) ?? group.name,
-						icon: tagGroupIcon(group) ?? undefined
-					}
-				]
-			}
-		},
-		{
-			key: 'description',
-			label: common_description(),
-			type: 'string',
-			searchable: true,
-			getValue: (group) => group.description
-		},
-		{
-			key: 'group_type',
-			label: common_type(),
-			type: 'string',
-			sortable: true,
-			filterable: true,
-			groupable: true,
-			getValue: (group) => (isSystemGroup(group) ? common_system() : common_custom())
-		},
-		{
-			key: 'ordered',
-			label: tags_tagOrder(),
-			type: 'string',
-			sortable: true,
-			filterable: true,
-			groupable: true,
-			getValue: (group) => (group.ordered ? tags_orderSet() : tags_orderByName())
-		},
-		{
-			key: 'entity_types',
-			label: tags_appliesTo(),
-			type: 'array',
-			filterable: true,
-			getValue: (group) => scopeNames(group)
-		},
-		{
-			key: 'tags',
-			label: common_tags(),
-			type: 'array',
-			searchable: true,
-			filterable: true,
-			getValue: (group) => tagsInGroup(tags, group.id).map((tag) => tag.name),
-			display: {
-				getItems: (group) =>
-					tagItems(
-						tagsInGroup(tags, group.id).map((tag) => tag.id),
-						tags,
-						groups
-					)
-			}
-		},
-		{
-			key: 'created_at',
-			label: common_created(),
-			type: 'date',
-			sortable: true,
-			display: { hiddenByDefault: true }
-		},
-		{
-			key: 'updated_at',
-			label: common_updated(),
-			type: 'date',
-			sortable: true,
-			display: { hiddenByDefault: true }
-		}
-	]);
+	let fields = $derived<FieldConfig<TagGroup>[]>(
+		tagGroupColumns({
+			tags: () => tags,
+			groups: () => groups
+		})
+	);
 </script>
 
 {#snippet toolbarActions()}

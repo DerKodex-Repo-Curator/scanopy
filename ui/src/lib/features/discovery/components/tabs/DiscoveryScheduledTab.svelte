@@ -1,23 +1,16 @@
 <script lang="ts">
-	import { billingPlans, discoveryTypes } from '$lib/shared/stores/metadata';
+	import { billingPlans } from '$lib/shared/stores/metadata';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import type { Discovery } from '../../types/base';
-	import {
-		discoveryFields,
-		formatScheduleDisplay,
-		cancellingSessions,
-		type DiscoveryFieldEntry,
-		type DiscoveryConfigOrderField
-	} from '../../queries';
+	import { cancellingSessions, type DiscoveryConfigOrderField } from '../../queries';
 	import SessionProgress from '../cards/SessionProgress.svelte';
 	import DiscoveryEstimation from '../DiscoveryEstimation.svelte';
 	import DiscoveryEditModal from '../DiscoveryModal/DiscoveryEditModal.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
-	import type { DisplayConfig } from '$lib/shared/components/data/types';
-	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { discoveryScheduledColumns } from './DiscoveryScheduledTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { Plus, Play, Power, Edit, Trash2, Ban } from 'lucide-svelte';
 	import type { CardAction } from '$lib/shared/components/data/types';
@@ -53,20 +46,11 @@
 		common_delete,
 		common_disable,
 		common_cancelling,
-		common_lastRun,
-		common_legacy,
-		common_manual,
 		common_none,
 		common_phase,
-		common_progress,
-		common_schedule,
-		common_status,
-		discovery_schedulePausedFreePlan,
-		discovery_schedulePausedLapsed,
 		common_edit,
 		common_enable,
 		common_run,
-		common_tags,
 		daemons_installPromptDiscoveries,
 		discovery_alreadyRunning,
 		discovery_cannotDeleteWhileRunning,
@@ -75,12 +59,8 @@
 		discovery_disableScheduleTooltip,
 		discovery_enableScheduleTooltip,
 		common_scans,
-		discovery_completedScans,
-		discovery_forceFullScan,
 		discovery_legacyDaemonsWarning,
-		discovery_legacyTagTitle,
-		discovery_noScheduledSessions,
-		discovery_runType
+		discovery_noScheduledSessions
 	} from '$lib/paraglide/messages';
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
@@ -314,35 +294,6 @@
 		return !billingPlans.getMetadata(planType).features.scheduled_discovery;
 	});
 
-	/**
-	 * How the shared discovery fields sit on this tab. `discovery_type` is the same
-	 * on every scheduled scan, so it is off by default and serves mostly as a filter
-	 * and group axis. The audit dates stay available from the column menu.
-	 */
-	const SHARED_FIELD_DISPLAY: Partial<Record<DiscoveryConfigOrderField, DisplayConfig<Discovery>>> =
-		{
-			name: { order: 0 },
-			site_id: { order: 2 },
-			daemon_id: { order: 3 },
-			discovery_type: { hiddenByDefault: true },
-			created_at: { hiddenByDefault: true },
-			updated_at: { hiddenByDefault: true }
-		};
-
-	function withSharedDisplay(
-		shared: Record<DiscoveryConfigOrderField, DiscoveryFieldEntry>
-	): Record<DiscoveryConfigOrderField, DiscoveryFieldEntry> {
-		const fields = { ...shared };
-		for (const [key, overrides] of Object.entries(SHARED_FIELD_DISPLAY)) {
-			const orderField = key as DiscoveryConfigOrderField;
-			fields[orderField] = {
-				...fields[orderField],
-				display: { ...fields[orderField].display, ...overrides }
-			};
-		}
-		return fields;
-	}
-
 	const tableDefaults: TableDefaults<DiscoveryConfigOrderField> = {
 		sort: { field: 'name', direction: 'asc' }
 	};
@@ -351,118 +302,16 @@
 	let lookup = $derived(collectionLookup({ Daemon: daemonsData, Site: sitesData }));
 
 	let fields = $derived(
-		defineRegistryFields<Discovery, DiscoveryConfigOrderField>(
-			'Discovery',
-			() => lookup,
-			withSharedDisplay(discoveryFields(daemonsData, sitesData)),
-			[
-				{
-					key: 'scan_count',
-					label: discovery_completedScans(),
-					type: 'string',
-					// A count: it sorts, but every value would be its own group.
-					sortable: true,
-					getValue: (item) => String(item.scan_count ?? 0),
-					display: { hiddenByDefault: true, align: 'right' }
-				},
-				{
-					key: 'force_full_scan',
-					label: discovery_forceFullScan(),
-					type: 'boolean',
-					filterable: true,
-					groupable: true,
-					getValue: (item) => item.force_full_scan ?? false,
-					display: { hiddenByDefault: true }
-				},
-				{
-					key: 'legacy',
-					label: common_status(),
-					type: 'string',
-					filterable: true,
-					groupable: true,
-					sortable: true,
-					// Legacy-ness comes from the backend's own `is_legacy`, not a local list —
-					// a `!== 'Unified'` check flagged Rescan, which is new rather than frozen.
-					getValue: (item) =>
-						discoveryTypes.getMetadata(item.discovery_type.type).is_legacy ? common_legacy() : '',
-					display: {
-						getItems: (item) =>
-							discoveryTypes.getMetadata(item.discovery_type.type).is_legacy
-								? [
-										{
-											id: 'legacy',
-											label: common_legacy(),
-											color: 'Yellow',
-											title: discovery_legacyTagTitle()
-										}
-									]
-								: []
-					}
-				},
-				{
-					key: 'run_type',
-					label: discovery_runType(),
-					searchable: true,
-					filterable: true,
-					groupable: true,
-					sortable: true,
-					display: { order: 1 }
-				},
-				{
-					key: 'schedule',
-					label: common_schedule(),
-					type: 'string',
-					searchable: true,
-					getValue: (item) =>
-						item.run_type.type !== 'Scheduled'
-							? common_manual()
-							: scheduleLapsed
-								? discovery_schedulePausedLapsed()
-								: schedulePaused
-									? discovery_schedulePausedFreePlan()
-									: formatScheduleDisplay(item.run_type.cron_schedule, item.run_type.timezone),
-					display: { hiddenByDefault: true }
-				},
-				{
-					key: 'last_run',
-					label: common_lastRun(),
-					// A date column so it sorts by time. The ISO string rather than a Date, so the cell
-					// renders it as recent activity (a Date renders as a compact date).
-					type: 'date',
-					sortable: true,
-					getValue: (item) =>
-						item.run_type.type !== 'Historical' && item.run_type.last_run
-							? item.run_type.last_run
-							: null,
-					display: { recency: true }
-				},
-				{
-					key: 'progress',
-					label: common_progress(),
-					// Progress belongs to the run, not the record, so there is nothing to
-					// sort, filter or group by — but it is still a field, so a running scan
-					// shows its tracker in the table.
-					type: 'string',
-					getValue: (item) => getActiveSession(item)?.phase ?? '',
-					// After the tags column, immediately before the row actions: it is the
-					// row's live state rather than one of its attributes.
-					display: { trailing: true, cell: progressCell }
-				},
-				{
-					key: 'tags',
-					label: common_tags(),
-					type: 'array',
-					searchable: true,
-					filterable: true,
-					getValue: (entity) => {
-						// Return tag names for search/filter display
-						return entity.tags
-							.map((id) => tagsData.find((t) => t.id === id)?.name)
-							.filter((name): name is string => !!name);
-					}
-				}
-			]
-		)
+		discoveryScheduledColumns({
+			lookup: () => lookup,
+			daemons: () => daemonsData,
+			sites: () => sitesData,
+			tags: () => tagsData,
+			scheduleLapsed: () => scheduleLapsed,
+			schedulePaused: () => schedulePaused,
+			getActiveSession,
+			progressCell: () => progressCell
+		})
 	);
 </script>
 

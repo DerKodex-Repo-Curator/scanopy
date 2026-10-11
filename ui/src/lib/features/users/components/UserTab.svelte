@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { useSitesQuery } from '$lib/features/sites/queries';
-	import { siteItems } from '$lib/features/sites/columns';
-	import type { LabelledCardFieldItem } from '$lib/shared/components/data/types';
+	import { userColumns } from './UserTab.columns';
 	import { Edit, UserX, Trash2 } from 'lucide-svelte';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
@@ -18,7 +17,7 @@
 	import { isUser, type User, type UserOrInvite } from '../types';
 	import type { OrganizationInvite } from '$lib/features/organizations/types';
 	import InviteModal from './InviteModal.svelte';
-	import { metadata, permissions, entities } from '$lib/shared/stores/metadata';
+	import { metadata, permissions } from '$lib/shared/stores/metadata';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import UpgradeButton from '$lib/shared/components/UpgradeButton.svelte';
 	import UserEditModal from './UserEditModal.svelte';
@@ -29,38 +28,17 @@
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import { tooltip } from '$lib/shared/actions/tooltip';
 	import {
-		common_all,
-		common_sites,
 		common_edit,
 		common_confirmBulkDelete,
 		common_delete,
-		common_email,
-		common_emailAndPassword,
-		common_none,
-		common_expires,
-		common_joined,
 		common_revoke,
-		common_role,
-		common_status,
-		common_unknownEntity,
-		common_updated,
-		common_url,
-		common_user,
 		common_users,
-		common_you,
 		invites_confirmRevoke,
-		invites_createdBy,
-		invites_pendingInvite,
-		users_authMethod,
-		users_authMethodOidcAndPassword,
 		users_confirmDeleteUser,
-		users_emailVerified,
 		users_inviteUser,
 		users_noUsersFound,
 		users_noUsersSubtitle,
-		users_providerLinked,
 		users_subtitle,
-		users_termsAccepted,
 		users_verifyEmailToInvite
 	} from '$lib/paraglide/messages';
 
@@ -167,24 +145,6 @@
 	const sitesQuery = useSitesQuery();
 	let sitesData = $derived(sitesQuery.data ?? []);
 
-	/**
-	 * The sites a user can reach.
-	 *
-	 * Admins and owners reach every site, which is a different statement from
-	 * being assigned all of them — so it reads as one "All" chip rather than a
-	 * list that would go stale the moment a site is added.
-	 */
-	function userSiteItems(item: UserOrInvite): LabelledCardFieldItem[] {
-		if (!isUser(item)) return [];
-		const user = item.data;
-
-		if (user.permissions === 'Admin' || user.permissions === 'Owner') {
-			return [{ id: 'all', label: common_all(), color: entities.getColorHelper('Site').color }];
-		}
-
-		return siteItems(user.site_ids ?? [], sitesData);
-	}
-
 	const revokeInviteMutation = useRevokeInviteMutation();
 
 	/** Whether the current user is allowed to grant — and so revoke — this invite. */
@@ -248,176 +208,14 @@
 		];
 	}
 
-	/**
-	 * The list holds two shapes, so every field resolves for both. A field that
-	 * only one variant has returns empty for the other.
-	 */
 	const tableDefaults: TableDefaults<string> = { sort: { field: 'email', direction: 'asc' } };
 
-	const userFields: FieldConfig<UserOrInvite>[] = [
-		{
-			key: 'email',
-			label: common_email(),
-			type: 'string',
-			searchable: true,
-			sortable: true,
-			getValue(item) {
-				return isUser(item) ? item.data.email : item.data.send_to || invites_pendingInvite();
-			},
-			display: { primary: true, width: 220 }
-		},
-		{
-			key: 'invite_status',
-			label: common_status(),
-			type: 'string',
-			filterable: true,
-			groupable: true,
-			sortable: true,
-			getValue: (item) =>
-				!isUser(item)
-					? invites_pendingInvite()
-					: item.data.id === currentUser?.id
-						? common_you()
-						: common_user(),
-			display: {
-				getItems: (item) => {
-					if (!isUser(item)) {
-						return [{ id: 'pending', label: invites_pendingInvite(), color: 'Yellow' }];
-					}
-					return item.data.id === currentUser?.id
-						? [{ id: 'you', label: common_you(), color: 'Yellow' }]
-						: [];
-				}
-			}
-		},
-		{
-			key: 'permissions',
-			label: common_role(),
-			type: 'string',
-			searchable: true,
-			filterable: true,
-			groupable: true,
-			sortable: true,
-			// Every role the backend defines, named the way the chip renders them.
-			filterOptions: permissions.getItems().map((role) => permissions.getName(role.id)),
-			getValue(item) {
-				return permissions.getName(item.data.permissions) || item.data.permissions;
-			},
-			display: {
-				getItems: (item) => {
-					const role = item.data.permissions;
-					return [
-						{
-							id: role,
-							label: permissions.getName(role) || role,
-							color: permissions.getColorHelper(role).color
-						}
-					];
-				}
-			}
-		},
-		{
-			key: 'site_ids',
-			label: common_sites(),
-			type: 'array',
-			searchable: true,
-			// Users share sites, so this filters; as an array it neither sorts nor groups.
-			filterable: true,
-			getValue: (item) => userSiteItems(item).map((n) => n.label),
-			display: { getItems: userSiteItems }
-		},
-		{
-			key: 'oidc_provider',
-			label: users_authMethod(),
-			type: 'string',
-			searchable: true,
-			filterable: true,
-			groupable: true,
-			sortable: true,
-			getValue(item) {
-				if (!isUser(item)) return null;
-				const { oidc_provider, has_password } = item.data;
-				if (oidc_provider) {
-					return has_password
-						? users_authMethodOidcAndPassword({ provider: oidc_provider })
-						: oidc_provider;
-				}
-				return has_password ? common_emailAndPassword() : common_none();
-			}
-		},
-		{
-			key: 'created_at',
-			label: common_joined(),
-			type: 'date',
-			sortable: true,
-			getValue: (item) => item.data.created_at
-		},
-		{
-			key: 'invite_url',
-			label: common_url(),
-			type: 'string',
-			searchable: true,
-			getValue: (item) => (isUser(item) ? '' : formatInviteUrl(item.data)),
-			display: { hiddenByDefault: true }
-		},
-		{
-			key: 'invited_by',
-			label: invites_createdBy(),
-			type: 'string',
-			searchable: true,
-			sortable: true,
-			groupable: true,
-			filterable: true,
-			getValue: (item) =>
-				isUser(item)
-					? null
-					: usersData.find((u) => u.id == item.data.created_by)?.email ||
-						common_unknownEntity({ entity: common_user() }),
-			display: { hiddenByDefault: true }
-		},
-		{
-			key: 'expires_at',
-			label: common_expires(),
-			type: 'date',
-			sortable: true,
-			getValue: (item) => (isUser(item) ? null : item.data.expires_at),
-			display: { hiddenByDefault: true }
-		},
-		{
-			key: 'updated_at',
-			label: common_updated(),
-			type: 'date',
-			sortable: true,
-			getValue: (item) => item.data.updated_at,
-			display: { hiddenByDefault: true }
-		},
-		// Account facts an invite does not have yet, so its cells stay empty.
-		{
-			key: 'email_verified',
-			label: users_emailVerified(),
-			type: 'boolean',
-			filterable: true,
-			groupable: true,
-			getValue: (item) => (isUser(item) ? (item.data.email_verified ?? null) : null),
-			display: { hiddenByDefault: true }
-		},
-		{
-			key: 'oidc_linked_at',
-			label: users_providerLinked(),
-			type: 'date',
-			sortable: true,
-			getValue: (item) => (isUser(item) ? (item.data.oidc_linked_at ?? null) : null),
-			display: { hiddenByDefault: true }
-		},
-		{
-			key: 'terms_accepted_at',
-			label: users_termsAccepted(),
-			type: 'date',
-			sortable: true,
-			getValue: (item) => (isUser(item) ? (item.data.terms_accepted_at ?? null) : null),
-			display: { hiddenByDefault: true }
-		}
-	];
+	const userFields: FieldConfig<UserOrInvite>[] = userColumns({
+		currentUser: () => currentUser,
+		users: () => usersData,
+		sites: () => sitesData,
+		inviteUrl: formatInviteUrl
+	});
 </script>
 
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
