@@ -1,19 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import {
-	MAX_FIX_ITEMS,
-	recentScansView,
-	type RecentDiscovery
-} from '$lib/features/home/utils/recentScans';
+import { recentScansView, type RecentDiscovery } from '$lib/features/home/utils/recentScans';
 import { runOutcomeTag } from '$lib/features/discovery/utils/outcome';
+import { toColor } from '$lib/shared/utils/styling';
 import type { DiscoveryWarning } from '$lib/features/discovery/utils/warnings';
 import type { DiscoveryUpdatePayload } from '$lib/features/discovery/types/api';
 
-const SCAN_A = '00000000-0000-0000-0000-00000000000a';
-const SCAN_B = '00000000-0000-0000-0000-00000000000b';
-const CRED = '00000000-0000-0000-0000-0000000000c1';
-
-const credentialFailure = (code: string, address = '10.0.0.1'): DiscoveryWarning =>
-	({ code, integration: 'Snmp', address, detail: null, credential_id: CRED }) as DiscoveryWarning;
+const credentialFailure = {
+	code: 'CredentialRejected',
+	integration: 'Snmp',
+	address: '10.0.0.1',
+	detail: null,
+	credential_id: '00000000-0000-0000-0000-0000000000c1'
+} as DiscoveryWarning;
 
 const deviceQuirk = {
 	code: 'SnmpWalkUnsupported',
@@ -28,20 +26,18 @@ let nextId = 0;
  * the server computes them, and these tests cover what the homepage does with them.
  */
 function run(opts: {
-	scan?: string;
 	phase?: DiscoveryUpdatePayload['phase'];
 	reason?: DiscoveryUpdatePayload['reason'];
 	warnings?: DiscoveryWarning[];
 	actionable?: number;
-	createdAt?: string;
 }): RecentDiscovery {
 	const id = `run-${nextId++}`;
 	const warnings = opts.warnings ?? [];
 	return {
 		discovery: {
 			id,
-			created_at: opts.createdAt ?? '2026-10-01T00:00:00Z',
-			updated_at: opts.createdAt ?? '2026-10-01T00:00:00Z',
+			created_at: '2026-10-01T00:00:00Z',
+			updated_at: '2026-10-01T00:00:00Z',
 			name: 'Network Scan',
 			daemon_id: 'daemon',
 			site_id: 'site',
@@ -52,7 +48,7 @@ function run(opts: {
 				results: {
 					phase: opts.phase ?? 'Complete',
 					reason: opts.reason ?? 'Completed',
-					discovery_id: opts.scan ?? SCAN_A,
+					discovery_id: 'scan',
 					discovery_type: { type: 'Network' },
 					daemon_id: 'daemon',
 					site_id: 'site',
@@ -72,99 +68,43 @@ function run(opts: {
 
 describe('recentScansView', () => {
 	it('has nothing to show before any scan has finished', () => {
-		const view = recentScansView([]);
-
-		expect(view.runs).toEqual([]);
-		expect([view.finished, view.toFix, view.stopped]).toEqual([0, 0, 0]);
-		expect(view.sections).toEqual([]);
-		expect(view.hidden).toBeNull();
+		expect(recentScansView([])).toEqual([]);
 	});
 
-	it('counts a run without warnings as finished, with nothing to fix', () => {
-		const view = recentScansView([run({})]);
+	it('leaves a run without warnings untagged', () => {
+		const [view] = recentScansView([run({})]);
 
-		expect(view.runs[0].state).toBe('clean');
-		expect(view.finished).toBe(1);
-		expect(view.sections).toEqual([]);
+		expect(view.state).toBe('clean');
+		expect(view.tag).toBeNull();
 	});
 
-	it('lists the rows to fix for a run with actionable warnings', () => {
-		const view = recentScansView([
-			run({ warnings: [credentialFailure('CredentialRejected'), deviceQuirk], actionable: 1 })
+	it('tags a run with actionable warnings for attention', () => {
+		const [view] = recentScansView([
+			run({ warnings: [credentialFailure, deviceQuirk], actionable: 1 })
 		]);
 
-		expect(view.runs[0].state).toBe('toFix');
-		expect(view.toFix).toBe(1);
-		expect(view.finished).toBe(0);
-		const codes = view.sections.flatMap((s) => s.items.map((i) => i.entry.code));
-		expect(codes).toEqual(['CredentialRejected']);
-		expect(view.sections[0].items[0].payload.discovery_id).toBe(SCAN_A);
+		expect(view.state).toBe('toFix');
+		expect(view.tag?.color).toBe(toColor('Amber'));
 	});
 
-	it('keeps warnings that ask nothing of the reader on the run tag only', () => {
-		const view = recentScansView([run({ warnings: [deviceQuirk] })]);
+	it('tags a run whose warnings ask nothing of the reader quietly', () => {
+		const [view] = recentScansView([run({ warnings: [deviceQuirk] })]);
 
-		expect(view.runs[0].state).toBe('nothingToFix');
-		expect(view.finished).toBe(1);
-		expect(view.sections).toEqual([]);
+		expect(view.state).toBe('nothingToFix');
+		expect(view.tag?.color).toBe(toColor('Gray'));
 	});
 
-	it('shows a failed run with its outcome and counts it apart', () => {
-		const failed = run({ phase: 'Failed', reason: 'DaemonUnreachable' });
-		const view = recentScansView([failed]);
-
-		expect(view.runs[0].state).toBe('stopped');
-		expect(view.runs[0].tag).toEqual(
-			runOutcomeTag({ phase: 'Failed', reason: 'DaemonUnreachable' })
-		);
-		expect(view.stopped).toBe(1);
-		expect(view.finished).toBe(0);
-	});
-
-	it('drops what an older run reported once a newer run of the same scan is clean', () => {
-		const view = recentScansView([
-			run({ scan: SCAN_A }),
-			run({ scan: SCAN_A, warnings: [credentialFailure('CredentialRejected')], actionable: 1 })
+	it('tags a failed run with its outcome, whatever its warnings', () => {
+		const [view] = recentScansView([
+			run({
+				phase: 'Failed',
+				reason: 'DaemonUnreachable',
+				warnings: [credentialFailure],
+				actionable: 1
+			})
 		]);
 
-		expect(view.runs.map((r) => r.state)).toEqual(['clean', 'toFix']);
-		expect(view.sections).toEqual([]);
-	});
-
-	it('lists the same row from two scans once', () => {
-		const view = recentScansView([
-			run({ scan: SCAN_A, warnings: [credentialFailure('CredentialRejected')], actionable: 1 }),
-			run({ scan: SCAN_B, warnings: [credentialFailure('CredentialRejected')], actionable: 1 })
-		]);
-
-		expect(view.sections.flatMap((s) => s.items)).toHaveLength(1);
-	});
-
-	it('caps the list and points the rest at the newest run holding them', () => {
-		const codes = [
-			'CredentialRejected',
-			'CredentialMalformed',
-			'CredentialTlsFailed',
-			'CredentialUnreachable',
-			'CredentialTimedOut'
-		];
-		const older = run({
-			scan: SCAN_B,
-			warnings: codes.slice(0, 3).map((c) => credentialFailure(c)),
-			actionable: 3,
-			createdAt: '2026-09-01T00:00:00Z'
-		});
-		const newer = run({
-			scan: SCAN_A,
-			warnings: codes.slice(3).map((c) => credentialFailure(c)),
-			actionable: 2,
-			createdAt: '2026-10-01T00:00:00Z'
-		});
-
-		const view = recentScansView([newer, older]);
-
-		expect(view.sections.flatMap((s) => s.items)).toHaveLength(MAX_FIX_ITEMS);
-		expect(view.hidden?.count).toBe(codes.length - MAX_FIX_ITEMS);
-		expect(view.hidden?.discovery.id).toBe(older.discovery.id);
+		expect(view.state).toBe('stopped');
+		expect(view.tag).toEqual(runOutcomeTag({ phase: 'Failed', reason: 'DaemonUnreachable' }));
 	});
 });
