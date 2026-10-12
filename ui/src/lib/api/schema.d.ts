@@ -1321,7 +1321,10 @@ export interface paths {
         put?: never;
         /**
          * Email install command to current user
-         * @description Session-only, and `IsUser` says so at the extractor rather than in the body. "The current user"
+         * @description Requires a verified email: the endpoint mails on demand, so an unproven address would let
+         *     anyone send Scanopy mail to an inbox they don't own.
+         *
+         *     Session-only, and `IsUser` says so at the extractor rather than in the body. "The current user"
          *     has no answer for an automation identity: a user API key carries `user_id` but no address, so
          *     this endpoint could never serve one. An API key that wants the command reads it directly from
          *     `GET /api/v1/daemons/{id}/install-command`.
@@ -3751,19 +3754,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-12T12:54:08.011291Z",
+             *       "created_at": "2026-10-12T14:26:45.911574Z",
              *       "first_discovery_id": null,
-             *       "id": "af23944a-fc1b-4350-a687-09dc839afa91",
+             *       "id": "28c9a623-ccbe-4dfa-8a7d-85f0cb3a05a0",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-12T12:54:08.011291Z",
+             *       "last_seen_at": "2026-10-12T14:26:45.911574Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-12T12:54:08.011291Z",
-             *       "valid_from": "2026-10-12T12:54:08.011291Z",
+             *       "updated_at": "2026-10-12T14:26:45.911574Z",
+             *       "valid_from": "2026-10-12T14:26:45.911574Z",
              *       "valid_to": null
              *     }
              */
@@ -4158,7 +4161,7 @@ export interface components {
                 /** @description Current usage against the organization's plan allowances. */
                 plan_usage: components["schemas"]["PlanUsage"];
                 /** @description The most recent discovery runs, newest first. */
-                recent_discoveries: components["schemas"]["Discovery"][];
+                recent_discoveries: components["schemas"]["RecentDiscovery"][];
                 /** @description Per-site counts for every site the caller can see. */
                 sites: components["schemas"]["SiteSummary"][];
             };
@@ -4628,19 +4631,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-12T12:54:07.985870Z",
+             *               "created_at": "2026-10-12T14:26:45.885877Z",
              *               "first_discovery_id": null,
-             *               "id": "4e0dda6e-92f0-4551-9667-d6e9c9cf0665",
+             *               "id": "85242f99-42e6-4ad2-8f95-2fdca73449ab",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-12T12:54:07.985870Z",
+             *               "last_seen_at": "2026-10-12T14:26:45.885877Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-12T12:54:07.985870Z",
-             *               "valid_from": "2026-10-12T12:54:07.985870Z",
+             *               "updated_at": "2026-10-12T14:26:45.885877Z",
+             *               "valid_from": "2026-10-12T14:26:45.885877Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4653,7 +4656,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Neo4j",
+             *           "service_definition": "Memos",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5588,19 +5591,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-12T12:54:08.006453Z",
+             *           "created_at": "2026-10-12T14:26:45.906416Z",
              *           "first_discovery_id": null,
-             *           "id": "88af47d2-a430-4a2d-9b7a-cfc3a320ff85",
+             *           "id": "8833192a-e648-49cb-b0a4-42b5cc786b73",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-12T12:54:08.006453Z",
+             *           "last_seen_at": "2026-10-12T14:26:45.906416Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-12T12:54:08.006453Z",
-             *           "valid_from": "2026-10-12T12:54:08.006453Z",
+             *           "updated_at": "2026-10-12T14:26:45.906416Z",
+             *           "valid_from": "2026-10-12T14:26:45.906416Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5613,7 +5616,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Neo4j",
+             *       "service_definition": "Memos",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6964,19 +6967,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-12T12:54:07.986398Z",
+         *       "created_at": "2026-10-12T14:26:45.886380Z",
          *       "first_discovery_id": null,
-         *       "id": "919af788-d6d0-4f2a-a70a-ed99a5a36397",
+         *       "id": "54dc4369-b014-47d2-965b-52c80a013a14",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-12T12:54:07.986398Z",
+         *       "last_seen_at": "2026-10-12T14:26:45.886380Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-12T12:54:07.986398Z",
-         *       "valid_from": "2026-10-12T12:54:07.986398Z",
+         *       "updated_at": "2026-10-12T14:26:45.886380Z",
+         *       "valid_from": "2026-10-12T14:26:45.886380Z",
          *       "valid_to": null
          *     }
          */
@@ -7322,7 +7325,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Neo4j",
+         *           "service_definition": "Memos",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -8163,7 +8166,7 @@ export interface components {
             /** @description Current usage against the organization's plan allowances. */
             plan_usage: components["schemas"]["PlanUsage"];
             /** @description The most recent discovery runs, newest first. */
-            recent_discoveries: components["schemas"]["Discovery"][];
+            recent_discoveries: components["schemas"]["RecentDiscovery"][];
             /** @description Per-site counts for every site the caller can see. */
             sites: components["schemas"]["SiteSummary"][];
         };
@@ -9358,11 +9361,26 @@ export interface components {
          * @enum {string}
          */
         ElementSort: "Automatic" | "Address" | "PortIndex" | "Name" | "Category";
-        /** @description Request body for emailing an install command to the authenticated user. */
-        EmailInstallCommandRequest: {
-            /** @description The install command to send, exactly as shown in the UI. */
-            install_command: string;
-            /** @description Operating system the command targets, used to pick the email wording. */
+        /**
+         * @description Request body for emailing an install command to the authenticated user. The server builds
+         *     the command from the daemon record, exactly as [`get_install_command`] does; the client only
+         *     picks which method's command to send.
+         */
+        EmailInstallCommandRequest: components["schemas"]["InstallCommandQuery"] & {
+            /**
+             * @description The daemon's api key, from the provision response. Required when `purpose` embeds the
+             *     key (`install`, `rekey`) and rejected otherwise. The server stores only its hash, so it
+             *     can't fill the key in itself; it checks this one against the daemon's bound key.
+             */
+            api_key?: string | null;
+            /**
+             * Format: uuid
+             * @description The daemon whose command to send.
+             */
+            daemon_id: string;
+            /** @description Send the docker compose instead of the binary command. Linux only. */
+            docker?: boolean;
+            /** @description Operating system the command targets. */
             os: components["schemas"]["DaemonOs"];
         };
         /**
@@ -9552,6 +9570,9 @@ export interface components {
         FieldFormat: {
             /** @enum {string} */
             type: "Text";
+        } | {
+            /** @enum {string} */
+            type: "Prose";
         } | {
             /** @enum {string} */
             type: "Number";
@@ -10067,19 +10088,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-12T12:54:07.985277Z",
+         *               "created_at": "2026-10-12T14:26:45.885291Z",
          *               "first_discovery_id": null,
-         *               "id": "877df3f8-bb36-4981-ae60-f8a6f636a8b2",
+         *               "id": "80d1658f-2f16-4289-a351-d317a50e2638",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-12T12:54:07.985277Z",
+         *               "last_seen_at": "2026-10-12T14:26:45.885291Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-12T12:54:07.985277Z",
-         *               "valid_from": "2026-10-12T12:54:07.985277Z",
+         *               "updated_at": "2026-10-12T14:26:45.885291Z",
+         *               "valid_from": "2026-10-12T14:26:45.885291Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10092,7 +10113,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Neo4j",
+         *           "service_definition": "Memos",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10633,6 +10654,34 @@ export interface components {
             msi: components["schemas"]["MsiInstall"];
             /** @description Download for Windows. */
             windows: string;
+        };
+        /**
+         * @description Query for [`get_install_command`]. `purpose` is required; the rest are the client-settable
+         *     advanced daemon settings, folded into an `install` command. Lists are comma-joined
+         *     (`interfaces`, `credential_refs`).
+         */
+        InstallCommandQuery: {
+            /** @description Continue scanning targets that present an untrusted certificate. */
+            accept_invalid_scan_certs?: boolean | null;
+            /** @description Accept a self-signed certificate when connecting back to the server. */
+            allow_self_signed_certs?: boolean | null;
+            /** @description Address and port the daemon should listen on, for server-polled mode. */
+            bind_address?: string | null;
+            /** @description Comma-separated credential/integration tokens (for the docker-compose env). */
+            credential_refs?: string | null;
+            /**
+             * Format: int64
+             * @description How often the daemon reports in, in seconds.
+             */
+            heartbeat_interval?: number | null;
+            /** @description Comma-separated interface names. */
+            interfaces?: string | null;
+            /** @description Path the daemon should write its log file to. */
+            log_file?: string | null;
+            /** @description Log verbosity the daemon should run at (e.g. `info`, `debug`). */
+            log_level?: string | null;
+            /** @description `install` or `rekey` (with the api-key placeholder), or `reconfigure` (credential-free). */
+            purpose: components["schemas"]["InstallCommandType"];
         };
         /**
          * @description What the caller wants the command to do — the one axis that actually varies.
@@ -12888,6 +12937,13 @@ export interface components {
             /** @description Whether a password must be supplied before the topology is returned. */
             requires_password: boolean;
         };
+        /** @description A recent discovery run with its warnings counted by remedy. */
+        RecentDiscovery: {
+            /** @description The historical run. */
+            discovery: components["schemas"]["Discovery"];
+            /** @description The run's warnings counted by remedy. Empty for a run that recorded none. */
+            warning_summary: components["schemas"]["RunWarningSummary"];
+        };
         /**
          * @description How a user first heard about Scanopy, as offered by the onboarding prompt.
          * @enum {string}
@@ -12932,6 +12988,16 @@ export interface components {
             url: string;
             /** @description The release, as semver (e.g. `0.18.0`). */
             version: string;
+        };
+        /** @description The number of a run's warnings on one [`WarningRemedy`] rung. */
+        RemedyCount: {
+            /**
+             * Format: int32
+             * @description Warnings on that rung.
+             */
+            count: number;
+            /** @description The rung these warnings sit on. */
+            remedy: components["schemas"]["WarningRemedy"];
         };
         RequestEmailChangeRequest: {
             /**
@@ -13028,6 +13094,24 @@ export interface components {
             readonly last_run?: string | null;
             /** @enum {string} */
             type: "AdHoc";
+        };
+        /** @description One run's warnings, counted by remedy. */
+        RunWarningSummary: {
+            /**
+             * Format: int32
+             * @description Warnings whose remedy asks the reader to act ([`WarningRemedy::is_actionable`]).
+             */
+            actionable: number;
+            /**
+             * @description Counts per remedy in [`WarningRemedy`] declaration order. Rungs with no warnings are left
+             *     out.
+             */
+            by_remedy: components["schemas"]["RemedyCount"][];
+            /**
+             * Format: int32
+             * @description Every warning the run recorded.
+             */
+            total: number;
         };
         /**
          * @description Save-offer choices presented during in-app cancellation (Phase 5).
@@ -13287,19 +13371,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-12T12:54:07.986208Z",
+         *           "created_at": "2026-10-12T14:26:45.886221Z",
          *           "first_discovery_id": null,
-         *           "id": "d2307974-6175-4a27-abb6-eb4d65ba111a",
+         *           "id": "d274c827-bab1-4b3e-b3b0-b86941606cac",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-12T12:54:07.986208Z",
+         *           "last_seen_at": "2026-10-12T14:26:45.886221Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-12T12:54:07.986208Z",
-         *           "valid_from": "2026-10-12T12:54:07.986208Z",
+         *           "updated_at": "2026-10-12T14:26:45.886221Z",
+         *           "valid_from": "2026-10-12T14:26:45.886221Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13312,7 +13396,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Neo4j",
+         *       "service_definition": "Memos",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -14390,7 +14474,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "5eba1e35-9dab-49e3-a974-2725824b9c6a",
+             *           "id": "e0a7237f-a6ba-4757-97bc-047cdeff8b93",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14400,23 +14484,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "47499127-f6da-42fd-8bb6-9431d62ac755",
+             *           "id": "57ad59c5-52ae-4cca-af2c-88a4257fc3cd",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "449557db-d3f1-4497-9b70-ef1974dd4988",
+             *           "id": "f733754a-5f9a-4846-93ed-3de882926b82",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "04f10264-6e11-4397-aaeb-e5e92801bfe0",
+             *           "id": "26999f30-e443-4532-80ef-93d22ce6b483",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "47499127-f6da-42fd-8bb6-9431d62ac755",
+             *           "id": "57ad59c5-52ae-4cca-af2c-88a4257fc3cd",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14430,19 +14514,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "18941fbc-cdd2-4128-aeaa-bff020be8027",
+             *         "id": "6779757a-638d-4bb3-9790-9406e0afb19e",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "60f8ba6e-0c8d-4cb4-a9f7-d30ed04043c8",
+             *         "id": "1aa8b1fb-9e72-4a4d-b7a9-cb3d4df52a18",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "a0974be4-2fba-4a34-9e79-a9e98ca64873",
+             *         "id": "ded032bf-55c2-4dee-a43e-f61e904aa36d",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "387d9612-a9e5-4468-9706-e7073082b870",
+             *         "id": "36108c26-5926-4886-9a04-b7127d4ab5fb",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14463,7 +14547,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "41c4bf28-0f40-4d21-9f5c-7901cbdf6b60",
+             *         "id": "5ac98726-7e65-4367-a120-4cbf9b83e558",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14472,15 +14556,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "f0f4b134-6b73-4f4e-b5ef-18aca0e57b89",
+             *         "id": "59848e08-a381-411b-b339-057a8df91cc7",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "d02683be-c28e-4d36-aaf2-0e5ef1d72def",
+             *         "id": "4980c3b9-a9ae-4ccb-8ba8-803e34a012c7",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "85f0e134-4302-4541-9881-e751f9d15460",
+             *         "id": "9d848103-01b5-40d9-8968-28d269daef77",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -15193,6 +15277,19 @@ export interface components {
             /** @description Whether the scan found the address after the packets went out. */
             woke: boolean;
         };
+        /**
+         * @description What a warning asks of the person reading it.
+         *
+         *     The rung a code sits on *is* its instruction, which is why the warning list is grouped by this
+         *     and not by [`Severity`]: a reader scanning a completed run needs to know whether they are being
+         *     asked for something before they need to know how much data was lost. It reaches the UI as each
+         *     code's `category`, with this enum's own registry supplying the heading — the same shape
+         *     `service-definitions.json` and `service-categories.json` use.
+         *
+         *     Declaration order is the order the sections render in, most demanding first.
+         * @enum {string}
+         */
+        WarningRemedy: "FixInScanopy" | "CheckTheDevice" | "ClearsOnTheNextScan" | "NothingToDo";
         /** @enum {string} */
         WeekStart: "monday" | "sunday";
     };
@@ -15552,7 +15649,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Verification email sent */
+            /** @description Accepted. A link is sent only when the address has an unverified account */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15561,17 +15658,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResponse"];
                 };
             };
-            /** @description Invalid request or already verified */
+            /** @description Invalid request, or a link was sent to this address less than a minute ago */
             400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
-                };
-            };
-            /** @description Rate limited */
-            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17951,7 +18039,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResponse"];
                 };
             };
-            /** @description Email service not configured */
+            /** @description Email service not configured, no command for this method, or api key missing or not this daemon's */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17960,8 +18048,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description User session required */
+            /** @description User session or verified email required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Daemon not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
