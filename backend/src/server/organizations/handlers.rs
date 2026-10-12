@@ -7,7 +7,7 @@ use crate::server::organizations::demo_status::DemoPopulateStatus;
 use crate::server::organizations::r#impl::base::Organization;
 use crate::server::shared::events::traits::{Event, OrgScope};
 use crate::server::shared::events::types::{OnboardingOperation, OnboardingOperationDiscriminants};
-use crate::server::shared::handlers::traits::{CrudHandlers, update_handler};
+use crate::server::shared::handlers::traits::CrudHandlers;
 use crate::server::shared::services::traits::CrudService;
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::traits::{Entity, Storage};
@@ -16,10 +16,10 @@ use crate::server::shared::types::api::ApiResponse;
 use crate::server::shared::types::api::ApiResult;
 use crate::server::shared::types::api::{ApiError, ApiErrorResponse, EmptyApiResponse};
 use crate::server::shared::types::error_codes::ErrorCode;
+use crate::server::shared::validation::validate_entity;
 use crate::server::sites::r#impl::Site;
 use crate::server::users::r#impl::base::User;
 use crate::server::users::r#impl::permissions::UserOrgPermissions;
-use anyhow::anyhow;
 use axum::Json;
 use axum::extract::Path;
 use axum::extract::State;
@@ -100,22 +100,22 @@ pub async fn update_org_name(
         return Err(ApiError::permission_denied());
     }
 
-    let mut org = state
+    // Only the name changes, on a fresh read under the org lock, so a billing or notification
+    // write landing meanwhile isn't reverted.
+    let mut locked = state
         .services
         .organization_service
-        .get_by_id(&id)
+        .lock_for_update(id)
         .await?
-        .ok_or_else(|| anyhow!("Could not find org"))?;
+        .ok_or_else(|| ApiError::entity_not_found::<Organization>(id))?;
+    locked.org.base.name = name;
+    validate_entity(
+        || CrudHandlers::validate(&locked.org),
+        Organization::entity_name(),
+    )?;
+    let updated = locked.save(auth.into_entity()).await?;
 
-    org.base.name = name;
-
-    update_handler::<Organization>(
-        axum::extract::State(state),
-        auth.into_permission::<Member>(),
-        axum::extract::Path(id),
-        ApiJson(org),
-    )
-    .await
+    Ok(Json(ApiResponse::success(updated)))
 }
 
 /// Request to update user profile (deferred marketing fields)
@@ -580,17 +580,17 @@ async fn run_populate_demo(
     id: Uuid,
     user_id: Uuid,
     entity: AuthenticatedEntity,
-    mut org: Organization,
+    org: Organization,
 ) -> ApiResult<()> {
     // First, reset all existing data
     reset_organization_data(&state, &id, entity.clone()).await?;
 
-    org.base.onboarding = OnboardingOperationDiscriminants::iter().collect();
-
     state
         .services
         .organization_service
-        .update(&mut org, entity.clone())
+        .modify(id, entity.clone(), |org| {
+            org.base.onboarding = OnboardingOperationDiscriminants::iter().collect();
+        })
         .await?;
 
     seed_demo_data(&state.services, id, user_id, org.base.use_case, entity).await

@@ -993,7 +993,7 @@ impl EmailService {
 
     /// Check plan limits for an organization and send notification emails on threshold crossings
     pub async fn check_plan_limits(&self, org_id: Uuid, suppress_emails: bool) -> Result<()> {
-        let mut org = match self.organization_service.get_by_id(&org_id).await? {
+        let org = match self.organization_service.get_by_id(&org_id).await? {
             Some(org) => org,
             None => return Ok(()),
         };
@@ -1103,8 +1103,7 @@ impl EmailService {
         // The owner is resolved on the first pending send. A failed lookup
         // fails every pending send, so those limits keep their old level.
         let owner_email = tokio::sync::OnceCell::new();
-        let mut stored = notifications;
-        let mut changed = false;
+        let mut recorded: Vec<&LimitLevelChange> = Vec::new();
         let mut failed = 0usize;
         for change in &changes {
             let send = match &change.email {
@@ -1158,13 +1157,20 @@ impl EmailService {
                     "Failed to send plan limit email; level left unchanged for retry"
                 );
             }
-            changed |= change.record(&mut stored, &send);
+            if send.is_ok() {
+                recorded.push(change);
+            }
         }
 
-        if changed {
-            org.base.notifications = stored;
+        // Sends happen outside the org lock; the levels land on a fresh read under it, so a
+        // concurrent write to another column isn't reverted.
+        if !recorded.is_empty() {
             self.organization_service
-                .update(&mut org, AuthenticatedEntity::System)
+                .modify(org_id, AuthenticatedEntity::System, |org| {
+                    for change in &recorded {
+                        change.record(&mut org.base.notifications, &Ok(()));
+                    }
+                })
                 .await?;
         }
 
@@ -1212,7 +1218,7 @@ impl EmailService {
 
     /// One organization's warning, plus the ratchet write that stops it
     /// repeating for the same licence period.
-    async fn warn_expiring_airgap_key(&self, mut organization: Organization) -> Result<()> {
+    async fn warn_expiring_airgap_key(&self, organization: Organization) -> Result<()> {
         let (Some(plan), Some(paid_through)) = (
             organization.base.plan,
             organization.base.license_paid_through,
@@ -1241,12 +1247,10 @@ impl EmailService {
         )
         .await?;
 
-        organization
-            .base
-            .notifications
-            .airgap_expiry_notified_through = Some(paid_through);
         self.organization_service
-            .update(&mut organization, AuthenticatedEntity::System)
+            .modify(organization.id, AuthenticatedEntity::System, |org| {
+                org.base.notifications.airgap_expiry_notified_through = Some(paid_through);
+            })
             .await?;
 
         tracing::info!(
@@ -1349,7 +1353,7 @@ impl EmailService {
         floor: &Version,
         sunset_display: &str,
     ) -> Result<()> {
-        let mut org = match self.organization_service.get_by_id(&org_id).await? {
+        let org = match self.organization_service.get_by_id(&org_id).await? {
             Some(o) => o,
             None => return Ok(()),
         };
@@ -1417,9 +1421,17 @@ impl EmailService {
         // Every recipient was emailed: advance the ratchet so subsequent boots
         // don't re-send for this floor (or any lower one). Monotonic: it only
         // ever moves up.
-        org.base.notifications.sunset_notified_floor = Some(floor.clone());
         self.organization_service
-            .update(&mut org, AuthenticatedEntity::System)
+            .modify(org_id, AuthenticatedEntity::System, |org| {
+                let notifications = &mut org.base.notifications;
+                if notifications
+                    .sunset_notified_floor
+                    .as_ref()
+                    .is_none_or(|notified| floor > notified)
+                {
+                    notifications.sunset_notified_floor = Some(floor.clone());
+                }
+            })
             .await?;
         Ok(())
     }

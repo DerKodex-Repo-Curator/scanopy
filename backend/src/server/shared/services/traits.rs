@@ -510,7 +510,9 @@ where
             return Ok(0);
         }
 
-        // Log which entities are being deleted
+        // Build each entity's event before deleting it; publish after, so subscribers that
+        // recount (billing seats, plan limits) see the rows already gone.
+        let mut events = Vec::new();
         for id in ids {
             if let Some(entity) = self.get_by_id(id).await? {
                 let trigger_stale = entity.triggers_staleness(None);
@@ -522,7 +524,7 @@ where
                         .await?;
                 }
 
-                if let Some(event) = build_entity_event(
+                events.extend(build_entity_event(
                     self,
                     entity,
                     *id,
@@ -533,13 +535,15 @@ where
                         ..Default::default()
                     },
                     authentication.clone(),
-                ) {
-                    self.event_bus().publish(event).await?;
-                }
+                ));
             }
         }
 
         let deleted_count = self.storage().delete_many(ids).await?;
+
+        for event in events {
+            self.event_bus().publish(event).await?;
+        }
 
         Ok(deleted_count)
     }
@@ -557,10 +561,10 @@ where
             StorableFilter::<T>::new_from_org_id(organization_id)
         };
 
-        // Get entities for event publishing before deletion
+        // Build delete events before deletion; publish them after, as in `delete_many`.
         let entities = self.get_all(filter.clone()).await?;
 
-        // Publish delete events
+        let mut events = Vec::new();
         for entity in &entities {
             let trigger_stale = entity.triggers_staleness(None);
             let suppress_logs = self.suppress_logs(Some(entity), None);
@@ -571,7 +575,7 @@ where
                     .await?;
             }
 
-            if let Some(event) = build_entity_event(
+            events.extend(build_entity_event(
                 self,
                 entity.clone(),
                 entity.id(),
@@ -582,13 +586,16 @@ where
                     ..Default::default()
                 },
                 authentication.clone(),
-            ) {
-                self.event_bus().publish(event).await?;
-            }
+            ));
         }
 
-        // Delete all matching entities
-        self.storage().delete_by_filter(filter).await
+        let deleted = self.storage().delete_by_filter(filter).await?;
+
+        for event in events {
+            self.event_bus().publish(event).await?;
+        }
+
+        Ok(deleted)
     }
 }
 
