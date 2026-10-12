@@ -3,6 +3,7 @@
 use super::*;
 use crate::server::credentials::r#impl::types::{
     CredentialTypeDiscriminants, OsFamily, ScriptSource, SnmpV3AuthProtocol, SnmpV3PrivProtocol,
+    SnmpV3Security,
 };
 use strum::IntoDiscriminant;
 
@@ -67,10 +68,12 @@ pub(super) fn generate_credentials(organization_id: Uuid, now: DateTime<Utc>) ->
             None,
             CredentialType::SnmpV3 {
                 security_name: "scanopy-ro".to_string(),
-                auth_protocol: SnmpV3AuthProtocol::Sha256,
-                auth_password: inline("dc-snmp-auth-2026"),
-                priv_protocol: SnmpV3PrivProtocol::Aes128,
-                priv_password: inline("dc-snmp-priv-2026"),
+                security: SnmpV3Security::AuthPriv {
+                    auth_protocol: SnmpV3AuthProtocol::Sha256,
+                    auth_password: inline("dc-snmp-auth-2026"),
+                    priv_protocol: SnmpV3PrivProtocol::Aes128,
+                    priv_password: inline("dc-snmp-priv-2026"),
+                },
                 context_name: None,
             },
         ),

@@ -318,6 +318,30 @@ impl DiscoveryService {
         self.superseded_wire_daemons.write().await.remove(daemon_id)
     }
 
+    /// Record the credentials a dispatch to this daemon withheld for its version, replacing what
+    /// an earlier dispatch recorded: only the scan now starting reports them.
+    pub async fn note_withheld_credentials(
+        &self,
+        daemon_id: Uuid,
+        warnings: Vec<DiscoveryWarning>,
+    ) {
+        let mut withheld = self.withheld_credentials.write().await;
+        if warnings.is_empty() {
+            withheld.remove(&daemon_id);
+        } else {
+            withheld.insert(daemon_id, warnings);
+        }
+    }
+
+    /// Take this daemon's withheld-credential warnings, clearing them.
+    pub async fn take_withheld_credentials(&self, daemon_id: &Uuid) -> Vec<DiscoveryWarning> {
+        self.withheld_credentials
+            .write()
+            .await
+            .remove(daemon_id)
+            .unwrap_or_default()
+    }
+
     /// Record subnets a host request from this daemon stored, for its scan's terminal update.
     ///
     /// Latched per daemon for the same reason as `note_superseded_wire_shape`: the submission

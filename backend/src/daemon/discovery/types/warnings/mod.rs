@@ -300,6 +300,32 @@ pub enum DiscoveryWarning {
         #[serde(default)]
         actual_os: Option<crate::server::daemons::r#impl::base::DaemonOs>,
     },
+    /// The daemon is older than the credential type needs, so the server did not send it the
+    /// credential at all. Raised by the server, never a daemon: the daemon that would report it is
+    /// the one that cannot parse the credential.
+    #[schema(title = "CredentialDaemonTooOld")]
+    CredentialDaemonTooOld {
+        integration: CredentialQueryPayloadDiscriminants,
+        /// The stored credential. See [`CredentialAttempt::credential_id`].
+        #[serde(default)]
+        #[schema(required)]
+        credential_id: Option<Uuid>,
+        /// The oldest daemon version that can receive this credential type.
+        #[schema(
+            value_type = String,
+            pattern = r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$",
+            example = "0.18.1"
+        )]
+        minimum_daemon_version: Version,
+        /// The version of the daemon that ran the scan. `None` for a daemon that never reported one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[schema(
+            value_type = Option<String>,
+            pattern = r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$",
+            example = "0.18.0"
+        )]
+        daemon_version: Option<Version>,
+    },
     /// The port the credential needs was not open, so it was never tried.
     #[schema(title = "CredentialGateClosed")]
     CredentialGateClosed {
@@ -644,6 +670,7 @@ pub enum DiscoveryWarningCode {
     CredentialTargetNotScanned,
     CredentialTargetNotResponding,
     CredentialDaemonOsMismatch,
+    CredentialDaemonTooOld,
     CredentialGateClosed,
     CredentialRejected,
     CredentialMalformed,
@@ -729,6 +756,7 @@ impl DiscoveryWarning {
             Self::CredentialDaemonOsMismatch { .. } => {
                 DiscoveryWarningCode::CredentialDaemonOsMismatch
             }
+            Self::CredentialDaemonTooOld { .. } => DiscoveryWarningCode::CredentialDaemonTooOld,
             Self::CredentialGateClosed { .. } => DiscoveryWarningCode::CredentialGateClosed,
             Self::CredentialRejected(_) => DiscoveryWarningCode::CredentialRejected,
             Self::CredentialMalformed(_) => DiscoveryWarningCode::CredentialMalformed,
@@ -801,7 +829,8 @@ impl DiscoveryWarning {
             Self::CredentialTargetNotScanned { integration, .. }
             | Self::CredentialTargetNotResponding { integration, .. }
             | Self::CredentialGateClosed { integration, .. }
-            | Self::CredentialDaemonOsMismatch { integration, .. } => Some(*integration),
+            | Self::CredentialDaemonOsMismatch { integration, .. }
+            | Self::CredentialDaemonTooOld { integration, .. } => Some(*integration),
 
             Self::CredentialRejected(a)
             | Self::CredentialMalformed(a)

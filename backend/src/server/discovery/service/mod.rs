@@ -1,5 +1,6 @@
 use crate::bail_validation;
 use crate::daemon::discovery::types::base::{DiscoveryPhase, DiscoveryTerminalReason};
+use crate::daemon::discovery::types::warnings::DiscoveryWarning;
 use crate::daemon::runtime::service::LOG_TARGET;
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::credentials::r#impl::mapping::{IntegrationTarget, Target};
@@ -74,6 +75,10 @@ pub struct DiscoveryService {
     /// Per daemon, the subnets its host requests stored during the running scan. Drained into
     /// the terminal update's scanned set; see `note_touched_subnets`.
     touched_subnets: RwLock<HashMap<Uuid, HashSet<Uuid>>>,
+    /// Per daemon, the credentials its latest dispatch withheld because the daemon is too old to
+    /// parse them. Latched at dispatch, which builds the request but cannot write the session
+    /// (`update_session` replaces it wholesale), and drained into the terminal update's warnings.
+    withheld_credentials: RwLock<HashMap<Uuid, Vec<DiscoveryWarning>>>,
     session_last_updated: RwLock<HashMap<Uuid, chrono::DateTime<Utc>>>,
     update_tx: broadcast::Sender<DiscoveryUpdatePayload>,
     scheduler: Option<Arc<JobScheduler>>,

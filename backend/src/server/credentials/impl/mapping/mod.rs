@@ -47,7 +47,7 @@ pub struct GnmiQueryCredential {
 pub use super::types::snmp::{
     SnmpCredentialMapping, SnmpCredentialMappingExposed, SnmpIpOverrideExposed,
     SnmpQueryCredential, SnmpQueryCredentialExposed, SnmpV3AuthProtocol, SnmpV3Params,
-    SnmpV3PrivProtocol, SnmpVersion,
+    SnmpV3PrivProtocol, SnmpV3Security, SnmpV3SecurityLevel, SnmpVersion,
 };
 
 // ============================================================================
@@ -365,7 +365,7 @@ impl CredentialQueryPayload {
                 secret(&s.community)
                     || s.v3
                         .as_ref()
-                        .is_some_and(|v3| secret(&v3.auth_password) || secret(&v3.priv_password))
+                        .is_some_and(|v3| v3.security.secrets().into_iter().any(|(_, s)| secret(s)))
             }
             Self::DockerProxy(d) | Self::PodmanProxy(d) => {
                 d.ssl_cert.as_ref().is_some_and(value)
@@ -478,14 +478,9 @@ impl CredentialQueryPayload {
                     .map(|v3| -> Result<_, anyhow::Error> {
                         Ok(super::types::snmp::SnmpV3Params {
                             security_name: v3.security_name.clone(),
-                            auth_protocol: v3.auth_protocol,
-                            auth_password: v3
-                                .auth_password
-                                .resolve_to_value("auth_password", label)?,
-                            priv_protocol: v3.priv_protocol,
-                            priv_password: v3
-                                .priv_password
-                                .resolve_to_value("priv_password", label)?,
+                            security: v3.security.try_map_secrets(|field, secret| {
+                                secret.resolve_to_value(field, label)
+                            })?,
                             context_name: v3.context_name.clone(),
                         })
                     })

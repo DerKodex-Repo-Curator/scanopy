@@ -79,14 +79,17 @@ impl DiscoveryService {
         daemon_version: Option<&semver::Version>,
         subnets: Vec<Subnet>,
     ) -> Result<DaemonDiscoveryRequest, anyhow::Error> {
-        let credential_mappings = if session.discovery_type.runs_network_scan() {
+        let (credential_mappings, withheld) = if session.discovery_type.runs_network_scan() {
             self.credential_service
                 .build_all_credential_mappings(site_id, integration_targets, daemon_version)
                 .await
                 .unwrap_or_default()
         } else {
-            vec![]
+            (vec![], vec![])
         };
+        // Reported on this scan's record at its terminal update; see `withheld_credentials`.
+        self.note_withheld_credentials(session.daemon_id, withheld)
+            .await;
 
         Ok(DaemonDiscoveryRequest {
             session_id: session.session_id,

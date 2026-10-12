@@ -181,6 +181,7 @@ impl DiscoveryWarningCode {
             }
             Self::CredentialGateClosed => &["credential", "addresses", "ports"],
             Self::CredentialDaemonOsMismatch => &["credential", "declared", "daemon", "actual"],
+            Self::CredentialDaemonTooOld => &["credential", "required", "daemon", "version"],
             Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed
@@ -233,6 +234,7 @@ impl DiscoveryWarningCode {
             | Self::CredentialTargetNotResponding
             | Self::CredentialGateClosed
             | Self::CredentialDaemonOsMismatch
+            | Self::CredentialDaemonTooOld
             | Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed
@@ -310,6 +312,7 @@ impl DiscoveryWarningCode {
             | Self::CredentialTargetNotResponding
             | Self::CredentialGateClosed
             | Self::CredentialDaemonOsMismatch
+            | Self::CredentialDaemonTooOld
             | Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed
@@ -438,6 +441,7 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
             Self::CredentialTargetNotResponding => "Credential target did not respond",
             Self::CredentialGateClosed => "Credential port not open",
             Self::CredentialDaemonOsMismatch => "Credential set up for another OS",
+            Self::CredentialDaemonTooOld => "Daemon too old for credential",
             Self::CredentialRejected => "Credential refused",
             Self::CredentialMalformed => "Credential incomplete",
             Self::CredentialTlsFailed => "TLS negotiation failed",
@@ -554,6 +558,9 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
             Self::CredentialDaemonOsMismatch => {
                 "The {credential} credential reads files on a {declared} daemon, and {daemon} runs {actual}, so it was not used. Set the credential's daemon OS to match, or scan with a {declared} daemon."
             }
+            Self::CredentialDaemonTooOld => {
+                "The {credential} credential needs daemon {required} or newer, and {daemon} runs {version}, so it was not sent. Upgrade the daemon to use it."
+            }
             Self::CredentialRejected => {
                 "The {credential} credential for {addresses} was refused — check the username, password or community string. ({detail})"
             }
@@ -656,6 +663,7 @@ impl DiscoveryWarningCode {
             | Self::CredentialTargetNotResponding
             | Self::CredentialGateClosed
             | Self::CredentialDaemonOsMismatch
+            | Self::CredentialDaemonTooOld
             | Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed

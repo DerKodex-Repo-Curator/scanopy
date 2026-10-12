@@ -16,6 +16,7 @@ pub mod lldp;
 pub mod mibs;
 pub mod tables;
 pub mod transport;
+pub mod usm;
 pub mod wire;
 
 use std::net::Ipv4Addr;

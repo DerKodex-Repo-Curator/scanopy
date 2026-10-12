@@ -179,7 +179,8 @@
 	function actionFor(
 		entry: WarningEntry
 	): { label: string; icon: IconComponent; run: () => void } | null {
-		if (entry.code === 'OutdatedDaemonFormat') {
+		// A credential withheld for the daemon's version is fixed the same way: upgrade that daemon.
+		if (entry.code === 'OutdatedDaemonFormat' || entry.code === 'CredentialDaemonTooOld') {
 			return {
 				label: daemons_upgradeDaemon(),
 				icon: createIconComponent('circle-arrow-up'),

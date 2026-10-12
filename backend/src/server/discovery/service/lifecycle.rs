@@ -24,6 +24,7 @@ impl DiscoveryService {
             running_snapshots: RwLock::new(HashSet::new()),
             superseded_wire_daemons: RwLock::new(HashSet::new()),
             touched_subnets: RwLock::new(HashMap::new()),
+            withheld_credentials: RwLock::new(HashMap::new()),
             session_last_updated: RwLock::new(HashMap::new()),
             update_tx: tx,
             scheduler,

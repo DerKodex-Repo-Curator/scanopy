@@ -305,6 +305,14 @@ const WARNING_PARAMS = {
 		// The daemon's own OS where it sent one; runs recorded before that name its family.
 		actual: w[0].actual_os ? osLabel(w[0].actual_os) : osFamily(w[0].actual)
 	}),
+	// Server-raised, for the one daemon that ran the scan, so its name is the session's. A daemon that
+	// never reported a version still has to read as a sentence.
+	CredentialDaemonTooOld: (w, { daemonName }) => ({
+		credential: integration(w[0].integration),
+		required: w[0].minimum_daemon_version,
+		daemon: daemonName,
+		version: w[0].daemon_version ?? common_unknown()
+	}),
 
 	// One warning per subnet, so the first is the only one — unlike the address-scoped codes above,
 	// which the daemon raises per host and the UI folds together here.

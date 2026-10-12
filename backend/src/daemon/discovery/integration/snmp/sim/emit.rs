@@ -11,7 +11,9 @@ use secrecy::ExposeSecret;
 use super::transport::{Handler, Registration};
 use super::{SimDevice, VLAN20};
 use crate::daemon::discovery::integration::snmp::oids::{arp, if_mib, ip_mib, oid_parts};
-use crate::server::credentials::r#impl::types::{CredentialType, SecretValue};
+use crate::server::credentials::r#impl::types::{
+    CredentialType, SecretValue, SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpV3Security,
+};
 
 /// Where the deploy script puts things on the VM. Mirrored from `lxc/setup.sh`, which is the only
 /// other place they appear.
@@ -93,24 +95,50 @@ fn access_lines(device: &SimDevice) -> Vec<String> {
         }
         CredentialType::SnmpV3 {
             security_name,
-            auth_password,
-            priv_password,
+            security,
             context_name,
-            ..
         } => {
+            // `createUser NAME [AUTH authpass [PRIV privpass]]`, and the `rouser` level that
+            // requires exactly as much: an agent that accepted a lower level than the credential
+            // uses would let a level the daemon gets wrong pass anyway.
+            let (user, level) = match security {
+                SnmpV3Security::NoAuthNoPriv => (security_name.to_string(), "noauth"),
+                SnmpV3Security::AuthNoPriv {
+                    auth_protocol,
+                    auth_password,
+                } => (
+                    format!(
+                        "{security_name} {} \"{}\"",
+                        net_snmp_auth(*auth_protocol),
+                        expose(auth_password)
+                    ),
+                    "auth",
+                ),
+                SnmpV3Security::AuthPriv {
+                    auth_protocol,
+                    auth_password,
+                    priv_protocol,
+                    priv_password,
+                } => (
+                    format!(
+                        "{security_name} {} \"{}\" {} \"{}\"",
+                        net_snmp_auth(*auth_protocol),
+                        expose(auth_password),
+                        net_snmp_priv(*priv_protocol),
+                        expose(priv_password)
+                    ),
+                    "priv",
+                ),
+            };
             let mut lines = vec![
                 format!("persistentDir {CONF_DIR}/state/{}", device.name),
-                format!(
-                    "createUser {security_name} SHA-256 \"{}\" AES \"{}\"",
-                    expose(auth_password),
-                    expose(priv_password)
-                ),
-                format!("rouser {security_name} priv"),
+                format!("createUser {user}"),
+                format!("rouser {security_name} {level}"),
             ];
             if let Some(context) = context_name {
                 // What lets the v3 user name that context at all. Without it the request is
                 // authorised for the default context and answered from the wrong table.
-                lines.push(format!("rouser {security_name} priv -V all {context}"));
+                lines.push(format!("rouser {security_name} {level} -V all {context}"));
                 lines.push(format!(
                     "com2sec -Cn {context} v20sec default {CONTEXT_COMMUNITY}"
                 ));
@@ -123,6 +151,58 @@ fn access_lines(device: &SimDevice) -> Vec<String> {
             lines
         }
         other => panic!("{} has a non-SNMP credential: {other:?}", device.name),
+    }
+}
+
+/// `snmpget`/`snmpwalk` flags that authenticate as a v3 device's user; empty for any other.
+fn net_snmp_client_args(credential: &CredentialType) -> String {
+    let CredentialType::SnmpV3 {
+        security_name,
+        security,
+        ..
+    } = credential
+    else {
+        return String::new();
+    };
+    match security {
+        SnmpV3Security::NoAuthNoPriv => format!("-l noAuthNoPriv -u {security_name}"),
+        SnmpV3Security::AuthNoPriv {
+            auth_protocol,
+            auth_password,
+        } => format!(
+            "-l authNoPriv -u {security_name} -a {} -A {}",
+            net_snmp_auth(*auth_protocol),
+            expose(auth_password)
+        ),
+        SnmpV3Security::AuthPriv {
+            auth_protocol,
+            auth_password,
+            priv_protocol,
+            priv_password,
+        } => format!(
+            "-l authPriv -u {security_name} -a {} -A {} -x {} -X {}",
+            net_snmp_auth(*auth_protocol),
+            expose(auth_password),
+            net_snmp_priv(*priv_protocol),
+            expose(priv_password)
+        ),
+    }
+}
+
+/// net-snmp's `createUser` keyword for an authentication protocol.
+fn net_snmp_auth(protocol: SnmpV3AuthProtocol) -> &'static str {
+    match protocol {
+        SnmpV3AuthProtocol::Md5 => "MD5",
+        SnmpV3AuthProtocol::Sha1 => "SHA",
+        SnmpV3AuthProtocol::Sha256 => "SHA-256",
+    }
+}
+
+/// net-snmp's `createUser` keyword for a privacy protocol.
+fn net_snmp_priv(protocol: SnmpV3PrivProtocol) -> &'static str {
+    match protocol {
+        SnmpV3PrivProtocol::Aes128 => "AES",
+        SnmpV3PrivProtocol::Aes256 => "AES-256",
     }
 }
 
@@ -296,6 +376,13 @@ pub fn lab_env(devices: &[SimDevice]) -> String {
             _ => "\"\"".to_string(),
         })
     ));
+    // The net-snmp client flags that authenticate as each device's v3 user, so `verify` reads every
+    // level and protocol the lab serves rather than assuming authPriv with SHA-256. Empty for
+    // v1/v2c devices. Words split on spaces, which no lab user or password contains.
+    out.push_str(&format!(
+        "V3_ARGS=({})\n",
+        field(&|d| format!("\"{}\"", net_snmp_client_args(&d.credential)))
+    ));
     // One entry per device needing `snmp-bulk-refuser.py` in front of it, empty for the rest:
     // `unit|listen-ip|upstream-port|shim-args`. Everything the unit needs is here rather than in
     // the deploy script, for the same reason the rest of this file exists — a second copy of the
@@ -421,13 +508,10 @@ fn credential_json(credential: &CredentialType) -> String {
         CredentialType::SnmpV1 { community } | CredentialType::SnmpV2c { community } => {
             value["community"] = exposed(community);
         }
-        CredentialType::SnmpV3 {
-            auth_password,
-            priv_password,
-            ..
-        } => {
-            value["auth_password"] = exposed(auth_password);
-            value["priv_password"] = exposed(priv_password);
+        CredentialType::SnmpV3 { security, .. } => {
+            for (field, secret) in security.secrets() {
+                value[field] = exposed(secret);
+            }
         }
         _ => {}
     }
@@ -445,12 +529,15 @@ fn credential_name(credential: &CredentialType) -> String {
         }
         CredentialType::SnmpV3 {
             security_name,
+            security,
             context_name,
-            ..
-        } => match context_name {
-            Some(context) => format!("SNMP sim — {security_name} {context} (v3 AuthPriv)"),
-            None => format!("SNMP sim — {security_name} (v3 AuthPriv)"),
-        },
+        } => {
+            let level = format!("{:?}", security.level());
+            match context_name {
+                Some(context) => format!("SNMP sim — {security_name} {context} (v3 {level})"),
+                None => format!("SNMP sim — {security_name} (v3 {level})"),
+            }
+        }
         other => panic!("not an SNMP credential: {other:?}"),
     }
 }

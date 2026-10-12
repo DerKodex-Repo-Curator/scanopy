@@ -16,6 +16,8 @@ pub mod pc_windows_nic_filters;
 pub mod printer_lobby;
 pub mod router_gw_01;
 pub mod secure_switch_01;
+pub mod secure_switch_02;
+pub mod secure_switch_03;
 pub mod switch_access_01;
 pub mod switch_aruba_01;
 pub mod switch_cisco_01;
@@ -46,7 +48,7 @@ pub mod switch_voss_01;
 
 /// A seeded secret. The lab's credentials are published in `SNMP-TEST-ENV.md` and exist only to
 /// be answered by a simulator, so they are inline rather than read from a file.
-pub(super) fn inline(value: &str) -> SecretValue {
+pub(crate) fn inline(value: &str) -> SecretValue {
     SecretValue::Inline {
         value: SecretString::from(value.to_string()),
     }
@@ -99,5 +101,8 @@ pub fn all() -> Vec<SimDevice> {
         switch_hikvision_01::device(),
         // GH #688: LLDP-V2-MIB only, no classic LLDP tables.
         switch_ocnos_01::device(),
+        // SNMPv3 security levels: AuthNoPriv with MD5, and NoAuthNoPriv.
+        secure_switch_02::device(),
+        secure_switch_03::device(),
     ]
 }
