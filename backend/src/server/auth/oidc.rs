@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, anyhow};
+use anyhow::{Result, anyhow};
 use email_address::EmailAddress;
 use std::{collections::HashMap, net::IpAddr, str::FromStr, sync::Arc};
 use uuid::Uuid;
@@ -140,6 +140,7 @@ impl OidcService {
             ip,
             user_agent,
             site_ids,
+            invited_as,
         } = params;
 
         // Exchange code for user info using provider
@@ -170,16 +171,27 @@ impl OidcService {
             return Ok(OidcRegisterResult::ExistingUser(existing_user));
         }
 
-        // Parse or create fallback email
-        let fallback_email_str = format!("user{}@example.com", &user_info.subject[..8]);
-        let email_str = user_info
+        // Parse the provider's email, or fall back to a placeholder address
+        let provider_email = user_info
             .email
-            .clone()
-            .unwrap_or_else(|| fallback_email_str.clone());
+            .as_deref()
+            .and_then(|e| EmailAddress::from_str(e).ok());
+        let email = provider_email.clone().unwrap_or_else(|| {
+            EmailAddress::new_unchecked(format!("user{}@example.com", &user_info.subject[..8]))
+        });
 
-        let email = EmailAddress::from_str(&email_str).or_else(|_| {
-            Ok::<EmailAddress, Error>(EmailAddress::new_unchecked(fallback_email_str))
-        })?;
+        // A placeholder address can't receive a verification link and an OIDC user can't
+        // change it, so an account the provider gave no address is identified by the
+        // provider alone and starts verified. Otherwise the provider's claim, a matching
+        // invite, or a server with no email transport decides.
+        let email_verified = match &provider_email {
+            Some(address) => self.auth_service.verified_at_sign_up(
+                address,
+                user_info.email_verified,
+                invited_as.as_ref(),
+            ),
+            None => true,
+        };
 
         if !mailchecker::is_valid(email.as_str()) && deployment_type == DeploymentType::Cloud {
             return Err(anyhow!(
@@ -197,7 +209,7 @@ impl OidcService {
         }
 
         // Register new user
-        let user = self
+        let mut user = self
             .auth_service
             .provision_user(ProvisionUserParams {
                 email,
@@ -205,13 +217,31 @@ impl OidcService {
                 oidc_subject: Some(user_info.subject),
                 oidc_provider: Some(provider.slug.clone()),
                 provision_org,
-                email_verified: true,
+                email_verified,
                 permissions,
                 site_ids,
                 terms_accepted_at,
                 billing_enabled,
             })
             .await?;
+
+        // Same as password sign-up: a failure here is logged, and the user can request a new
+        // link from the resend endpoint.
+        let email_and_token = if email_verified {
+            None
+        } else {
+            match self
+                .auth_service
+                .set_user_email_verification_params(&mut user)
+                .await
+            {
+                Ok(params) => Some(params),
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to set email verification params");
+                    None
+                }
+            }
+        };
 
         // Publish event
         let authentication: AuthenticatedEntity = user.clone().into();
@@ -225,8 +255,7 @@ impl OidcService {
                 },
                 AuthOperation::Register {
                     method: AuthMethod::Oidc((&**provider).into()),
-                    // No email verification sent for OIDC logins
-                    email_and_token: None,
+                    email_and_token,
                 },
                 authentication,
             ))

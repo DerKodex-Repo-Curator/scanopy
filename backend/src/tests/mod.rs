@@ -47,6 +47,7 @@ pub mod demo_data_seeding;
 pub mod dependencies;
 pub mod discovery_finish;
 pub mod email_unsubscribe;
+pub mod email_verification;
 pub mod far_end_advertised_ports;
 pub mod fdb_resolution;
 pub mod field_values_scope;

@@ -47,6 +47,9 @@ pub enum OidcFlow {
 pub struct OidcUserInfo {
     pub subject: String,
     pub email: Option<String>,
+    /// The provider's `email_verified` claim for `email`, read from the same id token.
+    /// Only an explicit `true` counts; an absent claim means unverified.
+    pub email_verified: bool,
     pub name: Option<String>,
 }
 
@@ -55,6 +58,7 @@ impl From<&CoreIdTokenClaims> for OidcUserInfo {
         Self {
             subject: claims.subject().to_string(),
             email: claims.email().map(|e| e.to_string()),
+            email_verified: claims.email_verified() == Some(true),
             name: claims
                 .name()
                 .and_then(|n| n.get(None).map(|s| s.to_string())),

@@ -18,6 +18,7 @@ use crate::server::{
         rate_limit::{self, RateLimitedTransport},
         service::EmailService,
         smtp::SmtpEmailProvider,
+        transport::EmailTransport,
     },
     hosts::service::HostService,
     interface_neighbors::service::InterfaceNeighborService,
@@ -292,6 +293,83 @@ impl ServiceFactory {
         )
         .await?;
 
+        // The email transport is built before the services that gate on it. EmailService
+        // itself comes later: it needs DaemonService and HostService to render content.
+        let email_quota = rate_limit::per_second(config.smtp_max_per_second);
+        // A configured email log directory wins over SMTP: it is a
+        // testing transport you explicitly turn on, so it has to work with no
+        // credentials present and override any that happen to be set.
+        let email_transport: Option<Box<dyn EmailTransport>> = if let Some(ref email_log_dir) =
+            config.email_log_dir
+        {
+            tracing::warn!(
+                dir = %email_log_dir.display(),
+                "SCANOPY_EMAIL_LOG_DIR is set: emails will be logged and written to disk, not delivered"
+            );
+            Some(Box::new(RateLimitedTransport::new(
+                Box::new(LoggingEmailProvider::new(Some(email_log_dir.clone()))),
+                email_quota,
+            )))
+        } else {
+            // SMTP needs all four values. Every way this can fail used to be silent: the
+            // server booted normally, reported itself healthy, and never sent a single
+            // email. Say which variables are missing, and say when the transport itself
+            // could not be built.
+            match (
+                config.smtp_username.clone(),
+                config.smtp_password.clone(),
+                config.smtp_email.clone(),
+                config.smtp_relay.clone(),
+            ) {
+                (Some(username), Some(password), Some(email), Some(relay)) => {
+                    match SmtpEmailProvider::new(
+                        username,
+                        password,
+                        email,
+                        relay,
+                        config.smtp_port,
+                        trusted_ca.as_deref(),
+                    ) {
+                        Ok(smtp_provider) => Some(Box::new(RateLimitedTransport::new(
+                            Box::new(smtp_provider),
+                            email_quota,
+                        ))),
+                        Err(e) => {
+                            tracing::error!(
+                                error = %e,
+                                "SMTP is configured but the transport could not be built: \
+                                 email is disabled"
+                            );
+                            None
+                        }
+                    }
+                }
+                (username, password, email, relay) => {
+                    let missing: Vec<&str> = [
+                        ("SCANOPY_SMTP_USERNAME", username.is_none()),
+                        ("SCANOPY_SMTP_PASSWORD", password.is_none()),
+                        ("SCANOPY_SMTP_EMAIL", email.is_none()),
+                        ("SCANOPY_SMTP_RELAY", relay.is_none()),
+                    ]
+                    .into_iter()
+                    .filter_map(|(name, absent)| absent.then_some(name))
+                    .collect();
+
+                    // All four absent is the ordinary "no email configured" case and
+                    // stays quiet. Anything less is a half-finished setup.
+                    if missing.len() < 4 {
+                        tracing::warn!(
+                            missing = ?missing,
+                            "SMTP is partially configured: email is disabled until every \
+                             variable is set"
+                        );
+                    }
+                    None
+                }
+            }
+        };
+        let has_email_service = email_transport.is_some();
+
         // Create DaemonService with most dependencies directly (not host_service - circular)
         let daemon_service = Arc::new(DaemonService::new(
             storage.daemons.clone(),
@@ -306,6 +384,7 @@ impl ServiceFactory {
             daemon_api_key_service.clone(),
             crate::server::config::get_deployment_type(&config),
             trusted_ca.as_deref(),
+            has_email_service,
         ));
 
         // HostService needs DaemonService
@@ -388,23 +467,12 @@ impl ServiceFactory {
         let email_validator = SesEmailValidator::from_config(&config)?.map(Arc::new);
         let public_url = config.public_url.clone();
         let deployment_type = crate::server::config::get_deployment_type(&config);
-        let email_quota = rate_limit::per_second(config.smtp_max_per_second);
         // The release email takes half, so other email keeps the rest while it goes out.
         let bulk_email_quota = rate_limit::per_second(config.smtp_max_per_second / 2);
 
-        // A configured email log directory wins over SMTP: it is a
-        // testing transport you explicitly turn on, so it has to work with no
-        // credentials present and override any that happen to be set.
-        let email_service = if let Some(ref email_log_dir) = config.email_log_dir {
-            tracing::warn!(
-                dir = %email_log_dir.display(),
-                "SCANOPY_EMAIL_LOG_DIR is set: emails will be logged and written to disk, not delivered"
-            );
-            Some(Arc::new(EmailService::new(
-                Box::new(RateLimitedTransport::new(
-                    Box::new(LoggingEmailProvider::new(Some(email_log_dir.clone()))),
-                    email_quota,
-                )),
+        let email_service = email_transport.map(|transport| {
+            Arc::new(EmailService::new(
+                transport,
                 user_service.clone(),
                 organization_service.clone(),
                 host_service.clone(),
@@ -413,75 +481,8 @@ impl ServiceFactory {
                 daemon_service.clone(),
                 public_url,
                 deployment_type,
-            )))
-        } else {
-            // SMTP needs all four values. Every way this can fail used to be silent: the
-            // server booted normally, reported itself healthy, and never sent a single
-            // email. Say which variables are missing, and say when the transport itself
-            // could not be built.
-            match (
-                config.smtp_username,
-                config.smtp_password,
-                config.smtp_email,
-                config.smtp_relay,
-            ) {
-                (Some(username), Some(password), Some(email), Some(relay)) => {
-                    match SmtpEmailProvider::new(
-                        username,
-                        password,
-                        email,
-                        relay,
-                        config.smtp_port,
-                        trusted_ca.as_deref(),
-                    ) {
-                        Ok(smtp_provider) => Some(Arc::new(EmailService::new(
-                            Box::new(RateLimitedTransport::new(
-                                Box::new(smtp_provider),
-                                email_quota,
-                            )),
-                            user_service.clone(),
-                            organization_service.clone(),
-                            host_service.clone(),
-                            site_service.clone(),
-                            service_service.clone(),
-                            daemon_service.clone(),
-                            public_url,
-                            deployment_type,
-                        ))),
-                        Err(e) => {
-                            tracing::error!(
-                                error = %e,
-                                "SMTP is configured but the transport could not be built: \
-                                 email is disabled"
-                            );
-                            None
-                        }
-                    }
-                }
-                (username, password, email, relay) => {
-                    let missing: Vec<&str> = [
-                        ("SCANOPY_SMTP_USERNAME", username.is_none()),
-                        ("SCANOPY_SMTP_PASSWORD", password.is_none()),
-                        ("SCANOPY_SMTP_EMAIL", email.is_none()),
-                        ("SCANOPY_SMTP_RELAY", relay.is_none()),
-                    ]
-                    .into_iter()
-                    .filter_map(|(name, absent)| absent.then_some(name))
-                    .collect();
-
-                    // All four absent is the ordinary "no email configured" case and
-                    // stays quiet. Anything less is a half-finished setup.
-                    if missing.len() < 4 {
-                        tracing::warn!(
-                            missing = ?missing,
-                            "SMTP is partially configured: email is disabled until every \
-                             variable is set"
-                        );
-                    }
-                    None
-                }
-            }
-        };
+            ))
+        });
 
         let release_notes_service = Arc::new(ReleaseNotesService::new(
             storage.release_announcements.clone(),
@@ -518,7 +519,7 @@ impl ServiceFactory {
         let auth_service = Arc::new(AuthService::new(
             user_service.clone(),
             organization_service.clone(),
-            email_service.is_some(),
+            has_email_service,
             event_bus.clone(),
             license_service.clone(),
             tag_group_service.clone(),

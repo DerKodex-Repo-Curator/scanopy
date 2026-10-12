@@ -364,7 +364,9 @@ where
 // ============================================================================
 
 /// Wraps a permission requirement to require verified email.
-/// Use on sensitive endpoints: invites, API keys, billing portal, shares.
+/// Use on endpoints that reach third parties or grant lasting access: invites, API keys,
+/// shares, user management, emailing the install command. Lifted on a server with no email
+/// transport (see [`AuthenticatedEntity::meets_email_verification`]).
 pub struct RequireVerified<P>(PhantomData<P>);
 
 impl<P: PermissionRequirement> PermissionRequirement for RequireVerified<P> {
@@ -513,7 +515,8 @@ where
         P::check(&entity).map_err(AuthError)?;
 
         // Check email verification unless the endpoint explicitly allows unverified users
-        if !P::allows_unverified() && !entity.email_verified() {
+        let has_email_service = state.as_ref().services.email_service.is_some();
+        if !P::allows_unverified() && !entity.meets_email_verification(has_email_service) {
             return Err(AuthError(ApiError::coded(
                 axum::http::StatusCode::FORBIDDEN,
                 crate::server::shared::types::error_codes::ErrorCode::AuthEmailVerificationRequired,

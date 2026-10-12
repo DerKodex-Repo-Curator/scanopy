@@ -8,8 +8,6 @@
 	import { userApiKeyColumns } from './UserApiKeyTab.columns';
 	import type { FieldConfig } from '$lib/shared/components/data/types';
 	import { Plus } from 'lucide-svelte';
-	import { useCurrentUserQuery } from '$lib/features/auth/queries';
-	import { tooltip } from '$lib/shared/actions/tooltip';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import UserApiKeyModal from './UserApiKeyModal.svelte';
@@ -34,8 +32,7 @@
 		userApiKeys_apiAccessUnavailableTitle,
 		userApiKeys_noApiKeysSubtitle,
 		userApiKeys_noApiKeysYet,
-		userApiKeys_subtitle,
-		userApiKeys_verifyEmailToCreate
+		userApiKeys_subtitle
 	} from '$lib/paraglide/messages';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { billingPlans } from '$lib/shared/stores/metadata';
@@ -43,10 +40,6 @@
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 
 	let { isReadOnly = false }: TabProps = $props();
-
-	const currentUserQuery = useCurrentUserQuery();
-	let currentUser = $derived(currentUserQuery.data);
-	let isEmailVerified = $derived(currentUser?.email_verified ?? true);
 
 	// Check if plan has api_access feature before querying
 	const organizationQuery = useOrganizationQuery();
@@ -156,17 +149,9 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if !isReadOnly && hasApiAccess}
-		{#if !isEmailVerified}
-			<span data-tooltip={userApiKeys_verifyEmailToCreate()} use:tooltip>
-				<button class="btn-primary toolbar-control flex items-center opacity-50" disabled>
-					<Plus class="h-5 w-5" />{common_create()}
-				</button>
-			</span>
-		{:else}
-			<button class="btn-primary toolbar-control flex items-center" onclick={handleCreate}>
-				<Plus class="h-5 w-5" />{common_create()}
-			</button>
-		{/if}
+		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreate}>
+			<Plus class="h-5 w-5" />{common_create()}
+		</button>
 	{/if}
 {/snippet}
 
@@ -184,8 +169,8 @@
 		<EmptyState
 			title={userApiKeys_noApiKeysYet()}
 			subtitle={userApiKeys_noApiKeysSubtitle()}
-			onClick={isEmailVerified ? handleCreate : undefined}
-			cta={isEmailVerified ? common_create() : undefined}
+			onClick={handleCreate}
+			cta={common_create()}
 		/>
 	{:else}
 		<DataControls

@@ -105,8 +105,7 @@
 		common_current,
 		topology_noTopologySelected,
 		topology_snapshotDeleteConfirm,
-		topology_takeSnapshot,
-		topology_verifyEmailToShare
+		topology_takeSnapshot
 	} from '$lib/paraglide/messages';
 	import { useConfigQuery } from '$lib/shared/stores/config-query';
 
@@ -752,21 +751,13 @@
 						     while viewing a snapshot; the share modal shows an inline notice
 						     clarifying that a share captures the live view, not the snapshot. -->
 						{#if !isReadOnly}
-							{#if currentUser && !currentUser.email_verified}
-								<span data-tooltip={topology_verifyEmailToShare()} use:tooltip>
-									<button class="btn-secondary opacity-50" disabled title={common_share()}>
-										<Share2 class="my-1 h-5 w-5" />
-									</button>
-								</span>
-							{:else}
-								<button
-									class="btn-secondary"
-									onclick={() => openModal('topology-share')}
-									title={common_share()}
-								>
-									<Share2 class="my-1 h-5 w-5" />
-								</button>
-							{/if}
+							<button
+								class="btn-secondary"
+								onclick={() => openModal('topology-share')}
+								title={common_share()}
+							>
+								<Share2 class="my-1 h-5 w-5" />
+							</button>
 						{/if}
 					</div>
 

@@ -1321,7 +1321,10 @@ export interface paths {
         put?: never;
         /**
          * Email install command to current user
-         * @description Session-only, and `IsUser` says so at the extractor rather than in the body. "The current user"
+         * @description Requires a verified email: the endpoint mails on demand, so an unproven address would let
+         *     anyone send Scanopy mail to an inbox they don't own.
+         *
+         *     Session-only, and `IsUser` says so at the extractor rather than in the body. "The current user"
          *     has no answer for an automation identity: a user API key carries `user_id` but no address, so
          *     this endpoint could never serve one. An API key that wants the command reads it directly from
          *     `GET /api/v1/daemons/{id}/install-command`.
@@ -9341,11 +9344,26 @@ export interface components {
          * @enum {string}
          */
         ElementSort: "Automatic" | "Address" | "PortIndex" | "Name" | "Category";
-        /** @description Request body for emailing an install command to the authenticated user. */
-        EmailInstallCommandRequest: {
-            /** @description The install command to send, exactly as shown in the UI. */
-            install_command: string;
-            /** @description Operating system the command targets, used to pick the email wording. */
+        /**
+         * @description Request body for emailing an install command to the authenticated user. The server builds
+         *     the command from the daemon record, exactly as [`get_install_command`] does; the client only
+         *     picks which method's command to send.
+         */
+        EmailInstallCommandRequest: components["schemas"]["InstallCommandQuery"] & {
+            /**
+             * @description The daemon's api key, from the provision response. Required when `purpose` embeds the
+             *     key (`install`, `rekey`) and rejected otherwise. The server stores only its hash, so it
+             *     can't fill the key in itself; it checks this one against the daemon's bound key.
+             */
+            api_key?: string | null;
+            /**
+             * Format: uuid
+             * @description The daemon whose command to send.
+             */
+            daemon_id: string;
+            /** @description Send the docker compose instead of the binary command. Linux only. */
+            docker?: boolean;
+            /** @description Operating system the command targets. */
             os: components["schemas"]["DaemonOs"];
         };
         /**
@@ -10603,6 +10621,34 @@ export interface components {
             msi: components["schemas"]["MsiInstall"];
             /** @description Download for Windows. */
             windows: string;
+        };
+        /**
+         * @description Query for [`get_install_command`]. `purpose` is required; the rest are the client-settable
+         *     advanced daemon settings, folded into an `install` command. Lists are comma-joined
+         *     (`interfaces`, `credential_refs`).
+         */
+        InstallCommandQuery: {
+            /** @description Continue scanning targets that present an untrusted certificate. */
+            accept_invalid_scan_certs?: boolean | null;
+            /** @description Accept a self-signed certificate when connecting back to the server. */
+            allow_self_signed_certs?: boolean | null;
+            /** @description Address and port the daemon should listen on, for server-polled mode. */
+            bind_address?: string | null;
+            /** @description Comma-separated credential/integration tokens (for the docker-compose env). */
+            credential_refs?: string | null;
+            /**
+             * Format: int64
+             * @description How often the daemon reports in, in seconds.
+             */
+            heartbeat_interval?: number | null;
+            /** @description Comma-separated interface names. */
+            interfaces?: string | null;
+            /** @description Path the daemon should write its log file to. */
+            log_file?: string | null;
+            /** @description Log verbosity the daemon should run at (e.g. `info`, `debug`). */
+            log_level?: string | null;
+            /** @description `install` or `rekey` (with the api-key placeholder), or `reconfigure` (credential-free). */
+            purpose: components["schemas"]["InstallCommandType"];
         };
         /**
          * @description What the caller wants the command to do — the one axis that actually varies.
@@ -15457,7 +15503,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Verification email sent */
+            /** @description Accepted. A link is sent only when the address has an unverified account */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15466,17 +15512,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResponse"];
                 };
             };
-            /** @description Invalid request or already verified */
+            /** @description Invalid request, or a link was sent to this address less than a minute ago */
             400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
-                };
-            };
-            /** @description Rate limited */
-            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17856,7 +17893,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResponse"];
                 };
             };
-            /** @description Email service not configured */
+            /** @description Email service not configured, no command for this method, or api key missing or not this daemon's */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17865,8 +17902,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description User session required */
+            /** @description User session or verified email required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Daemon not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

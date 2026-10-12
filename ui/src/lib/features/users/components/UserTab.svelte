@@ -26,7 +26,6 @@
 	import type { TabProps } from '$lib/shared/types';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
-	import { tooltip } from '$lib/shared/actions/tooltip';
 	import {
 		common_edit,
 		common_confirmBulkDelete,
@@ -38,8 +37,7 @@
 		users_inviteUser,
 		users_noUsersFound,
 		users_noUsersSubtitle,
-		users_subtitle,
-		users_verifyEmailToInvite
+		users_subtitle
 	} from '$lib/paraglide/messages';
 
 	let { isReadOnly = false }: TabProps = $props();
@@ -229,13 +227,6 @@
 		{#if canInviteUsers}
 			{#if isAtSeatLimit}
 				<UpgradeButton feature="seats" surface="users_tab" gate_type="limit_hit" />
-			{:else if currentUser && !currentUser.email_verified}
-				<span data-tooltip={users_verifyEmailToInvite()} use:tooltip>
-					<button class="btn-primary toolbar-control flex items-center opacity-50" disabled>
-						<UserPlus class="mr-2 h-5 w-5" />
-						{users_inviteUser()}
-					</button>
-				</span>
 			{:else}
 				<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateInvite}>
 					<UserPlus class="mr-2 h-5 w-5" />

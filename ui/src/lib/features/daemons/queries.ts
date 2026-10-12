@@ -235,19 +235,18 @@ export function useTestReachabilityMutation() {
  * Mutation to email the install command to the current user
  */
 export function useEmailInstallCommandMutation() {
+	const queryClient = useQueryClient();
+
 	return createMutation(() => ({
-		mutationFn: async ({
-			installCommand,
-			os
-		}: {
-			installCommand: string;
-			os: components['schemas']['DaemonOs'];
-		}) => {
+		mutationFn: async (request: components['schemas']['EmailInstallCommandRequest']) => {
 			requireSuccess(
-				await apiClient.POST('/api/v1/daemons/email-install-command', {
-					body: { install_command: installCommand, os }
-				})
+				await apiClient.POST('/api/v1/daemons/email-install-command', { body: request })
 			);
+		},
+		// Succeeding proves the email was verified, perhaps from another device, so the
+		// verification notices can go without waiting for the next refetch.
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.auth.currentUser() });
 		}
 	}));
 }

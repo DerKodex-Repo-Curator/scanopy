@@ -2391,7 +2391,7 @@
           "Daemons"
         ],
         "summary": "Email install command to current user",
-        "description": "Session-only, and `IsUser` says so at the extractor rather than in the body. \"The current user\"\nhas no answer for an automation identity: a user API key carries `user_id` but no address, so\nthis endpoint could never serve one. An API key that wants the command reads it directly from\n`GET /api/v1/daemons/{id}/install-command`.",
+        "description": "Requires a verified email: the endpoint mails on demand, so an unproven address would let\nanyone send Scanopy mail to an inbox they don't own.\n\nSession-only, and `IsUser` says so at the extractor rather than in the body. \"The current user\"\nhas no answer for an automation identity: a user API key carries `user_id` but no address, so\nthis endpoint could never serve one. An API key that wants the command reads it directly from\n`GET /api/v1/daemons/{id}/install-command`.",
         "operationId": "email_install_command",
         "requestBody": {
           "content": {
@@ -2415,7 +2415,7 @@
             }
           },
           "400": {
-            "description": "Email service not configured",
+            "description": "Email service not configured, no command for this method, or api key missing or not this daemon's",
             "content": {
               "application/json": {
                 "schema": {
@@ -2425,7 +2425,17 @@
             }
           },
           "403": {
-            "description": "User session required",
+            "description": "User session or verified email required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Daemon not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -26729,22 +26739,42 @@
         ]
       },
       "EmailInstallCommandRequest": {
-        "type": "object",
-        "description": "Request body for emailing an install command to the authenticated user.",
-        "required": [
-          "install_command",
-          "os"
-        ],
-        "properties": {
-          "install_command": {
-            "type": "string",
-            "description": "The install command to send, exactly as shown in the UI."
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InstallCommandQuery",
+            "description": "The same purpose and advanced settings `GET /{id}/install-command` takes."
           },
-          "os": {
-            "$ref": "#/components/schemas/DaemonOs",
-            "description": "Operating system the command targets, used to pick the email wording."
+          {
+            "type": "object",
+            "required": [
+              "daemon_id",
+              "os"
+            ],
+            "properties": {
+              "api_key": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The daemon's api key, from the provision response. Required when `purpose` embeds the\nkey (`install`, `rekey`) and rejected otherwise. The server stores only its hash, so it\ncan't fill the key in itself; it checks this one against the daemon's bound key."
+              },
+              "daemon_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "The daemon whose command to send."
+              },
+              "docker": {
+                "type": "boolean",
+                "description": "Send the docker compose instead of the binary command. Linux only."
+              },
+              "os": {
+                "$ref": "#/components/schemas/DaemonOs",
+                "description": "Operating system the command targets."
+              }
+            }
           }
-        }
+        ],
+        "description": "Request body for emailing an install command to the authenticated user. The server builds\nthe command from the daemon record, exactly as [`get_install_command`] does; the client only\npicks which method's command to send."
       },
       "EmailSettings": {
         "type": "object",
@@ -29515,6 +29545,77 @@
           "windows": {
             "type": "string",
             "description": "Download for Windows."
+          }
+        }
+      },
+      "InstallCommandQuery": {
+        "type": "object",
+        "description": "Query for [`get_install_command`]. `purpose` is required; the rest are the client-settable\nadvanced daemon settings, folded into an `install` command. Lists are comma-joined\n(`interfaces`, `credential_refs`).",
+        "required": [
+          "purpose"
+        ],
+        "properties": {
+          "accept_invalid_scan_certs": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Continue scanning targets that present an untrusted certificate."
+          },
+          "allow_self_signed_certs": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Accept a self-signed certificate when connecting back to the server."
+          },
+          "bind_address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Address and port the daemon should listen on, for server-polled mode."
+          },
+          "credential_refs": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Comma-separated credential/integration tokens (for the docker-compose env)."
+          },
+          "heartbeat_interval": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How often the daemon reports in, in seconds.",
+            "minimum": 0
+          },
+          "interfaces": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Comma-separated interface names."
+          },
+          "log_file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path the daemon should write its log file to."
+          },
+          "log_level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Log verbosity the daemon should run at (e.g. `info`, `debug`)."
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/InstallCommandType",
+            "description": "`install` or `rekey` (with the api-key placeholder), or `reconfigure` (credential-free)."
           }
         }
       },
