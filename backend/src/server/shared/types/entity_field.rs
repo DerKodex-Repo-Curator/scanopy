@@ -96,9 +96,7 @@ pub enum FieldFormat {
     OperatingSystem,
     /// An enum value, named through a metadata fixture.
     #[schema(title = "Metadata")]
-    Metadata {
-        fixture: MetadataFixture,
-    },
+    Metadata { fixture: MetadataFixture },
     /// A related entity. The UI links it; CSV writes its id; text-only outputs write its display
     /// field.
     #[schema(title = "Entity")]
