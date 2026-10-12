@@ -1,9 +1,10 @@
+use crate::daemon::discovery::types::warnings::RunWarningSummary;
 use crate::server::openapi::tags as api_tags;
 use crate::server::{
     auth::middleware::permissions::{Authorized, Viewer},
     config::AppState,
     daemons::r#impl::{api::DaemonResponse, base::Daemon, version::DaemonVersionPolicy},
-    discovery::r#impl::base::Discovery,
+    discovery::r#impl::{base::Discovery, types::RunType},
     shared::{
         services::traits::CrudService,
         storage::filter::StorableFilter,
@@ -12,7 +13,7 @@ use crate::server::{
     sites::r#impl::Site,
 };
 
-use super::types::{DashboardSummary, PlanUsage, SiteSummary};
+use super::types::{DashboardSummary, PlanUsage, RecentDiscovery, SiteSummary};
 
 use axum::{extract::State, response::Json};
 use std::sync::Arc;
@@ -160,6 +161,23 @@ async fn get_dashboard_summary(
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
+    let recent_discoveries = discovery_result
+        .items
+        .into_iter()
+        .map(|discovery| {
+            let warning_summary = match &discovery.base.run_type {
+                RunType::Historical { results } => {
+                    RunWarningSummary::from(results.warnings.as_slice())
+                }
+                _ => RunWarningSummary::default(),
+            };
+            RecentDiscovery {
+                discovery,
+                warning_summary,
+            }
+        })
+        .collect();
+
     let plan_usage = PlanUsage {
         host_limit,
         host_count,
@@ -172,7 +190,7 @@ async fn get_dashboard_summary(
     Ok(Json(ApiResponse::success(DashboardSummary {
         sites: site_summaries,
         daemons: daemon_responses,
-        recent_discoveries: discovery_result.items,
+        recent_discoveries,
         plan_usage,
     })))
 }

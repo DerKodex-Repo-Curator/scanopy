@@ -33,35 +33,26 @@
 	import InlineDanger from '$lib/shared/components/feedback/InlineDanger.svelte';
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
 	import CollapsibleCard from '$lib/shared/components/data/CollapsibleCard.svelte';
-	import EntityTag from '$lib/shared/components/data/EntityTag.svelte';
 	import Tag from '$lib/shared/components/data/Tag.svelte';
-	import { entityRef } from '$lib/shared/components/data/types';
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
-	import { navigateToEntity, openModal } from '$lib/shared/stores/modal-registry';
-	import { entities } from '$lib/shared/stores/metadata';
 	import { createColorHelper, createIconComponent } from '$lib/shared/utils/styling';
-	import type { IconComponent } from '$lib/shared/utils/types';
 	import {
-		common_credentials,
 		common_warnings,
-		daemons_upgradeDaemon,
 		discovery_noWarnings,
 		discovery_noWarningsBeforeStop,
-		discovery_noWarningsSubtitle,
-		discovery_scanSettings,
-		subnets_resolveRange
+		discovery_noWarningsSubtitle
 	} from '$lib/paraglide/messages';
 	import type { EntityDiscriminants } from '$lib/api/entities';
 	import type { DiscoveryUpdatePayload } from '../../types/api';
 	import { runOutcomeReason } from '../../utils/outcome';
+	import { warningAction } from '../../utils/warningActions';
 	import {
 		buildWarningReport,
-		credentialIdsOf,
 		isCredentialWarning,
-		type WarningEntry,
 		type WarningSubject
 	} from '../../utils/warnings';
+	import WarningSubjectChip from './WarningSubjectChip.svelte';
 
 	interface Props {
 		payload: DiscoveryUpdatePayload;
@@ -149,137 +140,10 @@
 	function toggleRow(code: string) {
 		if (!openRows.delete(code)) openRows.add(code);
 	}
-
-	/** The codes whose answer is a scan setting rather than a credential. */
-	const SCAN_SETTING_CODES = new Set<WarningEntry['code']>([
-		'ScanTimeLimit',
-		'ScanTimeLimitWithEstimate',
-		'WarningsTruncated'
-	]);
-
-	/**
-	 * Whether the run still has a scan to send the reader to.
-	 *
-	 * The historical row carries no parent, but the payload does. It is absent on records written
-	 * before the field existed, and it dangles for a rescan — that discovery is deleted the moment
-	 * the run finishes.
-	 */
-	let scanSettingsTarget = $derived(
-		payload.discovery_type.type === 'Rescan' ? null : (payload.discovery_id ?? null)
-	);
-
-	/**
-	 * Where a row hands off to, when Scanopy owns the fix.
-	 *
-	 * Only four destinations are real, and a row without one renders no button rather than a dead
-	 * one. The credential family is recognised by the `integration` field on the payload rather
-	 * than by a list of code names here — those eleven variants are exactly the ones that carry it,
-	 * so the set cannot drift out of step with the backend.
-	 */
-	function actionFor(
-		entry: WarningEntry
-	): { label: string; icon: IconComponent; run: () => void } | null {
-		// A credential withheld for the daemon's version is fixed the same way: upgrade that daemon.
-		if (entry.code === 'OutdatedDaemonFormat' || entry.code === 'CredentialDaemonTooOld') {
-			return {
-				label: daemons_upgradeDaemon(),
-				icon: createIconComponent('circle-arrow-up'),
-				run: () => {
-					// The daemon to upgrade is the one that ran this scan, so the id comes off the
-					// payload rather than the warning — one session has exactly one daemon, and
-					// repeating it per warning would let the two disagree.
-					window.location.hash = 'daemons';
-					openModal('upgrade-daemon', { id: payload.daemon_id });
-				}
-			};
-		}
-
-		if (entry.code === 'ProvisionalSubnetInferred') {
-			const subnetIds = entry.warnings.flatMap((w) => ('subnet_id' in w ? [w.subnet_id] : []));
-			return {
-				label: subnets_resolveRange(),
-				icon: createIconComponent('cloud-alert'),
-				run: () => {
-					window.location.hash = 'subnets';
-					// One range resolves in place; several is a trip to the list, because the
-					// four-way choice is made per subnet and there is no "all of them" answer.
-					if (subnetIds.length === 1) openModal('provisional-range', { id: subnetIds[0] });
-				}
-			};
-		}
-
-		const scanId = scanSettingsTarget;
-		if (scanId && SCAN_SETTING_CODES.has(entry.code)) {
-			return {
-				label: discovery_scanSettings(),
-				icon: createIconComponent('sliders-horizontal'),
-				run: () => {
-					window.location.hash = 'discovery-scans';
-					// Max Discovery Duration lives on Detection, not Performance.
-					openModal('discovery-editor', { id: scanId, tab: 'detection' });
-				}
-			};
-		}
-
-		if (entry.warnings.some((w) => 'integration' in w)) {
-			const [credentialId] = credentialIdsOf(entry);
-			return {
-				label: common_credentials(),
-				icon: createIconComponent('key-round'),
-				run: () => {
-					// Any known id opens that credential's editor. Unlike an inferred range above,
-					// where the four-way choice is genuinely per subnet, every credential on this
-					// row needs the same thing done to it — so landing on the first is a head start
-					// on the list, and the row's chips reach the others directly. Only a row with
-					// no id at all — written before ids were carried, or posted by a daemon that
-					// predates them — still goes to the list.
-					if (!credentialId) {
-						window.location.hash = 'credentials';
-						return;
-					}
-					// The credential itself where it has loaded, so the editor opens on the id
-					// alone rather than waiting for the credentials tab's own query to settle —
-					// `resolveModalDeepLink` falls back to `entityData` for exactly this.
-					navigateToEntity(
-						'Credential',
-						credentialId,
-						credentialsData.find((c) => c.id === credentialId)
-					);
-				}
-			};
-		}
-
-		return null;
-	}
 </script>
 
-<!--
-	A named entity is a real entity, so its chip is drawn the way one is drawn everywhere — and its
-	icon and colour come from the entity metadata rather than being fixed to Host, which is what
-	lets a credential use the same snippet instead of a near-copy of it.
--->
 {#snippet entityChip(subject: WarningSubject)}
-	{#if subject.entity}
-		{@const type = subject.entity.type}
-		<EntityTag
-			entityRef={entityRef(type, subject.entity.id, {
-				id: subject.entity.id,
-				name: subject.label
-			})}
-			label={subject.label}
-			icon={entities.getIconComponent(type)}
-			color={entities.getColorHelper(type).color}
-		/>
-	{:else}
-		<!--
-			Nothing to point at, so no colour, no hover state and no click: a bare address, or a
-			device deleted since the scan. The decision lives here rather than at each call site
-			because it used to live at one of the three — the evidence lines rendered a chip
-			unconditionally, and a subject with no entity fell through to an EntityTag carrying an
-			empty id, which is a link to nowhere dressed as a device.
-		-->
-		<Tag label={subject.label} color={null} />
-	{/if}
+	<WarningSubjectChip {subject} />
 {/snippet}
 
 {#if outcome}
@@ -316,7 +180,7 @@
 					{#each section.entries as entry (entry.code)}
 						{@const EntryIcon = createIconComponent(entry.icon)}
 						{@const colors = createColorHelper(entry.color)}
-						{@const action = actionFor(entry)}
+						{@const action = warningAction(entry, payload, credentialsData)}
 						{@const isOpen = openRows.has(entry.code)}
 						<li>
 							<div class="min-w-0">

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::daemon::discovery::types::warnings::RunWarningSummary;
 use crate::server::daemons::r#impl::api::DaemonResponse;
 use crate::server::discovery::r#impl::base::Discovery;
 
@@ -39,6 +40,15 @@ pub struct PlanUsage {
     pub seat_count: u64,
 }
 
+/// A recent discovery run with its warnings counted by remedy.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RecentDiscovery {
+    /// The historical run.
+    pub discovery: Discovery,
+    /// The run's warnings counted by remedy. Empty for a run that recorded none.
+    pub warning_summary: RunWarningSummary,
+}
+
 /// Dashboard summary response
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DashboardSummary {
@@ -47,7 +57,7 @@ pub struct DashboardSummary {
     /// Daemons the caller can see, with their current status.
     pub daemons: Vec<DaemonResponse>,
     /// The most recent discovery runs, newest first.
-    pub recent_discoveries: Vec<Discovery>,
+    pub recent_discoveries: Vec<RecentDiscovery>,
     /// Current usage against the organization's plan allowances.
     pub plan_usage: PlanUsage,
 }

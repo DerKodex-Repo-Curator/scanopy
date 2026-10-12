@@ -76,6 +76,18 @@ pub enum WarningRemedy {
     NothingToDo,
 }
 
+impl WarningRemedy {
+    /// Whether a warning on this rung asks the reader to do something. The two rungs below it
+    /// either resolve themselves or cannot be resolved, so a summary that counts them as work
+    /// would raise an alarm nobody can answer.
+    pub fn is_actionable(&self) -> bool {
+        match self {
+            Self::FixInScanopy | Self::CheckTheDevice => true,
+            Self::ClearsOnTheNextScan | Self::NothingToDo => false,
+        }
+    }
+}
+
 impl HasId for WarningRemedy {
     fn id(&self) -> &'static str {
         self.into()
@@ -128,6 +140,12 @@ impl TypeMetadataProvider for WarningRemedy {
                 "True of the device, or of the data it returned. Rescanning will not change it."
             }
         }
+    }
+
+    /// Publishes [`WarningRemedy::is_actionable`], so the UI picks out the rungs that ask for work
+    /// from the same answer the server's counts use.
+    fn metadata(&self) -> serde_json::Value {
+        json!({ "actionable": self.is_actionable() })
     }
 }
 
@@ -301,7 +319,7 @@ impl DiscoveryWarningCode {
     /// Exhaustive, so a new code cannot ship without someone deciding whether it is work for the
     /// reader — which is the question the warning list is organised around and the one the old
     /// flat list never answered.
-    pub(crate) fn remedy(&self) -> WarningRemedy {
+    pub fn remedy(&self) -> WarningRemedy {
         match self {
             // The credential family stays whole. Several of these sentences straddle Scanopy and
             // the far end ("check the address and port, and that the service is listening"), and
