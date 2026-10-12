@@ -12,6 +12,7 @@ use crate::server::{
     dependencies::service::DependencyService,
     digest::service::DiscoveryDigestService,
     discovery::service::DiscoveryService,
+    discovery_warnings::service::DiscoveryWarningService,
     email::{
         feedback::EmailFeedbackService,
         logging::LoggingEmailProvider,
@@ -218,6 +219,12 @@ impl ServiceFactory {
             event_bus.clone(),
         ));
 
+        // No CrudService, so built straight from the pool (see discovery_warnings/mod.rs). Shared by
+        // DiscoveryService, which records and reads a run's warnings, and SubnetService, which reads
+        // where an assumed range came from.
+        let discovery_warning_service =
+            Arc::new(DiscoveryWarningService::new(storage.pool.clone()));
+
         let subnet_service = Arc::new(SubnetService::new(
             storage.subnets.clone(),
             event_bus.clone(),
@@ -225,6 +232,7 @@ impl ServiceFactory {
             // For re-filing addresses a narrowed range displaces. No cycle — `IPAddressService`
             // depends on no service and is constructed above.
             ip_address_service.clone(),
+            discovery_warning_service.clone(),
         ));
 
         let site_service = Arc::new(SiteService::new(
@@ -290,6 +298,7 @@ impl ServiceFactory {
             credential_service.clone(),
             site_service.clone(),
             organization_service.clone(),
+            discovery_warning_service,
         )
         .await?;
 

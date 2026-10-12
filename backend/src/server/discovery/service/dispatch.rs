@@ -653,6 +653,16 @@ impl DiscoveryService {
                     true
                 };
 
+            if history_written && let Err(e) = self.record_warnings(&historical_discovery).await {
+                record_finish_error(DiscoveryFinishStep::WarningRecords);
+                tracing::error!(
+                    session_id = %session_id,
+                    discovery_id = %historical_discovery.id,
+                    error = %e,
+                    "Failed to record warnings for historical discovery"
+                );
+            }
+
             // The FKs point at the historical row, so they are written once it exists and before
             // its `Created` event goes out.
             if history_written
@@ -964,6 +974,8 @@ pub(super) enum DiscoveryFinishStep {
     FinalizeScan,
     /// The historical discovery row: the run's record.
     HistoryRecord,
+    /// The run's warnings, as `discovery_warnings` rows.
+    WarningRecords,
     /// `last_discovery_id` / `first_discovery_id` on the entities the run scanned.
     DiscoveryFks,
     /// The run's digest, computed and handed to the email subscriber.

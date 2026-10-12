@@ -46,6 +46,7 @@ pub mod default_credentials;
 pub mod demo_data_seeding;
 pub mod dependencies;
 pub mod discovery_finish;
+pub mod discovery_warnings;
 pub mod email_unsubscribe;
 pub mod email_verification;
 pub mod far_end_advertised_ports;

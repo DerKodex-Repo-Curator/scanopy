@@ -157,13 +157,18 @@ export type EntityNameLookup = (type: EntityDiscriminants, id: string) => string
  * to say which devices they concerned. No `entity` on it, because there is nothing left to
  * navigate to — it reads as a label, the same as an address does.
  *
+ * A `null` id is a host deleted since the scan: the stored warning lost the id with it, so it reads
+ * as gone without a lookup.
+ *
  * `null` back means the lookup has not run yet, and the caller omits the segment exactly as it did
  * before, so nothing flashes "unknown" on its way to a name.
  */
-function hostSubject(hostId: string, hostName: HostNameLookup): WarningSubject | null {
+function hostSubject(hostId: string | null, hostName: HostNameLookup): WarningSubject | null {
+	const gone = { label: common_unknownEntity({ entity: common_host() }) };
+	if (hostId === null) return gone;
 	const label = hostName(hostId);
 	if (label) return { label, entity: { type: 'Host', id: hostId } };
-	if (label === null) return { label: common_unknownEntity({ entity: common_host() }) };
+	if (label === null) return gone;
 	return null;
 }
 
@@ -451,7 +456,7 @@ function attemptParams(
  */
 function describeNeighbour(
 	w: {
-		host_id: string;
+		host_id: string | null;
 		if_descr: string;
 		identifier: string;
 		sys_name?: string | null;
@@ -486,8 +491,8 @@ function neighbourParams(
  */
 function describePort(
 	w: {
-		host_id: string;
-		remote_host_id: string;
+		host_id: string | null;
+		remote_host_id: string | null;
 		if_descr: string;
 		port_id?: string | null;
 		port_desc?: string | null;

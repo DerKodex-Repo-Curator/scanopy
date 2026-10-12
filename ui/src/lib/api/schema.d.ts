@@ -6079,6 +6079,7 @@ export interface components {
                  *     none does. Children are the subnets whose parent is this one.
                  */
                 readonly parent_subnet_id?: string | null;
+                range_evidence: null | components["schemas"]["RangeEvidence"];
                 /**
                  * Format: int64
                  * @description Addresses a host can hold in this range. Saturates for IPv6 ranges wider than a `/64`.
@@ -12220,6 +12221,7 @@ export interface components {
                  *     none does. Children are the subnets whose parent is this one.
                  */
                 readonly parent_subnet_id?: string | null;
+                range_evidence: null | components["schemas"]["RangeEvidence"];
                 /**
                  * Format: int64
                  * @description Addresses a host can hold in this range. Saturates for IPv6 ranges wider than a `/64`.
@@ -12829,9 +12831,10 @@ export interface components {
             seen_by_host_ids: string[];
             /**
              * Format: uuid
-             * @description The subnet row created for it, so the UI can link straight to it.
+             * @description The subnet row created for it, so the UI can link straight to it. `None` once that subnet
+             *     has been deleted.
              */
-            subnet_id: string;
+            subnet_id: string | null;
             /** @description The far ends' own `sysName`s, where they sent any — the labels an operator recognises. */
             sys_names: string[];
             /**
@@ -12989,6 +12992,28 @@ export interface components {
             options: components["schemas"]["ShareOptions"];
             /** @description Whether a password must be supplied before the topology is returned. */
             requires_password: boolean;
+        };
+        /**
+         * @description Where an assumed range came from: the far ends whose published addresses it was drawn around,
+         *     and the local devices that saw them. Read from the warning of the scan that created the range.
+         */
+        RangeEvidence: {
+            /** @description The addresses the far ends published for themselves, in the order observed. */
+            addresses: string[];
+            /**
+             * Format: uuid
+             * @description The run that created the range, so the reader can open its report.
+             */
+            discovery_id: string;
+            /**
+             * @description The local devices that saw the far ends. A host deleted since is still listed here; it
+             *     resolves to nothing.
+             */
+            seen_by_host_ids: string[];
+            /** @description The far ends' own `sysName`s, where they sent any. */
+            sys_names: string[];
+            /** @description Whether a shared VLAN widened the range past the conventional prefix. */
+            widened_by_vlan: boolean;
         };
         /** @description A recent discovery run with its warnings counted by remedy. */
         RecentDiscovery: {
@@ -14107,6 +14132,7 @@ export interface components {
              *     none does. Children are the subnets whose parent is this one.
              */
             readonly parent_subnet_id?: string | null;
+            range_evidence: null | components["schemas"]["RangeEvidence"];
             /**
              * Format: int64
              * @description Addresses a host can hold in this range. Saturates for IPv6 ranges wider than a `/64`.
@@ -14738,9 +14764,9 @@ export interface components {
             /**
              * Format: uuid
              * @description The local device that saw the neighbour, not the far end — the far end is what could not
-             *     be identified.
+             *     be identified. `None` once that host has been deleted.
              */
-            host_id: string;
+            host_id: string | null;
             /** @description The chassis ID (LLDP) or device id (CDP) that did not identify one host. */
             identifier: string;
             /** @description The local interface that advertised the neighbour. */
@@ -14752,9 +14778,10 @@ export interface components {
         UnresolvedPort: {
             /**
              * Format: uuid
-             * @description The local device that saw the neighbour, and the port it saw it on.
+             * @description The local device that saw the neighbour, and the port it saw it on. `None` once that host
+             *     has been deleted.
              */
-            host_id: string;
+            host_id: string | null;
             /** @description The local interface that advertised the neighbour. */
             if_descr: string;
             /**
@@ -14771,9 +14798,9 @@ export interface components {
             /**
              * Format: uuid
              * @description The far-end device, already resolved — this is what makes it distinct from
-             *     [`UnmatchedNeighbour`].
+             *     [`UnmatchedNeighbour`]. `None` once that host has been deleted.
              */
-            remote_host_id: string;
+            remote_host_id: string | null;
         };
         /** @description The releases the caller hasn't dismissed. */
         UnseenReleaseNotes: {

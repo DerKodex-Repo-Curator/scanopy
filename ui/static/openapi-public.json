@@ -18742,7 +18742,8 @@
                 "type": "object",
                 "required": [
                   "used_addresses",
-                  "usable_addresses"
+                  "usable_addresses",
+                  "range_evidence"
                 ],
                 "properties": {
                   "parent_subnet_id": {
@@ -18753,6 +18754,17 @@
                     "format": "uuid",
                     "description": "The most specific other subnet on the same site whose range contains this one. `null` when\nnone does. Children are the subnets whose parent is this one.",
                     "readOnly": true
+                  },
+                  "range_evidence": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "$ref": "#/components/schemas/RangeEvidence",
+                        "description": "For a range Scanopy assumed from what LLDP/CDP neighbours published, the far ends it was\ndrawn around and the devices that saw them. `null` for every other range, and for an\nassumed one no scan created."
+                      }
+                    ]
                   },
                   "usable_addresses": {
                     "type": "integer",
@@ -33093,7 +33105,8 @@
                   "type": "object",
                   "required": [
                     "used_addresses",
-                    "usable_addresses"
+                    "usable_addresses",
+                    "range_evidence"
                   ],
                   "properties": {
                     "parent_subnet_id": {
@@ -33104,6 +33117,17 @@
                       "format": "uuid",
                       "description": "The most specific other subnet on the same site whose range contains this one. `null` when\nnone does. Children are the subnets whose parent is this one.",
                       "readOnly": true
+                    },
+                    "range_evidence": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "$ref": "#/components/schemas/RangeEvidence",
+                          "description": "For a range Scanopy assumed from what LLDP/CDP neighbours published, the far ends it was\ndrawn around and the devices that saw them. `null` for every other range, and for an\nassumed one no scan created."
+                        }
+                      ]
                     },
                     "usable_addresses": {
                       "type": "integer",
@@ -34252,9 +34276,12 @@
             "description": "The local devices that saw them."
           },
           "subnet_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid",
-            "description": "The subnet row created for it, so the UI can link straight to it."
+            "description": "The subnet row created for it, so the UI can link straight to it. `None` once that subnet\nhas been deleted."
           },
           "sys_names": {
             "type": "array",
@@ -34521,6 +34548,50 @@
           "requires_password": {
             "type": "boolean",
             "description": "Whether a password must be supplied before the topology is returned."
+          }
+        }
+      },
+      "RangeEvidence": {
+        "type": "object",
+        "description": "Where an assumed range came from: the far ends whose published addresses it was drawn around,\nand the local devices that saw them. Read from the warning of the scan that created the range.",
+        "required": [
+          "discovery_id",
+          "seen_by_host_ids",
+          "addresses",
+          "sys_names",
+          "widened_by_vlan"
+        ],
+        "properties": {
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The addresses the far ends published for themselves, in the order observed."
+          },
+          "discovery_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The run that created the range, so the reader can open its report."
+          },
+          "seen_by_host_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The local devices that saw the far ends. A host deleted since is still listed here; it\nresolves to nothing."
+          },
+          "sys_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The far ends' own `sysName`s, where they sent any."
+          },
+          "widened_by_vlan": {
+            "type": "boolean",
+            "description": "Whether a shared VLAN widened the range past the conventional prefix."
           }
         }
       },
@@ -36893,7 +36964,8 @@
             "type": "object",
             "required": [
               "used_addresses",
-              "usable_addresses"
+              "usable_addresses",
+              "range_evidence"
             ],
             "properties": {
               "parent_subnet_id": {
@@ -36904,6 +36976,17 @@
                 "format": "uuid",
                 "description": "The most specific other subnet on the same site whose range contains this one. `null` when\nnone does. Children are the subnets whose parent is this one.",
                 "readOnly": true
+              },
+              "range_evidence": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RangeEvidence",
+                    "description": "For a range Scanopy assumed from what LLDP/CDP neighbours published, the far ends it was\ndrawn around and the devices that saw them. `null` for every other range, and for an\nassumed one no scan created."
+                  }
+                ]
               },
               "usable_addresses": {
                 "type": "integer",
@@ -38079,9 +38162,12 @@
             "description": "The address the far end published for itself — `lldpRemManAddr`, a `NetworkAddress` port\nid, or `cdpCacheAddress` — where it sent a usable one.\n\nCarried because it is the difference between two reports that otherwise read identically:\n\"the far end told us where it lives and this site holds no such address\" is a device\nnobody has scanned, while \"it told us nothing\" is a device that cannot be placed no matter\nhow much of the network is scanned. Without it, deciding which of the two a fleet is\nlooking at costs another round trip to the operator (GH #668)."
           },
           "host_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid",
-            "description": "The local device that saw the neighbour, not the far end — the far end is what could not\nbe identified."
+            "description": "The local device that saw the neighbour, not the far end — the far end is what could not\nbe identified. `None` once that host has been deleted."
           },
           "identifier": {
             "type": "string",
@@ -38112,9 +38198,12 @@
         ],
         "properties": {
           "host_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid",
-            "description": "The local device that saw the neighbour, and the port it saw it on."
+            "description": "The local device that saw the neighbour, and the port it saw it on. `None` once that host\nhas been deleted."
           },
           "if_descr": {
             "type": "string",
@@ -38135,9 +38224,12 @@
             "description": "The advertised port id in `Debug` form, which carries subtype and value together\n(`MacAddress(\"00:ad:24:af:4e:00\")`, `InterfaceName(\"2\")`). Both halves are needed: the\nsubtype says which tier ran and the value says what it looked for."
           },
           "remote_host_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid",
-            "description": "The far-end device, already resolved — this is what makes it distinct from\n[`UnmatchedNeighbour`]."
+            "description": "The far-end device, already resolved — this is what makes it distinct from\n[`UnmatchedNeighbour`]. `None` once that host has been deleted."
           }
         }
       },

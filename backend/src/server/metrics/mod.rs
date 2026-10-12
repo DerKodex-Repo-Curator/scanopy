@@ -113,7 +113,7 @@ pub fn describe_metrics() {
     describe_counter!(
         "scanopy_discovery_finish_errors_total",
         Unit::Count,
-        "Finished discovery sessions the server failed to record, by step (finalize_scan, history_record)"
+        "Finished discovery sessions the server failed to record, by step (finalize_scan, history_record, warning_records, discovery_fks, digest)"
     );
     describe_counter!(
         "scanopy_dependency_requests_total",

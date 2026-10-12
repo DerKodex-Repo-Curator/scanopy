@@ -105,8 +105,8 @@
 	let neededHostIds = $derived([
 		...new Set(
 			warnings.flatMap((w) => [
-				...('host_id' in w ? [w.host_id] : []),
-				...('remote_host_id' in w ? [w.remote_host_id] : [])
+				...('host_id' in w && w.host_id ? [w.host_id] : []),
+				...('remote_host_id' in w && w.remote_host_id ? [w.remote_host_id] : [])
 			])
 		)
 	]);
@@ -195,7 +195,11 @@
 		}
 
 		if (entry.code === 'ProvisionalSubnetInferred') {
-			const subnetIds = entry.warnings.flatMap((w) => ('subnet_id' in w ? [w.subnet_id] : []));
+			// A range deleted since the scan has nothing left to resolve.
+			const subnetIds = entry.warnings.flatMap((w) =>
+				'subnet_id' in w && w.subnet_id ? [w.subnet_id] : []
+			);
+			if (subnetIds.length === 0) return null;
 			return {
 				label: subnets_resolveRange(),
 				icon: createIconComponent('cloud-alert'),

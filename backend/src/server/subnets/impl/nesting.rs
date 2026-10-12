@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::server::discovery_warnings::r#impl::base::RangeEvidence;
 use crate::server::subnets::r#impl::base::{Subnet, SubnetCidrValue};
 
 impl SubnetCidrValue {
@@ -56,6 +57,11 @@ pub struct SubnetResponse {
     /// none does. Children are the subnets whose parent is this one.
     #[schema(read_only)]
     pub parent_subnet_id: Option<Uuid>,
+    /// For a range Scanopy assumed from what LLDP/CDP neighbours published, the far ends it was
+    /// drawn around and the devices that saw them. `null` for every other range, and for an
+    /// assumed one no scan created.
+    #[schema(read_only, required)]
+    pub range_evidence: Option<RangeEvidence>,
 }
 
 /// Whether a subnet takes part in nesting at all.
@@ -140,6 +146,7 @@ pub fn responses(
                 used_addresses,
                 usable_addresses,
                 parent_subnet_id,
+                range_evidence: None,
             }
         })
         .collect()

@@ -106,8 +106,15 @@ impl Storable for Discovery {
             serde_json::from_value(row.get::<serde_json::Value, _>("discovery_type"))
                 .map_err(|e| anyhow::anyhow!("Failed to deserialize discovery_type: {}", e))?;
 
-        let run_type: RunType = serde_json::from_value(row.get::<serde_json::Value, _>("run_type"))
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize run_type: {}", e))?;
+        let mut run_type: RunType =
+            serde_json::from_value(row.get::<serde_json::Value, _>("run_type"))
+                .map_err(|e| anyhow::anyhow!("Failed to deserialize run_type: {}", e))?;
+        // Runs stored before `discovery_warnings` still carry their warnings in the JSON, and
+        // those were copied into the table. The table is the one source: the service attaches its
+        // rows, so the JSON copy is dropped here rather than shown alongside them.
+        if let RunType::Historical { results } = &mut run_type {
+            results.warnings.clear();
+        }
 
         let integration_targets =
             serde_json::from_value(row.get::<serde_json::Value, _>("integration_targets"))

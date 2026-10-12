@@ -577,6 +577,13 @@ pub(crate) async fn insert_demo_data(
         .storage()
         .create_many(&demo_data.discoveries)
         .await?;
+    // The historical runs' warnings are rows of their own, written beside each run.
+    for discovery in &demo_data.discoveries {
+        services
+            .discovery_service
+            .record_warnings(discovery)
+            .await?;
+    }
 
     // 9. Dependencies + members — pre-generated during DemoData::generate().
     // create_many bypasses per-entity service logic, so persist members

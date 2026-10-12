@@ -102,7 +102,7 @@
 	let showSubnetEditor = $state(false);
 	let editingSubnet = $state<Subnet | null>(null);
 	let showProvisionalRange = $state(false);
-	let resolvingSubnet = $state<Subnet | null>(null);
+	let resolvingSubnet = $state<SubnetResponse | null>(null);
 
 	// Deep-link: open subnet editor from URL (handles both fresh open and entity switch)
 	$effect(() => {
@@ -149,7 +149,7 @@
 	}
 
 	/** Row actions. */
-	function subnetActions(subnet: Subnet): CardAction[] {
+	function subnetActions(subnet: SubnetResponse): CardAction[] {
 		if (isReadOnly) return [];
 
 		const actions: CardAction[] = [];
@@ -180,7 +180,7 @@
 		return actions;
 	}
 
-	function handleResolveRange(subnet: Subnet) {
+	function handleResolveRange(subnet: SubnetResponse) {
 		resolvingSubnet = subnet;
 		showProvisionalRange = true;
 	}
