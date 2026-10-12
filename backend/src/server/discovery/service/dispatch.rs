@@ -522,25 +522,28 @@ impl DiscoveryService {
         {
             let is_rescan = session.discovery_type.rescan_target_host_id().is_some();
 
-            // Publish onboarding milestone BEFORE SSE update so it's
-            // in the DB when the SSE-triggered org refetch arrives
+            // Record the onboarding milestone on the org row BEFORE the SSE update, so it's
+            // committed when the SSE-triggered org refetch arrives. The event is published
+            // only by the call that recorded it.
             if session.phase == DiscoveryPhase::Complete
                 && matches!(
                     session.discovery_type,
                     DiscoveryType::Network { .. } | DiscoveryType::Unified { .. }
                 )
                 && let Ok(Some(site)) = self.site_service.get_by_id(&site_id).await
-                && let Ok(Some(org)) = self
+                && let Ok(true) = self
                     .organization_service
-                    .get_by_id(&site.base.organization_id)
+                    .record_milestone(
+                        site.base.organization_id,
+                        OnboardingOperationDiscriminants::FirstDiscoveryCompleted,
+                    )
                     .await
-                && org.not_onboarded(&OnboardingOperationDiscriminants::FirstDiscoveryCompleted)
             {
                 let _ = self
                     .event_bus
                     .publish(Event::new(
                         OrgScope {
-                            organization_id: org.id,
+                            organization_id: site.base.organization_id,
                         },
                         OnboardingOperation::FirstDiscoveryCompleted {
                             discovery_type: session.discovery_type.clone(),

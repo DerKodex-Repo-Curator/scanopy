@@ -56,6 +56,7 @@ pub mod host_merge_on_discovery;
 pub mod host_naming;
 pub mod interface_neighbor_candidates;
 pub mod lldp_resolution;
+pub mod onboarding_milestones;
 pub mod organization_writes;
 pub mod self_hosted_license_emails;
 pub mod self_hosted_licensing;

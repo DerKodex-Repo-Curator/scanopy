@@ -1,25 +1,29 @@
-//! `TopologyService::ensure_cloud_setup` and the subscribers that run it: an org
-//! ends up with one site, its two system subnets and one live topology, no
-//! matter how many times setup runs or what the org already had.
+//! `TopologyService::ensure_cloud_setup` and the paths that run it (registration and the
+//! billing subscriber): an org ends up with one site, its two system subnets and one live
+//! topology, no matter how many times setup runs or what the org already had.
 
 use uuid::Uuid;
 
 use super::{organization, site, subnet, test_services};
 use crate::server::{
-    auth::{r#impl::base::PendingSiteSetup, middleware::auth::AuthenticatedEntity},
+    auth::{
+        r#impl::base::{PendingSetup, PendingSiteSetup, ProvisionOrg, ProvisionUserParams},
+        middleware::auth::AuthenticatedEntity,
+    },
     billing::types::base::BillingPlan,
     organizations::r#impl::base::UseCase,
     services::r#impl::categories::ServiceCategory,
     shared::{
         events::{
             traits::{Event, OrgScope},
-            types::{BillingOperation, OnboardingOperation},
+            types::BillingOperation,
         },
         services::{factory::ServiceFactory, traits::CrudService},
         storage::{filter::StorableFilter, traits::Storage},
     },
     sites::r#impl::Site,
     subnets::r#impl::{base::Subnet, types::SubnetType},
+    tags::groups::base::TagGroupType,
     topology::types::{
         base::{Topology, TopologyRequestOptions},
         grouping::ElementRule,
@@ -96,27 +100,33 @@ async fn publish_billing(services: &ServiceFactory, organization_id: Uuid, op: B
         ))
         .await
         .unwrap();
+    services.event_bus.flush().await;
 }
 
-async fn publish_org_created(
-    services: &ServiceFactory,
-    organization_id: Uuid,
-    site: Option<PendingSiteSetup>,
-) {
+/// Register an owner with a new org, as the signup flow does. Returns the org id.
+async fn sign_up(services: &ServiceFactory, site: Option<PendingSiteSetup>) -> Uuid {
     services
-        .event_bus
-        .publish(Event::new(
-            OrgScope { organization_id },
-            OnboardingOperation::OrgCreated {
+        .auth_service
+        .provision_user(ProvisionUserParams {
+            email: "owner@example.com".parse().unwrap(),
+            password_hash: Some("hash".to_string()),
+            oidc_subject: None,
+            oidc_provider: None,
+            provision_org: ProvisionOrg::New(PendingSetup {
                 org_name: "Acme".to_string(),
-                plan: BillingPlan::default(),
-                use_case: UseCase::InternalIt,
                 site,
-            },
-            AuthenticatedEntity::System,
-        ))
+                use_case: UseCase::InternalIt,
+            }),
+            permissions: None,
+            site_ids: Vec::new(),
+            terms_accepted_at: None,
+            email_verified: true,
+            billing_enabled: true,
+        })
         .await
-        .unwrap();
+        .unwrap()
+        .base
+        .organization_id
 }
 
 fn assert_fresh_signup_shape(setup: &OrgSetup) {
@@ -178,14 +188,12 @@ async fn ensure_fills_gaps_on_existing_sites_without_adding_one() {
 
 #[tokio::test]
 async fn self_hosted_signup_gets_no_site_until_it_moves_to_cloud() {
-    let (storage, services, _container) = test_services().await;
-    let org = organization();
-    storage.organizations.create(&org).await.unwrap();
+    let (_storage, services, _container) = test_services().await;
+    let org_id = sign_up(&services, None).await;
 
-    publish_org_created(&services, org.id, None).await;
     publish_billing(
         &services,
-        org.id,
+        org_id,
         BillingOperation::TrialStarted {
             plan: license_plan(),
             trial_end: chrono::Utc::now(),
@@ -193,40 +201,50 @@ async fn self_hosted_signup_gets_no_site_until_it_moves_to_cloud() {
         },
     )
     .await;
-    assert!(org_setup(&services, org.id).await.sites.is_empty());
+    assert!(org_setup(&services, org_id).await.sites.is_empty());
+    // Every new org gets the system tag groups, with or without a site.
+    let groups = services
+        .tag_group_service
+        .get_for_org(&org_id)
+        .await
+        .unwrap();
+    assert!(TagGroupType::system().all(|t| groups.iter().any(|g| g.base.group_type == t)));
 
     publish_billing(
         &services,
-        org.id,
+        org_id,
         plan_changed(license_plan(), cloud_plan()),
     )
     .await;
     // A repeat delivery adds nothing.
     publish_billing(
         &services,
-        org.id,
+        org_id,
         plan_changed(license_plan(), cloud_plan()),
     )
     .await;
 
-    assert_fresh_signup_shape(&org_setup(&services, org.id).await);
+    assert_fresh_signup_shape(&org_setup(&services, org_id).await);
 }
 
 #[tokio::test]
-async fn cloud_signup_gets_its_site_from_org_created() {
-    let (storage, services, _container) = test_services().await;
-    let org = organization();
-    storage.organizations.create(&org).await.unwrap();
+async fn cloud_signup_has_its_site_when_registration_returns() {
+    let (_storage, services, _container) = test_services().await;
 
     let requested = PendingSiteSetup {
         name: "Lab".to_string(),
         site_id: Uuid::new_v4(),
     };
-    publish_org_created(&services, org.id, Some(requested.clone())).await;
+    // No flush: the integrated daemon is provisioned on this site right after.
+    let org_id = sign_up(&services, Some(requested.clone())).await;
+    let setup = org_setup(&services, org_id).await;
+    assert_fresh_signup_shape(&setup);
+    assert_eq!(setup.sites[0].id, requested.site_id);
+
     // Picking a cloud plan afterwards leaves the signup site as it is.
     publish_billing(
         &services,
-        org.id,
+        org_id,
         BillingOperation::TrialStarted {
             plan: cloud_plan(),
             trial_end: chrono::Utc::now(),
@@ -235,9 +253,31 @@ async fn cloud_signup_gets_its_site_from_org_created() {
     )
     .await;
 
-    let setup = org_setup(&services, org.id).await;
+    let setup = org_setup(&services, org_id).await;
     assert_fresh_signup_shape(&setup);
     assert_eq!(setup.sites[0].id, requested.site_id);
+}
+
+/// Registration and a billing event landing at once must not both create a site.
+#[tokio::test]
+async fn concurrent_setup_runs_create_one_site() {
+    let (storage, services, _container) = test_services().await;
+    let org = organization();
+    storage.organizations.create(&org).await.unwrap();
+
+    let requested = PendingSiteSetup {
+        name: "Lab".to_string(),
+        site_id: Uuid::new_v4(),
+    };
+    let topology = &services.topology_service;
+    let (a, b) = tokio::join!(
+        topology.ensure_cloud_setup(org.id, Some(&requested), AuthenticatedEntity::System),
+        topology.ensure_cloud_setup(org.id, None, AuthenticatedEntity::System),
+    );
+    a.unwrap();
+    b.unwrap();
+
+    assert_fresh_signup_shape(&org_setup(&services, org.id).await);
 }
 
 fn infra_categories(options: &TopologyRequestOptions) -> Vec<ServiceCategory> {

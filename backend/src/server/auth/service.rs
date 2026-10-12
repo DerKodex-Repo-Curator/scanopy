@@ -27,6 +27,8 @@ use crate::server::{
         services::traits::CrudService,
         storage::{filter::StorableFilter, traits::Storable},
     },
+    tags::groups::service::TagGroupService,
+    topology::service::main::TopologyService,
     users::{
         r#impl::{
             base::{User, UserBase},
@@ -64,6 +66,10 @@ pub struct AuthService {
     /// plan is unused (new orgs get `plan = None` until Stripe checkout). Its
     /// `included_orgs` also drives the self-hosted org-creation cap.
     license_service: Option<Arc<LicenseService>>,
+    /// Gives a new org its system tag groups.
+    tag_group_service: Arc<TagGroupService>,
+    /// Creates the site requested at signup, with its subnets, topology and starter tags.
+    topology_service: Arc<TopologyService>,
 }
 
 impl AuthService {
@@ -86,6 +92,8 @@ impl AuthService {
         has_email_service: bool,
         event_bus: Arc<EventBus>,
         license_service: Option<Arc<LicenseService>>,
+        tag_group_service: Arc<TagGroupService>,
+        topology_service: Arc<TopologyService>,
     ) -> Self {
         Self {
             user_service,
@@ -95,6 +103,8 @@ impl AuthService {
             verification_resend_cooldown: Arc::new(RwLock::new(HashMap::new())),
             event_bus,
             license_service,
+            tag_group_service,
+            topology_service,
         }
     }
 
@@ -215,7 +225,8 @@ impl AuthService {
     }
 
     /// Core user provisioning logic - handles both password and OIDC registration
-    /// If pending_setup is provided, uses setup.org_name and marks OnboardingModalCompleted
+    /// If pending_setup is provided, uses setup.org_name, marks OrgCreated and
+    /// OnboardingModalCompleted, and creates the org's tag groups and requested site
     /// If billing_enabled is false (self-hosted), sets default billing plan
     pub async fn provision_user(&self, params: ProvisionUserParams) -> Result<User> {
         let ProvisionUserParams {
@@ -265,7 +276,10 @@ impl AuthService {
                     }
                 }
 
-                let onboarding = vec![OnboardingOperationDiscriminants::OnboardingModalCompleted];
+                let onboarding = vec![
+                    OnboardingOperationDiscriminants::OrgCreated,
+                    OnboardingOperationDiscriminants::OnboardingModalCompleted,
+                ];
 
                 // Cloud: no plan until user selects one via billing modal → Stripe checkout → webhook
                 // Self-hosted: assign the license-resolved plan and emit a
@@ -363,6 +377,19 @@ impl AuthService {
         {
             let authentication: AuthenticatedEntity = user.clone().into();
             let plan = new_org_plan.unwrap_or_default();
+
+            // Every new org gets the system tag groups, cloud or self-hosted. A requested site
+            // means a cloud signup: registration provisions the integrated daemon on it next, so
+            // it's created here. No requested site means a self-hosted license buyer; the org is
+            // set up if it later lands on a cloud plan.
+            self.tag_group_service
+                .ensure_groups(organization_id, &[], authentication.clone())
+                .await?;
+            if let Some(site) = &site {
+                self.topology_service
+                    .ensure_cloud_setup(organization_id, Some(site), authentication.clone())
+                    .await?;
+            }
 
             self.event_bus
                 .publish(Event::new(

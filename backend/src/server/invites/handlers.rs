@@ -174,14 +174,14 @@ async fn create_invite(
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
     // Emit InviteSent telemetry event if this is the first invite
-    let organization = state
+    if state
         .services
         .organization_service
-        .get_by_id(&organization_id)
-        .await?;
-
-    if let Some(organization) = organization
-        && organization.not_onboarded(&OnboardingOperationDiscriminants::InviteSent)
+        .record_milestone(
+            organization_id,
+            OnboardingOperationDiscriminants::InviteSent,
+        )
+        .await?
     {
         state
             .services
@@ -549,16 +549,14 @@ pub async fn process_pending_invite(
     }
 
     // Emit InviteAccepted telemetry event if this is the first accepted invite
-    let organization = state
+    if let Ok(true) = state
         .services
         .organization_service
-        .get_by_id(&pending_org_id)
+        .record_milestone(
+            pending_org_id,
+            OnboardingOperationDiscriminants::InviteAccepted,
+        )
         .await
-        .ok()
-        .flatten();
-
-    if let Some(organization) = organization
-        && organization.not_onboarded(&OnboardingOperationDiscriminants::InviteAccepted)
         && let Err(e) = state
             .services
             .invite_service

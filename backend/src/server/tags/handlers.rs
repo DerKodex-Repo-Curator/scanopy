@@ -251,46 +251,50 @@ pub async fn create_tag(
 
     // Emit onboarding milestones for first tag / first application tag
     if let Some(created_tag) = response.data() {
-        let organization = state
-            .services
-            .organization_service
-            .get_by_id(&organization_id)
-            .await?;
+        let organization_service = &state.services.organization_service;
 
-        if let Some(ref organization) = organization {
-            if organization.not_onboarded(&OnboardingOperationDiscriminants::FirstTagCreated) {
-                state
-                    .services
-                    .tag_service
-                    .event_bus()
-                    .publish(Event::new(
-                        OrgScope { organization_id },
-                        OnboardingOperation::FirstTagCreated,
-                        entity.clone(),
-                    ))
-                    .await?;
-            }
-
-            let application_group_id = state
+        if organization_service
+            .record_milestone(
+                organization_id,
+                OnboardingOperationDiscriminants::FirstTagCreated,
+            )
+            .await?
+        {
+            state
                 .services
                 .tag_service
-                .application_group_id(&organization_id)
+                .event_bus()
+                .publish(Event::new(
+                    OrgScope { organization_id },
+                    OnboardingOperation::FirstTagCreated,
+                    entity.clone(),
+                ))
                 .await?;
-            if created_tag.in_group(application_group_id)
-                && organization
-                    .not_onboarded(&OnboardingOperationDiscriminants::FirstApplicationTagCreated)
-            {
-                state
-                    .services
-                    .tag_service
-                    .event_bus()
-                    .publish(Event::new(
-                        OrgScope { organization_id },
-                        OnboardingOperation::FirstApplicationTagCreated,
-                        entity,
-                    ))
-                    .await?;
-            }
+        }
+
+        let application_group_id = state
+            .services
+            .tag_service
+            .application_group_id(&organization_id)
+            .await?;
+        if created_tag.in_group(application_group_id)
+            && organization_service
+                .record_milestone(
+                    organization_id,
+                    OnboardingOperationDiscriminants::FirstApplicationTagCreated,
+                )
+                .await?
+        {
+            state
+                .services
+                .tag_service
+                .event_bus()
+                .publish(Event::new(
+                    OrgScope { organization_id },
+                    OnboardingOperation::FirstApplicationTagCreated,
+                    entity,
+                ))
+                .await?;
         }
     }
 

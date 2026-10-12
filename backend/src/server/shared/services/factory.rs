@@ -517,6 +517,8 @@ impl ServiceFactory {
             email_service.is_some(),
             event_bus.clone(),
             license_service.clone(),
+            tag_group_service.clone(),
+            topology_service.clone(),
         ));
 
         let posthog_service = if let Some(api_key) = config.posthog_key {

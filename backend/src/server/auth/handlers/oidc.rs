@@ -621,7 +621,8 @@ async fn handle_register_flow(
                 )));
             }
 
-            // If this is a new org, create site/topology
+            // If this is a new org, provision the integrated daemon on the site
+            // `provision_user` created
             if let ProvisionOrg::New(setup) = provision_org
                 && let Err(e) = apply_pending_setup(&state, &user, setup).await
             {

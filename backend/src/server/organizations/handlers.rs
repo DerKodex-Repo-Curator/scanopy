@@ -145,6 +145,12 @@ async fn update_profile(
     let org_id = auth.organization_id().unwrap();
     let authentication: AuthenticatedEntity = auth.into();
 
+    // Every submission is published with its answers; the milestone hides the prompt.
+    state
+        .services
+        .organization_service
+        .record_milestone(org_id, OnboardingOperationDiscriminants::ProfileCompleted)
+        .await?;
     state
         .services
         .event_bus
@@ -212,6 +218,15 @@ async fn submit_referral_source(
     let org_id = auth.organization_id().unwrap();
     let authentication: AuthenticatedEntity = auth.into();
 
+    // Every submission is published with its answer; the milestone hides the prompt.
+    state
+        .services
+        .organization_service
+        .record_milestone(
+            org_id,
+            OnboardingOperationDiscriminants::ReferralSourceCompleted,
+        )
+        .await?;
     state
         .services
         .event_bus
@@ -249,8 +264,9 @@ pub struct DaemonPromptResponseRequest {
 }
 
 /// Record the user's response to the daemon-install prompt so it is not shown again.
-/// Each CTA persists a distinct onboarding milestone (the org subscriber dedups); the
-/// PostHog subscriber turns these into funnel events, so no client-side telemetry is needed.
+/// Each CTA records a distinct onboarding milestone, which the UI reads to hide the prompt.
+/// Every response is published; the PostHog subscriber turns these into funnel events, so
+/// no client-side telemetry is needed.
 #[utoipa::path(
     post,
     path = "/daemon-prompt-response",
@@ -268,10 +284,22 @@ async fn daemon_prompt_response(
     let org_id = auth.organization_id().unwrap();
     let authentication: AuthenticatedEntity = auth.into();
 
-    let operation = match request.action {
-        DaemonPromptAction::Dismissed => OnboardingOperation::DaemonPromptDismissed,
-        DaemonPromptAction::Accepted => OnboardingOperation::DaemonPromptAccepted,
+    let (operation, step) = match request.action {
+        DaemonPromptAction::Dismissed => (
+            OnboardingOperation::DaemonPromptDismissed,
+            OnboardingOperationDiscriminants::DaemonPromptDismissed,
+        ),
+        DaemonPromptAction::Accepted => (
+            OnboardingOperation::DaemonPromptAccepted,
+            OnboardingOperationDiscriminants::DaemonPromptAccepted,
+        ),
     };
+
+    state
+        .services
+        .organization_service
+        .record_milestone(org_id, step)
+        .await?;
 
     state
         .services
