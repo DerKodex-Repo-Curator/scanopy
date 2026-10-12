@@ -41,8 +41,10 @@
 		userApiKeys_createApiKey,
 		userApiKeys_enableHelp,
 		userApiKeys_namePlaceholder,
-		userApiKeys_permissionsHelp
+		userApiKeys_permissionsHelp,
+		userApiKeys_verifyEmailToCreate
 	} from '$lib/paraglide/messages';
+	import EmailVerificationNotice from '$lib/features/auth/components/EmailVerificationNotice.svelte';
 
 	interface Props {
 		isOpen?: boolean;
@@ -287,6 +289,8 @@
 						{/snippet}
 					</form.Field>
 				</div>
+
+				<EmailVerificationNotice body={userApiKeys_verifyEmailToCreate()} />
 
 				<!-- Key generation section -->
 				<ApiKeyGenerator

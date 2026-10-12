@@ -63,6 +63,7 @@
 		common_install,
 		common_integrations,
 		common_next,
+		common_tryAgain,
 		daemons_createDaemon,
 		daemons_credentialWizardReturn,
 		daemons_credentialWizardReturnToInstall,
@@ -78,9 +79,17 @@
 		daemons_installCopiedToastMac,
 		daemons_installCopiedToastWindows,
 		daemons_installBackToInstall,
-		daemons_installReturnToCommands
+		daemons_installReturnToCommands,
+		daemons_verifyEmailForMoreDaemons,
+		daemons_verifyEmailToEmailCommand
 	} from '$lib/paraglide/messages';
 	import { credentialTypes } from '$lib/shared/stores/metadata';
+	import { ApiError } from '$lib/api/client';
+	import type { ErrorCode } from '$lib/generated/error-codes';
+	import { useEmailVerificationPending } from '$lib/features/auth/queries';
+	import EmailVerificationNotice from '$lib/features/auth/components/EmailVerificationNotice.svelte';
+
+	const EMAIL_VERIFICATION_REQUIRED: ErrorCode = 'auth_email_verification_required';
 
 	interface Props {
 		isOpen?: boolean;
@@ -107,6 +116,12 @@
 	// Email install command
 	let hasEmail = $derived(configQuery.data?.has_email_service ?? false);
 	const emailInstallMutation = useEmailInstallCommandMutation();
+
+	// Emailing the command, and a second daemon in an org with no verified owner, are refused by
+	// the server until the email is verified. The controls stay enabled so a user who verifies
+	// mid-install can retry without losing the wizard; the notices only explain.
+	const emailVerification = useEmailVerificationPending();
+	let provisionNeedsVerification = $state(false);
 	// Sites
 	const sitesQuery = useSitesQuery();
 	let sitesData = $derived(sitesQuery.data ?? []);
@@ -395,8 +410,11 @@
 			keyState = result.daemon_api_key;
 			provisionedDaemonId = result.daemon.id;
 			committedInstallParams = installCommandParams();
-		} catch {
-			// The API client reports the failure.
+			provisionNeedsVerification = false;
+		} catch (e) {
+			// The API client reports the failure. A verification refusal also gets an inline
+			// notice with a retry, since the user can fix it without leaving the wizard.
+			provisionNeedsVerification = e instanceof ApiError && e.code === EMAIL_VERIFICATION_REQUIRED;
 		} finally {
 			isProvisioning = false;
 		}
@@ -775,6 +793,25 @@
 								pushSuccess(getCopiedToastMessage());
 							}}
 						/>
+						{#if hasEmail && emailVerification.pending && connectionStatus === 'idle'}
+							<div class="px-6 pb-4">
+								<EmailVerificationNotice body={daemons_verifyEmailToEmailCommand()} />
+							</div>
+						{/if}
+					{:else if activeTab === 'install' && provisionNeedsVerification}
+						<!-- The server refused a second daemon until the email is verified. The wizard
+						     keeps its state; once verified, the retry provisions as normal. -->
+						<div class="space-y-3 p-6">
+							<EmailVerificationNotice body={daemons_verifyEmailForMoreDaemons()} />
+							<button
+								type="button"
+								class="btn-primary"
+								disabled={isProvisioning}
+								onclick={() => ensureProvisioned()}
+							>
+								{common_tryAgain()}
+							</button>
+						</div>
 					{:else if activeTab === 'install'}
 						<!-- Provisioning or the install-command fetch is in flight (reaching Install via
 						     the tab strip doesn't await it). Show nothing until the server's command and
@@ -853,18 +890,23 @@
 							{common_close()}
 						</button>
 					{:else}
-						{#if hasEmail && currentInstallCommand}
+						{#if hasEmail && currentInstallCommand && committedInstallParams}
+							{@const emailParams = committedInstallParams}
 							<button
 								type="button"
 								class="btn-secondary w-full text-sm sm:w-auto"
 								disabled={emailInstallMutation.isPending}
 								onclick={() => {
+									// The server rebuilds the command from the same params the
+									// on-screen command came from; it never takes rendered text.
 									emailInstallMutation.mutate(
-										// The endpoint takes the OS identifier. This passed a display
-										// label ("macOS", "Linux (Docker)") that never matched it;
-										// the generated type said `string` until this release, so
-										// the mismatch went unnoticed.
-										{ installCommand: currentInstallCommand, os: selectedOS },
+										{
+											daemon_id: provisionedDaemonId,
+											...emailParams,
+											os: selectedOS,
+											docker: isDockerInstall,
+											api_key: keyState
+										},
 										{
 											onSuccess: () => pushSuccess(daemons_installCommandEmailed())
 										}

@@ -12,7 +12,7 @@ use base64ct::{Base64UrlUnpadded, Encoding};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::base::{Daemon, DaemonMode};
+use super::base::{Daemon, DaemonMode, DaemonOs};
 use super::version::{installed_by_install_engine, own_version, persists_docker_config};
 use crate::daemon::shared::config::{DOCKER_CONFIG_DIR, DaemonArgs};
 use crate::server::credentials::r#impl::mapping::IntegrationTarget;
@@ -72,6 +72,22 @@ pub struct InstallArtifacts {
     pub docker: DockerInstall,
     /// Windows installer package.
     pub msi: MsiInstall,
+}
+
+impl InstallArtifacts {
+    /// The ready-to-run text for one install method: the OS's binary command, or the docker
+    /// compose when `docker` is set. Docker is Linux-only, and a reconfigure has no compose, so
+    /// those combinations have no command.
+    pub fn command(&self, os: DaemonOs, docker: bool) -> Option<&str> {
+        match (os, docker) {
+            (DaemonOs::Linux, true) => self.docker.compose.as_deref(),
+            (_, true) => None,
+            (DaemonOs::Linux, false) => Some(&self.linux),
+            (DaemonOs::MacOS, false) => Some(&self.macos),
+            (DaemonOs::Windows, false) => Some(&self.windows),
+            (DaemonOs::FreeBsd, false) => Some(&self.freebsd),
+        }
+    }
 }
 
 /// What the caller wants the command to do — the one axis that actually varies.

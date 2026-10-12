@@ -343,6 +343,13 @@ impl AuthenticatedEntity {
             _ => true,
         }
     }
+
+    /// Whether the entity passes an email-verification gate. A server with no email
+    /// transport can't deliver a verification link, so the gate is lifted there rather than
+    /// locking out users who signed up while one was configured.
+    pub fn meets_email_verification(&self, has_email_service: bool) -> bool {
+        !has_email_service || self.email_verified()
+    }
 }
 
 impl From<User> for AuthenticatedEntity {

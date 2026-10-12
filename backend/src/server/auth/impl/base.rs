@@ -13,6 +13,9 @@ pub struct LoginRegisterParams {
     pub ip: IpAddr,
     pub user_agent: Option<String>,
     pub site_ids: Vec<Uuid>,
+    /// The address an accepted invite was emailed to. Registering with it counts as proof
+    /// of the address.
+    pub invited_as: Option<EmailAddress>,
 }
 
 #[derive(Clone)]

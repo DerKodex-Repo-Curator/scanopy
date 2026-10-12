@@ -19,19 +19,19 @@
 	import LicensePendingBanner from './LicensePendingBanner.svelte';
 	import LicenseGraceBanner from './LicenseGraceBanner.svelte';
 	import LicenseExpiringBanner from './LicenseExpiringBanner.svelte';
-	import { useCurrentUserQuery } from '$lib/features/auth/queries';
+	import { useEmailVerificationPending } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { useConfigQuery, isLicenseApproachingExpiry } from '$lib/shared/stores/config-query';
 
-	const currentUserQuery = useCurrentUserQuery();
+	const emailVerification = useEmailVerificationPending();
 	const organizationQuery = useOrganizationQuery();
 	const configQuery = useConfigQuery();
 
 	let organization = $derived(organizationQuery.data);
 </script>
 
-{#if currentUserQuery.data && !currentUserQuery.data.email_verified}
-	<EmailVerificationBanner email={currentUserQuery.data.email} />
+{#if emailVerification.pending && emailVerification.email}
+	<EmailVerificationBanner email={emailVerification.email} />
 {/if}
 <!-- These four gate themselves on org and trial state. The lapsed banner
      cannot overlap the first two: they need a trialing or active plan. -->

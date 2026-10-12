@@ -525,17 +525,23 @@ async fn handle_register_flow(
     } = params;
 
     // Process pending invite if present
-    let (org_id, permissions, site_ids) = match process_pending_invite(&state, &session).await {
-        Ok(Some((org_id, permissions, site_ids))) => (Some(org_id), Some(permissions), site_ids),
-        Ok(_) => (None, None, vec![]),
-        Err(e) => {
-            return Err(ErrorRedirect::to(&format!(
-                "{}?error={}",
-                return_url,
-                urlencoding::encode(&format!("Failed to process invite: {}", e))
-            )));
-        }
-    };
+    let (org_id, permissions, site_ids, invited_as) =
+        match process_pending_invite(&state, &session).await {
+            Ok(Some(invite)) => (
+                Some(invite.organization_id),
+                Some(invite.permissions),
+                invite.site_ids,
+                invite.send_to,
+            ),
+            Ok(_) => (None, None, vec![], None),
+            Err(e) => {
+                return Err(ErrorRedirect::to(&format!(
+                    "{}?error={}",
+                    return_url,
+                    urlencoding::encode(&format!("Failed to process invite: {}", e))
+                )));
+            }
+        };
 
     let provision_org = if let Some(org_id) = org_id {
         ProvisionOrg::Existing(org_id)
@@ -571,6 +577,7 @@ async fn handle_register_flow(
                 ip,
                 user_agent,
                 site_ids,
+                invited_as,
             },
             OidcRegisterParams {
                 terms_accepted_at,

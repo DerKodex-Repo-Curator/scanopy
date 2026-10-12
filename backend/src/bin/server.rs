@@ -157,11 +157,9 @@ async fn main() -> anyhow::Result<()> {
         let mut interval = tokio::time::interval(Duration::from_secs(15 * 60)); // 15 minutes
         loop {
             interval.tick().await;
-            auth_cleanup_state
-                .services
-                .auth_service
-                .cleanup_old_login_attempts()
-                .await;
+            let auth_service = &auth_cleanup_state.services.auth_service;
+            auth_service.cleanup_old_login_attempts().await;
+            auth_service.cleanup_old_verification_cooldowns().await;
         }
     });
 

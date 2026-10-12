@@ -94,6 +94,10 @@ pub enum ErrorCode {
     AuthOrgLimitReached,
     /// Email verification required for this feature
     AuthEmailVerificationRequired,
+    /// Email verification link is unknown, already used, or expired
+    AuthVerificationTokenInvalid,
+    /// A verification link went to this address too recently to send another
+    AuthVerificationEmailCooldown { seconds: u64 },
 
     // === License ===
     /// Server is in read-only mode due to license issue
@@ -309,6 +313,12 @@ impl ErrorCode {
             Self::AuthEmailVerificationRequired => {
                 "Please verify your email to access this feature"
             }
+            Self::AuthVerificationTokenInvalid => {
+                "This verification link is invalid or has expired. Request a new one."
+            }
+            Self::AuthVerificationEmailCooldown { .. } => {
+                "A link was just sent to this address. Try again in {seconds} seconds."
+            }
 
             // Generic Entity Operations
             Self::EntityNotFound { .. } => "{entity} with ID '{id}' not found",
@@ -462,6 +472,7 @@ impl ErrorCode {
             | Self::AuthRegistrationDisabled
             | Self::AuthOrgLimitReached
             | Self::AuthEmailVerificationRequired
+            | Self::AuthVerificationTokenInvalid
             | Self::AuthOidcNotConfigured
             | Self::SharePasswordRequired
             | Self::SharePasswordIncorrect
@@ -550,6 +561,9 @@ impl ErrorCode {
                 Some(json_map! { "expected" => expected, "actual" => actual })
             }
             Self::UserEmailInUse { email } => Some(json_map! { "email" => email }),
+            Self::AuthVerificationEmailCooldown { seconds } => {
+                Some(json_map! { "seconds" => seconds })
+            }
             Self::BillingPlanLimitReached { resource, limit } => {
                 Some(json_map! { "resource" => resource, "limit" => limit })
             }

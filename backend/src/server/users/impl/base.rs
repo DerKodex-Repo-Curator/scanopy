@@ -128,8 +128,10 @@ impl Default for UserBase {
 }
 
 impl UserBase {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_oidc(
         email: EmailAddress,
+        email_verified: bool,
         oidc_subject: String,
         oidc_provider: Option<String>,
         organization_id: Uuid,
@@ -148,8 +150,7 @@ impl UserBase {
             oidc_subject: Some(oidc_subject),
             site_ids,
             terms_accepted_at,
-            // OIDC users are already verified by the identity provider
-            email_verified: true,
+            email_verified,
             email_verification_token: None,
             email_verification_expires: None,
             password_reset_token: None,

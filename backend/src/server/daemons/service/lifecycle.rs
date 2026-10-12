@@ -16,6 +16,7 @@ impl DaemonService {
         daemon_api_key_service: Arc<DaemonApiKeyService>,
         deployment_type: crate::server::config::DeploymentType,
         trusted_ca: Option<&TrustedCaBundle>,
+        has_email_service: bool,
     ) -> Self {
         let interfaced_subnet_storage =
             DaemonInterfacedSubnetStorage::new(daemon_storage.pool().clone());
@@ -40,6 +41,7 @@ impl DaemonService {
             host_service: std::sync::OnceLock::new(),
             poll_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_POLLS)),
             deployment_type,
+            has_email_service,
         }
     }
 
@@ -87,8 +89,13 @@ impl DaemonService {
     }
 
     /// Check if an unverified org has reached its daemon limit (1 daemon).
-    /// Allows first daemon so users can experience core product value.
+    /// Allows first daemon so users can experience core product value. Lifted on a server
+    /// with no email transport, where no owner could receive a verification link.
     pub async fn check_unverified_daemon_limit(&self, org_id: Uuid) -> Result<(), ApiError> {
+        if !self.has_email_service {
+            return Ok(());
+        }
+
         let owners = self
             .user_service
             .get_organization_owners(&org_id)
