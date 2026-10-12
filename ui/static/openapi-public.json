@@ -14970,19 +14970,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-12T14:26:45.980057Z",
+              "created_at": "2026-10-12T16:19:02.152885Z",
               "first_discovery_id": null,
-              "id": "75e51349-fb8a-4ecb-8ca5-053a876a6d95",
+              "id": "02943500-8b55-438a-a609-3bd14f2b10ee",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-12T14:26:45.980057Z",
+              "last_seen_at": "2026-10-12T16:19:02.152885Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-12T14:26:45.980057Z",
-              "valid_from": "2026-10-12T14:26:45.980057Z",
+              "updated_at": "2026-10-12T16:19:02.152885Z",
+              "valid_from": "2026-10-12T16:19:02.152885Z",
               "valid_to": null
             }
           },
@@ -16701,19 +16701,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-12T14:26:45.957859Z",
+                      "created_at": "2026-10-12T16:19:02.131058Z",
                       "first_discovery_id": null,
-                      "id": "f529d709-ee42-4096-94fb-7b6ab01f9b7a",
+                      "id": "d0613f8e-7f4b-4dc6-8368-dc1e03ec1a36",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-12T14:26:45.957859Z",
+                      "last_seen_at": "2026-10-12T16:19:02.131058Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-12T14:26:45.957859Z",
-                      "valid_from": "2026-10-12T14:26:45.957859Z",
+                      "updated_at": "2026-10-12T16:19:02.131058Z",
+                      "valid_from": "2026-10-12T16:19:02.131058Z",
                       "valid_to": null
                     }
                   ],
@@ -16726,7 +16726,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Memos",
+                  "service_definition": "Wazuh",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -17686,6 +17686,44 @@
           }
         }
       },
+      "ApiResponse_ProvisionEligibility": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "Whether provisioning another daemon would be refused for the caller's organization.",
+            "required": [
+              "email_verification_required"
+            ],
+            "properties": {
+              "email_verification_required": {
+                "type": "boolean",
+                "description": "The organization already has a daemon and no owner has verified their email, so a new\ndaemon is refused until one does."
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
       "ApiResponse_PublicConfigResponse": {
         "type": "object",
         "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
@@ -18098,19 +18136,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-12T14:26:45.975581Z",
+                  "created_at": "2026-10-12T16:19:02.148416Z",
                   "first_discovery_id": null,
-                  "id": "e096813c-c459-4148-b7a2-466e1856f7e7",
+                  "id": "aed59a1a-92b8-420d-8e75-7e248b4d3142",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-12T14:26:45.975581Z",
+                  "last_seen_at": "2026-10-12T16:19:02.148416Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-12T14:26:45.975581Z",
-                  "valid_from": "2026-10-12T14:26:45.975581Z",
+                  "updated_at": "2026-10-12T16:19:02.148416Z",
+                  "valid_from": "2026-10-12T16:19:02.148416Z",
                   "valid_to": null
                 }
               ],
@@ -18123,7 +18161,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Memos",
+              "service_definition": "Wazuh",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -21088,19 +21126,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-12T14:26:45.958355Z",
+          "created_at": "2026-10-12T16:19:02.131533Z",
           "first_discovery_id": null,
-          "id": "34bd794a-4835-4b9e-8082-7557d2425d54",
+          "id": "30136c94-cbe2-483d-be4e-37fbbb8bbede",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-12T14:26:45.958355Z",
+          "last_seen_at": "2026-10-12T16:19:02.131533Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-12T14:26:45.958355Z",
-          "valid_from": "2026-10-12T14:26:45.958355Z",
+          "updated_at": "2026-10-12T16:19:02.131533Z",
+          "valid_from": "2026-10-12T16:19:02.131533Z",
           "valid_to": null
         }
       },
@@ -21861,7 +21899,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Memos",
+              "service_definition": "Wazuh",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -28862,19 +28900,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-12T14:26:45.957265Z",
+                  "created_at": "2026-10-12T16:19:02.130488Z",
                   "first_discovery_id": null,
-                  "id": "3607c45a-058b-472b-a39c-5f9d92aefc63",
+                  "id": "fcee39fc-bed8-48f5-a484-1a95dc46f673",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-12T14:26:45.957265Z",
+                  "last_seen_at": "2026-10-12T16:19:02.130488Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-12T14:26:45.957265Z",
-                  "valid_from": "2026-10-12T14:26:45.957265Z",
+                  "updated_at": "2026-10-12T16:19:02.130488Z",
+                  "valid_from": "2026-10-12T16:19:02.130488Z",
                   "valid_to": null
                 }
               ],
@@ -28887,7 +28925,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Memos",
+              "service_definition": "Wazuh",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -32804,19 +32842,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-12T14:26:45.948904Z",
+                        "created_at": "2026-10-12T16:19:02.122179Z",
                         "first_discovery_id": null,
-                        "id": "7d9be2ea-629c-4948-9b89-c8c65eb1bda8",
+                        "id": "84ba659b-081c-4a34-a147-9e1c0b036ce9",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-12T14:26:45.948904Z",
+                        "last_seen_at": "2026-10-12T16:19:02.122179Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-12T14:26:45.948904Z",
-                        "valid_from": "2026-10-12T14:26:45.948904Z",
+                        "updated_at": "2026-10-12T16:19:02.122179Z",
+                        "valid_from": "2026-10-12T16:19:02.122179Z",
                         "valid_to": null
                       }
                     ],
@@ -32829,7 +32867,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Memos",
+                    "service_definition": "Wazuh",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -32978,19 +33016,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-12T14:26:45.974921Z",
+                    "created_at": "2026-10-12T16:19:02.147760Z",
                     "first_discovery_id": null,
-                    "id": "24e44fc8-ca11-4c36-b65a-a7be2ef0a603",
+                    "id": "dab887bb-e779-404b-b471-ebbfa212b433",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-12T14:26:45.974921Z",
+                    "last_seen_at": "2026-10-12T16:19:02.147760Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-12T14:26:45.974921Z",
-                    "valid_from": "2026-10-12T14:26:45.974921Z",
+                    "updated_at": "2026-10-12T16:19:02.147760Z",
+                    "valid_from": "2026-10-12T16:19:02.147760Z",
                     "valid_to": null
                   }
                 ],
@@ -33003,7 +33041,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Memos",
+                "service_definition": "Wazuh",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -34166,6 +34204,19 @@
             "format": "password",
             "description": "The API key (plaintext) for daemon authentication.\nThis is shown only once - store it securely.",
             "readOnly": true
+          }
+        }
+      },
+      "ProvisionEligibility": {
+        "type": "object",
+        "description": "Whether provisioning another daemon would be refused for the caller's organization.",
+        "required": [
+          "email_verification_required"
+        ],
+        "properties": {
+          "email_verification_required": {
+            "type": "boolean",
+            "description": "The organization already has a daemon and no owner has verified their email, so a new\ndaemon is refused until one does."
           }
         }
       },
@@ -35535,19 +35586,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-12T14:26:45.958197Z",
+              "created_at": "2026-10-12T16:19:02.131380Z",
               "first_discovery_id": null,
-              "id": "02e9b497-c671-4342-b95c-23a63513540e",
+              "id": "df586872-27b5-4bca-b168-7d2e4e09290a",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-12T14:26:45.958197Z",
+              "last_seen_at": "2026-10-12T16:19:02.131380Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-12T14:26:45.958197Z",
-              "valid_from": "2026-10-12T14:26:45.958197Z",
+              "updated_at": "2026-10-12T16:19:02.131380Z",
+              "valid_from": "2026-10-12T16:19:02.131380Z",
               "valid_to": null
             }
           ],
@@ -35560,7 +35611,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Memos",
+          "service_definition": "Wazuh",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -37659,7 +37710,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "df44918f-d853-47db-b969-9570a8fff7ae",
+                  "id": "61372cb7-e3ba-4e0d-83f0-85769aabdf34",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -37669,23 +37720,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "204432dc-ed82-41aa-b805-45b5592fcbb2",
+                  "id": "4c43fde3-63f4-4673-be87-3c3379fa7cde",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "73374064-17d4-4d0e-a0c0-354cabf49031",
+                  "id": "d36c1ad8-6485-4133-aa35-3734b0aadea4",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "bd9b8605-d358-4c07-91a4-53fa4314fe9f",
+                  "id": "5fc52160-a3a8-45b7-883b-6e7762423495",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "204432dc-ed82-41aa-b805-45b5592fcbb2",
+                  "id": "4c43fde3-63f4-4673-be87-3c3379fa7cde",
                   "rule": "ByHost"
                 }
               ]
@@ -37715,19 +37766,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "9352f8d1-a2c2-476c-b93e-1baff0481875",
+                "id": "b97f2cf4-61c7-41ad-a0ea-20b17f5880c4",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "df1e0304-0313-4d09-98b2-2ffcc3a60ac6",
+                "id": "b5bab5e8-04dd-4e92-b8ab-6c9ae31d8636",
                 "rule": "ByVLAN"
               },
               {
-                "id": "f31689db-56e2-41fb-b3e2-0e2de960a6b8",
+                "id": "08440531-9518-459d-8e91-c3ce4bf5b5a4",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "470cf622-992b-4c17-8ae6-c474da074a93",
+                "id": "67b0b720-8e5e-4e7e-9132-0a30d291e07c",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -37748,7 +37799,7 @@
                 }
               },
               {
-                "id": "e77ea526-206c-471a-a584-7cc7fbee26b4",
+                "id": "b08a2ad7-26af-4771-8cde-15937ae1d172",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -37757,15 +37808,15 @@
                 }
               },
               {
-                "id": "e4505a42-939e-4ad6-89f5-8f05b2016f02",
+                "id": "dc4da4cd-5ad2-43a8-9d9a-0a9d173c084b",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "3a98cc40-4a85-4b47-80dc-93334f465fcd",
+                "id": "4990dde5-5ae0-49fc-b5d3-2ca7f8b4b89a",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "b6d4bf1e-134b-4c5c-937f-01ba3739ea5e",
+                "id": "d61355a7-6148-4c74-9e75-a2eb766f9fa2",
                 "rule": "ByStack"
               }
             ]

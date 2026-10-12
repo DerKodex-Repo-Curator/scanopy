@@ -1386,6 +1386,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daemons/provision-eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check whether a new daemon can be provisioned
+         * @description The create wizard reads this before its first step, so a refusal from `POST /provision`
+         *     (no verified owner and a daemon already exists) stops the user up front rather than after
+         *     they have configured everything. Reads only the caller's own organization.
+         */
+        get: operations["get_provision_eligibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/daemons/test-reachability": {
         parameters: {
             query?: never;
@@ -3754,19 +3776,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-12T14:26:45.911574Z",
+             *       "created_at": "2026-10-12T16:19:02.085237Z",
              *       "first_discovery_id": null,
-             *       "id": "28c9a623-ccbe-4dfa-8a7d-85f0cb3a05a0",
+             *       "id": "cfb92547-c0e1-4dac-8a1d-517b485d7f4b",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-12T14:26:45.911574Z",
+             *       "last_seen_at": "2026-10-12T16:19:02.085237Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-12T14:26:45.911574Z",
-             *       "valid_from": "2026-10-12T14:26:45.911574Z",
+             *       "updated_at": "2026-10-12T16:19:02.085237Z",
+             *       "valid_from": "2026-10-12T16:19:02.085237Z",
              *       "valid_to": null
              *     }
              */
@@ -4631,19 +4653,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-12T14:26:45.885877Z",
+             *               "created_at": "2026-10-12T16:19:02.054298Z",
              *               "first_discovery_id": null,
-             *               "id": "85242f99-42e6-4ad2-8f95-2fdca73449ab",
+             *               "id": "70a9ff33-9da1-4a1e-b994-6dbcd2c00a31",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-12T14:26:45.885877Z",
+             *               "last_seen_at": "2026-10-12T16:19:02.054298Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-12T14:26:45.885877Z",
-             *               "valid_from": "2026-10-12T14:26:45.885877Z",
+             *               "updated_at": "2026-10-12T16:19:02.054298Z",
+             *               "valid_from": "2026-10-12T16:19:02.054298Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4656,7 +4678,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Memos",
+             *           "service_definition": "Wazuh",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5394,6 +5416,29 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_ProvisionEligibility: {
+            /** @description Whether provisioning another daemon would be refused for the caller's organization. */
+            data?: {
+                /**
+                 * @description The organization already has a daemon and no owner has verified their email, so a new
+                 *     daemon is refused until one does.
+                 */
+                email_verification_required: boolean;
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_PublicConfigResponse: {
             /** @description The result payload. Omitted on failure. */
             data?: {
@@ -5591,19 +5636,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-12T14:26:45.906416Z",
+             *           "created_at": "2026-10-12T16:19:02.080061Z",
              *           "first_discovery_id": null,
-             *           "id": "8833192a-e648-49cb-b0a4-42b5cc786b73",
+             *           "id": "dfaa7d76-0617-4878-91be-f8632c857a6e",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-12T14:26:45.906416Z",
+             *           "last_seen_at": "2026-10-12T16:19:02.080061Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-12T14:26:45.906416Z",
-             *           "valid_from": "2026-10-12T14:26:45.906416Z",
+             *           "updated_at": "2026-10-12T16:19:02.080061Z",
+             *           "valid_from": "2026-10-12T16:19:02.080061Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5616,7 +5661,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Memos",
+             *       "service_definition": "Wazuh",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6967,19 +7012,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-12T14:26:45.886380Z",
+         *       "created_at": "2026-10-12T16:19:02.055013Z",
          *       "first_discovery_id": null,
-         *       "id": "54dc4369-b014-47d2-965b-52c80a013a14",
+         *       "id": "ec4c397c-1524-4eab-9b55-57d493626c28",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-12T14:26:45.886380Z",
+         *       "last_seen_at": "2026-10-12T16:19:02.055013Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-12T14:26:45.886380Z",
-         *       "valid_from": "2026-10-12T14:26:45.886380Z",
+         *       "updated_at": "2026-10-12T16:19:02.055013Z",
+         *       "valid_from": "2026-10-12T16:19:02.055013Z",
          *       "valid_to": null
          *     }
          */
@@ -7325,7 +7370,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Memos",
+         *           "service_definition": "Wazuh",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -10088,19 +10133,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-12T14:26:45.885291Z",
+         *               "created_at": "2026-10-12T16:19:02.053431Z",
          *               "first_discovery_id": null,
-         *               "id": "80d1658f-2f16-4289-a351-d317a50e2638",
+         *               "id": "ead674e7-d7eb-492b-9a06-9a5eda9fff12",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-12T14:26:45.885291Z",
+         *               "last_seen_at": "2026-10-12T16:19:02.053431Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-12T14:26:45.885291Z",
-         *               "valid_from": "2026-10-12T14:26:45.885291Z",
+         *               "updated_at": "2026-10-12T16:19:02.053431Z",
+         *               "valid_from": "2026-10-12T16:19:02.053431Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10113,7 +10158,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Memos",
+         *           "service_definition": "Wazuh",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -12759,6 +12804,14 @@ export interface components {
              */
             readonly daemon_api_key: string;
         };
+        /** @description Whether provisioning another daemon would be refused for the caller's organization. */
+        ProvisionEligibility: {
+            /**
+             * @description The organization already has a daemon and no owner has verified their email, so a new
+             *     daemon is refused until one does.
+             */
+            email_verification_required: boolean;
+        };
         /**
          * @description A range inferred from where unplaceable far ends say they live.
          *
@@ -13371,19 +13424,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-12T14:26:45.886221Z",
+         *           "created_at": "2026-10-12T16:19:02.054791Z",
          *           "first_discovery_id": null,
-         *           "id": "d274c827-bab1-4b3e-b3b0-b86941606cac",
+         *           "id": "8f53e5bc-1fad-4eb2-9b3c-7078b43704e9",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-12T14:26:45.886221Z",
+         *           "last_seen_at": "2026-10-12T16:19:02.054791Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-12T14:26:45.886221Z",
-         *           "valid_from": "2026-10-12T14:26:45.886221Z",
+         *           "updated_at": "2026-10-12T16:19:02.054791Z",
+         *           "valid_from": "2026-10-12T16:19:02.054791Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13396,7 +13449,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Memos",
+         *       "service_definition": "Wazuh",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -14474,7 +14527,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "e0a7237f-a6ba-4757-97bc-047cdeff8b93",
+             *           "id": "21184a75-4340-4227-94cf-de7cf2663223",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14484,23 +14537,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "57ad59c5-52ae-4cca-af2c-88a4257fc3cd",
+             *           "id": "730ea126-d009-43cc-b9fc-59669d8c3ab6",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "f733754a-5f9a-4846-93ed-3de882926b82",
+             *           "id": "5590cfd7-e873-4f53-878d-6a589da9324d",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "26999f30-e443-4532-80ef-93d22ce6b483",
+             *           "id": "3f9a0d77-4bb7-4e67-bc88-3039a7883dc3",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "57ad59c5-52ae-4cca-af2c-88a4257fc3cd",
+             *           "id": "730ea126-d009-43cc-b9fc-59669d8c3ab6",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14514,19 +14567,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "6779757a-638d-4bb3-9790-9406e0afb19e",
+             *         "id": "84cd9ad7-9bb2-4e79-838b-3608d6f543e3",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "1aa8b1fb-9e72-4a4d-b7a9-cb3d4df52a18",
+             *         "id": "08f8049a-68f8-4087-b44d-ed20965be92e",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "ded032bf-55c2-4dee-a43e-f61e904aa36d",
+             *         "id": "2aeb9072-ea05-4808-84fc-3fc5a96f78b1",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "36108c26-5926-4886-9a04-b7127d4ab5fb",
+             *         "id": "2cc4a99f-4dc0-4524-a8f5-bd47881fd15c",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14547,7 +14600,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "5ac98726-7e65-4367-a120-4cbf9b83e558",
+             *         "id": "14bc5072-b627-4ec9-8928-d21116291695",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14556,15 +14609,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "59848e08-a381-411b-b339-057a8df91cc7",
+             *         "id": "587ea4b0-b2c1-4732-86e7-dea23d4d3b00",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "4980c3b9-a9ae-4ccb-8ba8-803e34a012c7",
+             *         "id": "454cd1b4-3a89-4b2a-9609-b462958125f7",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "9d848103-01b5-40d9-8968-28d269daef77",
+             *         "id": "1fb61c79-bee3-40ef-8830-ef43eef7ff12",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -18148,6 +18201,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_provision_eligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provisioning eligibility */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_ProvisionEligibility"];
                 };
             };
         };
