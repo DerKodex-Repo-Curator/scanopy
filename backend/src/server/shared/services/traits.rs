@@ -796,39 +796,10 @@ where
     }
 }
 
-/// Pull the in-memory `ScannedEntityIds` payload off an
-/// `EntityOperation::Created` event for the historical Discovery row, plus
-/// the row's id (used as `last_discovery_id` / `first_discovery_id`).
-///
-/// Returns `None` when the event isn't for a Discovery, isn't a
-/// `RunType::Historical`, or carries `scanned: None` (which happens for
-/// rows read back from the DB after the strip in
-/// `SqlValue::RunType::bind_value`). Per-entity subscribers iterate events
-/// and skip on `None`.
-pub fn extract_scanned_from_discovery_event(
-    event: &crate::server::shared::events::traits::Event<
-        crate::server::shared::events::types::EntityOperation,
-    >,
-) -> Option<(&crate::server::daemons::r#impl::api::ScannedEntityIds, Uuid)> {
-    use crate::server::shared::entities::{Entity, EntityDiscriminants};
-
-    if event.scope.entity_discriminant() != EntityDiscriminants::Discovery {
-        return None;
-    }
-    let Entity::Discovery(discovery) = event.scope.entity_type() else {
-        return None;
-    };
-    let results = discovery.base.run_type.historical_results()?;
-    let scanned = results.scanned.as_ref()?;
-    Some((scanned, event.scope.entity_id()))
-}
-
-/// Subscriber-driven post-terminal FK update for `DiscoveryTracked` entities.
-/// Called from per-entity-service subscribers on the `EntityOperation::Created`
-/// event published for the historical Discovery row (whose scope carries
-/// `Entity::Discovery(...)` with `run_type::Historical { results: { scanned, .. } }`)
-/// to set `last_discovery_id` (always) and `first_discovery_id` (only when
-/// currently NULL).
+/// Post-terminal FK update for `DiscoveryTracked` entities. Called from
+/// `HostService::stamp_discovery` once a finished session's historical Discovery row is
+/// written, to set `last_discovery_id` (always) and `first_discovery_id` (only when
+/// currently NULL) on the rows the session scanned.
 #[async_trait]
 pub trait DiscoveryFkUpdater<E: DiscoveryTracked + Display> {
     async fn update_discovery_fks(
@@ -879,8 +850,8 @@ where
 /// ranges those addresses sit in. Nothing writes those rows, so without this their Last seen stays
 /// at the scan that first created them and they drift stale while every scan still sees them.
 ///
-/// Called before the run's session is written, never from the discovery-FK subscriber: the digest
-/// reads `last_seen_at` off the same event, and subscriber order is not guaranteed.
+/// Called before the run's session is written, so the digest computed when the session finishes
+/// reads the refreshed `last_seen_at`.
 #[async_trait]
 pub trait ObservationRefresher<E: DiscoveryTracked + Display> {
     /// Load the live rows `filter` matches, move any older `last_seen_at` up to `scan_time`, and

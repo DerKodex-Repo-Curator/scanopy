@@ -331,6 +331,7 @@ impl ServiceFactory {
         let _ = daemon_service.set_host_service(host_service.clone());
         let _ = credential_service.set_host_service(host_service.clone());
         let _ = discovery_service.set_daemon_service(daemon_service.clone());
+        let _ = discovery_service.set_host_service(host_service.clone());
 
         let topology_service = Arc::new(TopologyService::new(
             host_service.clone(),
@@ -372,6 +373,7 @@ impl ServiceFactory {
             discovery_service.clone(),
             event_bus.clone(),
         ));
+        let _ = discovery_service.set_digest_service(discovery_digest_service.clone());
 
         for (var, region) in config.aws_region_mismatches() {
             tracing::error!(
