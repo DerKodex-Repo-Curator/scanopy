@@ -70,8 +70,8 @@ impl TagGroupType {
     /// so it follows entity types as they gain or lose a status or a place in topology.
     pub fn has_computed_scope(&self) -> bool {
         match self {
-            TagGroupType::Status | TagGroupType::Visibility => true,
-            TagGroupType::Application | TagGroupType::Custom => false,
+            TagGroupType::Application | TagGroupType::Status | TagGroupType::Visibility => true,
+            TagGroupType::Custom => false,
         }
     }
 
@@ -85,13 +85,18 @@ impl TagGroupType {
     }
 
     /// Whether a group of this type can ever apply to `entity_type`, whatever its scope says. A
-    /// status tag would compete with the status an entity already carries, and Visibility only
-    /// means something on an entity a topology draws.
+    /// status tag would compete with the status an entity already carries, Visibility only
+    /// means something on an entity a topology draws, and the application view reads application
+    /// tags from hosts and services only.
     pub fn admits(&self, entity_type: EntityDiscriminants) -> bool {
         match self {
+            TagGroupType::Application => matches!(
+                entity_type,
+                EntityDiscriminants::Host | EntityDiscriminants::Service
+            ),
             TagGroupType::Status => !entity_type.has_status(),
             TagGroupType::Visibility => entity_type.drawn_in_topology(),
-            TagGroupType::Application | TagGroupType::Custom => true,
+            TagGroupType::Custom => true,
         }
     }
 
@@ -366,6 +371,21 @@ mod tests {
             Some(expected.as_slice())
         );
         assert_eq!(visibility.allowed_types(), expected);
+    }
+
+    #[test]
+    fn application_covers_only_hosts_and_services() {
+        let application =
+            TagGroupBase::new(Uuid::nil(), "Application".into(), TagGroupType::Application);
+        let expected = vec![EntityDiscriminants::Host, EntityDiscriminants::Service];
+        assert_eq!(application.entity_types, Some(expected.clone()));
+        assert_eq!(application.allowed_types(), expected);
+
+        let with_subnet = TagGroupBase {
+            entity_types: Some(vec![EntityDiscriminants::Host, EntityDiscriminants::Subnet]),
+            ..application
+        };
+        assert!(with_subnet.validate().is_err());
     }
 
     #[test]

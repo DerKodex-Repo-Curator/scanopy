@@ -8,7 +8,6 @@ use super::*;
 #[allow(clippy::vec_init_then_push)]
 pub(super) fn generate_dependencies(
     sites: &[Site],
-    tags: &[Tag],
     svc_ids: &DependencyServiceIds,
 ) -> Vec<Dependency> {
     let now = Utc::now();
@@ -17,11 +16,6 @@ pub(super) fn generate_dependencies(
         .find(|n| n.base.name == "Headquarters")
         .unwrap();
     let dc = sites.iter().find(|n| n.base.name == "Data Center").unwrap();
-
-    let monitoring_tag = tags
-        .iter()
-        .find(|t| t.base.name == "Monitoring")
-        .map(|t| t.id);
 
     let mut dependencies = Vec::new();
 
@@ -52,7 +46,7 @@ pub(super) fn generate_dependencies(
             source: EntitySource::Manual,
             color: Color::Purple,
             edge_style: EdgeStyle::Straight,
-            tags: monitoring_tag.into_iter().collect(),
+            tags: vec![],
         },
     });
 
@@ -155,7 +149,7 @@ pub(super) fn generate_dependencies(
             source: EntitySource::Manual,
             color: Color::Purple,
             edge_style: EdgeStyle::Straight,
-            tags: monitoring_tag.into_iter().collect(),
+            tags: vec![],
         },
     });
 
