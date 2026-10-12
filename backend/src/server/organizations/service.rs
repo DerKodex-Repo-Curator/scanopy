@@ -6,7 +6,7 @@ use crate::server::organizations::demo_status::DemoPopulateStatus;
 use crate::server::organizations::r#impl::base::LICENSE_SILENCE_THRESHOLD_DAYS;
 use crate::server::shared::events::bus::EventBus;
 use crate::server::shared::events::traits::{Event, OrgScope};
-use crate::server::shared::events::types::BillingOperation;
+use crate::server::shared::events::types::{BillingOperation, OnboardingOperationDiscriminants};
 use crate::server::shared::services::traits::EventBusService;
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::lock::{
@@ -90,11 +90,42 @@ fn whole_second(at: DateTime<Utc>) -> DateTime<Utc> {
     DateTime::from_timestamp(at.timestamp(), 0).unwrap_or(at)
 }
 
+/// An organization row read under its advisory lock. Change `org`, awaiting other work in between
+/// if the change depends on it, then [`save`](Self::save) it. Dropping it unsaved writes nothing
+/// and releases the lock.
+pub struct LockedOrganization<'a> {
+    pub org: Organization,
+    lock: SessionLockGuard,
+    service: &'a OrganizationService,
+}
+
+impl LockedOrganization<'_> {
+    /// Write the row, publish its `Updated` event, and release the lock.
+    pub async fn save(mut self, authentication: AuthenticatedEntity) -> Result<Organization, Error> {
+        let updated = self.service.update(&mut self.org, authentication).await?;
+        self.lock.release().await?;
+        Ok(updated)
+    }
+
+    /// Write the row without an entity event, for frequent bookkeeping no user edits (license
+    /// check-ins, notification ratchets).
+    pub async fn save_quietly(mut self) -> Result<Organization, Error> {
+        let updated = self.service.storage.update(&mut self.org).await?;
+        self.lock.release().await?;
+        Ok(updated)
+    }
+
+    /// Release the lock without writing.
+    pub async fn release(self) -> Result<(), Error> {
+        Ok(self.lock.release().await?)
+    }
+}
+
 impl OrganizationService {
     /// Hold the organization row's advisory lock. Every read-modify-write of
-    /// an org that can race another (the billing event mirror, license key
-    /// rotation, license check-ins) takes it, because each writes the
-    /// whole row back and would otherwise revert the other's change.
+    /// an org takes it, through [`lock_for_update`](Self::lock_for_update),
+    /// because each writes the whole row back and would otherwise revert a
+    /// concurrent writer's change.
     pub(crate) async fn lock_organization(
         &self,
         organization_id: Uuid,
@@ -103,6 +134,61 @@ impl OrganizationService {
             .storage
             .session_lock(LockKey::Organization(organization_id), DEFAULT_LOCK_TIMEOUT)
             .await?)
+    }
+
+    /// Lock the organization and read it fresh, for a read-modify-write. `None` (lock released)
+    /// when the organization doesn't exist.
+    pub async fn lock_for_update(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<Option<LockedOrganization<'_>>, Error> {
+        let lock = self.lock_organization(organization_id).await?;
+        match self.get_by_id(&organization_id).await? {
+            Some(org) => Ok(Some(LockedOrganization {
+                org,
+                lock,
+                service: self,
+            })),
+            None => {
+                lock.release().await?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// Apply `change` to the organization under its lock and save it with an `Updated` event.
+    /// Returns what `change` returned, or `None` when the organization doesn't exist.
+    pub async fn modify<T>(
+        &self,
+        organization_id: Uuid,
+        authentication: AuthenticatedEntity,
+        change: impl FnOnce(&mut Organization) -> T,
+    ) -> Result<Option<T>, Error> {
+        let Some(mut locked) = self.lock_for_update(organization_id).await? else {
+            return Ok(None);
+        };
+        let result = change(&mut locked.org);
+        locked.save(authentication).await?;
+        Ok(Some(result))
+    }
+
+    /// Record an onboarding milestone. `true` only for the call that added it, so the caller
+    /// publishes the milestone event once however many requests reach it together.
+    pub async fn record_milestone(
+        &self,
+        organization_id: Uuid,
+        step: OnboardingOperationDiscriminants,
+    ) -> Result<bool, Error> {
+        let Some(mut locked) = self.lock_for_update(organization_id).await? else {
+            return Ok(false);
+        };
+        if !locked.org.not_onboarded(&step) {
+            locked.release().await?;
+            return Ok(false);
+        }
+        locked.org.base.onboarding.push(step);
+        locked.save(AuthenticatedEntity::System).await?;
+        Ok(true)
     }
 
     /// Record that a self-hosted server fetched an entitlement. Publishes no
