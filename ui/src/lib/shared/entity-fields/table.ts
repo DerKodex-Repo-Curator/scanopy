@@ -86,6 +86,7 @@ export function registryColumn<T extends object>(
 		display: {
 			hiddenByDefault: !field.summary,
 			getItems,
+			wrap: field.format.type === 'Prose',
 			getSource: field.source_field ? (item: T) => fieldSource(field, item) : undefined
 		}
 	};

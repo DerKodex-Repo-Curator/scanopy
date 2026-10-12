@@ -144,6 +144,8 @@ export interface DisplayConfig<T> {
 	 * the OS tag does.
 	 */
 	getSource?: (item: T) => AttributeSource | null | undefined;
+	/** Plain text wraps within the column instead of truncating: free text such as a description. */
+	wrap?: boolean;
 	align?: 'left' | 'right';
 	/**
 	 * Where this field sits among the columns, low to high.

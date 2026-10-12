@@ -654,11 +654,12 @@
 		ondblclick={() => resetWidth(column.id)}
 		onkeydown={(e) => resizeByKey(e, column.id)}
 	>
+		<!-- A short grip at rest so the handle can be found; full height while in use. -->
 		<span
-			class="h-full w-0.5 transition-colors group-hover:bg-blue-500/60 group-focus-visible:bg-blue-500 {columnSizingInfo.isResizingColumn ===
+			class="w-0.5 self-center rounded-full transition-all {columnSizingInfo.isResizingColumn ===
 			column.id
-				? 'bg-blue-500'
-				: ''}"
+				? 'h-full bg-blue-500'
+				: 'h-1/2 bg-black/20 group-hover:h-full group-hover:bg-blue-500/60 group-focus-visible:h-full group-focus-visible:bg-blue-500 dark:bg-white/25'}"
 		></span>
 	</div>
 {/snippet}

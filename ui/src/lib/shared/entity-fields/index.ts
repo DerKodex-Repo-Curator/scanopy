@@ -141,6 +141,7 @@ export function formatFieldValue(field: EntityField, value: unknown): string {
 		case 'Metadata':
 			return metadataName(format.fixture, String(value));
 		case 'Text':
+		case 'Prose':
 		case 'Number':
 		case 'Identifier':
 			return String(value);

@@ -73,6 +73,9 @@ pub enum FieldFormat {
     /// Plain text.
     #[schema(title = "Text")]
     Text,
+    /// Free text a person wrote, such as a description. Tables wrap it rather than truncating.
+    #[schema(title = "Prose")]
+    Prose,
     /// A number, written as is.
     #[schema(title = "Number")]
     Number,

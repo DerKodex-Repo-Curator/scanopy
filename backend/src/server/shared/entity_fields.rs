@@ -13,7 +13,7 @@ const SITE: F = F::new("site_id", "Site").entity(&[Hop::parent(E::Site, "site_id
 const SOURCE: F = F::new("source", "Source")
     .field("source.type")
     .metadata(Fx::EntitySources);
-const DESCRIPTION: F = F::new("description", "Description");
+const DESCRIPTION: F = F::new("description", "Description").format(FieldFormat::Prose);
 const TIMESTAMP: FieldFormat = FieldFormat::Timestamp;
 
 const HOST: &[F] = &[
@@ -245,7 +245,7 @@ const TAG: &[F] = &[
 
 const TAG_GROUP: &[F] = &[
     F::new("name", "Name").summary(),
-    F::new("description", "Description"),
+    DESCRIPTION,
     F::new("group_type", "Group Type"),
     F::new("entity_types", "Applies To").many(),
 ];

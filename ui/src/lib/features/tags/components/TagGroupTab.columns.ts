@@ -57,7 +57,8 @@ export function tagGroupColumns(ctx: TagGroupColumnsContext): FieldConfig<TagGro
 			label: common_description(),
 			type: 'string',
 			searchable: true,
-			getValue: (group) => group.description
+			getValue: (group) => group.description,
+			display: { wrap: true }
 		},
 		{
 			key: 'group_type',
