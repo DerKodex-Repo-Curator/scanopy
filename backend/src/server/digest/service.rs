@@ -21,7 +21,10 @@ use crate::server::{
         VlanSummary,
     },
     digest::run_report,
-    hosts::{r#impl::base::Host, service::HostService},
+    hosts::{
+        r#impl::{base::Host, name_ladder::UNNAMED_HOST},
+        service::HostService,
+    },
     interfaces::{r#impl::base::Interface, service::InterfaceService},
     ip_addresses::{r#impl::base::IPAddress, service::IPAddressService},
     ports::{r#impl::base::Port, service::PortService},
@@ -243,8 +246,10 @@ impl DiscoveryDigestService {
             .ip_address_service
             .get_all(StorableFilter::<IPAddress>::new_from_site_ids(&[site_id]).live())
             .await?;
+        let mut host_ips: HashMap<Uuid, Vec<&IPAddress>> = HashMap::new();
         let mut host_subnets: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
         for ip in &all_ips {
+            host_ips.entry(ip.base.host_id).or_default().push(ip);
             host_subnets
                 .entry(ip.base.host_id)
                 .or_default()
@@ -313,15 +318,15 @@ impl DiscoveryDigestService {
         {
             match status {
                 EntityFreshness::New => {
-                    hosts_added.push(build_card(&host, status, &current_children));
+                    hosts_added.push(build_card(&host, status, &current_children, &host_ips));
                 }
                 EntityFreshness::Stale => {
                     if is_fresh {
-                        hosts_stale.push(build_card(&host, status, &current_children));
+                        hosts_stale.push(build_card(&host, status, &current_children, &host_ips));
                     }
                 }
                 EntityFreshness::Current => {
-                    let card = build_card(&host, status, &current_children);
+                    let card = build_card(&host, status, &current_children, &host_ips);
                     if card_has_fresh_children(&card) {
                         hosts_changed.push(card);
                     }
@@ -721,10 +726,12 @@ fn build_card(
     host: &Host,
     status: EntityFreshness,
     children: &HashMap<Uuid, HostChildren>,
+    host_ips: &HashMap<Uuid, Vec<&IPAddress>>,
 ) -> AffectedHostCard {
     let kids = children.get(&host.id);
+    let ips = host_ips.get(&host.id).into_iter().flatten().copied();
     AffectedHostCard {
-        host: host_summary(host),
+        host: host_summary(host, ips),
         status,
         services: kids.map(|c| c.services.clone()).unwrap_or_default(),
         ip_addresses: kids.map(|c| c.ip_addresses.clone()).unwrap_or_default(),
@@ -733,10 +740,12 @@ fn build_card(
     }
 }
 
-fn host_summary(h: &Host) -> HostSummary {
-    let label = crate::server::shared::attribution::text_of(&h.base.hostname)
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| h.base.name.to_string());
+/// The host titled the way every other surface titles it: [`Host::display_name`], or
+/// [`UNNAMED_HOST`] when nothing identifies it.
+fn host_summary<'a>(h: &Host, ips: impl IntoIterator<Item = &'a IPAddress>) -> HostSummary {
+    let label = h
+        .display_name(ips)
+        .unwrap_or_else(|| UNNAMED_HOST.to_string());
     HostSummary { id: h.id, label }
 }
 
@@ -1257,5 +1266,52 @@ mod tests {
         );
         assert!(!coverage.covers_host(Uuid::new_v4(), Some(&subnets(&[Uuid::new_v4()])), false));
         assert!(!coverage.swept_subnets());
+    }
+
+    // ---- Host titles ------------------------------------------------------
+
+    /// A host with a blank name and no hostname (a controller import, an LLDP far end) is titled
+    /// from the rest of the ladder, the same as in the app, and never left blank.
+    #[test]
+    fn a_card_titles_its_host_the_way_the_app_does() {
+        use crate::server::hosts::r#impl::attributes::HostSysNameValue;
+        use crate::server::hosts::r#impl::name::{HostName, HostNameSources};
+        use crate::server::shared::attribution::{AttributeSource, Attributed};
+        use crate::server::shared::types::examples;
+
+        let nameless = |h: &mut Host| {
+            h.id = Uuid::new_v4();
+            h.base.name = HostName::unnamed();
+            h.base.hostname = None;
+            h.base.sys_name = None;
+            h.base.chassis_id = None;
+        };
+        let mut by_sys_name = examples::host();
+        nameless(&mut by_sys_name);
+        by_sys_name.base.sys_name = Some(Attributed::new(
+            HostSysNameValue("core-sw-01".to_string()),
+            AttributeSource::Unspecified,
+        ));
+        let mut by_address = examples::host();
+        nameless(&mut by_address);
+        let mut address = examples::ip_address();
+        address.base.host_id = by_address.id;
+        let mut unidentified = examples::host();
+        nameless(&mut unidentified);
+
+        let host_ips: HashMap<Uuid, Vec<&IPAddress>> =
+            HashMap::from([(by_address.id, vec![&address])]);
+        let label = |h: &Host| {
+            build_card(h, EntityFreshness::New, &HashMap::new(), &host_ips)
+                .host
+                .label
+        };
+
+        for h in [&by_sys_name, &by_address] {
+            let expected = h.display_name(host_ips.get(&h.id).into_iter().flatten().copied());
+            assert!(expected.is_some());
+            assert_eq!(Some(label(h)), expected);
+        }
+        assert_eq!(label(&unidentified), UNNAMED_HOST);
     }
 }
