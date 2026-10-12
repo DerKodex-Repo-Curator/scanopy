@@ -800,7 +800,11 @@ async fn deliver<Op: Operation>(
             SubscriberErrorOutcome::Exhausted,
             1,
         );
-        tracing::error!(subscriber = name, panic = message, "Typed subscriber panicked");
+        tracing::error!(
+            subscriber = name,
+            panic = message,
+            "Typed subscriber panicked"
+        );
     }
 }
 
@@ -1043,7 +1047,9 @@ mod tests {
             .await;
 
         channel
-            .publish(onboarding_event(OnboardingOperation::OnboardingModalCompleted))
+            .publish(onboarding_event(
+                OnboardingOperation::OnboardingModalCompleted,
+            ))
             .await
             .unwrap();
         assert_eq!(handled.load(Ordering::SeqCst), 0);
@@ -1131,7 +1137,9 @@ mod tests {
             .await;
         for _ in 0..2 {
             channel
-                .publish(onboarding_event(OnboardingOperation::OnboardingModalCompleted))
+                .publish(onboarding_event(
+                    OnboardingOperation::OnboardingModalCompleted,
+                ))
                 .await
                 .unwrap();
         }
@@ -1175,7 +1183,9 @@ mod tests {
         tokio::task::yield_now().await;
         for _ in 0..3 {
             channel
-                .publish(onboarding_event(OnboardingOperation::OnboardingModalCompleted))
+                .publish(onboarding_event(
+                    OnboardingOperation::OnboardingModalCompleted,
+                ))
                 .await
                 .unwrap();
         }

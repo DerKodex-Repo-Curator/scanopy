@@ -101,7 +101,10 @@ pub struct LockedOrganization<'a> {
 
 impl LockedOrganization<'_> {
     /// Write the row, publish its `Updated` event, and release the lock.
-    pub async fn save(mut self, authentication: AuthenticatedEntity) -> Result<Organization, Error> {
+    pub async fn save(
+        mut self,
+        authentication: AuthenticatedEntity,
+    ) -> Result<Organization, Error> {
         let updated = self.service.update(&mut self.org, authentication).await?;
         self.lock.release().await?;
         Ok(updated)
