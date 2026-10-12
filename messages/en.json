@@ -1179,7 +1179,7 @@
 	"home_recentScans": "Recent scans",
 	"home_referralSubtitle": "Helps us understand how people find Scanopy.",
 	"home_scanNothingToFix": "{count} warning(s), nothing to fix",
-	"home_scanToFix": "{count} to fix",
+	"home_scanToFix": "{count} Warnings",
 	"hosts_bindings_boundBy": "Bound by {service}",
 	"hosts_bindings_hasIPAddressBindings": "Service has IP Address bindings",
 	"hosts_bindings_hostNotFound": "Host not found",
