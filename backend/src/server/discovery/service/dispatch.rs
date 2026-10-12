@@ -682,7 +682,10 @@ impl DiscoveryService {
                 let scanned = session.scanned.as_ref().unwrap_or(&empty);
                 // Not retried: it may have published the digest, and so sent its emails, before
                 // failing, and a second run would send them again.
-                if let Err(e) = digest_service.compute_and_publish(&session, scanned).await {
+                if let Err(e) = digest_service
+                    .compute_and_publish(&session, scanned, historical_discovery.id)
+                    .await
+                {
                     record_finish_error(DiscoveryFinishStep::Digest);
                     tracing::error!(
                         session_id = %session_id,

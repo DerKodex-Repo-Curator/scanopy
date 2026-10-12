@@ -946,6 +946,20 @@ mod tests {
             vlans_added: vec![],
             vlans_stale: vec![],
             recipients: vec![],
+            discovery_id: Some(Uuid::nil()),
+            warnings: crate::server::digest::payload::WarningCounts {
+                fix_credentials: 2,
+                fix_other: 1,
+                check_device: 0,
+                no_action: 3,
+            },
+            credentials_used: 4,
+            credential_problems: vec![crate::server::digest::payload::CredentialProblem {
+                name: Some("Lab switches".to_string()),
+                type_label: "SNMP v2c".to_string(),
+                hosts_reached: 0,
+                warnings: 2,
+            }],
         };
         f(
             "discovery_digest",

@@ -4,4 +4,5 @@
 //! email subscriber to render and dispatch.
 
 pub mod payload;
+pub mod run_report;
 pub mod service;

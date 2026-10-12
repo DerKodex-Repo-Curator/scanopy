@@ -834,6 +834,68 @@ impl DiscoveryWarning {
             | Self::Unknown { .. } => None,
         }
     }
+
+    /// The stored credential this warning is about. `None` for every warning that is not about
+    /// one, and for a credential warning from a daemon that predates the id.
+    pub fn credential_id(&self) -> Option<Uuid> {
+        match self {
+            Self::CredentialTargetNotScanned { credential_id, .. }
+            | Self::CredentialTargetNotResponding { credential_id, .. }
+            | Self::CredentialGateClosed { credential_id, .. }
+            | Self::CredentialDaemonOsMismatch { credential_id, .. } => *credential_id,
+
+            Self::CredentialRejected(a)
+            | Self::CredentialMalformed(a)
+            | Self::CredentialTlsFailed(a)
+            | Self::CredentialNotThisService(a)
+            | Self::CredentialCollectionFailed(a)
+            | Self::CredentialCollectionTimedOut(a)
+            | Self::CredentialUnreachable(a)
+            | Self::CredentialTimedOut(a) => a.credential_id,
+
+            Self::InterfaceSetCutShort { .. }
+            | Self::InterfaceDetailsCutShort { .. }
+            | Self::SnmpWalkEntryCap { .. }
+            | Self::SnmpWalkUnsupported { .. }
+            | Self::SnmpWalkDesynchronised { .. }
+            | Self::SnmpWalkPartialDiscarded { .. }
+            | Self::SnmpWalkPartialRecorded { .. }
+            | Self::SnmpWalkBridgeMibAbsent { .. }
+            | Self::SnmpWalkNoAnswer { .. }
+            | Self::ClaimedCountReadCutShort { .. }
+            | Self::ClaimedCountUnderRead { .. }
+            | Self::ClaimedCapabilityReadCutShort { .. }
+            | Self::ClaimedCapabilityEmpty { .. }
+            | Self::LldpLocalPortDropped { .. }
+            | Self::LldpLocalPortDroppedReadCutShort { .. }
+            | Self::LldpLocalPortMisplaced { .. }
+            | Self::MalformedNeighboursWalkCutShort(_)
+            | Self::MalformedNeighboursGhostRows(_)
+            | Self::MalformedNeighboursIncompleteRecords(_)
+            | Self::MalformedNeighboursUnexpectedType(_)
+            | Self::MalformedNeighboursUnreadableIndex(_)
+            | Self::SnmpCollectedNothing { .. }
+            | Self::VlanRecordingFailed { .. }
+            | Self::EqualReachIntegrationsMerged { .. }
+            | Self::ConnectionsWithoutProtocolResponse { .. }
+            | Self::ScanTimeLimitWithEstimate { .. }
+            | Self::ScanTimeLimit { .. }
+            | Self::DcpSweepTimedOut { .. }
+            | Self::IcmpSweepTimedOut { .. }
+            | Self::ReverseDnsTimedOut { .. }
+            | Self::LldpNeighbourNotFound(_)
+            | Self::LldpNeighbourAmbiguous(_)
+            | Self::LldpPortNoStrategy(_)
+            | Self::LldpPortNotFound(_)
+            | Self::LldpPortAmbiguous(_)
+            | Self::ProvisionalSubnetInferred(_)
+            | Self::NeighbourResolutionIncomplete { .. }
+            | Self::FdbResolutionIncomplete { .. }
+            | Self::OutdatedDaemonFormat { .. }
+            | Self::WarningsTruncated { .. }
+            | Self::Unknown { .. } => None,
+        }
+    }
 }
 
 /// Read the `warnings` array, tolerating everything four deploy directions can put in it.
