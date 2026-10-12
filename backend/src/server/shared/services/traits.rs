@@ -711,6 +711,8 @@ where
 
         let entities = self.storage().get_all(filter.clone()).await?;
 
+        // Built before deletion, published after, as in `delete_many`.
+        let mut events = Vec::new();
         for entity in entities {
             let trigger_stale = entity.triggers_staleness(None);
             let suppress_logs = self.suppress_logs(Some(&entity), None);
@@ -727,18 +729,24 @@ where
                 entity.site_id(),
                 entity.organization_id(),
             ) {
-                let event =
+                events.push(
                     TypedEvent::new(scope, EntityOperation::Deleted, authentication.clone())
                         .with_flags(EntityEventFlags {
                             trigger_stale,
                             suppress_logs,
                             ..Default::default()
-                        });
-                self.event_bus().publish(event).await?;
+                        }),
+                );
             }
         }
 
-        self.storage().delete_by_filter(filter).await
+        let deleted = self.storage().delete_by_filter(filter).await?;
+
+        for event in events {
+            self.event_bus().publish(event).await?;
+        }
+
+        Ok(deleted)
     }
 }
 
