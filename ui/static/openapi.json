@@ -10582,7 +10582,7 @@
         "tags": [
           "Organizations"
         ],
-        "summary": "Record the user's response to the daemon-install prompt so it is not shown again.\nEach CTA persists a distinct onboarding milestone (the org subscriber dedups); the\nPostHog subscriber turns these into funnel events, so no client-side telemetry is needed.",
+        "summary": "Record the user's response to the daemon-install prompt so it is not shown again.\nEach CTA records a distinct onboarding milestone, which the UI reads to hide the prompt.\nEvery response is published; the PostHog subscriber turns these into funnel events, so\nno client-side telemetry is needed.",
         "operationId": "daemon_prompt_response",
         "requestBody": {
           "content": {

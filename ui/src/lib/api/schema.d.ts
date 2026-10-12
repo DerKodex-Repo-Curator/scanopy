@@ -2376,8 +2376,9 @@ export interface paths {
         put?: never;
         /**
          * Record the user's response to the daemon-install prompt so it is not shown again.
-         *     Each CTA persists a distinct onboarding milestone (the org subscriber dedups); the
-         *     PostHog subscriber turns these into funnel events, so no client-side telemetry is needed.
+         *     Each CTA records a distinct onboarding milestone, which the UI reads to hide the prompt.
+         *     Every response is published; the PostHog subscriber turns these into funnel events, so
+         *     no client-side telemetry is needed.
          */
         post: operations["daemon_prompt_response"];
         delete?: never;
