@@ -7,7 +7,6 @@
 	import { isPlanLapsed } from '$lib/features/organizations/types';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useActiveSessionsQuery } from '$lib/features/discovery/queries';
-	import { useCredentialsQuery } from '$lib/features/credentials/queries';
 	import GettingStartedChecklist from './GettingStartedChecklist.svelte';
 	import ActiveDiscoveries from './ActiveDiscoveries.svelte';
 	import SiteMetrics from './SiteMetrics.svelte';
@@ -39,7 +38,6 @@
 	const currentUserQuery = useCurrentUserQuery();
 	const configQuery = useConfigQuery();
 	const sessionsQuery = useActiveSessionsQuery();
-	const credentialsQuery = useCredentialsQuery();
 
 	let dashboard = $derived(dashboardQuery.data);
 	let organization = $derived(organizationQuery.data);
@@ -192,7 +190,6 @@
 				recent={dashboard.recent_discoveries}
 				daemons={dashboard.daemons}
 				sites={dashboard.sites}
-				credentials={credentialsQuery.data ?? []}
 				onOpenRun={(discovery) => {
 					// The run itself, so the modal opens even when the history tab has not loaded it.
 					openModal('discovery-history-detail', { id: discovery.id, entityData: discovery });
