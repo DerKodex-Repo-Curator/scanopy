@@ -18,8 +18,8 @@ use crate::server::shared::events::types::EventLogLevel;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HostSummary {
     pub id: Uuid,
-    /// Hostname when discovery resolved one (SNMP `sysName.0`, reverse DNS,
-    /// or user-assigned); falls back to the synthetic `name`.
+    /// The host's [`Host::display_name`](crate::server::hosts::r#impl::base::Host::display_name),
+    /// as every other surface titles it, or "Unnamed host" when nothing identifies it.
     pub label: String,
 }
 
