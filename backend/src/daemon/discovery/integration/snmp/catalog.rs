@@ -17,8 +17,9 @@ use super::session::{
 use super::{SNMP_PORTS, SnmpIntegration};
 use crate::daemon::discovery::integration::DiscoveryIntegration;
 use crate::server::credentials::r#impl::types::snmp::{
-    SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpVersion,
+    SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpV3SecurityLevel, SnmpVersion,
 };
+use crate::server::shared::types::field_definition::FieldSetValue;
 
 /// How an object is read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -324,6 +325,7 @@ pub struct SnmpLimit {
 #[derive(Debug, Clone, Serialize)]
 pub struct SnmpReference {
     pub versions: Vec<String>,
+    pub v3_security_levels: Vec<&'static str>,
     pub v3_auth_protocols: Vec<&'static str>,
     pub v3_privacy_protocols: Vec<&'static str>,
     pub ports: &'static [u16],
@@ -347,6 +349,10 @@ pub fn snmp_reference() -> SnmpReference {
         versions: SnmpVersion::VARIANTS
             .iter()
             .map(|v| format!("SNMP{}", v.to_lowercase()))
+            .collect(),
+        v3_security_levels: SnmpV3SecurityLevel::options()
+            .iter()
+            .map(|o| o.label)
             .collect(),
         v3_auth_protocols: SnmpV3AuthProtocol::OPTIONS
             .iter()

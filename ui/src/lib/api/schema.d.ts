@@ -2376,8 +2376,9 @@ export interface paths {
         put?: never;
         /**
          * Record the user's response to the daemon-install prompt so it is not shown again.
-         *     Each CTA persists a distinct onboarding milestone (the org subscriber dedups); the
-         *     PostHog subscriber turns these into funnel events, so no client-side telemetry is needed.
+         *     Each CTA records a distinct onboarding milestone, which the UI reads to hide the prompt.
+         *     Every response is published; the PostHog subscriber turns these into funnel events, so
+         *     no client-side telemetry is needed.
          */
         post: operations["daemon_prompt_response"];
         delete?: never;
@@ -3710,7 +3711,7 @@ export interface components {
          * @description API metadata included in all responses
          * @example {
          *       "api_version": 1,
-         *       "server_version": "0.17.22"
+         *       "server_version": "0.18.1"
          *     }
          */
         ApiMeta: {
@@ -3721,7 +3722,7 @@ export interface components {
             api_version: number;
             /**
              * @description Server version (semver)
-             * @example 0.17.22
+             * @example 0.18.1
              */
             server_version: string;
         };
@@ -3750,19 +3751,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-11T21:15:50.709872Z",
+             *       "created_at": "2026-10-12T12:54:08.011291Z",
              *       "first_discovery_id": null,
-             *       "id": "e2f626c6-2fc8-471a-a564-7aa9e34ac9ac",
+             *       "id": "af23944a-fc1b-4350-a687-09dc839afa91",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-11T21:15:50.709872Z",
+             *       "last_seen_at": "2026-10-12T12:54:08.011291Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-11T21:15:50.709872Z",
-             *       "valid_from": "2026-10-11T21:15:50.709872Z",
+             *       "updated_at": "2026-10-12T12:54:08.011291Z",
+             *       "valid_from": "2026-10-12T12:54:08.011291Z",
              *       "valid_to": null
              *     }
              */
@@ -4627,19 +4628,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-11T21:15:50.684655Z",
+             *               "created_at": "2026-10-12T12:54:07.985870Z",
              *               "first_discovery_id": null,
-             *               "id": "2e668540-7651-42e3-82ce-de53ccb61665",
+             *               "id": "4e0dda6e-92f0-4551-9667-d6e9c9cf0665",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-11T21:15:50.684655Z",
+             *               "last_seen_at": "2026-10-12T12:54:07.985870Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-11T21:15:50.684655Z",
-             *               "valid_from": "2026-10-11T21:15:50.684655Z",
+             *               "updated_at": "2026-10-12T12:54:07.985870Z",
+             *               "valid_from": "2026-10-12T12:54:07.985870Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4652,7 +4653,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Open LDAP",
+             *           "service_definition": "Neo4j",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5587,19 +5588,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-11T21:15:50.704908Z",
+             *           "created_at": "2026-10-12T12:54:08.006453Z",
              *           "first_discovery_id": null,
-             *           "id": "67a11fca-cc33-4eec-8f5f-9a47659ff3f1",
+             *           "id": "88af47d2-a430-4a2d-9b7a-cfc3a320ff85",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-11T21:15:50.704908Z",
+             *           "last_seen_at": "2026-10-12T12:54:08.006453Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-11T21:15:50.704908Z",
-             *           "valid_from": "2026-10-11T21:15:50.704908Z",
+             *           "updated_at": "2026-10-12T12:54:08.006453Z",
+             *           "valid_from": "2026-10-12T12:54:08.006453Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5612,7 +5613,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Open LDAP",
+             *       "service_definition": "Neo4j",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6348,6 +6349,7 @@ export interface components {
             /** @description Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method. */
             data?: {
                 docker: components["schemas"]["DockerUpgrade"];
+                /** @description Binary upgrade steps on FreeBSD. */
                 freebsd: components["schemas"]["UpgradeStep"][];
                 /**
                  * @description The restart step names the service after the daemon, as installs from before the install
@@ -6355,8 +6357,11 @@ export interface components {
                  *     operator to `scanopy-daemon list` for the real service.
                  */
                 legacy_service_name: boolean;
+                /** @description Binary upgrade steps on Linux. */
                 linux: components["schemas"]["UpgradeStep"][];
+                /** @description Binary upgrade steps on macOS. */
                 macos: components["schemas"]["UpgradeStep"][];
+                /** @description Binary upgrade steps on Windows. */
                 windows: components["schemas"]["UpgradeStep"][];
             };
             /**
@@ -6959,19 +6964,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-11T21:15:50.685151Z",
+         *       "created_at": "2026-10-12T12:54:07.986398Z",
          *       "first_discovery_id": null,
-         *       "id": "0fdb2ae9-c347-46e4-9704-d9d53bb7755d",
+         *       "id": "919af788-d6d0-4f2a-a70a-ed99a5a36397",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-11T21:15:50.685151Z",
+         *       "last_seen_at": "2026-10-12T12:54:07.986398Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-11T21:15:50.685151Z",
-         *       "valid_from": "2026-10-11T21:15:50.685151Z",
+         *       "updated_at": "2026-10-12T12:54:07.986398Z",
+         *       "valid_from": "2026-10-12T12:54:07.986398Z",
          *       "valid_to": null
          *     }
          */
@@ -7317,7 +7322,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Open LDAP",
+         *           "service_definition": "Neo4j",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -7623,22 +7628,15 @@ export interface components {
             community: components["schemas"]["SecretValue"];
             /** @enum {string} */
             type: "SnmpV2c";
-        } | {
-            /** @description Authentication passphrase. */
-            auth_password: components["schemas"]["SecretValue"];
-            /** @description Hash algorithm used for authentication. */
-            auth_protocol: components["schemas"]["SnmpV3AuthProtocol"];
+        } | (components["schemas"]["SnmpV3Security_SecretValue"] & {
             /** @description Optional context name (default/empty context used if unset). */
             context_name?: string | null;
-            /** @description Privacy passphrase. */
-            priv_password: components["schemas"]["SecretValue"];
-            /** @description Cipher used for privacy (encryption). */
-            priv_protocol: components["schemas"]["SnmpV3PrivProtocol"];
             /** @description USM security (user) name. */
             security_name: string;
+        } & {
             /** @enum {string} */
             type: "SnmpV3";
-        } | {
+        }) | {
             /** @description Password, sent as gRPC `password` metadata. */
             password: components["schemas"]["SecretValue"];
             /**
@@ -8853,6 +8851,25 @@ export interface components {
             declared: components["schemas"]["OsFamily"];
             integration: components["schemas"]["CredentialQueryPayloadDiscriminants"];
         } | {
+            /** @enum {string} */
+            code: "CredentialDaemonTooOld";
+            /**
+             * Format: uuid
+             * @description The stored credential. See [`CredentialAttempt::credential_id`].
+             */
+            credential_id: string | null;
+            /**
+             * @description The version of the daemon that ran the scan. `None` for a daemon that never reported one.
+             * @example 0.18.0
+             */
+            daemon_version?: string | null;
+            integration: components["schemas"]["CredentialQueryPayloadDiscriminants"];
+            /**
+             * @description The oldest daemon version that can receive this credential type.
+             * @example 0.18.1
+             */
+            minimum_daemon_version: string;
+        } | {
             /** @description The address the credential is bound to. */
             address: string;
             /** @enum {string} */
@@ -9490,6 +9507,7 @@ export interface components {
         FieldDefinition: {
             /** @description Value pre-filled when the field is first shown. */
             default_value?: string | null;
+            field_set?: null | components["schemas"]["FieldSetRole"];
             /** @description How the field should be rendered and validated. */
             field_type: components["schemas"]["FieldType"];
             /**
@@ -9515,7 +9533,8 @@ export interface components {
             optional: boolean;
             /**
              * @description Choices for `Select` fields. Each option carries a wire `value` (the serialized enum
-             *     variant) and a human-facing `label`.
+             *     variant) and a human-facing `label`. A `FieldSet::Sets` dropdown takes them from its set's
+             *     enum ([`FieldSetValue::options`]).
              */
             options?: components["schemas"]["SelectOption"][] | null;
             /** @description Placeholder text for the input. */
@@ -9561,6 +9580,14 @@ export interface components {
         } | {
             /** @enum {string} */
             type: "Entity";
+        };
+        /**
+         * @description Schema of [`FieldDefinition::field_set`] on the wire. Never constructed: the values are the
+         *     serialized variants of the set's own enum, which the schema cannot name generically.
+         */
+        FieldSetRole: "Sets" | {
+            /** @description Shown only while the dropdown holds one of these values. */
+            Requires: string[];
         };
         /**
          * @description Field types for dynamic form generation.
@@ -9654,15 +9681,18 @@ export interface components {
         /** @description One step from an object to related objects. */
         Hop: {
             entity: components["schemas"]["EntityDiscriminants"];
+            /** @description Field on the current object holding the parent's id or ids. */
             key: string;
             /** @enum {string} */
             type: "Parent";
         } | {
             entity: components["schemas"]["EntityDiscriminants"];
+            /** @description Field on each child holding the current object's id. */
             key: string;
             /** @enum {string} */
             type: "Children";
         } | {
+            /** @description Field on the current object holding the array. */
             key: string;
             /** @enum {string} */
             type: "Embedded";
@@ -10037,19 +10067,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-11T21:15:50.684065Z",
+         *               "created_at": "2026-10-12T12:54:07.985277Z",
          *               "first_discovery_id": null,
-         *               "id": "12ade7a6-f2ab-49b1-b68f-c585007f1d5c",
+         *               "id": "877df3f8-bb36-4981-ae60-f8a6f636a8b2",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-11T21:15:50.684065Z",
+         *               "last_seen_at": "2026-10-12T12:54:07.985277Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-11T21:15:50.684065Z",
-         *               "valid_from": "2026-10-11T21:15:50.684065Z",
+         *               "updated_at": "2026-10-12T12:54:07.985277Z",
+         *               "valid_from": "2026-10-12T12:54:07.985277Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10062,7 +10092,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Open LDAP",
+         *           "service_definition": "Neo4j",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -11666,7 +11696,7 @@ export interface components {
          *         "offset": 0,
          *         "total_count": 142
          *       },
-         *       "server_version": "0.17.22"
+         *       "server_version": "0.18.1"
          *     }
          */
         PaginatedApiMeta: {
@@ -11679,7 +11709,7 @@ export interface components {
             pagination: components["schemas"]["PaginationMeta"];
             /**
              * @description Server version (semver)
-             * @example 0.17.22
+             * @example 0.18.1
              */
             server_version: string;
         };
@@ -12896,6 +12926,7 @@ export interface components {
             date: string;
             /** @description The notes, as HTML rendered from the reviewed markdown, without raw HTML. */
             html: string;
+            /** @description The release's headline. */
             title: string;
             /** @description This release on the public changelog. */
             url: string;
@@ -13256,19 +13287,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-11T21:15:50.684994Z",
+         *           "created_at": "2026-10-12T12:54:07.986208Z",
          *           "first_discovery_id": null,
-         *           "id": "a31f2f4d-cf7e-4250-a21f-058279753436",
+         *           "id": "d2307974-6175-4a27-abb6-eb4d65ba111a",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-11T21:15:50.684994Z",
+         *           "last_seen_at": "2026-10-12T12:54:07.986208Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-11T21:15:50.684994Z",
-         *           "valid_from": "2026-10-11T21:15:50.684994Z",
+         *           "updated_at": "2026-10-12T12:54:07.986208Z",
+         *           "valid_from": "2026-10-12T12:54:07.986208Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13281,7 +13312,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Open LDAP",
+         *       "service_definition": "Neo4j",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13709,18 +13740,77 @@ export interface components {
             taken_at: string;
         };
         /**
-         * @description SNMPv3 USM authentication protocol. Variants are limited to the modern,
-         *     secure set Scanopy supports; MD5 / SHA-2 variants beyond these are
-         *     intentionally excluded. Serialized form (e.g. "Sha256") is the wire value
+         * @description SNMPv3 USM authentication protocol. MD5 is offered for devices that support nothing else;
+         *     SHA-2 variants beyond SHA-256 are not. Serialized form (e.g. "Sha256") is the wire value
          *     stored in the credential and used as the frontend select option value.
          * @enum {string}
          */
-        SnmpV3AuthProtocol: "Sha1" | "Sha256";
+        SnmpV3AuthProtocol: "Md5" | "Sha1" | "Sha256";
         /**
          * @description SNMPv3 USM privacy (encryption) protocol.
          * @enum {string}
          */
         SnmpV3PrivProtocol: "Aes128" | "Aes256";
+        /**
+         * @description The security material of an SNMPv3 credential, by security level. A level carries exactly
+         *     the fields it uses, so a credential cannot hold a privacy password it never sends.
+         *
+         *     `S` is the secret's representation: `SecretValue` where the credential is stored,
+         *     `ResolvableSecret` on the server→daemon wire. Flattened into its parent, so the stored JSON
+         *     keeps the flat shape it had before levels existed.
+         */
+        SnmpV3Security_SecretValue: {
+            /** @enum {string} */
+            security_level: "NoAuthNoPriv";
+        } | {
+            /** @description Secret value that can be either inline content or a file path on the daemon host. */
+            auth_password: {
+                /** @enum {string} */
+                mode: "Inline";
+                /** @description The secret itself. Write-only — reads return a redacted placeholder. */
+                value: string;
+            } | {
+                /** @enum {string} */
+                mode: "FilePath";
+                /** @description Path to a file on the daemon host holding the secret. */
+                path: components["schemas"]["DaemonPath"];
+            };
+            /** @description Hash algorithm used for authentication. */
+            auth_protocol: components["schemas"]["SnmpV3AuthProtocol"];
+            /** @enum {string} */
+            security_level: "AuthNoPriv";
+        } | {
+            /** @description Secret value that can be either inline content or a file path on the daemon host. */
+            auth_password: {
+                /** @enum {string} */
+                mode: "Inline";
+                /** @description The secret itself. Write-only — reads return a redacted placeholder. */
+                value: string;
+            } | {
+                /** @enum {string} */
+                mode: "FilePath";
+                /** @description Path to a file on the daemon host holding the secret. */
+                path: components["schemas"]["DaemonPath"];
+            };
+            /** @description Hash algorithm used for authentication. */
+            auth_protocol: components["schemas"]["SnmpV3AuthProtocol"];
+            /** @description Secret value that can be either inline content or a file path on the daemon host. */
+            priv_password: {
+                /** @enum {string} */
+                mode: "Inline";
+                /** @description The secret itself. Write-only — reads return a redacted placeholder. */
+                value: string;
+            } | {
+                /** @enum {string} */
+                mode: "FilePath";
+                /** @description Path to a file on the daemon host holding the secret. */
+                path: components["schemas"]["DaemonPath"];
+            };
+            /** @description Cipher used for privacy (encryption). */
+            priv_protocol: components["schemas"]["SnmpV3PrivProtocol"];
+            /** @enum {string} */
+            security_level: "AuthPriv";
+        };
         /**
          * @description An SNMP data group a walk may come up short on.
          *
@@ -14300,7 +14390,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "b0553a61-8b28-47d2-afa6-6523bc05c458",
+             *           "id": "5eba1e35-9dab-49e3-a974-2725824b9c6a",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14310,23 +14400,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "89f76b13-43b3-4622-b1a1-e41776d966ae",
+             *           "id": "47499127-f6da-42fd-8bb6-9431d62ac755",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "339e04cb-c8cd-4645-82d2-d1533aba08f9",
+             *           "id": "449557db-d3f1-4497-9b70-ef1974dd4988",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "26cda3ac-06f4-4fc2-88ed-b35e10987011",
+             *           "id": "04f10264-6e11-4397-aaeb-e5e92801bfe0",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "89f76b13-43b3-4622-b1a1-e41776d966ae",
+             *           "id": "47499127-f6da-42fd-8bb6-9431d62ac755",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14340,19 +14430,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "53bae588-deb4-4f75-b147-246e78796aa7",
+             *         "id": "18941fbc-cdd2-4128-aeaa-bff020be8027",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "c17d3b7b-3c51-443a-b0d7-95b3c29b6c63",
+             *         "id": "60f8ba6e-0c8d-4cb4-a9f7-d30ed04043c8",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "18661e7f-2e56-4ff6-9985-d2a9c9f60c42",
+             *         "id": "a0974be4-2fba-4a34-9e79-a9e98ca64873",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "58caf56b-f9f3-421e-8ca0-8e830e6353a9",
+             *         "id": "387d9612-a9e5-4468-9706-e7073082b870",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14373,7 +14463,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "201bf00b-6faa-4792-9ad9-a10cb385da1c",
+             *         "id": "41c4bf28-0f40-4d21-9f5c-7901cbdf6b60",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14382,15 +14472,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "39473697-e965-4d67-aceb-245b70c31716",
+             *         "id": "f0f4b134-6b73-4f4e-b5ef-18aca0e57b89",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "fca8b195-a3a8-42cb-8d36-5059f8725f3e",
+             *         "id": "d02683be-c28e-4d36-aaf2-0e5ef1d72def",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "c6b32d99-3ffd-41de-8afc-261fa5083424",
+             *         "id": "85f0e134-4302-4541-9881-e751f9d15460",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -14641,6 +14731,7 @@ export interface components {
         /** @description Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method. */
         UpgradeArtifacts: {
             docker: components["schemas"]["DockerUpgrade"];
+            /** @description Binary upgrade steps on FreeBSD. */
             freebsd: components["schemas"]["UpgradeStep"][];
             /**
              * @description The restart step names the service after the daemon, as installs from before the install
@@ -14648,12 +14739,16 @@ export interface components {
              *     operator to `scanopy-daemon list` for the real service.
              */
             legacy_service_name: boolean;
+            /** @description Binary upgrade steps on Linux. */
             linux: components["schemas"]["UpgradeStep"][];
+            /** @description Binary upgrade steps on macOS. */
             macos: components["schemas"]["UpgradeStep"][];
+            /** @description Binary upgrade steps on Windows. */
             windows: components["schemas"]["UpgradeStep"][];
         };
         /** @description One command of a binary upgrade, in the order it runs. */
         UpgradeStep: {
+            /** @description The shell command to run. */
             command: string;
             type: components["schemas"]["UpgradeStepType"];
         };

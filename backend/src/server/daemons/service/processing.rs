@@ -638,6 +638,12 @@ impl DaemonService {
         if update.phase.is_terminal() {
             self.report_superseded_wire_shape(&mut update).await;
             self.report_touched_subnets(&mut update).await;
+            // Credentials the dispatch withheld for this daemon's version, latched at dispatch.
+            update.warnings.extend(
+                self.discovery_service
+                    .take_withheld_credentials(&update.daemon_id)
+                    .await,
+            );
         }
 
         self.discovery_service.update_session(update).await?;

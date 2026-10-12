@@ -1,8 +1,18 @@
 use super::CredentialType;
 use super::paths::OsFamily;
+use super::snmp::SnmpV3SecurityLevel;
 use crate::server::shared::types::field_definition::{
-    DependentPlaceholder, FieldDefinition, FieldType, InlineFormat,
+    DependentPlaceholder, FieldDefinition, FieldSet, FieldSetValue, FieldType, InlineFormat,
 };
+
+/// SNMPv3 fields shown at the levels that authenticate.
+const SNMPV3_AUTHENTICATED: FieldSet<SnmpV3SecurityLevel> = FieldSet::Requires(&[
+    SnmpV3SecurityLevel::AuthNoPriv,
+    SnmpV3SecurityLevel::AuthPriv,
+]);
+/// SNMPv3 fields shown only at the level that also encrypts.
+const SNMPV3_ENCRYPTED: FieldSet<SnmpV3SecurityLevel> =
+    FieldSet::Requires(&[SnmpV3SecurityLevel::AuthPriv]);
 
 /// The id a `DependentPlaceholder` uses for the credential's own `daemon_os`, which is a column on
 /// the credential rather than a field of its type.
@@ -43,6 +53,7 @@ impl CredentialType {
                     group: None,
                     file_name: Some("snmp-community"),
                     half_width: false,
+                    field_set: None,
                 }]
             }
             Self::Gnmi {
@@ -71,6 +82,7 @@ impl CredentialType {
                     group: Some("Connection"),
                     file_name: None,
                     half_width: true,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "port",
@@ -89,6 +101,7 @@ impl CredentialType {
                     group: Some("Connection"),
                     file_name: None,
                     half_width: true,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "password",
@@ -105,14 +118,13 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("gnmi-password"),
                     half_width: false,
+                    field_set: None,
                 },
             ],
             Self::SnmpV3 {
                 security_name: _,
-                auth_protocol: _,
-                auth_password: _,
-                priv_protocol: _,
-                priv_password: _,
+                // Every level's fields are listed; each carries the levels it shows for.
+                security: _,
                 context_name: _,
             } => vec![
                 FieldDefinition {
@@ -130,6 +142,26 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: None,
                     half_width: true,
+                    field_set: None,
+                },
+                FieldDefinition {
+                    id: "security_level",
+                    label: "Security Level",
+                    field_type: FieldType::Select,
+                    placeholder: None,
+                    placeholder_by: None,
+                    secret: false,
+                    optional: false,
+                    help_text: Some(
+                        "Must match the level the device's SNMPv3 user is configured for.",
+                    ),
+                    options: Some(SnmpV3SecurityLevel::options()),
+                    default_value: Some("AuthPriv"),
+                    inline_format: None,
+                    group: Some("Authentication"),
+                    file_name: None,
+                    half_width: true,
+                    field_set: Some(&FieldSet::<SnmpV3SecurityLevel>::Sets),
                 },
                 FieldDefinition {
                     id: "auth_protocol",
@@ -139,13 +171,16 @@ impl CredentialType {
                     placeholder_by: None,
                     secret: false,
                     optional: false,
-                    help_text: Some("Authentication hash algorithm."),
+                    help_text: Some(
+                        "Authentication hash algorithm. MD5 is weaker than SHA; use it only for devices that support nothing else.",
+                    ),
                     options: Some(super::snmp::SnmpV3AuthProtocol::OPTIONS),
                     default_value: Some("Sha256"),
                     inline_format: None,
                     group: Some("Authentication"),
                     file_name: None,
                     half_width: true,
+                    field_set: Some(&SNMPV3_AUTHENTICATED),
                 },
                 FieldDefinition {
                     id: "auth_password",
@@ -162,6 +197,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("snmpv3-auth-password"),
                     half_width: false,
+                    field_set: Some(&SNMPV3_AUTHENTICATED),
                 },
                 FieldDefinition {
                     id: "priv_protocol",
@@ -178,6 +214,7 @@ impl CredentialType {
                     group: Some("Privacy"),
                     file_name: None,
                     half_width: false,
+                    field_set: Some(&SNMPV3_ENCRYPTED),
                 },
                 FieldDefinition {
                     id: "priv_password",
@@ -194,6 +231,7 @@ impl CredentialType {
                     group: Some("Privacy"),
                     file_name: Some("snmpv3-priv-password"),
                     half_width: false,
+                    field_set: Some(&SNMPV3_ENCRYPTED),
                 },
                 FieldDefinition {
                     id: "context_name",
@@ -212,6 +250,7 @@ impl CredentialType {
                     group: None,
                     file_name: None,
                     half_width: false,
+                    field_set: None,
                 },
             ],
             Self::DockerProxy { .. } => container_proxy_field_definitions(
@@ -259,6 +298,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("unifi-api-key"),
                     half_width: false,
+                    field_set: None,
                 });
                 fields
             }
@@ -281,6 +321,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: None,
                     half_width: false,
+                    field_set: None,
                 });
                 fields.push(FieldDefinition {
                     id: "password",
@@ -297,6 +338,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("unifi-password"),
                     half_width: false,
+                    field_set: None,
                 });
                 fields
             }
@@ -318,6 +360,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: None,
                     half_width: false,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "password",
@@ -334,6 +377,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("instant-on-password"),
                     half_width: false,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "site",
@@ -352,6 +396,7 @@ impl CredentialType {
                     group: Some("Scope"),
                     file_name: None,
                     half_width: false,
+                    field_set: None,
                 },
             ],
             Self::SshPassword {
@@ -379,6 +424,7 @@ impl CredentialType {
                 group: Some("Authentication"),
                 file_name: Some("ssh-password"),
                 half_width: false,
+                field_set: None,
             }]),
             Self::SshKey {
                 port: _,
@@ -407,6 +453,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("ssh-key"),
                     half_width: false,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "passphrase",
@@ -423,6 +470,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("ssh-key-passphrase"),
                     half_width: false,
+                    field_set: None,
                 },
             ]),
             Self::WakeOnLan {
@@ -448,6 +496,7 @@ impl CredentialType {
                     group: Some("Delivery"),
                     file_name: None,
                     half_width: true,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "port",
@@ -466,6 +515,7 @@ impl CredentialType {
                     group: Some("Delivery"),
                     file_name: None,
                     half_width: true,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "wait_seconds",
@@ -484,6 +534,7 @@ impl CredentialType {
                     group: Some("Delivery"),
                     file_name: None,
                     half_width: false,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "secure_on_password",
@@ -502,6 +553,7 @@ impl CredentialType {
                     group: Some("Delivery"),
                     file_name: Some("secureon-password"),
                     half_width: false,
+                    field_set: None,
                 },
             ],
             Self::ProxmoxApiToken {
@@ -526,6 +578,7 @@ impl CredentialType {
                     group: Some("Connection"),
                     file_name: None,
                     half_width: true,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "port",
@@ -544,6 +597,7 @@ impl CredentialType {
                     group: Some("Connection"),
                     file_name: None,
                     half_width: true,
+                    field_set: None,
                 },
                 FieldDefinition {
                     id: "token_secret",
@@ -560,6 +614,7 @@ impl CredentialType {
                     group: Some("Authentication"),
                     file_name: Some("proxmox-token-secret"),
                     half_width: false,
+                    field_set: None,
                 },
             ],
         }
@@ -587,6 +642,7 @@ fn ssh_field_definitions(auth_fields: Vec<FieldDefinition>) -> Vec<FieldDefiniti
             group: Some("Connection"),
             file_name: None,
             half_width: true,
+            field_set: None,
         },
         FieldDefinition {
             id: "port",
@@ -603,6 +659,7 @@ fn ssh_field_definitions(auth_fields: Vec<FieldDefinition>) -> Vec<FieldDefiniti
             group: Some("Connection"),
             file_name: None,
             half_width: true,
+            field_set: None,
         },
     ];
     fields.extend(auth_fields);
@@ -624,6 +681,7 @@ fn ssh_field_definitions(auth_fields: Vec<FieldDefinition>) -> Vec<FieldDefiniti
             group: Some("Script"),
             file_name: None,
             half_width: false,
+            field_set: None,
         },
         FieldDefinition {
             id: "script",
@@ -647,6 +705,7 @@ fn ssh_field_definitions(auth_fields: Vec<FieldDefinition>) -> Vec<FieldDefiniti
             group: Some("Script"),
             file_name: Some("scanopy-inventory.sh"),
             half_width: false,
+            field_set: None,
         },
         FieldDefinition {
             id: "timeout_seconds",
@@ -663,6 +722,7 @@ fn ssh_field_definitions(auth_fields: Vec<FieldDefinition>) -> Vec<FieldDefiniti
             group: Some("Script"),
             file_name: None,
             half_width: false,
+            field_set: None,
         },
         FieldDefinition {
             id: "host_key_fingerprint",
@@ -681,6 +741,7 @@ fn ssh_field_definitions(auth_fields: Vec<FieldDefinition>) -> Vec<FieldDefiniti
             group: Some("Script"),
             file_name: None,
             half_width: false,
+            field_set: None,
         },
     ]);
     fields
@@ -708,6 +769,7 @@ fn unifi_connection_fields() -> Vec<FieldDefinition> {
             group: Some("Connection"),
             file_name: None,
             half_width: true,
+            field_set: None,
         },
         FieldDefinition {
             id: "port",
@@ -726,6 +788,7 @@ fn unifi_connection_fields() -> Vec<FieldDefinition> {
             group: Some("Connection"),
             file_name: None,
             half_width: true,
+            field_set: None,
         },
     ]
 }
@@ -753,6 +816,7 @@ fn socket_path_field(
         group: Some("Connection"),
         file_name: None,
         half_width: false,
+        field_set: None,
     }
 }
 
@@ -779,6 +843,7 @@ fn container_proxy_field_definitions(
             group: Some("Connection"),
             file_name: None,
             half_width: true,
+            field_set: None,
         },
         FieldDefinition {
             id: "path",
@@ -795,6 +860,7 @@ fn container_proxy_field_definitions(
             group: Some("Connection"),
             file_name: None,
             half_width: true,
+            field_set: None,
         },
         FieldDefinition {
             id: "ssl_cert",
@@ -813,6 +879,7 @@ fn container_proxy_field_definitions(
             group: Some("TLS"),
             file_name: Some("cert.pem"),
             half_width: false,
+            field_set: None,
         },
         FieldDefinition {
             id: "ssl_key",
@@ -829,6 +896,7 @@ fn container_proxy_field_definitions(
             group: Some("TLS"),
             file_name: Some("key.pem"),
             half_width: false,
+            field_set: None,
         },
         FieldDefinition {
             id: "ssl_chain",
@@ -847,6 +915,7 @@ fn container_proxy_field_definitions(
             group: Some("TLS"),
             file_name: Some("ca.pem"),
             half_width: false,
+            field_set: None,
         },
     ]
 }
@@ -928,6 +997,45 @@ mod tests {
                         field.id
                     );
                 }
+            }
+        }
+    }
+
+    /// A field set has exactly one dropdown picking it, offering the set's own values and opening
+    /// on one of them. The form reads the first `Sets` field it finds; a second, or a dropdown
+    /// offering other values, would leave fields shown or hidden by a choice nobody can make.
+    #[test]
+    fn a_field_set_has_one_dropdown_offering_its_values() {
+        for d in CredentialTypeDiscriminants::iter() {
+            let fields = d.to_credential_type().field_definitions();
+            let selectors: Vec<_> = fields
+                .iter()
+                .filter(|f| {
+                    f.field_set
+                        .is_some_and(|set| set.to_json() == serde_json::json!("Sets"))
+                })
+                .collect();
+            let gated = fields.iter().any(|f| f.field_set.is_some());
+            assert!(
+                selectors.len() == usize::from(gated),
+                "{d:?} has {} field-set dropdowns",
+                selectors.len()
+            );
+            for selector in selectors {
+                let set = selector.field_set.unwrap().set_options();
+                let offered: Vec<_> = selector
+                    .options
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|o| o.value)
+                    .collect();
+                let values: Vec<_> = set.iter().map(|o| o.value).collect();
+                assert_eq!(offered, values, "{d:?}.{} offers other values", selector.id);
+                assert!(
+                    selector.default_value.is_some_and(|v| values.contains(&v)),
+                    "{d:?}.{} opens on no value of its set",
+                    selector.id
+                );
             }
         }
     }

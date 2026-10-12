@@ -26,6 +26,7 @@
 	import { credentialTypes, entities } from '$lib/shared/stores/metadata';
 	import { DAEMON_HOST_IP } from '../utils/credentialTargets';
 	import { fieldRows } from '../utils/fieldRows';
+	import { shownFields } from '../utils/fieldSets';
 	import { translateFieldDefinitions } from '$lib/i18n/metadata';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import TextInput from '$lib/shared/components/forms/input/TextInput.svelte';
@@ -202,10 +203,16 @@
 
 	// Get field definitions for the currently selected type (labels/placeholders/
 	// help text resolved via meta_* i18n keys with fixture-string fallback)
-	let currentFields: FieldDefinition[] = $derived.by(() => {
+	let typeFields: FieldDefinition[] = $derived.by(() => {
 		const meta = credentialTypes.getMetadata(selectedTypeId);
 		return translateFieldDefinitions('credential_types', selectedTypeId, meta?.fields ?? []);
 	});
+
+	// The fields the current values call for: a field-set dropdown (SNMPv3's security level) hides
+	// the fields its other values use. Hidden fields are neither rendered, validated nor sent, so a
+	// credential never carries a field its own choice does not use. Reads `fieldValues`, the
+	// reactive source of truth, not TanStack's untracked form state.
+	let currentFields: FieldDefinition[] = $derived(shownFields(typeFields, fieldValues));
 
 	// Group fields by their group property for visual grouping
 	let fieldGroups = $derived.by(() => {
@@ -805,6 +812,8 @@
 	// Build validators for a credential field based on its definition
 	function getFieldValidators(field: FieldDefinition) {
 		const validate = ({ value }: { value: string }) => {
+			// A field its field set hides is not part of the credential, whatever it last held.
+			if (!currentFields.some((shown) => shown.id === field.id)) return undefined;
 			// For path-or-inline fields, check the actual display value, not the JSON wrapper
 			let effectiveValue = value;
 			if (field.field_type === 'scriptsource') {

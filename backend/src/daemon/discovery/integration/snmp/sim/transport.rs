@@ -248,7 +248,7 @@ impl SimAgent {
     /// The chaining is what lets a misbehaving handler show itself. A `Stuck` handler yields the
     /// same row `n` times; a `Positional` one yields a page whose last row can sort *below* its
     /// first, which is the exact moment a strictly-ascending walk gives up.
-    fn page(&self, from: &[u64], max_repetitions: u32) -> Varbinds<'_> {
+    pub(super) fn page(&self, from: &[u64], max_repetitions: u32) -> Varbinds<'_> {
         let mut page = Vec::new();
         let mut cursor = from.to_vec();
         for _ in 0..max_repetitions.max(1) {

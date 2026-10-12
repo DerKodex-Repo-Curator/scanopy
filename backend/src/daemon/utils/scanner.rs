@@ -735,7 +735,9 @@ pub async fn try_snmp_with_credential_on_port(
 mod unreadable_credential_tests {
     use super::*;
     use crate::server::credentials::r#impl::mapping::{ResolvableSecret, SnmpV3Params};
-    use crate::server::credentials::r#impl::types::{SnmpV3AuthProtocol, SnmpV3PrivProtocol};
+    use crate::server::credentials::r#impl::types::{
+        SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpV3Security,
+    };
 
     fn missing_file() -> ResolvableSecret {
         ResolvableSecret::FilePath {
@@ -782,10 +784,12 @@ mod unreadable_credential_tests {
             },
             v3: Some(SnmpV3Params {
                 security_name: "monitor".to_string(),
-                auth_protocol: SnmpV3AuthProtocol::Sha1,
-                auth_password: missing_file(),
-                priv_protocol: SnmpV3PrivProtocol::Aes128,
-                priv_password: missing_file(),
+                security: SnmpV3Security::AuthPriv {
+                    auth_protocol: SnmpV3AuthProtocol::Sha1,
+                    auth_password: missing_file(),
+                    priv_protocol: SnmpV3PrivProtocol::Aes128,
+                    priv_password: missing_file(),
+                },
                 context_name: None,
             }),
         };

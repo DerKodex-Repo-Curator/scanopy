@@ -138,13 +138,15 @@ impl CredentialTypeDiscriminants {
             },
             Self::SnmpV3 => CredentialType::SnmpV3 {
                 security_name: String::new(),
-                auth_protocol: super::SnmpV3AuthProtocol::default(),
-                auth_password: SecretValue::Inline {
-                    value: SecretString::from(String::new()),
-                },
-                priv_protocol: super::SnmpV3PrivProtocol::default(),
-                priv_password: SecretValue::Inline {
-                    value: SecretString::from(String::new()),
+                security: super::SnmpV3Security::AuthPriv {
+                    auth_protocol: super::SnmpV3AuthProtocol::default(),
+                    auth_password: SecretValue::Inline {
+                        value: SecretString::from(String::new()),
+                    },
+                    priv_protocol: super::SnmpV3PrivProtocol::default(),
+                    priv_password: SecretValue::Inline {
+                        value: SecretString::from(String::new()),
+                    },
                 },
                 context_name: None,
             },
@@ -385,8 +387,13 @@ impl CredentialTypeDiscriminants {
             Self::SnmpV2c | Self::DockerProxy | Self::DockerSocket => {
                 semver::Version::new(0, 16, 2)
             }
-            // SnmpV1/SnmpV3 inner `SnmpVersion` values shipped in 0.17.0.
-            Self::SnmpV1 | Self::SnmpV3 => semver::Version::new(0, 17, 0),
+            // SnmpV1 inner `SnmpVersion` value shipped in 0.17.0.
+            Self::SnmpV1 => semver::Version::new(0, 17, 0),
+            // SnmpV3 shipped in 0.17.0 as AuthPriv only. 0.18.1 adds the `security_level` field,
+            // AuthNoPriv, NoAuthNoPriv and MD5, none of which an older daemon can parse. One floor
+            // for the type rather than per level: an older daemon is told to upgrade, not handed
+            // a subset of v3.
+            Self::SnmpV3 => semver::Version::new(0, 18, 1),
             // Podman variants shipped in 0.17.2.
             Self::PodmanProxy | Self::PodmanSocket => semver::Version::new(0, 17, 2),
             // UniFi variants ship in 0.17.7.
