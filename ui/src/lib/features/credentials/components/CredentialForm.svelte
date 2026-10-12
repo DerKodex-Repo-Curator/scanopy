@@ -215,13 +215,13 @@
 	let currentFields: FieldDefinition[] = $derived(shownFields(typeFields, fieldValues));
 
 	// Group fields by their group property for visual grouping
-	let fieldGroups = $derived.by(() => {
+	function groupFieldsByGroup(fields: FieldDefinition[]) {
 		const groups: { name: string | null; fields: FieldDefinition[] }[] = [];
 		const groupOrder: (string | null)[] = [];
 		const groupFields: Record<string, FieldDefinition[]> = {};
 		const ungroupedFields: FieldDefinition[] = [];
 
-		for (const field of currentFields) {
+		for (const field of fields) {
 			const groupName = field.group ?? null;
 			if (groupName === null) {
 				if (!groupOrder.includes(null)) groupOrder.push(null);
@@ -242,12 +242,12 @@
 				groups.push({ name, fields: groupFields[name] });
 			}
 		}
-		return groups;
-	});
+		return groups.filter((g) => g.fields.length > 0);
+	}
 
-	let visibleFieldGroups = $derived(fieldGroups.filter((g) => g.fields.length > 0));
+	let visibleFieldGroups = $derived(groupFieldsByGroup(currentFields));
 
-	type FieldGroup = (typeof fieldGroups)[number];
+	type FieldGroup = ReturnType<typeof groupFieldsByGroup>[number];
 	interface FieldCard {
 		key: string;
 		title: string;
@@ -297,14 +297,18 @@
 
 	// Standard mode: the identity fields and each field group. Compact mode keeps the name on the
 	// surface above the groups.
-	let fieldCards = $derived(
-		compact
-			? buildFieldCards(false, visibleFieldGroups)
-			: buildFieldCards(section !== 'fields', section !== 'identity' ? visibleFieldGroups : [])
-	);
+	function cardsFor(groups: FieldGroup[]): FieldCard[] {
+		return compact
+			? buildFieldCards(false, groups)
+			: buildFieldCards(section !== 'fields', section !== 'identity' ? groups : []);
+	}
+
+	let fieldCards = $derived(cardsFor(visibleFieldGroups));
 
 	// One card's worth of fields sits on the modal surface; two or more cards each get a title.
-	let useGroupCards = $derived(fieldCards.length > 1);
+	// Decided from every field of the type, so a field-set choice that hides a group (SNMPv3
+	// authNoPriv hides Privacy) shows or hides fields without switching the layout to flat.
+	let useGroupCards = $derived(cardsFor(groupFieldsByGroup(typeFields)).length > 1);
 
 	// Track target IPs as local $state for reactivity (TanStack Form doesn't drive Svelte 5 reactivity)
 	let targetIpValues = $state<string[]>(['']);

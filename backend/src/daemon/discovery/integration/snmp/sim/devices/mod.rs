@@ -18,6 +18,7 @@ pub mod router_gw_01;
 pub mod secure_switch_01;
 pub mod secure_switch_02;
 pub mod secure_switch_03;
+pub mod secure_switch_04;
 pub mod switch_access_01;
 pub mod switch_aruba_01;
 pub mod switch_cisco_01;
@@ -101,8 +102,9 @@ pub fn all() -> Vec<SimDevice> {
         switch_hikvision_01::device(),
         // GH #688: LLDP-V2-MIB only, no classic LLDP tables.
         switch_ocnos_01::device(),
-        // SNMPv3 security levels: AuthNoPriv with MD5, and NoAuthNoPriv.
+        // SNMPv3 security levels: AuthNoPriv with MD5, NoAuthNoPriv, and AuthPriv with MD5.
         secure_switch_02::device(),
         secure_switch_03::device(),
+        secure_switch_04::device(),
     ]
 }
