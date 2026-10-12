@@ -4,12 +4,9 @@ import * as path from 'node:path';
 import {
 	COVERAGE,
 	FEATURES,
-	SCHEMAS,
 	columnKeys,
+	columnModules,
 	dataControlsTabs,
-	definedOrderField,
-	orderFieldSchema as tabOrderFieldSchema,
-	readTab,
 	type TabCoverage
 } from './entity-tabs';
 
@@ -34,23 +31,8 @@ import {
 
 /** Everything wrong with one tab's coverage, as messages naming the tab, schema and field. */
 function coverageProblems(tab: string, coverage: TabCoverage): string[] {
-	const source = readTab(tab);
 	const problems: string[] = [];
-
-	const declaredOrderField = definedOrderField(source);
-	if (declaredOrderField !== coverage.orderField) {
-		problems.push(
-			`${tab}: the tab calls defineFields with order field "${declaredOrderField ?? 'none'}" ` +
-				`but COVERAGE says "${coverage.orderField ?? 'none'}". Set COVERAGE["${tab}"].orderField ` +
-				`to match the tab.`
-		);
-	}
-	const orderFieldSchema = tabOrderFieldSchema(coverage);
-	if (orderFieldSchema && !SCHEMAS[orderFieldSchema]?.enum) {
-		problems.push(`${tab}: "${orderFieldSchema}" is not an enum schema in openapi.json.`);
-	}
-
-	const keys = columnKeys(source, orderFieldSchema);
+	const keys = columnKeys(tab);
 	for (const { schema, fields } of coverage.schemas) {
 		const where = `${tab} (${schema})`;
 		for (const [field, decision] of Object.entries(fields)) {
@@ -92,6 +74,13 @@ describe('entity column coverage', () => {
 			stale,
 			`COVERAGE entries whose file is missing or no longer renders <DataControls>:\n\n  ` +
 				`${stale.join('\n  ')}\n\nUpdate the path or remove the entry.`
+		).toEqual([]);
+
+		const orphans = [...columnModules().keys()].filter((tab) => !tabs.includes(tab));
+		expect(
+			orphans,
+			`Column modules with no sibling tab rendering <DataControls>:\n\n  ` +
+				`${orphans.join('\n  ')}\n\nRename the module to match its tab, or remove it.`
 		).toEqual([]);
 	});
 

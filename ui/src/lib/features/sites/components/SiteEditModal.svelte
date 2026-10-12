@@ -144,10 +144,22 @@
 		}
 	}));
 
-	// Reset form when modal opens
-	function handleOpen() {
+	// Reset form when modal opens. A new site starts with the organization's site-wide default
+	// credentials selected (SNMP `public`); the list is sent with the create request as it
+	// stands, so removing one here leaves the site without it.
+	async function handleOpen() {
 		const defaults = getDefaultValues();
 		selectedCredentialIds = defaults.credential_ids ?? [];
+		if (!site) {
+			const credentials = credentialsQuery.data ?? (await credentialsQuery.refetch()).data ?? [];
+			selectedCredentialIds = credentials
+				.filter(
+					(c) =>
+						c.is_default &&
+						(credentialTypes.getMetadata(getCredentialTypeId(c))?.targets ?? []).includes('Site')
+				)
+				.map((c) => c.id);
+		}
 
 		form.reset({
 			...defaults

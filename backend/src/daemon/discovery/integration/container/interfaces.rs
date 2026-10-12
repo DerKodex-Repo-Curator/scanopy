@@ -124,6 +124,7 @@ fn bridge_endpoint_address(
             mac_address: endpoint_mac(endpoint, AttributeSource::Probe(runtime.client_probe())),
             name: Some(network_name.to_owned()),
             position: 0,
+            ip_address_source: AttributeSource::Probe(runtime.client_probe()),
         }),
         subnet.clone(),
     ))
@@ -309,6 +310,8 @@ pub fn container_host_addresses(
                 site_id,
                 placement_subnets,
                 ip_address,
+                // The runtime reporting the endpoint it configured.
+                AttributeSource::Probe(runtime.client_probe()),
                 mac_address.clone(),
                 Some(network_name.to_owned()),
                 0,

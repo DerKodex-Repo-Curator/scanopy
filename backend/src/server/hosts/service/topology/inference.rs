@@ -329,6 +329,8 @@ impl HostService {
                     mac_address: None,
                     name: None,
                     position: 0,
+                    // Heard in the same advertisement as the far end itself.
+                    ip_address_source: far_end.evidence_source,
                 })],
                 None => Vec::new(),
             };
@@ -363,6 +365,7 @@ impl HostService {
                     mac_address: mac.map(|m| {
                         MacEvidence::new(MacEvidenceValue(m), AttributeSource::LldpChassisId)
                     }),
+                    interface_source: far_end.evidence_source,
                     ..Default::default()
                 })],
                 // Identified by its MAC and nothing else — a `MacAddress` port id, which is a real
@@ -377,6 +380,7 @@ impl HostService {
                         MacEvidenceValue(mac),
                         AttributeSource::LldpChassisId,
                     )),
+                    interface_source: far_end.evidence_source,
                     ..Default::default()
                 })],
                 (None, None) => Vec::new(),

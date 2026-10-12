@@ -183,6 +183,8 @@ fn nic_to_interface(
         fdb_macs: None,
         native_vlan_id: None,
         vlan_ids: None,
+        vlan_membership_source: AttributeSource::Unspecified,
+        interface_source: AttributeSource::DaemonSelfReport,
     })
 }
 
@@ -339,6 +341,7 @@ pub trait DaemonUtils {
                     ip_address: ip_addr,
                     mac_address,
                     position: ip_addresses.len() as i32,
+                    ip_address_source: AttributeSource::DaemonSelfReport,
                 }));
             }
         }

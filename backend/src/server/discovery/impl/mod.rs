@@ -1,4 +1,5 @@
 pub mod base;
+pub mod collection;
 pub mod handlers;
 pub mod scan_settings;
 pub mod storage;

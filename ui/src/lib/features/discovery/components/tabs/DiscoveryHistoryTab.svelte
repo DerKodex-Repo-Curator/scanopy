@@ -7,8 +7,8 @@
 	import type { Discovery } from '../../types/base';
 	import DiscoveryEditModal from '../DiscoveryModal/DiscoveryEditModal.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
-	import { formatDuration, formatTimestamp } from '$lib/shared/utils/formatting';
-	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { formatTimestamp } from '$lib/shared/utils/formatting';
+	import { discoveryHistoryColumns } from './DiscoveryHistoryTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
 	import {
 		useDiscoveryHistoryQuery,
@@ -22,7 +22,7 @@
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { hasDaemon } from '$lib/shared/onboarding/checklist';
-	import { labelledFieldValueOptions, useFieldValuesQuery } from '$lib/shared/api/field-values';
+	import { useFieldValuesQuery } from '$lib/shared/api/field-values';
 	import type { components } from '$lib/api/schema';
 	import type { TabProps } from '$lib/shared/types';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
@@ -33,35 +33,17 @@
 		resolveModalDeepLink
 	} from '$lib/shared/stores/modal-registry';
 	import { Info } from 'lucide-svelte';
-	import { daemonItems } from '$lib/features/daemons/columns';
-	import { siteItems } from '$lib/features/sites/columns';
-	import { tagItems, tagNames } from '$lib/features/tags/columns';
 	import { useTagGroupsQuery, useTagsQuery } from '$lib/features/tags/queries';
-	import { toColor } from '$lib/shared/utils/styling';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { runOutcomeTag, TERMINAL_PHASES, type OutcomeTag } from '../../utils/outcome';
 	import {
-		common_created,
-		common_daemon,
 		common_details,
-		common_duration,
 		common_none,
-		common_status,
-		common_tags,
-		common_warnings,
-		common_site,
-		common_type,
-		common_unknown,
-		common_unknownEntity,
-		common_unknownSite,
-		common_updated,
 		daemons_installPromptDiscoveries,
 		discovery_confirmDeleteHistorical,
-		discovery_finishedAt,
 		discovery_historyTitle,
 		discovery_noHistorySessions,
-		discovery_noHistorySessionsSubtitle,
-		discovery_startedAt
+		discovery_noHistorySessionsSubtitle
 	} from '$lib/paraglide/messages';
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
@@ -328,167 +310,22 @@
 	let lookup = $derived(collectionLookup({ Daemon: daemonsData, Site: sitesData }));
 
 	let fields = $derived(
-		defineRegistryFields<Discovery, DiscoveryOrderField>(
-			'Discovery',
-			() => lookup,
-			{
-				// Runs of one scan share its name, so grouping by it gathers a scan's history.
-				name: {
-					searchable: true,
-					display: { order: 0 }
-				},
-				daemon_id: {
-					label: common_daemon(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					// The daemons some run was made by, by name.
-					filterOptions: labelledFieldValueOptions(
-						daemonValuesQuery.data,
-						(id) => daemonsData.find((d) => d.id === id)?.name
-					),
-					groupable: true,
-					// Displayed as a name, but grouped by id on the server.
-					getGroupValue: (item) => item.daemon_id,
-					getValue: (item) =>
-						daemonsData.find((d) => d.id === item.daemon_id)?.name ??
-						common_unknownEntity({ entity: common_daemon() }),
-					display: { order: 7, getItems: (item) => daemonItems(item.daemon_id, daemonsData) }
-				},
-				site_id: {
-					label: common_site(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					// The sites some run scanned, by name.
-					filterOptions: labelledFieldValueOptions(
-						siteValuesQuery.data,
-						(id) => sitesData.find((n) => n.id === id)?.name
-					),
-					groupable: true,
-					getGroupValue: (item) => item.site_id,
-					getValue: (item) =>
-						sitesData.find((n) => n.id === item.site_id)?.name ?? common_unknownSite(),
-					display: { order: 6, getItems: (item) => siteItems(item.site_id, sitesData) }
-				},
-				discovery_type: {
-					label: common_type(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					// The types some run had, by name.
-					filterOptions: labelledFieldValueOptions(typeValuesQuery.data, (id) =>
-						discoveryTypes.getName(id)
-					),
-					groupable: true,
-					// The server groups on the raw discriminant; the column renders its name.
-					getGroupValue: (item) => item.discovery_type.type,
-					getValue: (item) => discoveryTypes.getName(item.discovery_type.type),
-					display: { hiddenByDefault: true }
-				},
-				created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
-				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } },
-				// The run's outcome. Sorted, grouped and
-				// filtered by the terminal phase; the cell shows the outcome tag, whose hover carries
-				// the reason the run ended.
-				phase: {
-					label: common_status(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					serverFiltered: true,
-					// The phases some run ended in, by name.
-					filterOptions: labelledFieldValueOptions(phaseValuesQuery.data, (id) =>
-						discoveryPhases.getName(id)
-					),
-					getValue: (item) => {
-						const phase = resultsOf(item)?.phase;
-						return phase ? discoveryPhases.getName(phase) : null;
-					},
-					// The server groups on the raw phase id.
-					getGroupValue: (item) => resultsOf(item)?.phase ?? null,
-					display: {
-						order: 1,
-						getItems: (item) => {
-							const tag = outcomeTag(item);
-							return tag
-								? [{ id: tag.label, label: tag.label, color: tag.color, title: tag.title }]
-								: [];
-						}
-					}
-				},
-				// Read out of the run's results. Near-unique timestamps and continuous values, so
-				// they sort but do not group.
-				started_at: {
-					label: discovery_startedAt(),
-					type: 'date',
-					getValue: (item) => {
-						const startedAt = resultsOf(item)?.started_at;
-						return startedAt ? new Date(startedAt) : null;
-					},
-					display: { order: 3, cell: startedAtCell }
-				},
-				finished_at: {
-					label: discovery_finishedAt(),
-					type: 'date',
-					getValue: (item) => {
-						const finishedAt = resultsOf(item)?.finished_at;
-						return finishedAt ? new Date(finishedAt) : null;
-					},
-					display: { order: 4, cell: finishedAtCell }
-				},
-				duration: {
-					label: common_duration(),
-					type: 'string',
-					groupable: false,
-					getValue: (item) => {
-						const results = resultsOf(item);
-						if (results && results.finished_at && results.started_at) {
-							return formatDuration(results.started_at, results.finished_at);
-						}
-						return common_unknown();
-					},
-					display: { order: 5 }
-				},
-				// How much the run had to say, next to how it ended — the two questions asked
-				// together. Always amber, never red: this column counts warnings, and a run
-				// that failed outright says so in Status. A clean run falls back to its plain
-				// 0 rather than wearing a chip that means nothing. A count, so it sorts but does
-				// not group.
-				warnings: {
-					label: common_warnings(),
-					type: 'string',
-					groupable: false,
-					getValue: (item) => String(warningsOf(item).length),
-					display: {
-						order: 2,
-						getItems: (item) => {
-							const count = warningsOf(item).length;
-							if (count === 0) return undefined;
-							return [{ id: 'warnings', label: String(count), color: toColor('amber') }];
-						}
-					}
-				}
-			},
-			[
-				{
-					// The server writes runs with no tags, but a tag can be added to one through the API.
-					key: 'tags',
-					label: common_tags(),
-					type: 'array',
-					getValue: (item) => tagNames(item.tags, tagsData),
-					display: {
-						hiddenByDefault: true,
-						getItems: (item) => tagItems(item.tags, tagsData, tagGroupsQuery.data ?? [])
-					}
-				}
-			],
-			// Every run here is historical, so a run-type column would read the same on every row.
-			['run_type']
-		)
+		discoveryHistoryColumns({
+			lookup: () => lookup,
+			daemons: () => daemonsData,
+			sites: () => sitesData,
+			tags: () => tagsData,
+			tagGroups: () => tagGroupsQuery.data,
+			daemonValues: () => daemonValuesQuery.data,
+			siteValues: () => siteValuesQuery.data,
+			typeValues: () => typeValuesQuery.data,
+			phaseValues: () => phaseValuesQuery.data,
+			resultsOf,
+			outcomeTag,
+			warningsOf,
+			startedAtCell: () => startedAtCell,
+			finishedAtCell: () => finishedAtCell
+		})
 	);
 </script>
 

@@ -1,17 +1,17 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'svelte/compiler';
 import type { components } from '$lib/api/schema';
+import { getFieldKey, type FieldConfig } from '$lib/shared/components/data/types';
 
 /**
  * What the entity-tab tests share: the committed OpenAPI spec, the tabs that render
- * `<DataControls>`, the column keys each one declares, and the schemas its rows come from.
+ * `<DataControls>`, the columns each one renders, and the schemas its rows come from.
  *
- * Column keys are read from the tab source rather than listed anywhere, so no test restates a
- * tab's columns:
- * - the values of the tab's `*OrderField` enum, when the tab calls `defineFields<…, XOrderField>`
- * - every `key: '…'` literal in the tab
- * - `tags`, when the tab passes `getItemTags`
+ * Each tab builds its columns with the one function its sibling `<Tab>.columns.ts` exports. The
+ * tests call that function, so they see the columns the tab renders, registry fields and omit
+ * list included, and no test restates a tab's columns.
  */
 
 export const UI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -73,13 +73,6 @@ function decide<S extends SchemaName, const D extends FieldDecisions<S>>(
 }
 
 export interface TabCoverage {
-	/** The `*OrderField` schema the tab passes to `defineFields`, if it uses `defineFields`. */
-	orderField?: string;
-	/**
-	 * The openapi enum `orderField` narrows, when the tab passes a frontend subset of an
-	 * `*OrderField` (`Exclude<…>`) rather than the schema itself. Its variants count as columns.
-	 */
-	orderFieldSchema?: string;
 	schemas: SchemaCoverage[];
 }
 
@@ -122,7 +115,6 @@ const DISCOVERY = {
  */
 export const COVERAGE: Record<string, TabCoverage> = {
 	'vlans/components/VlanTab.svelte': {
-		orderField: 'VlanOrderField',
 		schemas: [
 			decide('Vlan', {
 				created_at: 'created_at',
@@ -144,7 +136,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'daemons/components/DaemonTab.svelte': {
-		orderField: 'DaemonOrderField',
 		schemas: [
 			decide('DaemonResponse', {
 				created_at: 'created_at',
@@ -175,9 +166,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'discovery/components/tabs/DiscoveryScheduledTab.svelte': {
-		// Scan configurations carry no run results, so the tab leaves out the run-result order fields.
-		orderField: 'DiscoveryConfigOrderField',
-		orderFieldSchema: 'DiscoveryOrderField',
 		schemas: [
 			decide('Discovery', {
 				...DISCOVERY,
@@ -189,7 +177,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'discovery/components/tabs/DiscoveryHistoryTab.svelte': {
-		orderField: 'DiscoveryOrderField',
 		schemas: [
 			decide('Discovery', {
 				...DISCOVERY,
@@ -227,7 +214,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'tags/components/TagTab.svelte': {
-		orderField: 'TagOrderField',
 		schemas: [
 			decide('Tag', {
 				color: 'color',
@@ -332,7 +318,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'hosts/components/HostTab.svelte': {
-		orderField: 'HostOrderField',
 		schemas: [
 			// The response the tab lists, not the stored `Host`: they differ, and a field only the
 			// stored type has never reaches the table (the discovery ids once didn't).
@@ -408,7 +393,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'subnets/components/SubnetTab.svelte': {
-		orderField: 'SubnetOrderField',
 		schemas: [
 			decide('Subnet', {
 				cidr: 'cidr',
@@ -431,7 +415,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'services/components/ServiceTab.svelte': {
-		orderField: 'ServiceOrderField',
 		schemas: [
 			decide('Service', {
 				bindings: 'port_bindings',
@@ -457,7 +440,6 @@ export const COVERAGE: Record<string, TabCoverage> = {
 		]
 	},
 	'credentials/components/CredentialsTab.svelte': {
-		orderField: 'CredentialOrderField',
 		schemas: [
 			decide('Credential', {
 				assigned_site_ids: 'assigned_sites',
@@ -470,7 +452,10 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				tags: 'tags',
 				updated_at: 'updated_at',
 				id: ID,
-				organization_id: ORGANIZATION
+				organization_id: ORGANIZATION,
+				is_default: excluded(
+					"A default's description says what it is, and its row has no delete action"
+				)
 			})
 		]
 	}
@@ -481,65 +466,85 @@ export function readTab(tab: string): string {
 	return fs.readFileSync(path.join(FEATURES, tab), 'utf-8');
 }
 
-/** The `XOrderField` a tab passes to `defineFields<T, XOrderField>`, if any. */
-export function definedOrderField(source: string): string | undefined {
-	return source.match(/define(?:Registry)?Fields<\s*\w+\s*,\s*(\w+)\s*>/)?.[1];
-}
-
-/** The openapi enum whose variants are the tab's orderable columns, if it has one. */
-export function orderFieldSchema(coverage: TabCoverage): string | undefined {
-	return coverage.orderFieldSchema ?? coverage.orderField;
-}
-
-/**
- * The column keys a tab declares, read from its source. `orderFieldSchema` is the openapi enum
- * whose variants are the tab's orderable columns; it defaults to the tab's own order field.
- */
-export function columnKeys(
-	source: string,
-	orderFieldSchema = definedOrderField(source)
-): Set<string> {
-	const keys = new Set([...source.matchAll(/\bkey:\s*'([^']+)'/g)].map((match) => match[1]));
-	const entity = registryEntity(source);
-	if (entity) {
-		const omitted = registryOmitted(source);
-		for (const field of registryFieldsOf(entity)) if (!omitted.has(field.id)) keys.add(field.id);
-	}
-	if (orderFieldSchema)
-		SCHEMAS[orderFieldSchema]?.enum?.forEach((value: string) => keys.add(value));
-	if (/getItemTags=/.test(source)) keys.add('tags');
-	return keys;
-}
-
 /** Every `.svelte` file under `src/lib/features` that renders `<DataControls`. */
 export function dataControlsTabs(): string[] {
 	return (fs.readdirSync(FEATURES, { recursive: true }) as string[])
 		.filter((file) => file.endsWith('.svelte'))
-		.filter((file) => fs.readFileSync(path.join(FEATURES, file), 'utf-8').includes('<DataControls'))
+		.filter((file) => readTab(file).includes('<DataControls'))
 		.map((file) => file.split(path.sep).join('/'))
 		.sort();
 }
 
-type RegistryField = Schemas['EntityField'];
+const COLUMN_MODULES = import.meta.glob<Record<string, unknown>>('$lib/features/**/*.columns.ts', {
+	eager: true
+});
 
-/** The entity a tab builds its columns from the field registry for (`defineRegistryFields`). */
-export function registryEntity(source: string): string | undefined {
-	return source.match(/defineRegistryFields<[^>]*>\(\s*'(\w+)'/)?.[1];
-}
-
-/** An entity type's registry fields, from the generated `entities.json` fixture. */
-export function registryFieldsOf(entity: string): RegistryField[] {
-	const fixture = JSON.parse(
-		fs.readFileSync(path.join(UI, 'src/lib/data/entities.json'), 'utf-8')
-	) as { id: string; metadata?: { fields?: RegistryField[] } }[];
-	return fixture.find((item) => item.id === entity)?.metadata?.fields ?? [];
+/** The `<Tab>.columns.ts` modules, by the tab path relative to `src/lib/features`. */
+export function columnModules(): Map<string, Record<string, unknown>> {
+	return new Map(
+		Object.entries(COLUMN_MODULES).map(([file, module]) => [
+			file
+				.slice(file.indexOf('lib/features/') + 'lib/features/'.length)
+				.replace(/\.columns\.ts$/, '.svelte'),
+			module
+		])
+	);
 }
 
 /**
- * The registry fields a tab passes as `defineRegistryFields`' trailing `omit` list: the array of
- * string literals closing the call.
+ * Every member is a getter returning `[]`, so a builder runs with no rows loaded. Column
+ * builders read their context lazily, inside `getValue` and `display`, or as lists at build time.
  */
-export function registryOmitted(source: string): Set<string> {
-	const match = [...source.matchAll(/\[\s*((?:'\w+'\s*(?:,\s*)?)+)\]\s*\)\s*\);/g)].pop();
-	return new Set([...(match?.[1].matchAll(/'(\w+)'/g) ?? [])].map((m) => m[1]));
+const EMPTY_CONTEXT = new Proxy({}, { get: () => () => [] });
+
+/**
+ * The columns a tab renders, built by the one function its sibling `<Tab>.columns.ts` exports,
+ * exactly as the tab builds them.
+ */
+export function tabColumns(tab: string): FieldConfig<unknown>[] {
+	const module = columnModules().get(tab);
+	if (!module) {
+		throw new Error(
+			`${tab} has no sibling ${tab.replace(/\.svelte$/, '.columns.ts')}. Move the tab's ` +
+				`column definition into one, exporting a single function that returns it.`
+		);
+	}
+	const builders = Object.values(module).filter((value) => typeof value === 'function');
+	if (builders.length !== 1) {
+		throw new Error(
+			`${tab.replace(/\.svelte$/, '.columns.ts')} exports ${builders.length} functions; export ` +
+				`exactly one, the builder of the tab's columns.`
+		);
+	}
+	return (builders[0] as (ctx: unknown) => FieldConfig<unknown>[])(EMPTY_CONTEXT);
+}
+
+/** The column keys a tab renders, plus `tags` when it passes `getItemTags` to `DataControls`. */
+export function columnKeys(tab: string): Set<string> {
+	const keys = new Set(tabColumns(tab).map(getFieldKey));
+	if (dataControlsProps(tab).has('getItemTags')) keys.add('tags');
+	return keys;
+}
+
+/**
+ * The props a tab passes to `<DataControls>`, from the Svelte compiler's parse of the tab. These
+ * are template wiring, not values a test can call, so they are read from the syntax tree.
+ */
+export function dataControlsProps(tab: string): Set<string> {
+	const elements: SchemaNode[] = [];
+	const walk = (node: SchemaNode) => {
+		if (!node || typeof node !== 'object') return;
+		if (Array.isArray(node)) return node.forEach(walk);
+		if (node.type === 'Component' && node.name === 'DataControls') elements.push(node);
+		for (const value of Object.values(node)) walk(value);
+	};
+	walk(parse(readTab(tab), { modern: true }).fragment);
+	if (elements.length !== 1) {
+		throw new Error(`${tab}: expected one <DataControls> element, found ${elements.length}.`);
+	}
+	return new Set(
+		elements[0].attributes
+			.filter((attribute: SchemaNode) => attribute.type === 'Attribute')
+			.map((attribute: SchemaNode) => attribute.name)
+	);
 }

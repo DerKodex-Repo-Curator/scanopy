@@ -1,5 +1,6 @@
 use crate::server::{
     auth::middleware::auth::AuthenticatedEntity,
+    credentials::service::CredentialService,
     shared::{
         events::bus::EventBus,
         services::traits::{CrudService, EventBusService},
@@ -14,7 +15,7 @@ use crate::server::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use uuid::Uuid;
 
 pub struct SiteService {
@@ -22,6 +23,9 @@ pub struct SiteService {
     subnet_service: Arc<SubnetService>,
     event_bus: Arc<EventBus>,
     entity_tag_service: Arc<EntityTagService>,
+    /// Assigns each new site its default credentials. Set after construction, since the
+    /// credential service depends on this one.
+    credential_service: OnceLock<Arc<CredentialService>>,
 }
 
 impl EventBusService<Site> for SiteService {
@@ -46,6 +50,31 @@ impl CrudService<Site> for SiteService {
     fn entity_tag_service(&self) -> Option<&Arc<EntityTagService>> {
         Some(&self.entity_tag_service)
     }
+
+    /// Creates the site and its credential assignments. A request that names no credentials
+    /// (`credential_ids` omitted) starts with the organization's site-wide defaults (SNMP
+    /// `public`); a list, even an empty one, is assigned exactly.
+    async fn create(&self, mut entity: Site, authentication: AuthenticatedEntity) -> Result<Site> {
+        let Some(credentials) = self.credential_service.get() else {
+            tracing::warn!("Credential service not set; the site is created without credentials");
+            return self.create_base(entity, authentication).await;
+        };
+        if entity.base.credential_ids.is_none() {
+            entity.base.credential_ids = Some(
+                credentials
+                    .site_default_credential_ids(entity.base.organization_id)
+                    .await?,
+            );
+        }
+        let created = self.create_base(entity, authentication).await?;
+        credentials
+            .set_site_credentials(
+                &created.id,
+                created.base.credential_ids.as_deref().unwrap_or_default(),
+            )
+            .await?;
+        Ok(created)
+    }
 }
 
 impl SiteService {
@@ -60,7 +89,16 @@ impl SiteService {
             subnet_service,
             event_bus,
             entity_tag_service,
+            credential_service: OnceLock::new(),
         }
+    }
+
+    /// Set the credential service dependency after construction (breaks circular dep).
+    pub fn set_credential_service(
+        &self,
+        service: Arc<CredentialService>,
+    ) -> Result<(), Arc<CredentialService>> {
+        self.credential_service.set(service)
     }
 
     /// Per-site staleness cutoffs for `site_ids`, as

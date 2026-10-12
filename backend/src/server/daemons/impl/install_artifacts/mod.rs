@@ -492,6 +492,7 @@ pub enum UpgradeStepType {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpgradeStep {
     pub r#type: UpgradeStepType,
+    /// The shell command to run.
     pub command: String,
 }
 
@@ -516,9 +517,13 @@ pub struct DockerUpgrade {
 /// Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpgradeArtifacts {
+    /// Binary upgrade steps on Linux.
     pub linux: Vec<UpgradeStep>,
+    /// Binary upgrade steps on macOS.
     pub macos: Vec<UpgradeStep>,
+    /// Binary upgrade steps on Windows.
     pub windows: Vec<UpgradeStep>,
+    /// Binary upgrade steps on FreeBSD.
     pub freebsd: Vec<UpgradeStep>,
     pub docker: DockerUpgrade,
     /// The restart step names the service after the daemon, as installs from before the install

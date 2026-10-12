@@ -11,6 +11,7 @@ use crate::server::{
     },
     lldp::{LldpChassisId, LldpPortId},
     shared::storage::{
+        attributed,
         snapshot::{FkMaps, Snapshotable},
         traits::{SqlValue, Storable},
     },
@@ -67,6 +68,7 @@ impl Storable for InterfaceNeighborCandidate {
                 "cdp_port_id",
                 "cdp_platform",
                 "cdp_address",
+                "evidence_source",
                 "created_at",
             ],
             vec![
@@ -83,6 +85,7 @@ impl Storable for InterfaceNeighborCandidate {
                 SqlValue::OptionalString(evidence.cdp_port_id.clone()),
                 SqlValue::OptionalString(evidence.cdp_platform.clone()),
                 SqlValue::OptionalIpAddr(evidence.cdp_address),
+                SqlValue::AttributeSource(evidence.evidence_source),
                 SqlValue::Timestamp(self.created_at),
             ],
         ))
@@ -106,6 +109,7 @@ impl Storable for InterfaceNeighborCandidate {
                     cdp_port_id: row.get("cdp_port_id"),
                     cdp_platform: row.get("cdp_platform"),
                     cdp_address: row.try_get("cdp_address").ok().flatten(),
+                    evidence_source: attributed::read_source(row, "evidence_source")?,
                 },
             },
         })

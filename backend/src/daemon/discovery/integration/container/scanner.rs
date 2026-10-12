@@ -1,3 +1,4 @@
+use crate::server::shared::attribution::AttributeSource;
 use anyhow::{Error, Result, anyhow};
 use bollard::{
     Docker,
@@ -349,7 +350,12 @@ impl<'a> ContainerScanner<'a> {
 
             if let Ok(Some(mut host_data)) = self
                 .ops
-                .build_host_from_scan(params, None, self.host_naming_fallback)
+                .build_host_from_scan(
+                    params,
+                    None,
+                    self.host_naming_fallback,
+                    AttributeSource::Probe(self.runtime.client_probe()),
+                )
                 .await
             {
                 if fronts_runtime_api(self.api_port, &[], &tcp_port_numbers(&open_ports)) {
@@ -514,6 +520,7 @@ impl<'a> ContainerScanner<'a> {
                     },
                     None,
                     self.host_naming_fallback,
+                    AttributeSource::Probe(self.runtime.client_probe()),
                 )
                 .await
             {
@@ -607,7 +614,12 @@ impl<'a> ContainerScanner<'a> {
                                             .collect(),
                                     ),
                                     // Port doesn't exist on host yet, so it can't have been bound by service
-                                    None => (Port::new_hostless(*pb), vec![]),
+                                    None => (
+                                        Port::new_hostless(*pb).with_source(
+                                            AttributeSource::Probe(self.runtime.client_probe()),
+                                        ),
+                                        vec![],
+                                    ),
                                 };
 
                             // Get host interface from the ip_addresses vec

@@ -6,7 +6,7 @@
 	import type { FieldConfig } from '$lib/shared/components/data/types';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { siteItems } from '$lib/features/sites/columns';
+	import { apiKeyColumns } from './ApiKeyTab.columns';
 	import CreateApiKeyModal from './ApiKeyModal.svelte';
 	import type { ApiKey } from '../types/base';
 	import { useTagsQuery } from '$lib/features/tags/queries';
@@ -22,22 +22,11 @@
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import {
-		common_enabled,
-		common_expired,
-		common_expires,
-		common_lastUsed,
-		common_never,
 		common_edit,
 		common_delete,
 		common_confirmBulkDelete,
 		common_confirmDeleteName,
-		common_created,
-		common_name,
-		common_site,
 		common_noEntityYet,
-		common_tags,
-		common_updated,
-		common_unknownSite,
 		daemonApiKeys_title,
 		daemonApiKeys_provisionOnlyHint
 	} from '$lib/paraglide/messages';
@@ -145,87 +134,10 @@
 
 	const tableDefaults: TableDefaults<string> = { sort: { field: 'name', direction: 'asc' } };
 
-	const apiKeyFields: FieldConfig<ApiKey>[] = [
-		{
-			key: 'name',
-			label: common_name(),
-			type: 'string',
-			searchable: true,
-			sortable: true
-		},
-		{
-			key: 'site_id',
-			type: 'string',
-			label: common_site(),
-			searchable: true,
-			filterable: true,
-			groupable: true,
-			sortable: true,
-			getValue(item) {
-				return sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite();
-			},
-			display: { getItems: (item) => siteItems(item.site_id, sitesData) }
-		},
-		{
-			key: 'is_enabled',
-			label: common_enabled(),
-			type: 'boolean',
-			filterable: true,
-			groupable: true,
-			getValue: (key) => key.is_enabled ?? false
-		},
-		{
-			key: 'last_used',
-			label: common_lastUsed(),
-			type: 'date',
-			sortable: true,
-			getValue: (key) => key.last_used ?? null,
-			display: { recency: true }
-		},
-		{
-			key: 'expires_at',
-			label: common_expires(),
-			type: 'date',
-			sortable: true,
-			getValue: (key) => key.expires_at ?? null,
-			display: {
-				// Expired reads as a state, not a date — the date has stopped being the useful
-				// part once it has passed. Returning undefined shows the date itself.
-				getItems: (key) =>
-					!key.expires_at
-						? [{ id: 'never', label: common_never(), color: 'Gray' }]
-						: new Date(key.expires_at) < new Date()
-							? [{ id: 'expired', label: common_expired(), color: 'Red' }]
-							: undefined
-			}
-		},
-		{
-			key: 'tags',
-			label: common_tags(),
-			type: 'array',
-			searchable: true,
-			filterable: true,
-			getValue: (entity) => {
-				// Return tag names for search/filter display
-				return entity.tags
-					.map((id) => tagsData.find((t) => t.id === id)?.name)
-					.filter((name): name is string => !!name);
-			}
-		},
-		{
-			key: 'created_at',
-			label: common_created(),
-			type: 'date',
-			sortable: true
-		},
-		{
-			key: 'updated_at',
-			label: common_updated(),
-			type: 'date',
-			sortable: true,
-			display: { hiddenByDefault: true }
-		}
-	];
+	const apiKeyFields: FieldConfig<ApiKey>[] = apiKeyColumns({
+		sites: () => sitesData,
+		tags: () => tagsData
+	});
 </script>
 
 <div class="space-y-6">

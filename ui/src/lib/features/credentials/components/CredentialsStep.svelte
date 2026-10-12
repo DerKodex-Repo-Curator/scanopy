@@ -25,7 +25,8 @@
 		credentialIds?: string[];
 		/**
 		 * How auto-local capabilities (e.g. the Docker socket) behave:
-		 * - `interactive` (daemon setup): the parent seeds them as ordinary wizard entries.
+		 * - `interactive` (daemon setup): the parent seeds the org's default sockets as existing
+		 *   wizard entries.
 		 * - `fixed` (editing an installed daemon): they reflect the daemon's actual
 		 *   capabilities and claim the daemon host for conflict prevention.
 		 */
@@ -70,11 +71,11 @@
 			: []
 	);
 
-	// Seed the wizard with one new entry per type id — including daemon-host-only sockets,
-	// which are configured and assigned to the daemon host like any other credential.
-	async function addTypes(typeIds: string[]) {
+	// Seed the wizard with existing credentials, e.g. the default sockets, which a daemon-host-only
+	// row targets at the daemon host.
+	async function addExistingCredentials(credentials: Credential[]) {
 		await tick();
-		credentialWizardRef?.addTypes(typeIds);
+		credentialWizardRef?.addExistingCredentials(credentials);
 	}
 
 	function handleRemoveCredential(credential: Credential) {
@@ -134,7 +135,7 @@
 	// while a create/update is in flight.
 	let busy = $derived(bulkCreateCredentialsMutation.isPending);
 
-	export { busy, addTypes, collectCredentialIds };
+	export { busy, addExistingCredentials, collectCredentialIds };
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">

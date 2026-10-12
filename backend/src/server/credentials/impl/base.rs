@@ -148,6 +148,12 @@ pub struct Credential {
     #[serde(flatten)]
     #[validate(nested)]
     pub base: CredentialBase,
+    /// Whether this is the organization's seeded default for its type: identical to the
+    /// credential every organization starts with. A default can't be deleted, and its settings
+    /// can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+    #[serde(default)]
+    #[schema(read_only, required)]
+    pub is_default: bool,
 }
 
 impl PartialEq for Credential {
@@ -180,11 +186,19 @@ impl Display for Credential {
 impl Credential {
     pub fn new(base: CredentialBase) -> Self {
         let now = Utc::now();
+        let is_default = base.credential_type.is_default();
         Self {
             id: Uuid::new_v4(),
             created_at: now,
             updated_at: now,
             base,
+            is_default,
         }
+    }
+
+    /// Recompute `is_default` from the credential's settings, for a credential whose
+    /// `credential_type` came from a request rather than from storage.
+    pub fn refresh_is_default(&mut self) {
+        self.is_default = self.base.credential_type.is_default();
     }
 }

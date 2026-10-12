@@ -14960,19 +14960,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-11T18:00:53.178287Z",
+              "created_at": "2026-10-11T21:15:50.780393Z",
               "first_discovery_id": null,
-              "id": "d3d69668-027e-444c-b30d-1d7ea7159ba5",
+              "id": "4df9dc2a-34e8-4c53-beee-b61369f09d15",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-11T18:00:53.178287Z",
+              "last_seen_at": "2026-10-11T21:15:50.780393Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-11T18:00:53.178287Z",
-              "valid_from": "2026-10-11T18:00:53.178287Z",
+              "updated_at": "2026-10-11T21:15:50.780393Z",
+              "valid_from": "2026-10-11T21:15:50.780393Z",
               "valid_to": null
             }
           },
@@ -15226,7 +15226,8 @@
                 "required": [
                   "id",
                   "created_at",
-                  "updated_at"
+                  "updated_at",
+                  "is_default"
                 ],
                 "properties": {
                   "created_at": {
@@ -15239,6 +15240,11 @@
                     "type": "string",
                     "format": "uuid",
                     "description": "Server-assigned unique identifier.",
+                    "readOnly": true
+                  },
+                  "is_default": {
+                    "type": "boolean",
+                    "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                     "readOnly": true
                   },
                   "updated_at": {
@@ -16583,6 +16589,9 @@
                   "if_index": 1,
                   "if_name": "Gi0/1",
                   "if_type": 6,
+                  "interface_source": {
+                    "Probe": "Snmp"
+                  },
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "ip_configured": true,
                   "last_discovery_id": null,
@@ -16596,7 +16605,8 @@
                   "speed_bps": 1000000000,
                   "updated_at": "2026-01-15T10:30:00Z",
                   "valid_from": "2026-01-15T10:30:00Z",
-                  "valid_to": null
+                  "valid_to": null,
+                  "vlan_membership_source": "Unspecified"
                 }
               ],
               "ip_addresses": [
@@ -16606,6 +16616,7 @@
                   "host_id": "550e8400-e29b-41d4-a716-446655440003",
                   "id": "550e8400-e29b-41d4-a716-446655440005",
                   "ip_address": "192.168.1.100",
+                  "ip_address_source": "ArpReply",
                   "last_discovery_id": null,
                   "last_seen_at": "2026-01-15T10:30:00Z",
                   "lineage_id": null,
@@ -16666,6 +16677,7 @@
                   "last_seen_at": "2026-01-15T10:30:00Z",
                   "lineage_id": null,
                   "number": 80,
+                  "port_source": "PortScan",
                   "protocol": "Tcp",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Http",
@@ -16679,19 +16691,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-11T18:00:53.157565Z",
+                      "created_at": "2026-10-11T21:15:50.758230Z",
                       "first_discovery_id": null,
-                      "id": "82b4e63e-2163-4fd4-9d67-b04635499ffa",
+                      "id": "7ea9f229-4c6d-4296-807a-fc00f1a78661",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-11T18:00:53.157565Z",
+                      "last_seen_at": "2026-10-11T21:15:50.758230Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-11T18:00:53.157565Z",
-                      "valid_from": "2026-10-11T18:00:53.157565Z",
+                      "updated_at": "2026-10-11T21:15:50.758230Z",
+                      "valid_from": "2026-10-11T21:15:50.758230Z",
                       "valid_to": null
                     }
                   ],
@@ -16704,7 +16716,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "IoT",
+                  "service_definition": "Open LDAP",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -16852,6 +16864,7 @@
               "host_id": "550e8400-e29b-41d4-a716-446655440003",
               "id": "550e8400-e29b-41d4-a716-446655440005",
               "ip_address": "192.168.1.100",
+              "ip_address_source": "ArpReply",
               "last_discovery_id": null,
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
@@ -17592,6 +17605,7 @@
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
               "number": 80,
+              "port_source": "PortScan",
               "protocol": "Tcp",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Http",
@@ -18074,19 +18088,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-11T18:00:53.173978Z",
+                  "created_at": "2026-10-11T21:15:50.775928Z",
                   "first_discovery_id": null,
-                  "id": "1f5934f4-ce2d-42a6-bb9c-7dbd4831bf46",
+                  "id": "ada84189-4b9e-4c52-bc1a-7010bebdcab5",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-11T18:00:53.173978Z",
+                  "last_seen_at": "2026-10-11T21:15:50.775928Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-11T18:00:53.173978Z",
-                  "valid_from": "2026-10-11T18:00:53.173978Z",
+                  "updated_at": "2026-10-11T21:15:50.775928Z",
+                  "valid_from": "2026-10-11T21:15:50.775928Z",
                   "valid_to": null
                 }
               ],
@@ -18099,7 +18113,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "IoT",
+              "service_definition": "Open LDAP",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -19820,7 +19834,8 @@
                   "required": [
                     "id",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "is_default"
                   ],
                   "properties": {
                     "created_at": {
@@ -19833,6 +19848,11 @@
                       "type": "string",
                       "format": "uuid",
                       "description": "Server-assigned unique identifier.",
+                      "readOnly": true
+                    },
+                    "is_default": {
+                      "type": "boolean",
+                      "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                       "readOnly": true
                     },
                     "updated_at": {
@@ -20597,6 +20617,13 @@
           },
           {
             "type": "string",
+            "description": "An LLDP neighbour the `lldpd` service on the daemon's own host heard on one of its ports.\nDistinct from [`Self::LldpChassisId`], which is the identity a neighbour advertised: this\nnames the listener that recorded the adjacency.",
+            "enum": [
+              "Lldpd"
+            ]
+          },
+          {
+            "type": "string",
             "description": "Reverse DNS. A known speaker that is not the subject.",
             "enum": [
               "ReverseDns"
@@ -20614,6 +20641,20 @@
             "description": "We broadcast an ARP request for a specific address and something replied claiming it.",
             "enum": [
               "ArpReply"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "We sent an ICMP echo request to the address and it answered.",
+            "enum": [
+              "IcmpEcho"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "We opened a TCP connection to a port, or a UDP probe to it was answered. Stamps the port,\nand the address of a host found only this way.",
+            "enum": [
+              "PortScan"
             ]
           },
           {
@@ -21033,19 +21074,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-11T18:00:53.158005Z",
+          "created_at": "2026-10-11T21:15:50.758724Z",
           "first_discovery_id": null,
-          "id": "7503c5a2-cc50-4468-a683-26e8e4444d62",
+          "id": "f823a5cd-cb37-4360-8716-966fb7a2962b",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-11T18:00:53.158005Z",
+          "last_seen_at": "2026-10-11T21:15:50.758724Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-11T18:00:53.158005Z",
-          "valid_from": "2026-10-11T18:00:53.158005Z",
+          "updated_at": "2026-10-11T21:15:50.758724Z",
+          "valid_from": "2026-10-11T21:15:50.758724Z",
           "valid_to": null
         }
       },
@@ -21806,7 +21847,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "IoT",
+              "service_definition": "Open LDAP",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -21967,7 +22008,8 @@
             "required": [
               "id",
               "created_at",
-              "updated_at"
+              "updated_at",
+              "is_default"
             ],
             "properties": {
               "created_at": {
@@ -21980,6 +22022,11 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "Server-assigned unique identifier.",
+                "readOnly": true
+              },
+              "is_default": {
+                "type": "boolean",
+                "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                 "readOnly": true
               },
               "updated_at": {
@@ -22038,7 +22085,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "The stored credential this attempt used, so the report can open it rather than sending the\nreader to the list to find it. `integration` narrows to a type; on a network with two SNMP\ncommunities the address does not narrow to a record, which is what this is for.\n\n`None` on a warning written before the id was carried, on one from a daemon that predates\nit, and on the daemon's own injected \"public\" fallback, which has no stored row."
+            "description": "The stored credential this attempt used, so the report can open it rather than sending the\nreader to the list to find it. `integration` narrows to a type; on a network with two SNMP\ncommunities the address does not narrow to a record, which is what this is for.\n\n`None` on a warning written before the id was carried, on one from a daemon that predates\nit, and on the `public` fallback older daemons injected themselves, which has no stored\nrow."
           },
           "detail": {
             "type": [
@@ -27027,6 +27074,21 @@
           }
         }
       },
+      "FdbMacs": {
+        "type": "object",
+        "properties": {
+          "fdb_macs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MAC addresses the switch learned on this port. A port with one learned MAC can be resolved to a neighbor link; several indicate an uplink."
+          },
+          "fdb_macs_source": {
+            "$ref": "#/components/schemas/AttributeSource"
+          }
+        }
+      },
       "FieldDefinition": {
         "type": "object",
         "description": "Definition of a form field for dynamic UI rendering.\n\nOne definition serves every dynamic form: credential types and discovery scan settings both\nbuild these, and the frontend renders them through the same switch. Reaches the UI through\nbuild-time fixtures (`credential-types.json`, `integrations.json`, `scan-settings.json`) and,\nfor the generated TypeScript union, through the OpenAPI schema.",
@@ -28548,6 +28610,9 @@
               "if_index": 1,
               "if_name": "Gi0/1",
               "if_type": 6,
+              "interface_source": {
+                "Probe": "Snmp"
+              },
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "ip_configured": true,
               "last_discovery_id": null,
@@ -28561,7 +28626,8 @@
               "speed_bps": 1000000000,
               "updated_at": "2026-01-15T10:30:00Z",
               "valid_from": "2026-01-15T10:30:00Z",
-              "valid_to": null
+              "valid_to": null,
+              "vlan_membership_source": "Unspecified"
             }
           ],
           "ip_addresses": [
@@ -28571,6 +28637,7 @@
               "host_id": "550e8400-e29b-41d4-a716-446655440003",
               "id": "550e8400-e29b-41d4-a716-446655440005",
               "ip_address": "192.168.1.100",
+              "ip_address_source": "ArpReply",
               "last_discovery_id": null,
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
@@ -28631,6 +28698,7 @@
               "last_seen_at": "2026-01-15T10:30:00Z",
               "lineage_id": null,
               "number": 80,
+              "port_source": "PortScan",
               "protocol": "Tcp",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Http",
@@ -28644,19 +28712,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-11T18:00:53.157072Z",
+                  "created_at": "2026-10-11T21:15:50.757642Z",
                   "first_discovery_id": null,
-                  "id": "afadd49e-064f-4c8b-b507-565db176b296",
+                  "id": "7a66caa7-fdb0-49b1-af1d-023fc05eec65",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-11T18:00:53.157072Z",
+                  "last_seen_at": "2026-10-11T21:15:50.757642Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-11T18:00:53.157072Z",
-                  "valid_from": "2026-10-11T18:00:53.157072Z",
+                  "updated_at": "2026-10-11T21:15:50.757642Z",
+                  "valid_from": "2026-10-11T21:15:50.757642Z",
                   "valid_to": null
                 }
               ],
@@ -28669,7 +28737,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "IoT",
+              "service_definition": "Open LDAP",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -29004,6 +29072,7 @@
           "host_id": "550e8400-e29b-41d4-a716-446655440003",
           "id": "550e8400-e29b-41d4-a716-446655440005",
           "ip_address": "192.168.1.100",
+          "ip_address_source": "ArpReply",
           "last_discovery_id": null,
           "last_seen_at": "2026-01-15T10:30:00Z",
           "lineage_id": null,
@@ -29043,6 +29112,10 @@
                 "type": "string",
                 "description": "IPv4 or IPv6 address.",
                 "example": "192.168.1.10"
+              },
+              "ip_address_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What found this address on the host."
               },
               "name": {
                 "type": [
@@ -29631,6 +29704,10 @@
             "description": "MAC address, usually from SNMP `ifPhysAddress`, with the evidence for it."
           },
           {
+            "$ref": "#/components/schemas/FdbMacs",
+            "description": "Bridge FDB: learned MAC addresses on this switch port, with what read them.\nSingle-MAC ports can be resolved to neighbor links server-side.\nMulti-MAC ports indicate uplinks where LLDP/CDP is the better source."
+          },
+          {
             "type": "object",
             "required": [
               "host_id",
@@ -29647,16 +29724,6 @@
                     "description": "SNMP ifAdminStatus: 1=up, 2=down, 3=testing, or `None` where nothing read it.\n\nOptional rather than defaulting to `Up`: an advertisement carries no status, and recording\none as up would be a claim nothing made."
                   }
                 ]
-              },
-              "fdb_macs": {
-                "type": [
-                  "array",
-                  "null"
-                ],
-                "items": {
-                  "type": "string"
-                },
-                "description": "Bridge FDB: learned MAC addresses on this switch port.\nSingle-MAC ports can be resolved to neighbor links server-side.\nMulti-MAC ports indicate uplinks where LLDP/CDP is the better source."
               },
               "host_id": {
                 "type": "string",
@@ -29699,6 +29766,10 @@
                 ],
                 "format": "int32",
                 "description": "SNMP ifType - IANAifType integer (6=ethernet, 24=loopback, etc.), where one was read.\n\n`None` is *unknown*, never a type. Everything that filters on this must treat unknown as\nincluded — a port at the far end of a cable is physical by construction, and excluding it\nfor lack of a number would drop the row from resolution and from the map."
+              },
+              "interface_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What reported this interface."
               },
               "ip_address_id": {
                 "type": [
@@ -29761,6 +29832,10 @@
                   "format": "uuid"
                 },
                 "description": "Tagged VLAN entity IDs on this port (resolved from Q-BRIDGE dot1qVlanCurrentEgressPorts)"
+              },
+              "vlan_membership_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What read `native_vlan_id` and `vlan_ids`. One source for both, because they are read\ntogether and kept or replaced together."
               }
             }
           }
@@ -29953,6 +30028,10 @@
               "null"
             ],
             "description": "Remote port ID from CDP"
+          },
+          "evidence_source": {
+            "$ref": "#/components/schemas/AttributeSource",
+            "description": "What heard this record: the integration that read the device's neighbor table, or lldpd on\nthe daemon's own host."
           },
           "lldp_chassis_id": {
             "oneOf": [
@@ -31651,7 +31730,8 @@
                   "required": [
                     "id",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "is_default"
                   ],
                   "properties": {
                     "created_at": {
@@ -31664,6 +31744,11 @@
                       "type": "string",
                       "format": "uuid",
                       "description": "Server-assigned unique identifier.",
+                      "readOnly": true
+                    },
+                    "is_default": {
+                      "type": "boolean",
+                      "description": "Whether this is the organization's seeded default for its type: identical to the\ncredential every organization starts with. A default can't be deleted, and its settings\ncan't change. Computed from `credential_type`, so a value sent in a request is ignored.",
                       "readOnly": true
                     },
                     "updated_at": {
@@ -32396,6 +32481,9 @@
                     "if_index": 1,
                     "if_name": "Gi0/1",
                     "if_type": 6,
+                    "interface_source": {
+                      "Probe": "Snmp"
+                    },
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "ip_configured": true,
                     "last_discovery_id": null,
@@ -32409,7 +32497,8 @@
                     "speed_bps": 1000000000,
                     "updated_at": "2026-01-15T10:30:00Z",
                     "valid_from": "2026-01-15T10:30:00Z",
-                    "valid_to": null
+                    "valid_to": null,
+                    "vlan_membership_source": "Unspecified"
                   }
                 ],
                 "ip_addresses": [
@@ -32419,6 +32508,7 @@
                     "host_id": "550e8400-e29b-41d4-a716-446655440003",
                     "id": "550e8400-e29b-41d4-a716-446655440005",
                     "ip_address": "192.168.1.100",
+                    "ip_address_source": "ArpReply",
                     "last_discovery_id": null,
                     "last_seen_at": "2026-01-15T10:30:00Z",
                     "lineage_id": null,
@@ -32479,6 +32569,7 @@
                     "last_seen_at": "2026-01-15T10:30:00Z",
                     "lineage_id": null,
                     "number": 80,
+                    "port_source": "PortScan",
                     "protocol": "Tcp",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Http",
@@ -32492,19 +32583,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-11T18:00:53.149521Z",
+                        "created_at": "2026-10-11T21:15:50.748979Z",
                         "first_discovery_id": null,
-                        "id": "89786402-55cd-430c-b46b-9bdefed9f6c8",
+                        "id": "4ce17b2d-c7f7-407d-87c4-b24c429f74de",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-11T18:00:53.149521Z",
+                        "last_seen_at": "2026-10-11T21:15:50.748979Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-11T18:00:53.149521Z",
-                        "valid_from": "2026-10-11T18:00:53.149521Z",
+                        "updated_at": "2026-10-11T21:15:50.748979Z",
+                        "valid_from": "2026-10-11T21:15:50.748979Z",
                         "valid_to": null
                       }
                     ],
@@ -32517,7 +32608,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "IoT",
+                    "service_definition": "Open LDAP",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -32666,19 +32757,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-11T18:00:53.173305Z",
+                    "created_at": "2026-10-11T21:15:50.775256Z",
                     "first_discovery_id": null,
-                    "id": "cdf07975-5d2a-4e4b-86b1-dc40ab532d56",
+                    "id": "e9f44837-2baa-4bb4-bf1c-ca52bd62c51e",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-11T18:00:53.173305Z",
+                    "last_seen_at": "2026-10-11T21:15:50.775256Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-11T18:00:53.173305Z",
-                    "valid_from": "2026-10-11T18:00:53.173305Z",
+                    "updated_at": "2026-10-11T21:15:50.775256Z",
+                    "valid_from": "2026-10-11T21:15:50.775256Z",
                     "valid_to": null
                   }
                 ],
@@ -32691,7 +32782,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "IoT",
+                "service_definition": "Open LDAP",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -33603,6 +33694,7 @@
           "last_seen_at": "2026-01-15T10:30:00Z",
           "lineage_id": null,
           "number": 80,
+          "port_source": "PortScan",
           "protocol": "Tcp",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Http",
@@ -33628,6 +33720,10 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "The host this entity belongs to."
+              },
+              "port_source": {
+                "$ref": "#/components/schemas/AttributeSource",
+                "description": "What found this port open. Not part of the port's identity: equality and hashing compare\n`port_type` alone."
               },
               "site_id": {
                 "type": "string",
@@ -35149,19 +35245,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-11T18:00:53.157875Z",
+              "created_at": "2026-10-11T21:15:50.758566Z",
               "first_discovery_id": null,
-              "id": "cccb3a61-4265-4387-96df-809a9f96cd16",
+              "id": "64a4c100-c558-448c-a498-1f20ac3ab501",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-11T18:00:53.157875Z",
+              "last_seen_at": "2026-10-11T21:15:50.758566Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-11T18:00:53.157875Z",
-              "valid_from": "2026-10-11T18:00:53.157875Z",
+              "updated_at": "2026-10-11T21:15:50.758566Z",
+              "valid_from": "2026-10-11T21:15:50.758566Z",
               "valid_to": null
             }
           ],
@@ -35174,7 +35270,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "IoT",
+          "service_definition": "Open LDAP",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -35780,17 +35876,19 @@
           "name",
           "organization_id",
           "tags",
-          "credential_ids",
           "stale_after_hours"
         ],
         "properties": {
           "credential_ids": {
-            "type": "array",
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
             },
-            "description": "Credential IDs associated with this site (hydrated from junction table)."
+            "description": "Credential IDs assigned to this site (hydrated from the junction table, so always present\nin a response). On create, omitting it assigns the organization's site-wide default\ncredentials and a list, even an empty one, is used exactly. On update, omitting it leaves\nthe assignments unchanged."
           },
           "name": {
             "type": "string",
@@ -37067,7 +37165,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "54c40908-0bdf-4b4d-ba83-6dca7c66ea24",
+                  "id": "245c6f96-c38d-4afa-a3e0-01f75fe61fd8",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -37077,23 +37175,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "c33c649c-3547-4679-99f8-0db071ee1f84",
+                  "id": "d382fed8-cfb4-4f4d-89ff-f97607fa2a8e",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "4930f5b6-4cab-40b4-b9d9-bbc47a790ea6",
+                  "id": "e5a4cea2-4cbc-4cff-bdde-a44c717ba46d",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "5e170e1c-d3b2-4a6b-a024-47ce76ebb7d7",
+                  "id": "6863d6e2-5316-43b5-a72f-6a73cb422c4b",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "c33c649c-3547-4679-99f8-0db071ee1f84",
+                  "id": "d382fed8-cfb4-4f4d-89ff-f97607fa2a8e",
                   "rule": "ByHost"
                 }
               ]
@@ -37123,19 +37221,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "43d30b67-7dc8-4db2-944b-e9adfd8e772d",
+                "id": "d2dd90ee-dffe-440b-90b4-712b14efeb65",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "934b2699-4302-418b-b331-f56550230dbb",
+                "id": "e3325a03-6101-43ca-b400-d150ca6fe222",
                 "rule": "ByVLAN"
               },
               {
-                "id": "bf014389-db4d-4077-9275-da19f3d80c89",
+                "id": "d1b347d5-745b-45bb-9f1d-1a9a2ffad684",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "211a17a7-10ce-4f90-8104-686e2b42ed09",
+                "id": "a87f781b-e3b8-458d-b2ea-112c7139b41c",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -37156,7 +37254,7 @@
                 }
               },
               {
-                "id": "d63dac97-7a1c-4a7d-b8db-df1111dd3c27",
+                "id": "621d6ebe-7712-4e34-944e-cb18d8d584e6",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -37165,15 +37263,15 @@
                 }
               },
               {
-                "id": "e007f9c3-12de-4672-ba47-a45bbc3b5674",
+                "id": "f88ccdf2-2bcd-40d9-bb0e-d480cb721995",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "c17d242e-242e-41fc-a88e-8d58f26ec8a5",
+                "id": "9a951f51-d575-4c03-a4af-8dbea3722915",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "4c541ba7-8b7a-48b6-8595-7aa96b9df630",
+                "id": "1719c081-332b-4a93-8d7a-50978f43b467",
                 "rule": "ByStack"
               }
             ]

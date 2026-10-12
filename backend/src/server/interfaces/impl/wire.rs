@@ -179,6 +179,34 @@ mod tests {
         assert!(interface.base.neighbor_candidates.is_empty());
     }
 
+    /// The interface's own source keys sit on the same object the legacy evidence is read from,
+    /// so none of them may be one the evidence claims. Otherwise every sourced interface from a
+    /// current daemon would read as legacy evidence and gain a phantom candidate.
+    #[test]
+    fn interface_source_keys_never_read_as_legacy_evidence() {
+        let mut json = pre_701_interface();
+        for key in [
+            "lldp_chassis_id",
+            "lldp_port_id",
+            "lldp_sys_name",
+            "lldp_port_desc",
+            "lldp_sys_desc",
+            "lldp_mgmt_addr",
+        ] {
+            json[key] = serde_json::Value::Null;
+        }
+        json["interface_source"] = serde_json::json!({ "Probe": "Snmp" });
+        json["vlan_membership_source"] = serde_json::json!({ "Probe": "Snmp" });
+        json["fdb_macs"] = serde_json::json!(["00:1a:2b:00:10:00"]);
+        json["fdb_macs_source"] = serde_json::json!({ "Probe": "Snmp" });
+        json["mac_address_source"] = serde_json::json!({ "Probe": "Snmp" });
+
+        let wire: DiscoveryInterface = serde_json::from_value(json).expect("deserializes");
+        assert!(!wire.submitted_legacy_neighbor_evidence());
+        let interface: Interface = wire.into();
+        assert!(interface.base.neighbor_candidates.is_empty());
+    }
+
     #[test]
     fn a_current_daemons_candidates_pass_through_untouched() {
         let submitted = serde_json::json!({

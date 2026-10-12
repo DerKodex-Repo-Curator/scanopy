@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 
+use crate::server::shared::attribution::AttributeSource;
 use anyhow::{Error, Result};
 use bollard::models::{ContainerInspectResponse, ContainerSummary};
 use uuid::Uuid;
@@ -212,7 +213,7 @@ impl ContainerScanner<'_> {
 
         let response = self
             .ops
-            .create_integration_host(
+            .create_scanned_integration_host(
                 self.integration,
                 host_data.host.clone(),
                 ip_addresses,
@@ -454,6 +455,8 @@ impl ContainerScanner<'_> {
             &[],
             daemon_id,
             &host.base.site_id,
+            // The ports the runtime says the container publishes.
+            AttributeSource::Probe(self.runtime.client_probe()),
         )?;
 
         let address_ids: Vec<Uuid> = addresses.iter().map(|(a, _)| a.id).collect();
@@ -462,7 +465,10 @@ impl ContainerScanner<'_> {
         let published_ports = host_ip_to_host_ports
             .into_values()
             .flatten()
-            .map(Port::new_hostless)
+            .map(|port_type| {
+                Port::new_hostless(port_type)
+                    .with_source(AttributeSource::Probe(self.runtime.client_probe()))
+            })
             .collect();
 
         Ok((services, ports, published_ports))
@@ -477,6 +483,7 @@ mod tests {
 
     use super::super::interfaces::tests::{container, endpoint, subnet};
     use crate::server::credentials::r#impl::types::CredentialIntegration;
+    use crate::server::discovery::r#impl::collection::undeclared_in_submitted_host;
     use crate::server::hosts::r#impl::virtualization::undeclared_virtualization;
 
     /// Every container host either runtime builds, on either network type, is a kind of
@@ -516,6 +523,20 @@ mod tests {
                 .expect("a LAN container is a host");
                 assert_eq!(
                     undeclared_virtualization(integration, &record.host),
+                    None,
+                    "{runtime:?} {network_type:?}"
+                );
+                let addresses: Vec<IPAddress> =
+                    record.addresses.iter().map(|(a, _)| a.clone()).collect();
+                assert_eq!(
+                    undeclared_in_submitted_host(
+                        integration,
+                        &record.host,
+                        &addresses,
+                        &[],
+                        &[],
+                        &[]
+                    ),
                     None,
                     "{runtime:?} {network_type:?}"
                 );

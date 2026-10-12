@@ -190,6 +190,7 @@ impl Lab {
             position: 0,
             name: Some("eth0".to_string()),
             host_id,
+            ip_address_source: AttributeSource::ArpReply,
         });
         self.storage.ip_addresses.create(&ip).await.unwrap();
         ip

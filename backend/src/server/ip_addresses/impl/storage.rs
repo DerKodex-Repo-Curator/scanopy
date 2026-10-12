@@ -75,6 +75,7 @@ impl Storable for IPAddress {
                     mac_address,
                     name,
                     position,
+                    ip_address_source,
                 },
         } = self.clone();
 
@@ -87,6 +88,7 @@ impl Storable for IPAddress {
                 "host_id",
                 "subnet_id",
                 "ip_address",
+                "ip_address_source",
                 "mac_address",
                 "mac_address_source",
                 "name",
@@ -106,6 +108,7 @@ impl Storable for IPAddress {
                 SqlValue::Uuid(host_id),
                 SqlValue::Uuid(subnet_id),
                 SqlValue::IpAddr(ip_address),
+                SqlValue::AttributeSource(ip_address_source),
                 mac_value,
                 mac_source,
                 SqlValue::OptionalString(name),
@@ -150,6 +153,7 @@ impl Storable for IPAddress {
                 mac_address,
                 name: row.get("name"),
                 position: row.get("position"),
+                ip_address_source: attributed::read_source(row, "ip_address_source")?,
             },
         })
     }
@@ -209,6 +213,10 @@ impl Entity for IPAddress {
         let incoming = self.base.mac_address.take();
         self.base.mac_address = existing.base.mac_address.clone();
         self.base.apply_mac_address(incoming);
+        self.base.ip_address_source = existing
+            .base
+            .ip_address_source
+            .keep_or_heal(self.base.ip_address_source);
     }
 }
 

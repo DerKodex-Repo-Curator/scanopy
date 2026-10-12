@@ -65,7 +65,8 @@ use crate::{
         hosts::r#impl::base::{Host, HostBase},
         interface_neighbors::r#impl::base::InterfaceNeighborEvidence,
         interfaces::r#impl::base::{
-            IfAdminStatus, IfOperStatus, Interface, InterfaceBase, InterfaceDataComplete, if_type,
+            FdbMacs, FdbMacsValue, IfAdminStatus, IfOperStatus, Interface, InterfaceBase,
+            InterfaceDataComplete, if_type,
         },
         ip_addresses::r#impl::base::{IPAddress, IPAddressBase},
         ip_addresses::r#impl::base::{MacEvidence, MacEvidenceValue},
@@ -221,9 +222,8 @@ impl DiscoveryIntegration for SnmpIntegration {
             }
         }
 
-        // No "public" fallback here — the daemon injects a broadcast SNMP credential
-        // with community "public" into credential_mappings, so it's tried as its own
-        // integration dispatch. No special-casing needed.
+        // No "public" fallback here. SNMP `public` is a stored default credential the server
+        // sends like any other, so it is tried as its own integration dispatch.
 
         let (outcome, message) = best.unwrap_or((
             AttemptOutcome::TimedOut,
@@ -1079,6 +1079,8 @@ impl DiscoveryIntegration for SnmpIntegration {
                         )
                     }),
                     position: 0,
+                    // The device's own ipAddrTable.
+                    ip_address_source: AttributeSource::Probe(ClientProbe::Snmp),
                 }));
             }
 
@@ -1136,6 +1138,7 @@ impl DiscoveryIntegration for SnmpIntegration {
                         ip_address: loopback_ip,
                         mac_address: None,
                         position: 0,
+                        ip_address_source: AttributeSource::Probe(ClientProbe::Snmp),
                     }));
                 }
             }
@@ -1170,6 +1173,7 @@ impl DiscoveryIntegration for SnmpIntegration {
                         AttributeSource::ForwardingTable,
                     )),
                     position: 0,
+                    ip_address_source: AttributeSource::ForwardingTable,
                 });
 
                 // An ARP entry carries an address and nothing else. The host stays unnamed: the

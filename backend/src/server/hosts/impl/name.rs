@@ -211,8 +211,11 @@ pub fn is_identifier_copy(source: AttributeSource) -> bool {
         | S::DnsSdDeviceInfoMatch
         | S::DnsSdAirPlayMatch
         | S::LldpChassisId
+        | S::Lldpd
         | S::ForwardingTable
         | S::ArpReply
+        | S::IcmpEcho
+        | S::PortScan
         | S::SshScript => false,
     }
 }

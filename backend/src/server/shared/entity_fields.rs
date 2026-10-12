@@ -77,6 +77,7 @@ const HOST: &[F] = &[
 
 const IP_ADDRESS: &[F] = &[
     F::new("ip_address", "IP Address")
+        .source("ip_address_source")
         .format(FieldFormat::Identifier)
         .summary(),
     F::new("mac_address", "MAC Address")
@@ -125,9 +126,11 @@ const INTERFACE: &[F] = &[
     F::new("admin_status", "Admin Status"),
     F::new("native_vlan_id", "Native VLAN")
         .entity(&[Hop::parent(E::Vlan, "native_vlan_id")])
+        .source("vlan_membership_source")
         .summary(),
     F::new("vlan_ids", "Tagged VLANs")
         .entity(&[Hop::parent(E::Vlan, "vlan_ids")])
+        .source("vlan_membership_source")
         .many(),
     F::new("ip_address_id", "IP Address").entity(&[Hop::parent(E::IPAddress, "ip_address_id")]),
     F::new("if_name", "ifName"),
@@ -137,6 +140,7 @@ const INTERFACE: &[F] = &[
     F::new("if_index", "Index").format(FieldFormat::Number),
     F::new("ip_configured", "IP Configured").format(FieldFormat::Boolean),
     F::new("fdb_macs", "Forwarding Table MACs")
+        .source("fdb_macs_source")
         .format(FieldFormat::Identifier)
         .many(),
     SITE,
@@ -171,6 +175,7 @@ const SERVICE: &[F] = &[
 const PORT: &[F] = &[
     F::new("port_number", "Port")
         .field("number")
+        .source("port_source")
         .format(FieldFormat::Number)
         .summary(),
     F::new("protocol", "Protocol").summary(),

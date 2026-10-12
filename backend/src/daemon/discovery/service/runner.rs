@@ -2,7 +2,6 @@ use crate::daemon::discovery::integration::container::ContainerRuntime;
 use crate::daemon::discovery::service::base::DiscoveryRunner;
 use crate::daemon::discovery::service::ops::DiscoveryOps;
 use crate::daemon::utils::base::{DaemonUtils, merge_host_and_docker_subnets};
-use crate::server::credentials::r#impl::mapping::{CredentialMapping, CredentialQueryPayload};
 use crate::server::daemons::r#impl::api::DaemonDiscoveryRequest;
 use crate::server::discovery::r#impl::types::DiscoveryType;
 use crate::server::hosts::r#impl::base::Host;
@@ -76,18 +75,8 @@ impl DiscoveryRunner {
         // container integration resolves the concrete local socket path (rootful/rootless Podman,
         // Docker socket) when it sees these payloads.
 
-        // Always try SNMP "public" community on all hosts.
-        // Injected as a broadcast default — user-configured credentials (IP overrides) take priority.
-        self.credential_mappings.push(CredentialMapping {
-            daemon_os: Default::default(),
-            default_credential: Some(CredentialQueryPayload::Snmp(
-                crate::server::credentials::r#impl::mapping::SnmpQueryCredential::public_default(),
-            )),
-            // Synthesized here, not stored anywhere, so there is no record for a warning about it
-            // to point at.
-            default_credential_id: None,
-            ip_overrides: vec![],
-        });
+        // SNMP `public` arrives the same way: it is a stored default credential, assigned to the
+        // site, so the daemon tries only what the server sends.
 
         // The session starts first, so the server hears `Started` before any subnet work. That
         // work can take minutes (in ServerPoll each subnet waits up to two minutes for the server
@@ -389,6 +378,9 @@ impl DiscoveryRunner {
             ip_address: host_ip,
             mac_address: None,
             position: 0,
+            // The daemon's own loopback, the address its own-host credentials are keyed to.
+            ip_address_source:
+                crate::server::shared::attribution::AttributeSource::DaemonSelfReport,
         });
 
         let params = crate::server::services::r#impl::base::ServiceMatchBaselineParams {
@@ -405,8 +397,15 @@ impl DiscoveryRunner {
             dns_sd: &None,
         };
 
+        // Every port here is one a daemon-host integration's probe answered on, and records that
+        // probe. The fallback is the daemon reading its own host.
         let mut host_data = match ops
-            .build_host_from_scan(params, None, self.host_naming_fallback)
+            .build_host_from_scan(
+                params,
+                None,
+                self.host_naming_fallback,
+                crate::server::shared::attribution::AttributeSource::DaemonSelfReport,
+            )
             .await?
         {
             Some(hd) => hd,
@@ -417,6 +416,7 @@ impl DiscoveryRunner {
         };
 
         host_data.host.id = self.host_id;
+        host_data.check_credential_free_collection();
 
         // Execute integrations — use localhost_ip since credentials are keyed to 127.0.0.1
         let execute_params = dispatch::ExecuteParams {

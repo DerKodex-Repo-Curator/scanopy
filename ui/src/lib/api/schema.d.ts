@@ -3750,19 +3750,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-11T18:00:53.112448Z",
+             *       "created_at": "2026-10-11T21:15:50.709872Z",
              *       "first_discovery_id": null,
-             *       "id": "5b5c1dae-6c8e-4204-9760-13ef7b73b5f5",
+             *       "id": "e2f626c6-2fc8-471a-a564-7aa9e34ac9ac",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-11T18:00:53.112448Z",
+             *       "last_seen_at": "2026-10-11T21:15:50.709872Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-11T18:00:53.112448Z",
-             *       "valid_from": "2026-10-11T18:00:53.112448Z",
+             *       "updated_at": "2026-10-11T21:15:50.709872Z",
+             *       "valid_from": "2026-10-11T21:15:50.709872Z",
              *       "valid_to": null
              *     }
              */
@@ -3965,6 +3965,12 @@ export interface components {
                  * @description Server-assigned unique identifier.
                  */
                 readonly id: string;
+                /**
+                 * @description Whether this is the organization's seeded default for its type: identical to the
+                 *     credential every organization starts with. A default can't be deleted, and its settings
+                 *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+                 */
+                readonly is_default: boolean;
                 /**
                  * Format: date-time
                  * @description When this record was last modified.
@@ -4519,6 +4525,9 @@ export interface components {
              *           "if_index": 1,
              *           "if_name": "Gi0/1",
              *           "if_type": 6,
+             *           "interface_source": {
+             *             "Probe": "Snmp"
+             *           },
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "ip_configured": true,
              *           "last_discovery_id": null,
@@ -4532,7 +4541,8 @@ export interface components {
              *           "speed_bps": 1000000000,
              *           "updated_at": "2026-01-15T10:30:00Z",
              *           "valid_from": "2026-01-15T10:30:00Z",
-             *           "valid_to": null
+             *           "valid_to": null,
+             *           "vlan_membership_source": "Unspecified"
              *         }
              *       ],
              *       "ip_addresses": [
@@ -4542,6 +4552,7 @@ export interface components {
              *           "host_id": "550e8400-e29b-41d4-a716-446655440003",
              *           "id": "550e8400-e29b-41d4-a716-446655440005",
              *           "ip_address": "192.168.1.100",
+             *           "ip_address_source": "ArpReply",
              *           "last_discovery_id": null,
              *           "last_seen_at": "2026-01-15T10:30:00Z",
              *           "lineage_id": null,
@@ -4602,6 +4613,7 @@ export interface components {
              *           "last_seen_at": "2026-01-15T10:30:00Z",
              *           "lineage_id": null,
              *           "number": 80,
+             *           "port_source": "PortScan",
              *           "protocol": "Tcp",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Http",
@@ -4615,19 +4627,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-11T18:00:53.088746Z",
+             *               "created_at": "2026-10-11T21:15:50.684655Z",
              *               "first_discovery_id": null,
-             *               "id": "0928ca95-1d7a-4927-b7eb-58209b8c8b27",
+             *               "id": "2e668540-7651-42e3-82ce-de53ccb61665",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-11T18:00:53.088746Z",
+             *               "last_seen_at": "2026-10-11T21:15:50.684655Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-11T18:00:53.088746Z",
-             *               "valid_from": "2026-10-11T18:00:53.088746Z",
+             *               "updated_at": "2026-10-11T21:15:50.684655Z",
+             *               "valid_from": "2026-10-11T21:15:50.684655Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4640,7 +4652,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "IoT",
+             *           "service_definition": "Open LDAP",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -4876,6 +4888,7 @@ export interface components {
              *       "host_id": "550e8400-e29b-41d4-a716-446655440003",
              *       "id": "550e8400-e29b-41d4-a716-446655440005",
              *       "ip_address": "192.168.1.100",
+             *       "ip_address_source": "ArpReply",
              *       "last_discovery_id": null,
              *       "last_seen_at": "2026-01-15T10:30:00Z",
              *       "lineage_id": null,
@@ -5274,6 +5287,7 @@ export interface components {
              *       "last_seen_at": "2026-01-15T10:30:00Z",
              *       "lineage_id": null,
              *       "number": 80,
+             *       "port_source": "PortScan",
              *       "protocol": "Tcp",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Http",
@@ -5573,19 +5587,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-11T18:00:53.107840Z",
+             *           "created_at": "2026-10-11T21:15:50.704908Z",
              *           "first_discovery_id": null,
-             *           "id": "cdbbb1c5-b1e5-4a95-a73a-b89e9e939ba7",
+             *           "id": "67a11fca-cc33-4eec-8f5f-9a47659ff3f1",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-11T18:00:53.107840Z",
+             *           "last_seen_at": "2026-10-11T21:15:50.704908Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-11T18:00:53.107840Z",
-             *           "valid_from": "2026-10-11T18:00:53.107840Z",
+             *           "updated_at": "2026-10-11T21:15:50.704908Z",
+             *           "valid_from": "2026-10-11T21:15:50.704908Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5598,7 +5612,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "IoT",
+             *       "service_definition": "Open LDAP",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6517,6 +6531,12 @@ export interface components {
                  */
                 readonly id: string;
                 /**
+                 * @description Whether this is the organization's seeded default for its type: identical to the
+                 *     credential every organization starts with. A default can't be deleted, and its settings
+                 *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+                 */
+                readonly is_default: boolean;
+                /**
                  * Format: date-time
                  * @description When this record was last modified.
                  */
@@ -6890,7 +6910,7 @@ export interface components {
          *     that do carry a [`ClientProbe`] keep it under their own name, `{"Probe":"Snmp"}`, which tells them
          *     apart from each other and from every bare name.
          */
-        AttributeSource: "Unspecified" | "OwnAddress" | "ServiceMatch" | "LldpNeighbourAddress" | "CipVendorId" | "SysDescrMatch" | "SysObjectIdMatch" | "LldpSysDescMatch" | "SshBannerMatch" | "HttpServerMatch" | "DnsSdDeviceInfoMatch" | "DnsSdAirPlayMatch" | "DnsSdInstanceName" | "DnsSdHostname" | "LldpChassisId" | "ReverseDns" | "ForwardingTable" | "ArpReply" | "DaemonSelfReport" | "ProfinetDcp" | "ContainerRuntimeInfo" | "HypervisorConfig" | "GuestAgent" | "SshScript" | {
+        AttributeSource: "Unspecified" | "OwnAddress" | "ServiceMatch" | "LldpNeighbourAddress" | "CipVendorId" | "SysDescrMatch" | "SysObjectIdMatch" | "LldpSysDescMatch" | "SshBannerMatch" | "HttpServerMatch" | "DnsSdDeviceInfoMatch" | "DnsSdAirPlayMatch" | "DnsSdInstanceName" | "DnsSdHostname" | "LldpChassisId" | "Lldpd" | "ReverseDns" | "ForwardingTable" | "ArpReply" | "IcmpEcho" | "PortScan" | "DaemonSelfReport" | "ProfinetDcp" | "ContainerRuntimeInfo" | "HypervisorConfig" | "GuestAgent" | "SshScript" | {
             /** @description A value the thing emitted about itself, over whatever transport [`ClientProbe`] names. */
             Probe: components["schemas"]["ClientProbe"];
         } | {
@@ -6939,19 +6959,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-11T18:00:53.089200Z",
+         *       "created_at": "2026-10-11T21:15:50.685151Z",
          *       "first_discovery_id": null,
-         *       "id": "aa8f4058-caf9-4ec2-b491-5fb62fb2eba6",
+         *       "id": "0fdb2ae9-c347-46e4-9704-d9d53bb7755d",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-11T18:00:53.089200Z",
+         *       "last_seen_at": "2026-10-11T21:15:50.685151Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-11T18:00:53.089200Z",
-         *       "valid_from": "2026-10-11T18:00:53.089200Z",
+         *       "updated_at": "2026-10-11T21:15:50.685151Z",
+         *       "valid_from": "2026-10-11T21:15:50.685151Z",
          *       "valid_to": null
          *     }
          */
@@ -7297,7 +7317,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "IoT",
+         *           "service_definition": "Open LDAP",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -7432,6 +7452,12 @@ export interface components {
              */
             readonly id: string;
             /**
+             * @description Whether this is the organization's seeded default for its type: identical to the
+             *     credential every organization starts with. A default can't be deleted, and its settings
+             *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+             */
+            readonly is_default: boolean;
+            /**
              * Format: date-time
              * @description When this record was last modified.
              */
@@ -7458,7 +7484,8 @@ export interface components {
              *     communities the address does not narrow to a record, which is what this is for.
              *
              *     `None` on a warning written before the id was carried, on one from a daemon that predates
-             *     it, and on the daemon's own injected "public" fallback, which has no stored row.
+             *     it, and on the `public` fallback older daemons injected themselves, which has no stored
+             *     row.
              */
             credential_id: string | null;
             /**
@@ -9447,6 +9474,11 @@ export interface components {
             /** @description Viewer may export the diagram as an editable Visio (VSDX) file. */
             vsdx_export: boolean;
         };
+        FdbMacs: {
+            /** @description MAC addresses the switch learned on this port. A port with one learned MAC can be resolved to a neighbor link; several indicate an uplink. */
+            fdb_macs?: string[];
+            fdb_macs_source?: components["schemas"]["AttributeSource"];
+        };
         /**
          * @description Definition of a form field for dynamic UI rendering.
          *
@@ -9903,6 +9935,9 @@ export interface components {
          *           "if_index": 1,
          *           "if_name": "Gi0/1",
          *           "if_type": 6,
+         *           "interface_source": {
+         *             "Probe": "Snmp"
+         *           },
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "ip_configured": true,
          *           "last_discovery_id": null,
@@ -9916,7 +9951,8 @@ export interface components {
          *           "speed_bps": 1000000000,
          *           "updated_at": "2026-01-15T10:30:00Z",
          *           "valid_from": "2026-01-15T10:30:00Z",
-         *           "valid_to": null
+         *           "valid_to": null,
+         *           "vlan_membership_source": "Unspecified"
          *         }
          *       ],
          *       "ip_addresses": [
@@ -9926,6 +9962,7 @@ export interface components {
          *           "host_id": "550e8400-e29b-41d4-a716-446655440003",
          *           "id": "550e8400-e29b-41d4-a716-446655440005",
          *           "ip_address": "192.168.1.100",
+         *           "ip_address_source": "ArpReply",
          *           "last_discovery_id": null,
          *           "last_seen_at": "2026-01-15T10:30:00Z",
          *           "lineage_id": null,
@@ -9986,6 +10023,7 @@ export interface components {
          *           "last_seen_at": "2026-01-15T10:30:00Z",
          *           "lineage_id": null,
          *           "number": 80,
+         *           "port_source": "PortScan",
          *           "protocol": "Tcp",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Http",
@@ -9999,19 +10037,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-11T18:00:53.088246Z",
+         *               "created_at": "2026-10-11T21:15:50.684065Z",
          *               "first_discovery_id": null,
-         *               "id": "a25dc805-510c-4cfa-974a-5409d0c56644",
+         *               "id": "12ade7a6-f2ab-49b1-b68f-c585007f1d5c",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-11T18:00:53.088246Z",
+         *               "last_seen_at": "2026-10-11T21:15:50.684065Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-11T18:00:53.088246Z",
-         *               "valid_from": "2026-10-11T18:00:53.088246Z",
+         *               "updated_at": "2026-10-11T21:15:50.684065Z",
+         *               "valid_from": "2026-10-11T21:15:50.684065Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10024,7 +10062,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "IoT",
+         *           "service_definition": "Open LDAP",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10316,6 +10354,7 @@ export interface components {
          *       "host_id": "550e8400-e29b-41d4-a716-446655440003",
          *       "id": "550e8400-e29b-41d4-a716-446655440005",
          *       "ip_address": "192.168.1.100",
+         *       "ip_address_source": "ArpReply",
          *       "last_discovery_id": null,
          *       "last_seen_at": "2026-01-15T10:30:00Z",
          *       "lineage_id": null,
@@ -10388,6 +10427,8 @@ export interface components {
              * @example 192.168.1.10
              */
             ip_address: string;
+            /** @description What found this address on the host. */
+            ip_address_source?: components["schemas"]["AttributeSource"];
             /** @description Human-facing name for this IP address. */
             name: string | null;
             /**
@@ -10674,14 +10715,8 @@ export interface components {
              */
             readonly valid_to?: string | null;
         };
-        InterfaceBase: components["schemas"]["MacEvidence"] & {
+        InterfaceBase: components["schemas"]["MacEvidence"] & components["schemas"]["FdbMacs"] & {
             admin_status?: null | components["schemas"]["IfAdminStatus"];
-            /**
-             * @description Bridge FDB: learned MAC addresses on this switch port.
-             *     Single-MAC ports can be resolved to neighbor links server-side.
-             *     Multi-MAC ports indicate uplinks where LLDP/CDP is the better source.
-             */
-            fdb_macs?: string[] | null;
             /**
              * Format: uuid
              * @description The host this entity belongs to.
@@ -10721,6 +10756,8 @@ export interface components {
              *     for lack of a number would drop the row from resolution and from the map.
              */
             if_type?: number | null;
+            /** @description What reported this interface. */
+            interface_source?: components["schemas"]["AttributeSource"];
             /**
              * Format: uuid
              * @description FK to IPAddress entity - this port's IP assignment (must be on same host).
@@ -10773,6 +10810,11 @@ export interface components {
             speed_bps?: number | null;
             /** @description Tagged VLAN entity IDs on this port (resolved from Q-BRIDGE dot1qVlanCurrentEgressPorts) */
             vlan_ids?: string[] | null;
+            /**
+             * @description What read `native_vlan_id` and `vlan_ids`. One source for both, because they are read
+             *     together and kept or replaced together.
+             */
+            vlan_membership_source?: components["schemas"]["AttributeSource"];
         };
         /**
          * @description Which groups of per-interface data the daemon read in full during a scan.
@@ -10897,6 +10939,11 @@ export interface components {
             cdp_platform?: string | null;
             /** @description Remote port ID from CDP */
             cdp_port_id?: string | null;
+            /**
+             * @description What heard this record: the integration that read the device's neighbor table, or lldpd on
+             *     the daemon's own host.
+             */
+            evidence_source?: components["schemas"]["AttributeSource"];
             lldp_chassis_id?: null | components["schemas"]["LldpChassisId"];
             /**
              * @description Remote management IP from LLDP neighbor (lldpRemManAddr). IPv4 or IPv6.
@@ -11650,6 +11697,12 @@ export interface components {
                  * @description Server-assigned unique identifier.
                  */
                 readonly id: string;
+                /**
+                 * @description Whether this is the organization's seeded default for its type: identical to the
+                 *     credential every organization starts with. A default can't be deleted, and its settings
+                 *     can't change. Computed from `credential_type`, so a value sent in a request is ignored.
+                 */
+                readonly is_default: boolean;
                 /**
                  * Format: date-time
                  * @description When this record was last modified.
@@ -12446,6 +12499,7 @@ export interface components {
          *       "last_seen_at": "2026-01-15T10:30:00Z",
          *       "lineage_id": null,
          *       "number": 80,
+         *       "port_source": "PortScan",
          *       "protocol": "Tcp",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Http",
@@ -12508,6 +12562,11 @@ export interface components {
              * @description The host this entity belongs to.
              */
             host_id: string;
+            /**
+             * @description What found this port open. Not part of the port's identity: equality and hashing compare
+             *     `port_type` alone.
+             */
+            port_source?: components["schemas"]["AttributeSource"];
             /**
              * Format: uuid
              * @description The site this entity belongs to.
@@ -13197,19 +13256,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-11T18:00:53.089069Z",
+         *           "created_at": "2026-10-11T21:15:50.684994Z",
          *           "first_discovery_id": null,
-         *           "id": "dab9a4c0-0057-44ff-9b5d-a0f217935026",
+         *           "id": "a31f2f4d-cf7e-4250-a21f-058279753436",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-11T18:00:53.089069Z",
+         *           "last_seen_at": "2026-10-11T21:15:50.684994Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-11T18:00:53.089069Z",
-         *           "valid_from": "2026-10-11T18:00:53.089069Z",
+         *           "updated_at": "2026-10-11T21:15:50.684994Z",
+         *           "valid_from": "2026-10-11T21:15:50.684994Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13222,7 +13281,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "IoT",
+         *       "service_definition": "Open LDAP",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13553,8 +13612,13 @@ export interface components {
             readonly updated_at: string;
         };
         SiteBase: {
-            /** @description Credential IDs associated with this site (hydrated from junction table). */
-            credential_ids: string[];
+            /**
+             * @description Credential IDs assigned to this site (hydrated from the junction table, so always present
+             *     in a response). On create, omitting it assigns the organization's site-wide default
+             *     credentials and a list, even an empty one, is used exactly. On update, omitting it leaves
+             *     the assignments unchanged.
+             */
+            credential_ids?: string[] | null;
             /** @description Human-facing name for this site. */
             name: string;
             /**
@@ -14236,7 +14300,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "1a0a1a14-e5c6-43cd-aac2-e9cf7fe3b651",
+             *           "id": "b0553a61-8b28-47d2-afa6-6523bc05c458",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14246,23 +14310,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "66765f22-b038-4d9f-a4b5-27f17955b18f",
+             *           "id": "89f76b13-43b3-4622-b1a1-e41776d966ae",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "563d0c13-dddb-4dd1-92da-198d1e51aa54",
+             *           "id": "339e04cb-c8cd-4645-82d2-d1533aba08f9",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "b24fde2f-e18d-43c5-aff2-61ed0e175e94",
+             *           "id": "26cda3ac-06f4-4fc2-88ed-b35e10987011",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "66765f22-b038-4d9f-a4b5-27f17955b18f",
+             *           "id": "89f76b13-43b3-4622-b1a1-e41776d966ae",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14276,19 +14340,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "d096252f-d07c-4aa0-8bf7-23e45b191190",
+             *         "id": "53bae588-deb4-4f75-b147-246e78796aa7",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "06aed331-efbc-4a42-8c98-36b27dc73137",
+             *         "id": "c17d3b7b-3c51-443a-b0d7-95b3c29b6c63",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "bf38f9b9-4858-49c0-bc3f-b44dcc78f6dc",
+             *         "id": "18661e7f-2e56-4ff6-9985-d2a9c9f60c42",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "9d55ba6c-0305-4952-8f65-1c86f93c1369",
+             *         "id": "58caf56b-f9f3-421e-8ca0-8e830e6353a9",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14309,7 +14373,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "f184ecf4-018c-42e9-a4f4-89a802b0e350",
+             *         "id": "201bf00b-6faa-4792-9ad9-a10cb385da1c",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14318,15 +14382,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "67f903ca-fafc-4186-b0a7-638be19614a0",
+             *         "id": "39473697-e965-4d67-aceb-245b70c31716",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "a25fc171-b2e2-437f-a21e-99f46f74edf8",
+             *         "id": "fca8b195-a3a8-42cb-8d36-5059f8725f3e",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "4e34a3b5-efb6-47df-b6a2-fa6f4f155e98",
+             *         "id": "c6b32d99-3ffd-41de-8afc-261fa5083424",
              *         "rule": "ByStack"
              *       }
              *     ]

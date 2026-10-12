@@ -11,10 +11,13 @@ use crate::daemon::discovery::types::warnings::DiscoveryWarning;
 use crate::daemon::utils::app_probe::{ProbeContext, scan_app_probes};
 use crate::daemon::utils::base::{DaemonUtils, PlatformDaemonUtils, filtered_own_nics};
 use crate::daemon::utils::scanner::{
-    ScanConcurrencyController, can_arp_scan, probe_snmp_ports, scan_endpoints, scan_tcp_ports,
+    ScanConcurrencyController, can_arp_scan, scan_endpoints, scan_tcp_ports,
 };
 use crate::server::credentials::r#impl::mapping::{
     CredentialMapping, CredentialQueryPayload, IpOverride,
+};
+use crate::server::discovery::r#impl::collection::{
+    Producer, report_undeclared_collection, undeclared_in_submitted_host,
 };
 use crate::server::discovery::r#impl::scan_settings::defaults;
 use crate::server::interfaces::r#impl::base::{Interface, InterfaceBase, InterfaceDataComplete};
@@ -848,6 +851,7 @@ impl NetworkScan {
                             // Everything else must pass the TCP responsiveness check in
                             // deep_scan_host() first.
                             let mac = evidence.mac();
+                            let address_source = evidence.address_source();
                             if evidence.is_confirmed_live()
                                 && let std::collections::hash_map::Entry::Vacant(e) = early_reported_hosts.entry(ip)
                             {
@@ -875,6 +879,7 @@ impl NetworkScan {
                 mac_address: mac
                     .map(|m| MacEvidence::new(MacEvidenceValue(m), AttributeSource::ArpReply)),
                                         position: 0,
+                                        ip_address_source: address_source,
                                     });
                                     let request = DiscoveryHostRequest {
                                         host,
@@ -1415,8 +1420,20 @@ impl NetworkScan {
                 MacEvidenceValue(response.mac),
                 AttributeSource::ProfinetDcp,
             )),
+            interface_source: AttributeSource::ProfinetDcp,
             ..Default::default()
         });
+        report_undeclared_collection(
+            Producer::CredentialFree,
+            undeclared_in_submitted_host(
+                Producer::CredentialFree,
+                &host,
+                &[],
+                &[],
+                &[],
+                std::slice::from_ref(&interface),
+            ),
+        );
 
         if let Err(e) = ops
             .create_host(
@@ -1606,11 +1623,9 @@ impl NetworkScan {
         open_ports.sort_by_key(|p| (p.number(), p.protocol()));
         open_ports.dedup();
 
-        // SNMP port probing. Credentialed SNMP is SnmpIntegration.probe()'s below; this still
-        // tries the default `public` community, which is the only way an SNMP device is found on a
-        // network with no credential configured.
-        let snmp_ports = probe_snmp_ports(ip, cancel.clone(), &[]).await?;
-        open_ports.extend(snmp_ports);
+        // SNMP ports come from `SnmpIntegration.probe()` in the integration probes below, with the
+        // credentials the site and host are assigned. SNMP `public` is one of them: a default
+        // credential every new site gets.
 
         // Non-credentialed application probes (DNS, NTP, DHCP, BACnet, Modbus, OPC UA,
         // EtherNet/IP). TCP probes gate on `open_ports` from the connect scan above, so this has
@@ -1783,6 +1798,7 @@ impl NetworkScan {
                 .mac()
                 .map(|m| MacEvidence::new(MacEvidenceValue(m), AttributeSource::ArpReply)),
             position: 0,
+            ip_address_source: evidence.address_source(),
         });
 
         // Filter raw socket ports from service matching when probe_raw_socket_ports is off,
@@ -1831,11 +1847,13 @@ impl NetworkScan {
                 },
                 hostname,
                 self.host_naming_fallback,
+                AttributeSource::PortScan,
             )
             .await
         {
             // Reuse the early-reported host ID so the server updates the existing record
             host_data.host.id = early_host_id;
+            host_data.check_credential_free_collection();
 
             // Execute integrations whose probe succeeded and service matched
             let execute_params = dispatch::ExecuteParams {

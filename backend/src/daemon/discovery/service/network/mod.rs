@@ -27,6 +27,7 @@ use crate::server::discovery::r#impl::types::HostNamingFallback;
 use crate::server::ip_addresses::r#impl::base::IPAddress;
 use crate::server::ports::r#impl::base::PortType;
 use crate::server::services::r#impl::base::Service;
+use crate::server::shared::attribution::AttributeSource;
 use crate::server::subnets::r#impl::base::Subnet;
 
 /// Per-host data discovered during deep_scan_host().
@@ -183,7 +184,7 @@ impl NetworkScan {
 /// integration **once** regardless of how many credentials of that type cover the IP.
 ///
 /// SNMP now runs a single collection per host (see `execute_integrations`' dedup), so
-/// N SNMP credentials (v1/v2c/v3 + the injected "public" default) must cost the same as
+/// N SNMP credentials (v1/v2c/v3, the SNMP `public` default among them) must cost the same as
 /// one. This is used symmetrically for both the total-cost estimate and the completed-
 /// cost accrual (`scan.rs`) so `completed_cost` converges to `total_cost` and the scan
 /// ETA/progress stay accurate instead of over-counting per-credential.
@@ -249,6 +250,16 @@ impl LivenessEvidence {
         match self {
             Self::Arp(mac) => Some(*mac),
             Self::Icmp | Self::Mdns | Self::Enumerated => None,
+        }
+    }
+
+    /// What found the address. A host found only by its open ports was found by the port scan.
+    pub(super) fn address_source(&self) -> AttributeSource {
+        match self {
+            Self::Arp(_) => AttributeSource::ArpReply,
+            Self::Icmp => AttributeSource::IcmpEcho,
+            Self::Mdns => AttributeSource::DnsSdHostname,
+            Self::Enumerated => AttributeSource::PortScan,
         }
     }
 

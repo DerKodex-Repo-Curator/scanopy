@@ -141,6 +141,7 @@ impl From<&NeighborLeaves> for InterfaceNeighborEvidence {
             lldp_port_desc: n.port_description.clone(),
             lldp_mgmt_addr: n.management_address.as_deref().and_then(|a| a.parse().ok()),
             lldp_sys_desc: n.system_description.clone(),
+            evidence_source: AttributeSource::Probe(ClientProbe::Gnmi),
             ..Default::default()
         }
     }
@@ -433,6 +434,7 @@ pub(crate) fn collection_to_interfaces(
                         )
                     }),
                 neighbor_candidates,
+                interface_source: AttributeSource::Probe(ClientProbe::Gnmi),
                 ..Default::default()
             })
         })

@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { lastSeenItems } from '$lib/shared/utils/freshness';
-	import { cidrSourceItems, isProvisionalCidr } from '$lib/shared/utils/cidr-source';
-	import { cidrContains, compareCidr } from '$lib/shared/utils/cidr';
+	import { isProvisionalCidr } from '$lib/shared/utils/cidr-source';
+	import { cidrContains } from '$lib/shared/utils/cidr';
 	import SubnetUtilization from './SubnetUtilization.svelte';
-	import { nestedRangeOf, subnetNesting, utilizationRatio } from '../nesting';
+	import { subnetNesting } from '../nesting';
 	import SubnetEditModal from './SubnetEditModal/SubnetEditModal.svelte';
 	import ProvisionalRangeModal from './ProvisionalRangeModal.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
@@ -12,11 +11,9 @@
 	import type { Subnet, SubnetResponse } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { entityRef, type CardAction } from '$lib/shared/components/data/types';
-	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import type { CardAction } from '$lib/shared/components/data/types';
+	import { subnetColumns } from './SubnetTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
-	import { tagNames } from '$lib/features/tags/columns';
-	import { siteItems } from '$lib/features/sites/columns';
 	import { Plus, Trash2, Edit, CloudAlert } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -33,7 +30,7 @@
 	import { useServicesByIds } from '$lib/features/services/queries';
 	import type { Service } from '$lib/features/services/types/base';
 	import { useDiscoveriesByIds } from '$lib/features/discovery/queries';
-	import { discoveryRunIds, discoveryRunItems } from '$lib/features/discovery/columns';
+	import { discoveryRunIds } from '$lib/features/discovery/columns';
 	import type { TabProps } from '$lib/shared/types';
 	import type { components } from '$lib/api/schema';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
@@ -41,30 +38,15 @@
 	import {
 		common_confirmDeleteName,
 		common_create,
-		common_nested,
 		common_confirmBulkDelete,
-		common_created,
-		common_lastSeen,
-		common_site,
 		common_noEntityYet,
 		common_delete,
-		common_source,
 		common_edit,
-		common_firstFoundBy,
-		common_lastFoundBy,
 		common_subnets,
-		common_tags,
-		common_unknownSite,
-		common_updated,
 		daemons_installPromptSubnets,
-		subnets_managedBy,
-		subnets_resolveRange,
-		subnets_subnetType,
-		common_utilization
+		subnets_resolveRange
 	} from '$lib/paraglide/messages';
 	import { hasDaemon } from '$lib/shared/onboarding/checklist';
-	import { concepts, entitySources, subnetTypes } from '$lib/shared/stores/metadata';
-	import { entitySourceItems } from '$lib/shared/utils/entity-source';
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
 	type SubnetOrderField = components['schemas']['SubnetOrderField'];
@@ -324,159 +306,16 @@
 	// Related entities the registry's subnet fields read: the managing runtime, the site.
 	let lookup = $derived(collectionLookup({ Service: runtimesData, Site: sitesData }));
 
-	// Columns from the entity field registry; this tab adds how each one searches, filters and
-	// sorts. Every SubnetOrderField value must be listed.
 	let subnetFields = $derived(
-		defineRegistryFields<SubnetResponse, SubnetOrderField>(
-			'Subnet',
-			() => lookup,
-			{
-				// Identity fields: grouping by one would render a header per subnet.
-				name: {
-					searchable: true,
-					groupable: false,
-					display: { order: 0, primary: true, width: 220 }
-				},
-				cidr: {
-					searchable: true,
-					// Groups each range with every range nested inside it, as nested sections. A subnet
-					// that nests with nothing falls in the ungrouped bucket rather than heading a
-					// group of one.
-					getGroupLabel: (subnet) => nestedRangeOf(subnet, nesting),
-					// Address order, not text order, which is also the tree order: each range sorts
-					// directly before the ranges inside it.
-					compare: (a, b) => compareCidr(a.cidr, b.cidr),
-					tree: {
-						key: (subnet) => subnet.id,
-						parentKey: (subnet) => subnet.parent_subnet_id ?? null,
-						rootsLabel: () => common_nested()
-					},
-					display: { order: 3, getItems: cidrSourceItems() }
-				},
-				subnet_type: {
-					label: subnets_subnetType(),
-					searchable: true,
-					filterable: true,
-					// Every type the backend defines, named the way the chip renders them.
-					filterOptions: subnetTypes.getItems().map((type) => subnetTypes.getName(type.id)),
-					display: {
-						order: 4,
-						getItems: (subnet) => [
-							{
-								id: subnet.subnet_type,
-								...subnetTypes.getTag(subnet.subnet_type),
-								icon: subnetTypes.getIconComponent(subnet.subnet_type)
-							}
-						]
-					}
-				},
-				site_id: {
-					label: common_site(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					groupable: true,
-					getValue: (item) =>
-						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
-					display: { order: 2, getItems: (item) => siteItems(item.site_id, sitesData) }
-				},
-				created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
-				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } },
-				last_seen_at: {
-					label: common_lastSeen(),
-					type: 'date',
-					staleFilter: true,
-					display: {
-						recency: true,
-						order: 1,
-						getItems: lastSeenItems(() => sitesData, 'Subnet')
-					}
-				}
-			},
-			[
-				{
-					key: 'utilization',
-					label: common_utilization(),
-					type: 'string',
-					sortable: true,
-					getValue: (subnet) => `${Math.round(utilizationRatio(subnet) * 100)}%`,
-					compare: (a, b) => utilizationRatio(a) - utilizationRatio(b),
-					display: { order: 5, cell: utilizationCell }
-				},
-				{
-					key: 'description',
-					searchable: true,
-					display: { hiddenByDefault: true }
-				},
-				{
-					key: 'source',
-					label: common_source(),
-					type: 'string',
-					filterable: true,
-					groupable: true,
-					sortable: true,
-					// Every source the backend can stamp, named the way the column renders them.
-					filterOptions: entitySources.getItems().map((source) => entitySources.getName(source.id)),
-					getValue: (subnet) => entitySources.getName(subnet.source.type),
-					display: {
-						hiddenByDefault: true,
-						getItems: (subnet) => entitySourceItems(subnet.source)
-					}
-				},
-				{
-					// The container runtime that created this bridge network. Only bridge subnets have one.
-					key: 'managed_by',
-					label: subnets_managedBy(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					groupable: true,
-					sortable: true,
-					getValue: (subnet) => runtimeOf(subnet)?.name ?? null,
-					display: {
-						hiddenByDefault: true,
-						getItems: (subnet) => {
-							const runtime = runtimeOf(subnet);
-							if (!runtime) return [];
-							return [
-								{
-									id: runtime.id,
-									label: runtime.name,
-									color: concepts.getColorHelper('Containerization').color,
-									entityRef: entityRef('Service', runtime.id, runtime)
-								}
-							];
-						}
-					}
-				},
-				{
-					key: 'first_found_by',
-					label: common_firstFoundBy(),
-					type: 'string',
-					display: {
-						hiddenByDefault: true,
-						getItems: (item) => discoveryRunItems(item.first_discovery_id, discoveryRunsData)
-					}
-				},
-				{
-					key: 'last_found_by',
-					label: common_lastFoundBy(),
-					type: 'string',
-					display: {
-						hiddenByDefault: true,
-						getItems: (item) => discoveryRunItems(item.last_discovery_id, discoveryRunsData)
-					}
-				},
-				{
-					key: 'tags',
-					label: common_tags(),
-					type: 'array',
-					searchable: true,
-					filterable: true,
-					getValue: (entity) => tagNames(entity.tags, tagsData)
-				}
-			]
-		)
+		subnetColumns({
+			lookup: () => lookup,
+			sites: () => sitesData,
+			tags: () => tagsData,
+			discoveryRuns: () => discoveryRunsData,
+			nesting: () => nesting,
+			runtimeOf,
+			utilizationCell
+		})
 	);
 </script>
 

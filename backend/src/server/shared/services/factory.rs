@@ -330,6 +330,8 @@ impl ServiceFactory {
         let _ = service_service.set_host_service(host_service.clone());
         let _ = daemon_service.set_host_service(host_service.clone());
         let _ = credential_service.set_host_service(host_service.clone());
+        let _ = organization_service.set_credential_service(credential_service.clone());
+        let _ = site_service.set_credential_service(credential_service.clone());
         let _ = discovery_service.set_daemon_service(daemon_service.clone());
 
         let topology_service = Arc::new(TopologyService::new(

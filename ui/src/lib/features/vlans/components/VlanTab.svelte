@@ -1,15 +1,11 @@
 <script lang="ts">
-	import { lastSeenItems } from '$lib/shared/utils/freshness';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
-	import { defineRegistryFields } from '$lib/shared/entity-fields/table';
+	import { vlanColumns } from './VlanTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
-	import { siteItems } from '$lib/features/sites/columns';
-	import { entitySources } from '$lib/shared/stores/metadata';
-	import { entitySourceItems } from '$lib/shared/utils/entity-source';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { isUserManagedSubnet, useSubnetsQuery } from '$lib/features/subnets/queries';
@@ -21,28 +17,17 @@
 	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
 	import { useDiscoveriesByIds } from '$lib/features/discovery/queries';
 	import { useInterfacesByIds } from '$lib/features/interfaces/queries';
-	import { tagNames } from '$lib/features/tags/columns';
 	import { useTagsQuery } from '$lib/features/tags/queries';
-	import { discoveryRunIds, discoveryRunItems } from '$lib/features/discovery/columns';
+	import { discoveryRunIds } from '$lib/features/discovery/columns';
 	import type { Vlan, VlanOrderField } from '../types/base';
 	import type { components } from '$lib/api/schema';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import {
-		common_created,
 		common_edit,
-		common_firstFoundBy,
-		common_lastFoundBy,
-		common_lastSeen,
-		common_site,
 		common_noEntityYet,
-		common_source,
-		common_tags,
-		common_unknownSite,
-		common_updated,
 		common_vlans,
 		daemons_installPromptVlans,
-		vlans_emptySubtitle,
-		vlans_vlanNumber
+		vlans_emptySubtitle
 	} from '$lib/paraglide/messages';
 	import { hasDaemon } from '$lib/shared/onboarding/checklist';
 
@@ -146,94 +131,13 @@
 		})
 	);
 
-	// Columns from the entity field registry; this tab adds how each one searches, filters and
-	// sorts. Every VlanOrderField value must be listed.
 	let vlanFields = $derived(
-		defineRegistryFields<Vlan, VlanOrderField>(
-			'Vlan',
-			() => lookup,
-			{
-				// Identity fields: grouping by one would render a header per VLAN.
-				vlan_number: {
-					label: vlans_vlanNumber(),
-					searchable: true,
-					groupable: false
-				},
-				name: {
-					searchable: true,
-					groupable: false,
-					display: { primary: true, width: 220 }
-				},
-				created_at: { label: common_created(), type: 'date', display: { hiddenByDefault: true } },
-				updated_at: { label: common_updated(), type: 'date', display: { hiddenByDefault: true } }
-			},
-			[
-				{ key: 'description', searchable: true },
-				{
-					key: 'source',
-					label: common_source(),
-					type: 'string',
-					filterable: true,
-					groupable: true,
-					sortable: true,
-					// Every source the backend can stamp, named the way the column renders them.
-					filterOptions: entitySources.getItems().map((source) => entitySources.getName(source.id)),
-					getValue: (vlan) => (vlan.source ? entitySources.getName(vlan.source.type) : null),
-					display: {
-						hiddenByDefault: true,
-						getItems: (vlan) => (vlan.source ? entitySourceItems(vlan.source) : [])
-					}
-				},
-				{
-					key: 'site_id',
-					label: common_site(),
-					type: 'string',
-					searchable: true,
-					filterable: true,
-					groupable: true,
-					sortable: true,
-					getValue: (item) =>
-						sitesData.find((n) => n.id == item.site_id)?.name || common_unknownSite(),
-					display: { getItems: (item) => siteItems(item.site_id, sitesData) }
-				},
-				{ key: 'subnet_ids', searchable: true, filterable: true },
-				{ key: 'interface_ids', searchable: true, filterable: true },
-				{
-					// Not in VlanOrderField, so display-only with client-side sorting.
-					key: 'last_seen_at',
-					label: common_lastSeen(),
-					type: 'date',
-					sortable: true,
-					display: { recency: true, getItems: lastSeenItems(() => sitesData, 'Vlan') }
-				},
-				{
-					key: 'first_found_by',
-					label: common_firstFoundBy(),
-					type: 'string',
-					display: {
-						hiddenByDefault: true,
-						getItems: (item) => discoveryRunItems(item.first_discovery_id, discoveryRunsData)
-					}
-				},
-				{
-					key: 'last_found_by',
-					label: common_lastFoundBy(),
-					type: 'string',
-					display: {
-						hiddenByDefault: true,
-						getItems: (item) => discoveryRunItems(item.last_discovery_id, discoveryRunsData)
-					}
-				},
-				{
-					key: 'tags',
-					label: common_tags(),
-					type: 'array',
-					searchable: true,
-					filterable: true,
-					getValue: (entity) => tagNames(entity.tags, tagsData)
-				}
-			]
-		)
+		vlanColumns({
+			lookup: () => lookup,
+			sites: () => sitesData,
+			tags: () => tagsData,
+			discoveryRuns: () => discoveryRunsData
+		})
 	);
 </script>
 

@@ -54,6 +54,9 @@ impl HostService {
                 mac_address: None,
                 name: Some("lo".to_string()),
                 position: 0,
+                // Stamped as the daemon's own report, for the reason the subnet above is.
+                ip_address_source:
+                    crate::server::shared::attribution::AttributeSource::DaemonSelfReport,
             });
 
         self.ip_address_service
@@ -137,6 +140,14 @@ impl HostService {
             tracing::debug!(
                 %claimed,
                 "Discovery payload repeated an identifier as the host name; dropped the copy"
+            );
+        }
+
+        // The same server-only rung on the sources that record how each row was found.
+        if reject_manual_collection_claims(&mut ip_addresses, &mut ports, &mut interfaces) {
+            tracing::warn!(
+                "Discovery payload claimed a row was entered in Scanopy; recording it as \
+                 unattributed"
             );
         }
 
@@ -350,6 +361,41 @@ impl HostService {
     }
 }
 
+/// Lower every `Manual` source a discovery payload claims on its rows to `Unspecified`, as
+/// [`HostBase::reject_manual_name_claim`] does for the name. Returns whether any changed.
+fn reject_manual_collection_claims(
+    ip_addresses: &mut [IPAddress],
+    ports: &mut [Port],
+    interfaces: &mut [Interface],
+) -> bool {
+    use crate::server::shared::attribution::AttributeSource;
+
+    let mut rejected = false;
+    for ip_address in ip_addresses {
+        rejected |= ip_address.base.ip_address_source.reject_manual_claim();
+    }
+    for port in ports {
+        rejected |= port.base.port_source.reject_manual_claim();
+    }
+    for interface in interfaces {
+        let base = &mut interface.base;
+        rejected |= base.interface_source.reject_manual_claim();
+        rejected |= base.vlan_membership_source.reject_manual_claim();
+        if let Some(fdb) = base.fdb_macs.take() {
+            base.fdb_macs = Some(if fdb.source() == AttributeSource::Manual {
+                rejected = true;
+                fdb.clamped_to(AttributeSource::Unspecified)
+            } else {
+                fdb
+            });
+        }
+        for candidate in &mut base.neighbor_candidates {
+            rejected |= candidate.evidence_source.reject_manual_claim();
+        }
+    }
+    rejected
+}
+
 /// Which IPAddress row each of a host's unlinked interfaces should point at.
 ///
 /// Returns `(interface_id, ip_address_id)` pairs. Pure, so the rules below can be exercised
@@ -483,5 +529,66 @@ mod tests {
         let planned = plan_interface_ip_links(&interfaces, &ips);
         assert_eq!(planned.len(), 1);
         assert!(ips.iter().any(|ip| planned[0] == (interfaces[0].id, ip.id)));
+    }
+
+    /// Only the server records that a person entered a row, so a daemon payload claiming it on any
+    /// row source is lowered to unattributed, and an attributed source passes untouched.
+    #[test]
+    fn a_daemons_manual_claim_on_a_row_source_is_demoted() {
+        use crate::server::interface_neighbors::r#impl::base::InterfaceNeighborEvidence;
+        use crate::server::interfaces::r#impl::base::{FdbMacs, FdbMacsValue};
+        use crate::server::ports::r#impl::base::PortType;
+
+        let manual = AttributeSource::Manual;
+        let mut ips = vec![IPAddress::new(IPAddressBase {
+            ip_address_source: manual,
+            ..Default::default()
+        })];
+        let mut ports = vec![
+            Port::new_hostless(PortType::Ssh).with_source(manual),
+            Port::new_hostless(PortType::Http).with_source(AttributeSource::PortScan),
+        ];
+        let mut interfaces = vec![Interface::new(InterfaceBase {
+            interface_source: manual,
+            vlan_membership_source: manual,
+            fdb_macs: Some(FdbMacs::new(
+                FdbMacsValue(vec!["00:1a:2b:00:10:00".to_string()]),
+                manual,
+            )),
+            neighbor_candidates: vec![InterfaceNeighborEvidence {
+                evidence_source: manual,
+                ..Default::default()
+            }],
+            ..Default::default()
+        })];
+
+        assert!(reject_manual_collection_claims(
+            &mut ips,
+            &mut ports,
+            &mut interfaces
+        ));
+
+        let unspecified = AttributeSource::Unspecified;
+        assert_eq!(ips[0].base.ip_address_source, unspecified);
+        assert_eq!(ports[0].base.port_source, unspecified);
+        assert_eq!(ports[1].base.port_source, AttributeSource::PortScan);
+        let base = &interfaces[0].base;
+        assert_eq!(base.interface_source, unspecified);
+        assert_eq!(base.vlan_membership_source, unspecified);
+        assert_eq!(
+            base.fdb_macs.as_ref().map(|f| f.source()),
+            Some(unspecified)
+        );
+        assert_eq!(
+            base.fdb_macs(),
+            Some(["00:1a:2b:00:10:00".to_string()].as_slice())
+        );
+        assert_eq!(base.neighbor_candidates[0].evidence_source, unspecified);
+
+        assert!(!reject_manual_collection_claims(
+            &mut ips,
+            &mut ports,
+            &mut interfaces
+        ));
     }
 }

@@ -14,6 +14,7 @@ use crate::server::credentials::r#impl::types::{
     CredentialIntegration, CredentialTypeDiscriminants,
 };
 use crate::server::dependencies::r#impl::types::DependencyType;
+use crate::server::discovery::r#impl::collection::all_collected_data;
 use crate::server::discovery::r#impl::scan_settings::ScanSettings;
 use crate::server::discovery::r#impl::types::DiscoveryType;
 use crate::server::email::messages::EmailCategory;
@@ -286,6 +287,11 @@ pub fn generate_ui_data_fixtures(output_dir: &Path) {
     // page). Synced like service-definitions.json.
     let integrations = all_integrations();
     write_fixture(&integrations, output_dir, "integrations.json");
+
+    // Each category of collected data with its credential-free methods and the integrations that
+    // collect it, for the website security page. Synced like integrations.json.
+    let collected_data = all_collected_data();
+    write_fixture(&collected_data, output_dir, "collected-data.json");
 
     let scan_settings_fields = ScanSettings::field_definitions();
     write_fixture(&scan_settings_fields, output_dir, "scan-settings.json");

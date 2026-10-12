@@ -166,6 +166,9 @@ pub struct GuestAddress {
     /// Canonical lowercase-colon MAC.
     pub mac: Option<String>,
     pub interface: Option<String>,
+    /// What reported the address: the guest agent, the running container through the API, or
+    /// the guest's config.
+    pub source: AttributeSource,
 }
 
 /// The NICs a guest's config declares, with any static addresses it gives them.
@@ -256,6 +259,7 @@ pub fn agent_addresses(agent: &AgentInterfaces) -> Vec<GuestAddress> {
                     ip,
                     mac: mac.clone(),
                     interface: Some(iface.name.clone()),
+                    source: GUEST_AGENT,
                 })
             })
         })
@@ -287,6 +291,7 @@ pub fn lxc_addresses(interfaces: &[LxcInterface]) -> Vec<GuestAddress> {
                 ip,
                 mac: mac.clone(),
                 interface: Some(iface.name.clone()),
+                source: REPORTED,
             })
         })
         .filter(|a| reachable(a.ip))
@@ -327,6 +332,7 @@ pub fn static_addresses(nics: &[ConfigNic]) -> Vec<GuestAddress> {
                 ip: *ip,
                 mac: nic.mac.clone(),
                 interface: nic.name.clone(),
+                source: GUEST_CONFIG,
             })
         })
         .filter(|a| reachable(a.ip))
@@ -541,7 +547,15 @@ pub fn node_host(
         .filter(|a| seen.insert(*a))
         .enumerate()
         .filter_map(|(position, a)| {
-            IPAddress::discovered(site_id, subnets, a, None, iface_of(a), position as i32)
+            IPAddress::discovered(
+                site_id,
+                subnets,
+                a,
+                REPORTED,
+                None,
+                iface_of(a),
+                position as i32,
+            )
         })
         .collect();
     renumber_positions(&mut ip_addresses);
@@ -628,6 +642,7 @@ pub fn guest_host(
                 site_id,
                 subnets,
                 a.ip,
+                a.source,
                 mac_evidence(a.mac.as_deref()),
                 a.interface.clone(),
                 position as i32,
@@ -646,6 +661,8 @@ pub fn guest_host(
                     // LXC names the NIC (`eth0`); a QEMU config does not, and no name is invented.
                     if_name: nic.name.clone(),
                     mac_address: mac_evidence(nic.mac.as_deref()),
+                    // The NIC the guest's config declares.
+                    interface_source: NIC_MAC,
                     ..Default::default()
                 })
             })
@@ -678,6 +695,7 @@ mod tests {
     use super::*;
     use crate::daemon::discovery::integration::proxmox::types::{PveEnvelope, PveVersion};
     use crate::server::credentials::r#impl::types::CredentialIntegration;
+    use crate::server::discovery::r#impl::collection::undeclared_in_submitted_host;
     use crate::server::hosts::r#impl::virtualization::undeclared_virtualization;
 
     // ------------------------------------------------------------------------------------
@@ -868,6 +886,7 @@ mod tests {
                 ip: "192.168.7.170".parse().unwrap(),
                 mac: Some("bc:24:11:69:a3:e1".to_string()),
                 interface: None,
+                source: GUEST_CONFIG,
             }]
         );
     }
@@ -904,6 +923,17 @@ mod tests {
         // What the docs list as Proxmox's relationships covers what it builds.
         assert_eq!(
             undeclared_virtualization(CredentialIntegration::Proxmox, &host),
+            None
+        );
+        assert_eq!(
+            undeclared_in_submitted_host(
+                CredentialIntegration::Proxmox,
+                &host,
+                &ips,
+                &[],
+                &[],
+                &interfaces
+            ),
             None
         );
         assert_eq!(host.base.virtualization_service_id, Some(owner));

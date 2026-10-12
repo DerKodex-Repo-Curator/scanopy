@@ -1,4 +1,6 @@
-use crate::server::shared::attribution::{self as attribution, AttributeValue, Attributed};
+use crate::server::shared::attribution::{
+    self as attribution, AttributeSource, AttributeValue, Attributed,
+};
 use crate::server::shared::entities::ChangeTriggersTopologyStaleness;
 use crate::server::shared::position::Positioned;
 use crate::server::subnets::r#impl::base::Subnet;
@@ -107,6 +109,9 @@ pub struct IPAddressBase {
     /// Position of this IP address in the host's IP address list (for ordering)
     #[serde(default)]
     pub position: i32,
+    /// What found this address on the host.
+    #[serde(default)]
+    pub ip_address_source: AttributeSource,
 }
 
 impl Default for IPAddressBase {
@@ -119,6 +124,7 @@ impl Default for IPAddressBase {
             mac_address: None,
             name: None,
             position: 0,
+            ip_address_source: AttributeSource::Unspecified,
         }
     }
 }
@@ -130,6 +136,15 @@ impl IPAddressBase {
     /// A reading with no MAC says nothing about the address and leaves the stored one alone.
     pub fn apply_mac_address(&mut self, incoming: Option<MacEvidence>) -> bool {
         incoming.is_some_and(|mac| Attributed::apply(&mut self.mac_address, mac))
+    }
+
+    /// Merge a newer discovery reading of this address into the row on file: its MAC by rung, and
+    /// its source taken if the row had none ([`AttributeSource::keep_or_heal`]).
+    pub fn merge_discovered(&mut self, incoming: &IPAddressBase) {
+        self.apply_mac_address(incoming.mac_address.clone());
+        self.ip_address_source = self
+            .ip_address_source
+            .keep_or_heal(incoming.ip_address_source);
     }
 
     /// Create a conceptual IP address for a subnet.
@@ -145,6 +160,8 @@ impl IPAddressBase {
             mac_address: None,
             name: Some(subnet.base.name.clone()),
             position: 0,
+            // A placeholder Scanopy seeds, not an address anything found.
+            ip_address_source: AttributeSource::Unspecified,
         }
     }
 }
@@ -236,10 +253,12 @@ impl IPAddress {
     /// An address a daemon discovered, filed by [`submitted_placement`], or `None` when it must
     /// not be submitted. Every integration builds its submitted addresses through this, so the
     /// rule for an address no subnet holds lives in one place.
+    #[allow(clippy::too_many_arguments)]
     pub fn discovered(
         site_id: Uuid,
         subnets: &[Subnet],
         ip_address: IpAddr,
+        ip_address_source: AttributeSource,
         mac_address: Option<MacEvidence>,
         name: Option<String>,
         position: i32,
@@ -256,6 +275,7 @@ impl IPAddress {
             mac_address,
             name,
             position,
+            ip_address_source,
         }))
     }
 

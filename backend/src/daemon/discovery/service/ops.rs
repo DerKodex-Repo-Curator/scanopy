@@ -1,4 +1,4 @@
-//! S                o.record_wake_on_lan(result);ared discovery operations used by both the pipeline and integrations.
+//! Shared discovery operations used by both the pipeline and integrations.
 //!
 //! `DiscoveryOps` provides entity creation, service matching, and progress reporting
 //! without requiring `DiscoveryRunner` or its associated traits.
@@ -40,7 +40,13 @@ use crate::{
             api::{DaemonDiscoveryRequest, DiscoveryUpdatePayload},
             base::DaemonMode,
         },
-        discovery::r#impl::types::{DiscoveryType, HostNamingFallback},
+        discovery::r#impl::{
+            collection::{
+                CollectedData, Producer, present_in, report_undeclared_collection,
+                undeclared_collection, undeclared_in_submitted_host,
+            },
+            types::{DiscoveryType, HostNamingFallback},
+        },
         hosts::r#impl::{
             api::{DiscoveryHostRequest, HostResponse},
             attributes::{
@@ -677,6 +683,32 @@ impl HostData {
     pub fn apply_name(&mut self, candidate: HostName) -> &mut Self {
         self.host.base.apply_name(candidate);
         self
+    }
+
+    /// The `(category, source)` pairs this host carries, for checking a producer's result against
+    /// what it declares collecting.
+    pub fn collected_data(&self) -> HashSet<(CollectedData, AttributeSource)> {
+        present_in(
+            &self.host,
+            &self.ip_addresses,
+            &self.ports,
+            &self.services,
+            &self.interfaces,
+            &self.subnets,
+        )
+    }
+
+    /// Check what credential-free discovery put on this host against what it declares. Run before
+    /// any integration executes against the host, so everything on it came from the scan.
+    pub fn check_credential_free_collection(&self) {
+        report_undeclared_collection(
+            Producer::CredentialFree,
+            undeclared_collection(
+                Producer::CredentialFree,
+                &HashSet::new(),
+                &self.collected_data(),
+            ),
+        );
     }
 }
 
@@ -1362,15 +1394,60 @@ impl DiscoveryOps {
     }
 
     /// Create a host an integration discovered, checked against what that integration declares
-    /// it reports ([`CredentialIntegration::host_virtualizations`]).
+    /// it reports ([`CredentialIntegration::host_virtualizations`]) and collects
+    /// ([`CredentialIntegration::collects`]).
     ///
-    /// The only way an integration submits a host: [`Self::create_host`] is private to this
-    /// module tree. A host carrying a kind of virtualization its integration does not declare
-    /// fails a debug assertion, so tests and debug builds catch it; a release build warns and
-    /// submits it anyway, since the gap is in the declaration (and the docs built from it), not
-    /// in the host.
+    /// The way an integration submits a host it found: [`Self::create_host`] is private to this
+    /// module tree. A host carrying a kind of virtualization or a category of data its integration
+    /// does not declare fails a debug assertion, so tests and debug builds catch it; a release
+    /// build warns and submits it anyway, since the gap is in the declaration (and the docs built
+    /// from it), not in the host.
     #[allow(clippy::too_many_arguments)]
     pub async fn create_integration_host(
+        &self,
+        integration: CredentialIntegration,
+        host: Host,
+        ip_addresses: Vec<IPAddress>,
+        ports: Vec<Port>,
+        services: Vec<Service>,
+        interfaces: Vec<Interface>,
+        subnets: Vec<Subnet>,
+        interfaces_complete: bool,
+        interface_data_complete: InterfaceDataComplete,
+        cancel: &CancellationToken,
+    ) -> Result<HostResponse, Error> {
+        report_undeclared_collection(
+            Producer::Integration(integration),
+            undeclared_in_submitted_host(
+                Producer::Integration(integration),
+                &host,
+                &ip_addresses,
+                &ports,
+                &services,
+                &interfaces,
+            ),
+        );
+        self.create_scanned_integration_host(
+            integration,
+            host,
+            ip_addresses,
+            ports,
+            services,
+            interfaces,
+            subnets,
+            interfaces_complete,
+            interface_data_complete,
+            cancel,
+        )
+        .await
+    }
+
+    /// Submit the host an integration is running against, ahead of the scan's own submission of
+    /// it. Checked for virtualization like [`Self::create_integration_host`], but not for
+    /// collected data: the host already carries what the scan and earlier integrations found,
+    /// and `execute_with_progress_reporting` checks what this integration added to it.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_scanned_integration_host(
         &self,
         integration: CredentialIntegration,
         host: Host,
@@ -1616,6 +1693,9 @@ impl DiscoveryOps {
 
     /// Run service matching against all registered service definitions.
     /// Returns matched services and ports. Pure logic — no side effects.
+    ///
+    /// Every port records `port_source` as what found it, except a port a client probe answered
+    /// on, which records that probe.
     pub fn match_services(
         &self,
         host: &Host,
@@ -1623,6 +1703,7 @@ impl DiscoveryOps {
         gateway_ips: &[IpAddr],
         daemon_id: &Uuid,
         site_id: &Uuid,
+        port_source: AttributeSource,
     ) -> Result<(Vec<Service>, Vec<Port>), Error> {
         use crate::server::services::definitions::{
             docker_container::DockerContainer, open_ports::OpenPorts,
@@ -1712,6 +1793,17 @@ impl DiscoveryOps {
         });
 
         host_ports.extend(unbound_ports.into_iter().map(Port::new_hostless));
+        for port in &mut host_ports {
+            // The map has no order, so where two probes answered on one port the choice is made
+            // by name to keep it stable across scans.
+            port.base.port_source = baseline_params
+                .client_responses
+                .iter()
+                .filter(|(_, ports)| ports.contains(&port.base.port_type))
+                .map(|(probe, _)| *probe)
+                .min_by_key(|probe| probe.id())
+                .map_or(port_source, AttributeSource::Probe);
+        }
 
         Ok((services, host_ports))
     }
@@ -1722,6 +1814,7 @@ impl DiscoveryOps {
         params: ServiceMatchBaselineParams<'_>,
         hostname: Option<HostHostnameAttributed>,
         host_naming_fallback: HostNamingFallback,
+        port_source: AttributeSource,
     ) -> Result<Option<HostData>, Error> {
         let ServiceMatchBaselineParams { ip_address, .. } = params;
 
@@ -1759,8 +1852,14 @@ impl DiscoveryOps {
 
         let ip_addresses = vec![ip_address.clone()];
 
-        let (services, ports) =
-            self.match_services(&host, &params, &gateway_ips, &daemon_id, &site_id)?;
+        let (services, ports) = self.match_services(
+            &host,
+            &params,
+            &gateway_ips,
+            &daemon_id,
+            &site_id,
+            port_source,
+        )?;
 
         // Determine host name
         let best_service_name = services
@@ -2072,6 +2171,8 @@ mod tests {
             fdb_macs: None,
             native_vlan_id: None,
             vlan_ids: None,
+            vlan_membership_source: AttributeSource::Unspecified,
+            interface_source: AttributeSource::Probe(ClientProbe::Snmp),
         })
     }
 

@@ -117,6 +117,7 @@
 		storageKey = null,
 		onBulkDelete = null,
 		allowBulkDelete = true,
+		canDeleteItem = null,
 		entityType = null,
 		canEditTags = true,
 		getItemTags = null,
@@ -162,6 +163,9 @@
 		storageKey?: string | null;
 		onBulkDelete?: ((ids: string[]) => Promise<void>) | null;
 		allowBulkDelete?: boolean;
+		// Whether one row may be deleted. Bulk delete is offered only while every selected row may
+		// be; the selection stays available for tagging. Absent: every row may be deleted.
+		canDeleteItem?: ((item: T) => boolean) | null;
 		entityType?: EntityDiscriminants | null;
 		// Whether the user may add and remove tags here. `entityType` names what the rows are; this
 		// gates editing them.
@@ -751,6 +755,11 @@
 	}
 
 	let showSelection = $derived(Boolean(onBulkDelete) || hasBulkTagging);
+	// Bulk delete is offered only while the selection holds no row that can't be deleted.
+	let selectionDeletable = $derived(
+		!canDeleteItem ||
+			items.filter((item) => selectedIds.has(getItemId(item))).every((item) => canDeleteItem(item))
+	);
 
 	let tableCaptionText = $derived(
 		common_tableCaption({
@@ -891,7 +900,10 @@
 			onExport={onExportClick ?? onCsvExport}
 			{entityLabel}
 			actions={toolbarActions}
-			selectionActions={allowBulkDelete && onBulkDelete && selectedIds.size > 0
+			selectionActions={allowBulkDelete &&
+			onBulkDelete &&
+			selectedIds.size > 0 &&
+			selectionDeletable
 				? bulkDelete
 				: undefined}
 			{title}

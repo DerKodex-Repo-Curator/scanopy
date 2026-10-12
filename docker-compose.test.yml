@@ -29,7 +29,9 @@ services:
       # Node sizes its default old-space heap from the memory it sees, which lands
       # around 2 GB in this compose VM — short of what the SvelteKit production
       # build needs, so it aborts with a V8 OOM. Pin it instead of inheriting.
-      - NODE_OPTIONS=--max-old-space-size=3072
+      # 3072 ran out at v0.18.0 (7914 client modules); 4096 matches the default
+      # heap UI CI's `npm run build` gets on the same runner.
+      - NODE_OPTIONS=--max-old-space-size=4096
     volumes:
       - ./messages:/messages:ro
       - ui-build:/output

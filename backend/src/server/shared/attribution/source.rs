@@ -177,6 +177,10 @@ pub enum AttributeSource {
     DnsSdHostname,
     /// A chassis ID a neighbour advertised for itself.
     LldpChassisId,
+    /// An LLDP neighbour the `lldpd` service on the daemon's own host heard on one of its ports.
+    /// Distinct from [`Self::LldpChassisId`], which is the identity a neighbour advertised: this
+    /// names the listener that recorded the adjacency.
+    Lldpd,
 
     // --- Somebody else, about the subject. ---
     /// Reverse DNS. A known speaker that is not the subject.
@@ -189,6 +193,11 @@ pub enum AttributeSource {
     // --- Exchanges we direct ourselves. ---
     /// We broadcast an ARP request for a specific address and something replied claiming it.
     ArpReply,
+    /// We sent an ICMP echo request to the address and it answered.
+    IcmpEcho,
+    /// We opened a TCP connection to a port, or a UDP probe to it was answered. Stamps the port,
+    /// and the address of a host found only this way.
+    PortScan,
     /// The daemon reading its own host: NIC and routing configuration, and its own hostname.
     DaemonSelfReport,
     /// A PROFINET DCP Identify exchange: we sent the request and the transport correlated the
@@ -257,11 +266,17 @@ impl AttributeSource {
             | Self::DnsSdDeviceInfoMatch
             | Self::DnsSdAirPlayMatch => M::Inferred,
 
-            Self::DnsSdInstanceName | Self::DnsSdHostname | Self::LldpChassisId => M::Announced,
+            Self::DnsSdInstanceName | Self::DnsSdHostname | Self::LldpChassisId | Self::Lldpd => {
+                M::Announced
+            }
 
             Self::ReverseDns | Self::ForwardingTable => M::Reported,
 
-            Self::ArpReply | Self::DaemonSelfReport | Self::SshScript => M::Queried,
+            Self::ArpReply
+            | Self::IcmpEcho
+            | Self::PortScan
+            | Self::DaemonSelfReport
+            | Self::SshScript => M::Queried,
 
             // The protocol is the device's own, not a generic transport a MIB approximates —
             // same reasoning as `ClientProbe::method()`'s `Native` arms, just not delegated (see
@@ -300,9 +315,12 @@ impl AttributeSource {
             | Self::DnsSdAirPlayMatch
             | Self::DnsSdHostname
             | Self::LldpChassisId
+            | Self::Lldpd
             | Self::ReverseDns
             | Self::ForwardingTable
             | Self::ArpReply
+            | Self::IcmpEcho
+            | Self::PortScan
             | Self::DaemonSelfReport
             | Self::ProfinetDcp
             | Self::ContainerRuntimeInfo
@@ -341,6 +359,50 @@ impl AttributeSource {
         }
     }
 
+    /// This source's label, with the probe's name in the `{probe}` slot where it carries one.
+    pub fn label(&self) -> String {
+        self.fill_probe(AttributeSourceDiscriminants::from(self).name())
+    }
+
+    /// This source's description, with the probe's name in the `{probe}` slot where it carries
+    /// one.
+    pub fn describe(&self) -> String {
+        self.fill_probe(AttributeSourceDiscriminants::from(self).description())
+    }
+
+    fn fill_probe(&self, template: &str) -> String {
+        if let Self::Probe(probe) | Self::Authored(probe) = self {
+            template.replace("{probe}", TypeMetadataProvider::name(probe))
+        } else {
+            template.to_string()
+        }
+    }
+
+    /// The source to keep on a row that already exists when a new reading of the row arrives.
+    ///
+    /// An unattributed row takes the incoming source. An attributed row keeps its own, with no
+    /// ranking: the row's existence is not in dispute, and keeping the first attributed source
+    /// stops it changing with the order two producers report the row in.
+    pub fn keep_or_heal(self, incoming: Self) -> Self {
+        if self == Self::Unspecified {
+            incoming
+        } else {
+            self
+        }
+    }
+
+    /// Lower a `Manual` source a daemon claimed to `Unspecified`. Returns whether it did.
+    ///
+    /// Only the server can record that a person entered something, so a discovery payload claiming
+    /// it has told us nothing believable about where the row came from.
+    pub fn reject_manual_claim(&mut self) -> bool {
+        if *self != Self::Manual {
+            return false;
+        }
+        *self = Self::Unspecified;
+        true
+    }
+
     /// Every source this binary can produce, payload variants expanded.
     ///
     /// The `match` is on the discriminant and exhaustive, so a new payload-bearing variant fails
@@ -374,9 +436,12 @@ impl AttributeSource {
                 AttributeSourceDiscriminants::DnsSdInstanceName => vec![Self::DnsSdInstanceName],
                 AttributeSourceDiscriminants::DnsSdHostname => vec![Self::DnsSdHostname],
                 AttributeSourceDiscriminants::LldpChassisId => vec![Self::LldpChassisId],
+                AttributeSourceDiscriminants::Lldpd => vec![Self::Lldpd],
                 AttributeSourceDiscriminants::ReverseDns => vec![Self::ReverseDns],
                 AttributeSourceDiscriminants::ForwardingTable => vec![Self::ForwardingTable],
                 AttributeSourceDiscriminants::ArpReply => vec![Self::ArpReply],
+                AttributeSourceDiscriminants::IcmpEcho => vec![Self::IcmpEcho],
+                AttributeSourceDiscriminants::PortScan => vec![Self::PortScan],
                 AttributeSourceDiscriminants::DaemonSelfReport => vec![Self::DaemonSelfReport],
                 AttributeSourceDiscriminants::ProfinetDcp => vec![Self::ProfinetDcp],
                 AttributeSourceDiscriminants::ContainerRuntimeInfo => {
@@ -441,9 +506,12 @@ impl AttributeSource {
             AttributeSourceDiscriminants::DnsSdInstanceName => Self::DnsSdInstanceName,
             AttributeSourceDiscriminants::DnsSdHostname => Self::DnsSdHostname,
             AttributeSourceDiscriminants::LldpChassisId => Self::LldpChassisId,
+            AttributeSourceDiscriminants::Lldpd => Self::Lldpd,
             AttributeSourceDiscriminants::ReverseDns => Self::ReverseDns,
             AttributeSourceDiscriminants::ForwardingTable => Self::ForwardingTable,
             AttributeSourceDiscriminants::ArpReply => Self::ArpReply,
+            AttributeSourceDiscriminants::IcmpEcho => Self::IcmpEcho,
+            AttributeSourceDiscriminants::PortScan => Self::PortScan,
             AttributeSourceDiscriminants::DaemonSelfReport => Self::DaemonSelfReport,
             AttributeSourceDiscriminants::ProfinetDcp => Self::ProfinetDcp,
             AttributeSourceDiscriminants::ContainerRuntimeInfo => Self::ContainerRuntimeInfo,
@@ -562,10 +630,13 @@ impl TypeMetadataProvider for AttributeSourceDiscriminants {
             Self::DnsSdInstanceName => "mDNS name",
             Self::DnsSdHostname => "mDNS",
             Self::LldpChassisId => "LLDP",
+            Self::Lldpd => "lldpd",
             Self::ReverseDns => "Reverse DNS",
             Self::ForwardingTable => "Another device's ARP or forwarding table",
             Self::ArpReply => "ARP",
-            Self::DaemonSelfReport => "The daemon on this host",
+            Self::IcmpEcho => "Ping",
+            Self::PortScan => "Port scan",
+            Self::DaemonSelfReport => "Daemon self-report",
             Self::ProfinetDcp => "PROFINET DCP",
             Self::ContainerRuntimeInfo => "Container engine",
             Self::HypervisorConfig => "Hypervisor or runtime configuration",
@@ -614,12 +685,21 @@ impl TypeMetadataProvider for AttributeSourceDiscriminants {
             }
             Self::DnsSdHostname => "The device announced this hostname for itself over mDNS.",
             Self::LldpChassisId => "The device advertised this about itself over LLDP.",
+            Self::Lldpd => {
+                "The lldpd service on the daemon's host heard this neighbour advertise itself over LLDP."
+            }
             Self::ReverseDns => "A DNS server supplied this for the host's address.",
             Self::ForwardingTable => {
                 "A router or switch supplied this from its ARP cache or forwarding table."
             }
             Self::ArpReply => "The host answered an ARP request for its address.",
-            Self::DaemonSelfReport => "The Scanopy daemon running on this host read it locally.",
+            Self::IcmpEcho => "The host answered a ping to its address.",
+            Self::PortScan => {
+                "The host accepted a connection on a port Scanopy scanned, or answered a UDP probe."
+            }
+            Self::DaemonSelfReport => {
+                "The Scanopy daemon read it locally from the machine it runs on."
+            }
             Self::ProfinetDcp => "The device answered a PROFINET DCP identify request.",
             Self::ContainerRuntimeInfo => {
                 "The Docker or Podman engine on this host reported the machine it runs on."

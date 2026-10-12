@@ -86,22 +86,22 @@ jobs:
           TAG: v${{ steps.inputs.outputs.version }}
           DEPLOY_MODE: ${{ steps.inputs.outputs.deploy_mode }}
         run: |
-          # Create as a draft first so the release.published event doesn't fire
-          # until after the Deploy-Mode marker is in the body. Otherwise
-          # release.yml reads a stale event payload and the marker is missed.
+          # The body is the notes reviewed in the release PR (frontmatter
+          # stripped), so the prerelease shows them from the start rather than
+          # GitHub's PR list. GitHub's compare link is kept from its generated notes.
+          NOTES=$(awk 'NR==1 && /^---$/ {fm=1; next} fm && /^---$/ {fm=0; body=1; next} body {print}' \
+            "backend/release-notes/$TAG.md")
+          COMPARE=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$TAG" -f target_commitish=dev -q '.body' | grep '^\*\*Full Changelog\*\*' || true)
+
+          # A machine-readable Deploy-Mode marker leads the body. release.yml
+          # parses it to decide whether to run the backward-compat harness / enum
+          # tests and what OCI label to stamp on the built images.
+          printf 'Deploy-Mode: %s\n\n%s\n\n%s\n' "$DEPLOY_MODE" "$NOTES" "$COMPARE" > "$RUNNER_TEMP/notes.md"
+
+          # The marker is in the body at creation, so release.published carries it.
           gh release create "$TAG" \
             --title "$TAG" \
-            --generate-notes \
-            --draft \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --prerelease \
             --target dev
-
-          # Prepend a machine-readable Deploy-Mode marker that release.yml parses
-          # to decide whether to run the backward-compat harness / enum tests and
-          # what OCI label to stamp on the built images.
-          GENERATED_BODY=$(gh release view "$TAG" --json body -q '.body')
-          NEW_BODY=$(printf 'Deploy-Mode: %s\n\n%s' "$DEPLOY_MODE" "$GENERATED_BODY")
-          gh release edit "$TAG" --notes "$NEW_BODY"
-
-          # Publish the draft as a prerelease — this fires release.published
-          # with the marker intact in the event payload.
-          gh release edit "$TAG" --draft=false --prerelease

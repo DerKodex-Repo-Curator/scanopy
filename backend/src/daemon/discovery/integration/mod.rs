@@ -40,7 +40,10 @@ use crate::{
             CredentialQueryPayload, CredentialQueryPayloadDiscriminants,
         },
         credentials::r#impl::types::CredentialIntegration,
-        discovery::r#impl::types::HostNamingFallback,
+        discovery::r#impl::{
+            collection::{Producer, report_undeclared_collection, undeclared_collection},
+            types::HostNamingFallback,
+        },
         ports::r#impl::base::PortType,
         services::r#impl::{base::Service, endpoints::EndpointResponse, patterns::ClientProbe},
         shared::trusted_ca::TrustedCaBundle,
@@ -440,6 +443,9 @@ impl IntegrationRegistry {
 /// dropped and the caller's host is exactly as it was. Before GH #650 the integration held
 /// `&mut` on the real thing, so `tokio::time::timeout` dropping the future mid-execute left
 /// whatever had already landed — for containers, every bridge subnet and not one container.
+///
+/// The categories of data the surviving collection added are checked against what the integration
+/// declares collecting ([`CredentialIntegration::collects`]).
 pub async fn execute_with_progress_reporting<F, Fut>(
     integration: &dyn DiscoveryIntegration,
     ctx: &IntegrationContext<'_>,
@@ -453,6 +459,7 @@ where
     let timeout_duration = integration.timeout();
     let committed = std::sync::Mutex::new(None);
     let mut scratch = host_data.clone();
+    let collected_before = host_data.collected_data();
 
     let result = {
         let checkpoint = Checkpoint::new(&committed);
@@ -483,6 +490,11 @@ where
     let surviving = surviving_collection(outcome, scratch, committed);
 
     if let Some(collection) = surviving.host_data {
+        let producer = Producer::Integration(ctx.integration);
+        report_undeclared_collection(
+            producer,
+            undeclared_collection(producer, &collected_before, &collection.collected_data()),
+        );
         *host_data = collection;
     }
     if let Some(shortfall) = &surviving.shortfall {

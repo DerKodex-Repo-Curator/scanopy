@@ -37,6 +37,8 @@ use std::sync::{Arc, OnceLock};
 use strum::IntoDiscriminant;
 use uuid::Uuid;
 
+mod defaults;
+
 /// The set of things a credential targets, normalized across the site and host
 /// junction tables so two credentials can be tested for overlap. Used to enforce
 /// the single-endpoint invariant — see
@@ -157,6 +159,8 @@ impl CrudService<Credential> for CredentialService {
     ) -> Result<Credential, Error> {
         entity.base.validate_settings()?;
         entity.base.clear_unused_daemon_os();
+        entity.refresh_is_default();
+        self.refuse_second_default(&entity).await?;
 
         let created = self.create_base(entity, authentication.clone()).await?;
 
@@ -202,6 +206,50 @@ impl CrudService<Credential> for CredentialService {
         }
 
         Ok(created)
+    }
+
+    /// A default keeps its settings, and no edit may turn another credential into a second copy
+    /// of a default.
+    async fn update(
+        &self,
+        entity: &mut Credential,
+        authentication: AuthenticatedEntity,
+    ) -> Result<Credential, Error> {
+        let current = self
+            .get_by_id(&entity.id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Could not find {}", entity))?;
+        // An edit from the UI sends secrets back redacted. Restore them before judging whether
+        // the settings changed, or renaming the SNMP default would read as a new community.
+        entity
+            .base
+            .credential_type
+            .merge_redacted_secrets(&current.base.credential_type);
+        entity.refresh_is_default();
+        defaults::refuse_default_settings_change(&current, entity)?;
+        self.refuse_second_default(entity).await?;
+        self.update_base(entity, authentication).await
+    }
+
+    /// A default can't be deleted. Unassigning it from sites and hosts is the way to stop using it.
+    async fn delete(&self, id: &Uuid, authentication: AuthenticatedEntity) -> Result<(), Error> {
+        if let Some(credential) = self.get_by_id(id).await? {
+            defaults::refuse_default_delete(std::slice::from_ref(&credential))?;
+        }
+        self.delete_base(id, authentication).await
+    }
+
+    /// Refuses the whole batch when any of it is a default, before deleting anything.
+    async fn delete_many(
+        &self,
+        ids: &[Uuid],
+        authentication: AuthenticatedEntity,
+    ) -> Result<usize, Error> {
+        let credentials = self
+            .get_all(StorableFilter::<Credential>::new_from_entity_ids(ids))
+            .await?;
+        defaults::refuse_default_delete(&credentials)?;
+        self.delete_many_base(ids, authentication).await
     }
 }
 
@@ -706,8 +754,9 @@ impl CredentialService {
         // assigned two SNMPv2c communities dispatched only the lower-UUID one and silently dropped
         // the other, leaving every device that answers to the dropped community unscanned. Two
         // communities is ordinary practice (per site, per vendor), and the daemon already expects
-        // several mappings sharing one wire discriminant — it appends exactly such a sibling
-        // itself (the injected "public" default) and dedups them at execute time.
+        // several mappings sharing one wire discriminant and dedups them at execute time. Daemons
+        // before this release also append their own `public` mapping, which the same dedup
+        // collapses into the site's SNMP default.
         //
         // BTreeMap so the emitted order is stable across runs, and keyed the same way the source
         // rows are ordered (`credential_id ASC`).

@@ -32,10 +32,12 @@ pub struct SiteBase {
     #[serde(default)]
     #[schema(required)]
     pub tags: Vec<Uuid>,
-    /// Credential IDs associated with this site (hydrated from junction table).
+    /// Credential IDs assigned to this site (hydrated from the junction table, so always present
+    /// in a response). On create, omitting it assigns the organization's site-wide default
+    /// credentials and a list, even an empty one, is used exactly. On update, omitting it leaves
+    /// the assignments unchanged.
     #[serde(default)]
-    #[schema(required)]
-    pub credential_ids: Vec<Uuid>,
+    pub credential_ids: Option<Vec<Uuid>>,
     /// How long a discovery-managed entity on this site may go unobserved
     /// before it reads as stale. `None` = unset; callers resolve the effective
     /// value through [`Site::stale_after`], never by reading this directly.
@@ -66,7 +68,7 @@ impl SiteBase {
             name: "My Site".to_string(),
             organization_id,
             tags: Vec::new(),
-            credential_ids: Vec::new(),
+            credential_ids: None,
             stale_after_hours: None,
         }
     }
@@ -225,8 +227,8 @@ impl Storable for Site {
             base: SiteBase {
                 name: row.get("name"),
                 organization_id: row.get("organization_id"),
-                tags: Vec::new(), // Hydrated from entity_tags junction table
-                credential_ids: Vec::new(), // Hydrated from site_credentials junction table
+                tags: Vec::new(),     // Hydrated from entity_tags junction table
+                credential_ids: None, // Hydrated from site_credentials junction table
                 stale_after_hours,
             },
         })

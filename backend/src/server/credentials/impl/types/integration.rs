@@ -1,8 +1,11 @@
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
-use strum::{EnumIter, IntoStaticStr};
+use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
 use utoipa::ToSchema;
 
 use crate::server::{
+    discovery::r#impl::collection::CollectedData,
     hosts::r#impl::virtualization::HostVirtualizationDiscriminants,
     services::{
         definitions::{
@@ -10,9 +13,13 @@ use crate::server::{
             proxmox::Proxmox, snmp::Snmp, ssh::Ssh, unifi_controller::UnifiController,
             wake_on_lan::WakeOnLan,
         },
-        r#impl::definitions::{ServiceDefinition, ServiceDefinitionExt},
+        r#impl::{
+            definitions::{ServiceDefinition, ServiceDefinitionExt},
+            patterns::ClientProbe,
+        },
     },
     shared::{
+        attribution::AttributeSource,
         concepts::Concept,
         types::{
             Color, Icon,
@@ -231,6 +238,147 @@ impl CredentialIntegration {
             | Self::Ssh
             | Self::WakeOnLan => &[],
         }
+    }
+
+    /// Whether any of this integration's credential types has a seeded default
+    /// ([`CredentialTypeDiscriminants::seeded_default`]), so every org holds one from the start.
+    pub fn seeded_by_default(&self) -> bool {
+        CredentialTypeDiscriminants::iter()
+            .any(|t| t.integration() == *self && t.seeded_default().is_some())
+    }
+
+    /// The sources this integration writes, each with the categories it writes from that source.
+    /// Shared by all of its transports.
+    ///
+    /// One entry per source rather than one list per integration, because the same category can
+    /// arrive from several of an integration's sources with different reach: a Proxmox guest's
+    /// hostname comes from its config or from its guest agent. A derived source is listed where
+    /// the integration's own data is its whole basis, such as the OS SNMP's system description
+    /// implies.
+    ///
+    /// Exhaustive (no wildcard), so a new integration cannot compile without answering. What an
+    /// integration submits is checked against this (`undeclared_collection`), which fails tests
+    /// and debug builds when the two disagree. The security page lists what each integration
+    /// collects from it, through the `collected-data` and `integrations` fixtures.
+    pub fn collection(&self) -> &'static [(AttributeSource, &'static [CollectedData])] {
+        use AttributeSource as S;
+        use ClientProbe as P;
+        use CollectedData::*;
+        match self {
+            // sys* and ENTITY-MIB details, the ifTable with LLDP/CDP neighbors, FDB and per-port
+            // VLANs, ipAddrTable addresses, routes as subnets, the SNMP service itself, and ARP
+            // entries as new hosts.
+            Self::Snmp => &[
+                (
+                    S::Probe(P::Snmp),
+                    &[
+                        Addresses,
+                        PortsAndServices,
+                        DeviceDetails,
+                        Interfaces,
+                        Neighbors,
+                        ForwardingTables,
+                        Vlans,
+                        Subnets,
+                    ],
+                ),
+                (S::Authored(P::Snmp), &[DeviceDetails]),
+                (S::ForwardingTable, &[Addresses, ConnectedClients]),
+                (S::SysDescrMatch, &[OperatingSystem]),
+                (S::SysObjectIdMatch, &[OperatingSystem]),
+            ],
+            // Interfaces and LLDP neighbors, and the gNMI port its probe answered on. The chassis
+            // id it reads is an identifier.
+            Self::Gnmi => &[(
+                S::Probe(P::Gnmi),
+                &[PortsAndServices, Interfaces, Neighbors],
+            )],
+            // Managed devices with their identity, ports, FDB, uplinks and the service matched
+            // from their device type; clients as hosts, with UniFi's DHCP hostnames.
+            Self::UnifiController => &[(
+                S::Probe(P::UnifiController),
+                &[
+                    Addresses,
+                    Hostnames,
+                    PortsAndServices,
+                    DeviceDetails,
+                    Interfaces,
+                    Neighbors,
+                    ForwardingTables,
+                    ConnectedClients,
+                ],
+            )],
+            // As UniFi, except the portal reports no client hostnames.
+            Self::InstantOn => &[(
+                S::Probe(P::InstantOn),
+                &[
+                    Addresses,
+                    PortsAndServices,
+                    DeviceDetails,
+                    Interfaces,
+                    Neighbors,
+                    ForwardingTables,
+                    ConnectedClients,
+                ],
+            )],
+            Self::Ssh => &[(
+                S::SshScript,
+                &[Hostnames, OperatingSystem, DeviceDetails, Interfaces],
+            )],
+            // The engine host's OS, its bridge networks, container services and published ports,
+            // endpoint addresses, and macvlan/ipvlan containers as hosts of their own, whose MAC
+            // the runtime assigned.
+            Self::Docker => &[
+                (
+                    S::Probe(P::Docker),
+                    &[Addresses, PortsAndServices, Subnets, Containers],
+                ),
+                (S::ContainerRuntimeInfo, &[OperatingSystem]),
+                (S::HypervisorConfig, &[Addresses]),
+            ],
+            Self::Podman => &[
+                (
+                    S::Probe(P::Podman),
+                    &[Addresses, PortsAndServices, Subnets, Containers],
+                ),
+                (S::ContainerRuntimeInfo, &[OperatingSystem]),
+                (S::HypervisorConfig, &[Addresses]),
+            ],
+            // Nodes with their hostname, OS, addresses and the Proxmox VE service, and guests with
+            // addresses and their network identities. A guest's config sets an LXC container's
+            // hostname and distribution and every guest NIC's MAC; the guest agent reads a VM's
+            // hostname, OS and addresses.
+            Self::Proxmox => &[
+                (
+                    S::Probe(P::Proxmox),
+                    &[
+                        Addresses,
+                        Hostnames,
+                        OperatingSystem,
+                        PortsAndServices,
+                        Interfaces,
+                        VirtualMachines,
+                    ],
+                ),
+                (
+                    S::HypervisorConfig,
+                    &[Addresses, Hostnames, OperatingSystem, Interfaces],
+                ),
+                (S::GuestAgent, &[Addresses, Hostnames, OperatingSystem]),
+            ],
+            Self::WakeOnLan => &[],
+        }
+    }
+
+    /// The categories this integration collects, in display order. Derived from
+    /// [`Self::collection`].
+    pub fn collects(&self) -> Vec<CollectedData> {
+        let categories: BTreeSet<CollectedData> = self
+            .collection()
+            .iter()
+            .flat_map(|(_, categories)| categories.iter().copied())
+            .collect();
+        categories.into_iter().collect()
     }
 
     /// Path to this integration's documentation guide, relative to the site root and with a

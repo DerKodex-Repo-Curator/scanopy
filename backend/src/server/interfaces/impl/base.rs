@@ -1,7 +1,7 @@
 use crate::server::interface_neighbors::r#impl::base::InterfaceNeighborEvidence;
 pub use crate::server::interface_neighbors::r#impl::base::Neighbor;
 use crate::server::ip_addresses::r#impl::base::MacEvidence;
-use crate::server::shared::attribution;
+use crate::server::shared::attribution::{self, AttributeSource, AttributeValue, Attributed};
 use crate::server::shared::entities::ChangeTriggersTopologyStaleness;
 use crate::server::shared::types::{
     Color, Icon,
@@ -325,6 +325,40 @@ impl TypeMetadataProvider for IfOperStatus {
     }
 }
 
+/// The MAC addresses a switch has learned on one port, from its bridge forwarding table.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct FdbMacsValue(pub Vec<String>);
+
+impl AttributeValue for FdbMacsValue {
+    const VALUE_KEY: &'static str = "fdb_macs";
+    const SOURCE_KEY: &'static str = "fdb_macs_source";
+    const SCHEMA_NAME: &'static str = "FdbMacs";
+
+    /// A port with no learned MACs has no forwarding table entry to record.
+    fn is_blank(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl utoipa::PartialSchema for FdbMacsValue {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::Schema> {
+        use utoipa::openapi::schema::{ArrayBuilder, ObjectBuilder, SchemaType, Type};
+        utoipa::openapi::RefOr::T(utoipa::openapi::Schema::Array(
+            ArrayBuilder::new()
+                .items(ObjectBuilder::new().schema_type(SchemaType::new(Type::String)))
+                .description(Some(
+                    "MAC addresses the switch learned on this port. A port with one learned MAC \
+                     can be resolved to a neighbor link; several indicate an uplink.",
+                ))
+                .build(),
+        ))
+    }
+}
+
+/// A port's learned MACs together with what read them.
+pub type FdbMacs = Attributed<FdbMacsValue>;
+
 #[derive(Debug, Clone, Validate, Serialize, Deserialize, Eq, PartialEq, Hash, ToSchema)]
 pub struct InterfaceBase {
     /// The host this entity belongs to.
@@ -413,11 +447,12 @@ pub struct InterfaceBase {
     /// database or echoed in a response ever has it populated.
     #[serde(default)]
     pub neighbor_candidates: Vec<InterfaceNeighborEvidence>,
-    /// Bridge FDB: learned MAC addresses on this switch port.
+    /// Bridge FDB: learned MAC addresses on this switch port, with what read them.
     /// Single-MAC ports can be resolved to neighbor links server-side.
     /// Multi-MAC ports indicate uplinks where LLDP/CDP is the better source.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fdb_macs: Option<Vec<String>>,
+    #[serde(flatten, deserialize_with = "attribution::optional")]
+    #[schema(value_type = FdbMacs)]
+    pub fdb_macs: Option<FdbMacs>,
 
     /// Native/untagged VLAN entity ID on this port (resolved from Q-BRIDGE dot1qPvid)
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -426,6 +461,22 @@ pub struct InterfaceBase {
     /// Tagged VLAN entity IDs on this port (resolved from Q-BRIDGE dot1qVlanCurrentEgressPorts)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vlan_ids: Option<Vec<Uuid>>,
+
+    /// What read `native_vlan_id` and `vlan_ids`. One source for both, because they are read
+    /// together and kept or replaced together.
+    #[serde(default)]
+    pub vlan_membership_source: AttributeSource,
+
+    /// What reported this interface.
+    #[serde(default)]
+    pub interface_source: AttributeSource,
+}
+
+impl InterfaceBase {
+    /// The MACs learned on this port, without what read them.
+    pub fn fdb_macs(&self) -> Option<&[String]> {
+        self.fdb_macs.as_ref().map(|fdb| fdb.value().0.as_slice())
+    }
 }
 
 impl Default for InterfaceBase {
@@ -448,6 +499,8 @@ impl Default for InterfaceBase {
             fdb_macs: None,
             native_vlan_id: None,
             vlan_ids: None,
+            vlan_membership_source: AttributeSource::Unspecified,
+            interface_source: AttributeSource::Unspecified,
         }
     }
 }
@@ -601,6 +654,7 @@ impl Interface {
         if !collected.vlan_membership {
             self.base.native_vlan_id = existing.base.native_vlan_id;
             self.base.vlan_ids = existing.base.vlan_ids.clone();
+            self.base.vlan_membership_source = existing.base.vlan_membership_source;
         }
     }
 
