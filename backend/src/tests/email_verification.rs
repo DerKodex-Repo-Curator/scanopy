@@ -233,10 +233,21 @@ async fn provision_second_daemon(state: &AppState, owner_verified: bool) -> Resu
         .provision(&provision_request(site.id, "first"), None, auth.clone())
         .await
         .expect("the first daemon is always allowed");
-    daemons
+    // What the create wizard reads before its first step must match what provisioning does.
+    let reached = daemons
+        .unverified_daemon_limit_reached(org.id)
+        .await
+        .unwrap();
+    let result = daemons
         .provision(&provision_request(site.id, "second"), None, auth)
         .await
-        .map(|_| ())
+        .map(|_| ());
+    assert_eq!(
+        reached,
+        result.is_err(),
+        "eligibility and provisioning disagree"
+    );
+    result
 }
 
 #[tokio::test]

@@ -1,7 +1,6 @@
 <script lang="ts">
-	// Help text for an action the server refuses until the user verifies their email. The
-	// control it sits beside stays enabled: verifying from the emailed link and retrying works
-	// without closing the surrounding modal. Renders nothing once verification isn't pending.
+	// Help text for an action the server refuses until the user verifies their email. Renders
+	// nothing once verification isn't pending.
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
 	import {
 		useEmailVerificationPending,
@@ -20,15 +19,14 @@
 </script>
 
 {#if verification.pending}
-	<div class="space-y-1">
-		<InlineWarning title={verifyEmail_title()} {body} />
+	<InlineWarning title={verifyEmail_title()} {body}>
 		<button
 			type="button"
-			class="text-secondary text-xs underline hover:no-underline disabled:opacity-50"
+			class="font-medium underline hover:no-underline disabled:opacity-50"
 			onclick={handleResend}
 			disabled={resendMutation.isPending}
 		>
 			{resendMutation.isPending ? common_sending() : common_resend()}
 		</button>
-	</div>
+	</InlineWarning>
 {/if}

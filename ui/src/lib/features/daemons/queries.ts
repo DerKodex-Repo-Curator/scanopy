@@ -252,6 +252,22 @@ export function useEmailInstallCommandMutation() {
 }
 
 /**
+ * Whether the server would refuse to provision another daemon until an owner verifies their
+ * email. While it would, refetch on every return to the tab, so verifying from the emailed link
+ * unblocks the create wizard without a reload.
+ */
+export function useProvisionEligibilityQuery(options: { enabled: () => boolean }) {
+	return createQuery(() => ({
+		queryKey: [...queryKeys.daemons.all, 'provision-eligibility'],
+		queryFn: async () =>
+			unwrapData(await apiClient.GET('/api/v1/daemons/provision-eligibility', {})),
+		enabled: options.enabled(),
+		refetchOnWindowFocus: (query) =>
+			query.state.data?.email_verification_required ? 'always' : true
+	}));
+}
+
+/**
  * Helper to check if a daemon is currently running a discovery session
  */
 export function getDaemonIsRunningDiscovery(

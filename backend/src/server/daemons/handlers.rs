@@ -6,7 +6,8 @@ use crate::server::auth::middleware::permissions::{
 use crate::server::credentials::r#impl::mapping::IntegrationTarget;
 use crate::server::daemons::r#impl::api::{
     DaemonDiscoveryRequest, DaemonHeartbeatPayload, ProvisionDaemonRequest,
-    ProvisionDaemonResponse, TestReachabilityRequest, TestReachabilityResponse,
+    ProvisionDaemonResponse, ProvisionEligibility, TestReachabilityRequest,
+    TestReachabilityResponse,
 };
 use crate::server::daemons::r#impl::base::DaemonOs;
 use crate::server::metrics::dependency::{Dependency, observe_http};
@@ -635,6 +636,7 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
         .routes(routes!(bulk_delete_daemons))
         .routes(routes!(generated::export_csv))
         .routes(routes!(provision_daemon))
+        .routes(routes!(get_provision_eligibility))
         .routes(routes!(retry_connection))
         .routes(routes!(test_reachability))
         .routes(routes!(email_install_command))
@@ -1171,6 +1173,38 @@ async fn load_reprovision_target(
     }
 
     Ok(daemon)
+}
+
+/// Whether a new daemon can be provisioned
+///
+/// The create wizard reads this before its first step, so a refusal from `POST /provision`
+/// (no verified owner and a daemon already exists) stops the user up front rather than after
+/// they have configured everything. Reads only the caller's own organization.
+#[utoipa::path(
+    get,
+    path = "/provision-eligibility",
+    tags = [Daemon::ENTITY_NAME_PLURAL, api_tags::INTERNAL],
+    operation_id = "get_provision_eligibility",
+    summary = "Check whether a new daemon can be provisioned",
+    responses(
+        (status = 200, description = "Provisioning eligibility", body = ApiResponse<ProvisionEligibility>),
+    ),
+    security(("user_api_key" = []), ("session" = []))
+)]
+async fn get_provision_eligibility(
+    State(state): State<Arc<AppState>>,
+    auth: Authorized<Member>,
+) -> ApiResult<Json<ApiResponse<ProvisionEligibility>>> {
+    let organization_id = auth.require_organization_id()?;
+    let email_verification_required = state
+        .services
+        .daemon_service
+        .unverified_daemon_limit_reached(organization_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success(ProvisionEligibility {
+        email_verification_required,
+    })))
 }
 
 /// Provision a Daemon, or re-provision an existing one

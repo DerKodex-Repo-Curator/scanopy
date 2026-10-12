@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { IconComponent } from '$lib/shared/utils/types';
 	import { X } from 'lucide-svelte';
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { common_dismiss } from '$lib/paraglide/messages';
 
 	let {
@@ -12,7 +12,8 @@
 		Icon,
 		borderColor,
 		bgColor,
-		textColor
+		textColor,
+		children
 	}: {
 		title: string;
 		body?: string | null;
@@ -30,6 +31,8 @@
 		borderColor: string;
 		bgColor: string;
 		textColor: string;
+		/** An action that belongs to the message, rendered under the text (e.g. a Resend link). */
+		children?: Snippet;
 	} = $props();
 
 	let dismissed = $state(false);
@@ -69,6 +72,9 @@
 							<li>{item}</li>
 						{/each}
 					</ul>
+				{/if}
+				{#if children}
+					<div class="mt-1 text-sm {textColor}">{@render children()}</div>
 				{/if}
 			</div>
 			{#if dismissableKey}
