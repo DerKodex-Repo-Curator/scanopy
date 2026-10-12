@@ -319,7 +319,7 @@ fn install_flags(args: &DaemonArgs, quote: fn(&str) -> String) -> String {
 }
 
 /// Container image the compose file runs.
-const DOCKER_IMAGE: &str = "ghcr.io/scanopy/scanopy/daemon:latest";
+const DOCKER_IMAGE: &str = "docker.scanopy.net/scanopy/scanopy/daemon:latest";
 
 /// Quote a compose env value if YAML would otherwise mis-read it. Values sit in a
 /// `- KEY=value` list item, where most characters are fine bare; leading/trailing whitespace
@@ -623,7 +623,7 @@ pub fn build_upgrade_artifacts(daemon: &Daemon) -> UpgradeArtifacts {
                 )
             }),
             pull: "docker compose pull\ndocker compose up -d".to_string(),
-            pinned_image: format!("image: ghcr.io/scanopy/scanopy/daemon:v{}", own_version()),
+            pinned_image: format!("image: docker.scanopy.net/scanopy/scanopy/daemon:v{}", own_version()),
         },
         legacy_service_name,
     }
