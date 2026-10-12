@@ -1386,6 +1386,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daemons/provision-eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check whether a new daemon can be provisioned
+         * @description The create wizard reads this before its first step, so a refusal from `POST /provision`
+         *     (no verified owner and a daemon already exists) stops the user up front rather than after
+         *     they have configured everything. Reads only the caller's own organization.
+         */
+        get: operations["get_provision_eligibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/daemons/test-reachability": {
         parameters: {
             query?: never;
@@ -5378,6 +5400,29 @@ export interface components {
                  *     This is shown only once - store it securely.
                  */
                 readonly daemon_api_key: string;
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
+        ApiResponse_ProvisionEligibility: {
+            /** @description Whether provisioning another daemon would be refused for the caller's organization. */
+            data?: {
+                /**
+                 * @description The organization already has a daemon and no owner has verified their email, so a new
+                 *     daemon is refused until one does.
+                 */
+                email_verification_required: boolean;
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -12726,6 +12771,14 @@ export interface components {
              */
             readonly daemon_api_key: string;
         };
+        /** @description Whether provisioning another daemon would be refused for the caller's organization. */
+        ProvisionEligibility: {
+            /**
+             * @description The organization already has a daemon and no owner has verified their email, so a new
+             *     daemon is refused until one does.
+             */
+            email_verification_required: boolean;
+        };
         /**
          * @description A range inferred from where unplaceable far ends say they live.
          *
@@ -18002,6 +18055,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_provision_eligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provisioning eligibility */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_ProvisionEligibility"];
                 };
             };
         };

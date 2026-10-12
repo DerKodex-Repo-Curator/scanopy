@@ -27,6 +27,7 @@
 		useDaemonQuery,
 		useDaemonInstallCommandQuery,
 		useEmailInstallCommandMutation,
+		useProvisionEligibilityQuery,
 		type InstallCommandParams
 	} from '../../queries';
 	import { useConfigQuery, isCloud } from '$lib/shared/stores/config-query';
@@ -63,7 +64,6 @@
 		common_install,
 		common_integrations,
 		common_next,
-		common_tryAgain,
 		daemons_createDaemon,
 		daemons_credentialWizardReturn,
 		daemons_credentialWizardReturnToInstall,
@@ -80,16 +80,10 @@
 		daemons_installCopiedToastWindows,
 		daemons_installBackToInstall,
 		daemons_installReturnToCommands,
-		daemons_verifyEmailForMoreDaemons,
-		daemons_verifyEmailToEmailCommand
+		daemons_verifyEmailForMoreDaemons
 	} from '$lib/paraglide/messages';
 	import { credentialTypes } from '$lib/shared/stores/metadata';
-	import { ApiError } from '$lib/api/client';
-	import type { ErrorCode } from '$lib/generated/error-codes';
-	import { useEmailVerificationPending } from '$lib/features/auth/queries';
 	import EmailVerificationNotice from '$lib/features/auth/components/EmailVerificationNotice.svelte';
-
-	const EMAIL_VERIFICATION_REQUIRED: ErrorCode = 'auth_email_verification_required';
 
 	interface Props {
 		isOpen?: boolean;
@@ -117,11 +111,6 @@
 	let hasEmail = $derived(configQuery.data?.has_email_service ?? false);
 	const emailInstallMutation = useEmailInstallCommandMutation();
 
-	// Emailing the command, and a second daemon in an org with no verified owner, are refused by
-	// the server until the email is verified. The controls stay enabled so a user who verifies
-	// mid-install can retry without losing the wizard; the notices only explain.
-	const emailVerification = useEmailVerificationPending();
-	let provisionNeedsVerification = $state(false);
 	// Sites
 	const sitesQuery = useSitesQuery();
 	let sitesData = $derived(sitesQuery.data ?? []);
@@ -197,6 +186,17 @@
 	// Connection waiting state
 	let provisionedDaemonId = $state('');
 	let isProvisioning = $state(false);
+
+	// The server refuses another daemon while no owner of the org has verified their email. It
+	// says so up front, so the wizard stops on its first step instead of after the user has
+	// configured everything.
+	const provisionEligibilityQuery = useProvisionEligibilityQuery({
+		enabled: () => isOpen && !provisionedDaemonId
+	});
+	let provisionNeedsVerification = $derived(
+		provisionEligibilityQuery.data?.email_verification_required ?? false
+	);
+
 	// Daemon identity (name + site) is frozen once Configure is left, so credentials — which
 	// are created against the selected site — can't be orphaned by a later site change.
 	let configureCommitted = $state(false);
@@ -410,11 +410,8 @@
 			keyState = result.daemon_api_key;
 			provisionedDaemonId = result.daemon.id;
 			committedInstallParams = installCommandParams();
-			provisionNeedsVerification = false;
-		} catch (e) {
-			// The API client reports the failure. A verification refusal also gets an inline
-			// notice with a retry, since the user can fix it without leaving the wizard.
-			provisionNeedsVerification = e instanceof ApiError && e.code === EMAIL_VERIFICATION_REQUIRED;
+		} catch {
+			// The API client reports the failure.
 		} finally {
 			isProvisioning = false;
 		}
@@ -487,6 +484,8 @@
 	// --- Navigation handlers ---
 	async function handleNext() {
 		if (activeTab === 'configure') {
+			// Provisioning would be refused; the notice above the form says why.
+			if (provisionNeedsVerification) return;
 			const fields = getVisibleFieldIds(formValues);
 			const isValid = await validateForm(form, fields);
 
@@ -744,6 +743,11 @@
 			<div class="flex-1 overflow-auto p-4 sm:p-6">
 				{#key activeTab}
 					{#if activeTab === 'configure'}
+						{#if provisionNeedsVerification}
+							<div class="mb-4">
+								<EmailVerificationNotice body={daemons_verifyEmailForMoreDaemons()} />
+							</div>
+						{/if}
 						<ConfigureStep
 							{form}
 							{selectedOS}
@@ -793,25 +797,6 @@
 								pushSuccess(getCopiedToastMessage());
 							}}
 						/>
-						{#if hasEmail && emailVerification.pending && connectionStatus === 'idle'}
-							<div class="px-6 pb-4">
-								<EmailVerificationNotice body={daemons_verifyEmailToEmailCommand()} />
-							</div>
-						{/if}
-					{:else if activeTab === 'install' && provisionNeedsVerification}
-						<!-- The server refused a second daemon until the email is verified. The wizard
-						     keeps its state; once verified, the retry provisions as normal. -->
-						<div class="space-y-3 p-6">
-							<EmailVerificationNotice body={daemons_verifyEmailForMoreDaemons()} />
-							<button
-								type="button"
-								class="btn-primary"
-								disabled={isProvisioning}
-								onclick={() => ensureProvisioned()}
-							>
-								{common_tryAgain()}
-							</button>
-						</div>
 					{:else if activeTab === 'install'}
 						<!-- Provisioning or the install-command fetch is in flight (reaching Install via
 						     the tab strip doesn't await it). Show nothing until the server's command and
@@ -867,7 +852,7 @@
 						type="button"
 						class="btn-primary btn-primary-lg"
 						onclick={handleNext}
-						disabled={isTestingReachability}
+						disabled={isTestingReachability || provisionNeedsVerification}
 					>
 						{#if isTestingReachability}
 							<Loader2 class="h-4 w-4 animate-spin" />

@@ -4708,6 +4708,37 @@
         ]
       }
     },
+    "/api/v1/daemons/provision-eligibility": {
+      "get": {
+        "tags": [
+          "Daemons",
+          "internal"
+        ],
+        "summary": "Check whether a new daemon can be provisioned",
+        "description": "The create wizard reads this before its first step, so a refusal from `POST /provision`\n(no verified owner and a daemon already exists) stops the user up front rather than after\nthey have configured everything. Reads only the caller's own organization.",
+        "operationId": "get_provision_eligibility",
+        "responses": {
+          "200": {
+            "description": "Provisioning eligibility",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ProvisionEligibility"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v1/daemons/test-reachability": {
       "post": {
         "tags": [
@@ -20754,6 +20785,44 @@
                 "format": "password",
                 "description": "The API key (plaintext) for daemon authentication.\nThis is shown only once - store it securely.",
                 "readOnly": true
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
+      "ApiResponse_ProvisionEligibility": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "Whether provisioning another daemon would be refused for the caller's organization.",
+            "required": [
+              "email_verification_required"
+            ],
+            "properties": {
+              "email_verification_required": {
+                "type": "boolean",
+                "description": "The organization already has a daemon and no owner has verified their email, so a new\ndaemon is refused until one does."
               }
             }
           },
@@ -37134,6 +37203,19 @@
             "format": "password",
             "description": "The API key (plaintext) for daemon authentication.\nThis is shown only once - store it securely.",
             "readOnly": true
+          }
+        }
+      },
+      "ProvisionEligibility": {
+        "type": "object",
+        "description": "Whether provisioning another daemon would be refused for the caller's organization.",
+        "required": [
+          "email_verification_required"
+        ],
+        "properties": {
+          "email_verification_required": {
+            "type": "boolean",
+            "description": "The organization already has a daemon and no owner has verified their email, so a new\ndaemon is refused until one does."
           }
         }
       },

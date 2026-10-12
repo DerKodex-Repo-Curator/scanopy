@@ -17686,6 +17686,44 @@
           }
         }
       },
+      "ApiResponse_ProvisionEligibility": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "Whether provisioning another daemon would be refused for the caller's organization.",
+            "required": [
+              "email_verification_required"
+            ],
+            "properties": {
+              "email_verification_required": {
+                "type": "boolean",
+                "description": "The organization already has a daemon and no owner has verified their email, so a new\ndaemon is refused until one does."
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
       "ApiResponse_PublicConfigResponse": {
         "type": "object",
         "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
@@ -34046,6 +34084,19 @@
             "format": "password",
             "description": "The API key (plaintext) for daemon authentication.\nThis is shown only once - store it securely.",
             "readOnly": true
+          }
+        }
+      },
+      "ProvisionEligibility": {
+        "type": "object",
+        "description": "Whether provisioning another daemon would be refused for the caller's organization.",
+        "required": [
+          "email_verification_required"
+        ],
+        "properties": {
+          "email_verification_required": {
+            "type": "boolean",
+            "description": "The organization already has a daemon and no owner has verified their email, so a new\ndaemon is refused until one does."
           }
         }
       },
