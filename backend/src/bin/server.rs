@@ -552,14 +552,19 @@ async fn main() -> anyhow::Result<()> {
         .merge(protected_app);
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
 
-    // Spawn server in background
-    tokio::spawn(async move {
-        axum::serve(
-            listener,
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .await
-        .unwrap();
+    // Spawn server in background. On shutdown it stops accepting connections and lets in-flight
+    // requests finish.
+    let http_shutdown = tokio_util::sync::CancellationToken::new();
+    let server = tokio::spawn({
+        let http_shutdown = http_shutdown.clone();
+        async move {
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(http_shutdown.cancelled_owned())
+            .await
+        }
     });
 
     // Start discovery scheduler
@@ -689,11 +694,47 @@ async fn main() -> anyhow::Result<()> {
     }
     tracing::info!(target: LOG_TARGET, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    // Wait for shutdown signal
-    tokio::signal::ctrl_c().await?;
-
+    shutdown_signal().await?;
     tracing::info!(target: LOG_TARGET, "Shutdown signal received");
+
+    // Docker sends SIGKILL 10s after SIGTERM (kamal-proxy deploys pass no `-t`, and compose uses
+    // the same default). Requests get a short drain, bounded because live-update SSE streams
+    // never end on their own; the subscriber work they queued gets the rest.
+    http_shutdown.cancel();
+    match tokio::time::timeout(HTTP_DRAIN, server).await {
+        Ok(Ok(Ok(()))) => {}
+        Ok(Ok(Err(e))) => tracing::error!(target: LOG_TARGET, error = %e, "HTTP server failed"),
+        Ok(Err(e)) => tracing::error!(target: LOG_TARGET, error = %e, "HTTP server task failed"),
+        Err(_) => tracing::warn!(
+            target: LOG_TARGET,
+            "Open connections outlived the HTTP drain; closing them"
+        ),
+    }
+    state.services.event_bus.shutdown(EVENT_DRAIN).await;
+
     tracing::info!(target: LOG_TARGET, "Server stopped");
 
     Ok(())
+}
+
+/// How long in-flight requests get to finish after a shutdown signal.
+const HTTP_DRAIN: Duration = Duration::from_secs(2);
+/// How long queued event-subscriber work gets after that.
+const EVENT_DRAIN: Duration = Duration::from_secs(7);
+
+/// SIGTERM (`docker stop`, a deploy) or SIGINT (Ctrl-C).
+async fn shutdown_signal() -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result,
+            _ = terminate.recv() => Ok(()),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await
+    }
 }
