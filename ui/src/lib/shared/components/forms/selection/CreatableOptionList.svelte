@@ -8,12 +8,18 @@
 		swatch?: string;
 		/** An icon drawn before the label, in place of a swatch. */
 		icon?: IconComponent | null;
+		/**
+		 * The heading the option is listed under. Options arrive already ordered by group; when any
+		 * has one, a heading starts each run and options with none are listed as ungrouped.
+		 */
+		group?: string | null;
 	}
 </script>
 
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Plus } from 'lucide-svelte';
+	import { common_ungrouped } from '$lib/paraglide/messages';
 
 	/**
 	 * The rows of a type-to-filter dropdown that can also create what was typed: an optional
@@ -37,6 +43,16 @@
 		/** Draws an option's row content in place of the swatch or icon and label (tags draw the tag). */
 		row?: Snippet<[CreatableOption]>;
 	} = $props();
+
+	let grouped = $derived(options.some((option) => option.group));
+
+	/** The heading above option `index`, or null when it continues the previous option's group. */
+	function headingAt(index: number): string | null {
+		if (!grouped) return null;
+		const group = options[index].group ?? null;
+		if (index > 0 && (options[index - 1].group ?? null) === group) return null;
+		return group ?? common_ungrouped();
+	}
 </script>
 
 {#if createLabel}
@@ -52,7 +68,16 @@
 	</button>
 {/if}
 
-{#each options as option (option.id)}
+{#each options as option, index (option.id)}
+	{@const heading = headingAt(index)}
+	{#if heading}
+		<div
+			class="text-secondary sticky top-0 border-b px-3 py-2 text-xs font-semibold uppercase tracking-wide"
+			style="border-color: var(--color-border); background: var(--color-bg-surface)"
+		>
+			{heading}
+		</div>
+	{/if}
 	<button
 		type="button"
 		class="select-option flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"

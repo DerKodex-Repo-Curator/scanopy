@@ -20,9 +20,11 @@
 	import {
 		applicationGroupId,
 		compareTagsByGroup,
+		groupOf,
 		isApplicationTag,
 		sameGroup,
 		tagAllowedOn,
+		tagGroupLabel,
 		tagIcon,
 		tagTooltip
 	} from '$lib/features/tags/groups';
@@ -80,7 +82,22 @@
 	let inputElement: HTMLInputElement | undefined = $state();
 	let triggerElement: HTMLDivElement | undefined = $state();
 	let dropdownElement: HTMLDivElement | undefined = $state();
-	let dropdownPosition = $state({ top: 0, left: 0 });
+	/**
+	 * Below the trigger, `top` is set; flipped above it, `bottom` is. Either way the list grows to
+	 * fit every tag, up to the screen edge less `EDGE_GAP_PX`, and scrolls past that.
+	 */
+	let dropdownPosition = $state<{
+		top: number | null;
+		bottom: number | null;
+		left: number;
+		maxHeight: number;
+	}>({ top: 0, bottom: null, left: 0, maxHeight: 192 });
+
+	/** Same gap the column config panel keeps from the bottom of the screen. */
+	const EDGE_GAP_PX = 16;
+	/** Below this much room under the trigger, the list opens above it when there's more room there. */
+	const MIN_DROPDOWN_PX = 160;
+	const TRIGGER_GAP_PX = 4;
 
 	// Portal container for escaping stacking contexts
 	let portalContainer: HTMLDivElement | null = $state(null);
@@ -115,23 +132,25 @@
 		const viewportHeight = window.innerHeight;
 		const viewportWidth = window.innerWidth;
 
-		// Vertical: flip above if not enough space below
-		let top: number;
-		const dropdownHeight = dropdownElement?.getBoundingClientRect().height ?? 192; // max-h-48 = 12rem = 192px
-		const spaceBelow = viewportHeight - rect.bottom;
-		const spaceAbove = rect.top;
-
-		if (spaceBelow >= dropdownHeight + 8 || spaceBelow >= spaceAbove) {
-			top = rect.bottom + 4;
-		} else {
-			top = rect.top - dropdownHeight - 4;
-		}
+		// Vertical: open below unless the list doesn't fit there and there's more room above.
+		const contentHeight = dropdownElement?.scrollHeight ?? MIN_DROPDOWN_PX;
+		const spaceBelow = viewportHeight - rect.bottom - TRIGGER_GAP_PX - EDGE_GAP_PX;
+		const spaceAbove = rect.top - TRIGGER_GAP_PX - EDGE_GAP_PX;
+		const below =
+			spaceBelow >= Math.min(contentHeight, MIN_DROPDOWN_PX) || spaceBelow >= spaceAbove;
 
 		// Horizontal: clamp to viewport edges
 		let left = rect.left;
 		left = Math.max(8, Math.min(left, viewportWidth - 160 - 8)); // min-w-40 = 160px
 
-		dropdownPosition = { top, left };
+		dropdownPosition = below
+			? { top: rect.bottom + TRIGGER_GAP_PX, bottom: null, left, maxHeight: spaceBelow }
+			: {
+					top: null,
+					bottom: viewportHeight - rect.top + TRIGGER_GAP_PX,
+					left,
+					maxHeight: spaceAbove
+				};
 	}
 
 	// Recalculate position once dropdown renders (so we measure real height for flip)
@@ -147,7 +166,11 @@
 
 		const handleScroll = () => calculatePosition();
 		window.addEventListener('scroll', handleScroll, true);
-		return () => window.removeEventListener('scroll', handleScroll, true);
+		window.addEventListener('resize', handleScroll);
+		return () => {
+			window.removeEventListener('scroll', handleScroll, true);
+			window.removeEventListener('resize', handleScroll);
+		};
 	});
 
 	// Query and mutation
@@ -363,13 +386,17 @@
 	<div
 		bind:this={dropdownElement}
 		use:portal
-		class="select-dropdown fixed z-[9999] max-h-48 min-w-40 overflow-y-auto rounded-md shadow-lg"
-		style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px;"
+		class="select-dropdown fixed z-[9999] min-w-40 overflow-y-auto rounded-md shadow-lg"
+		style:top={dropdownPosition.top === null ? undefined : `${dropdownPosition.top}px`}
+		style:bottom={dropdownPosition.bottom === null ? undefined : `${dropdownPosition.bottom}px`}
+		style:left="{dropdownPosition.left}px"
+		style:max-height="{dropdownPosition.maxHeight}px"
 	>
 		<CreatableOptionList
 			options={availableTags.map((tag) => ({
 				id: tag.id,
-				label: tag.name
+				label: tag.name,
+				group: tagGroupLabel(groupOf(tag, tagGroups))
 			}))}
 			onSelect={handleAddTag}
 			createLabel={showCreateOption
