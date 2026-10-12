@@ -1,45 +1,5 @@
 [
   {
-    "category": "Container",
-    "color": "Blue",
-    "description": "A container that serves the Podman API on a TCP port in front of the runtime's socket",
-    "discovery_pattern": "No match pattern provided",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
-    "name": "Podman API Proxy"
-  },
-  {
-    "category": "ContainerRuntime",
-    "color": "Blue",
-    "description": "Daemonless container runtime",
-    "discovery_pattern": "Client probe Podman succeeded",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
-    "name": "Podman"
-  },
-  {
-    "category": "ContainerRuntime",
-    "color": "Blue",
-    "description": "Docker",
-    "discovery_pattern": "Client probe Docker succeeded",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
-    "name": "Docker"
-  },
-  {
-    "category": "Container",
-    "color": "Blue",
-    "description": "A container that serves the Docker API on a TCP port in front of the runtime's socket",
-    "discovery_pattern": "No match pattern provided",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
-    "name": "Docker API Proxy"
-  },
-  {
     "category": "Media",
     "color": "Blue",
     "description": "User invitation and management system for Jellyfin, Plex, Emby etc",
@@ -278,6 +238,16 @@
     "logo_needs_white_background": true,
     "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/docmost.png",
     "name": "Docmost"
+  },
+  {
+    "category": "HomeAutomation",
+    "color": "Blue",
+    "description": "Self-hosted location history tracker.",
+    "discovery_pattern": "All of: (Endpoint response body from <ip>:3000/api/v1/health contains \"\"status\":\"ok\"\", Endpoint response from <ip>:3000 has header \"x-dawarich-version\" with value \"\")",
+    "icon": "house",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/dawarich.svg",
+    "name": "Dawarich"
   },
   {
     "category": "Media",
@@ -1892,6 +1862,26 @@
   {
     "category": "Media",
     "color": "Blue",
+    "description": "A web app for browsing, reading and downloading books from a calibre library.",
+    "discovery_pattern": "Endpoint response body from <ip>:8083/login contains \"Calibre-Web |\"",
+    "icon": "circle-play",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/calibre-web.svg",
+    "name": "Calibre-Web"
+  },
+  {
+    "category": "Media",
+    "color": "Blue",
+    "description": "The calibre e-book manager's content server.",
+    "discovery_pattern": "Any of: (Endpoint response from <ip>:8080 has header \"server\" with value \"calibre\", Endpoint response body from <ip>:8080/ contains \"non-JavaScript version of this site\", Endpoint response from <ip>:8081 has header \"server\" with value \"calibre\", Endpoint response body from <ip>:8081/ contains \"non-JavaScript version of this site\")",
+    "icon": "circle-play",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/calibre.svg",
+    "name": "Calibre"
+  },
+  {
+    "category": "Media",
+    "color": "Blue",
     "description": "A self-hosted, multi-user digital library.",
     "discovery_pattern": "Endpoint response body from <ip>:6060/ contains \"booklore-app\"",
     "icon": "circle-play",
@@ -2718,5 +2708,45 @@
     "logo_needs_white_background": false,
     "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/cockpit.svg",
     "name": "Cockpit"
+  },
+  {
+    "category": "Container",
+    "color": "Blue",
+    "description": "A container that serves the Podman API on a TCP port in front of the runtime's socket",
+    "discovery_pattern": "No match pattern provided",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
+    "name": "Podman API Proxy"
+  },
+  {
+    "category": "ContainerRuntime",
+    "color": "Blue",
+    "description": "Daemonless container runtime",
+    "discovery_pattern": "Client probe Podman succeeded",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
+    "name": "Podman"
+  },
+  {
+    "category": "ContainerRuntime",
+    "color": "Blue",
+    "description": "Docker",
+    "discovery_pattern": "Client probe Docker succeeded",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
+    "name": "Docker"
+  },
+  {
+    "category": "Container",
+    "color": "Blue",
+    "description": "A container that serves the Docker API on a TCP port in front of the runtime's socket",
+    "discovery_pattern": "No match pattern provided",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
+    "name": "Docker API Proxy"
   }
 ]
