@@ -714,6 +714,13 @@ fn docker_config_dir_matches_every_compose_and_dockerfile() {
             )),
         ),
         (
+            "docker-compose.portainer.yml",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../docker-compose.portainer.yml"
+            )),
+        ),
+        (
             "docker-compose.test.yml",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
