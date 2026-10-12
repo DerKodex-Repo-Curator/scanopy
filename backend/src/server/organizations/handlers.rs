@@ -7,7 +7,7 @@ use crate::server::organizations::demo_status::DemoPopulateStatus;
 use crate::server::organizations::r#impl::base::Organization;
 use crate::server::shared::events::traits::{Event, OrgScope};
 use crate::server::shared::events::types::{OnboardingOperation, OnboardingOperationDiscriminants};
-use crate::server::shared::handlers::traits::{CrudHandlers, update_handler};
+use crate::server::shared::handlers::traits::CrudHandlers;
 use crate::server::shared::services::traits::CrudService;
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::traits::{Entity, Storage};
@@ -16,10 +16,10 @@ use crate::server::shared::types::api::ApiResponse;
 use crate::server::shared::types::api::ApiResult;
 use crate::server::shared::types::api::{ApiError, ApiErrorResponse, EmptyApiResponse};
 use crate::server::shared::types::error_codes::ErrorCode;
+use crate::server::shared::validation::validate_entity;
 use crate::server::sites::r#impl::Site;
 use crate::server::users::r#impl::base::User;
 use crate::server::users::r#impl::permissions::UserOrgPermissions;
-use anyhow::anyhow;
 use axum::Json;
 use axum::extract::Path;
 use axum::extract::State;
@@ -100,22 +100,22 @@ pub async fn update_org_name(
         return Err(ApiError::permission_denied());
     }
 
-    let mut org = state
+    // Only the name changes, on a fresh read under the org lock, so a billing or notification
+    // write landing meanwhile isn't reverted.
+    let mut locked = state
         .services
         .organization_service
-        .get_by_id(&id)
+        .lock_for_update(id)
         .await?
-        .ok_or_else(|| anyhow!("Could not find org"))?;
+        .ok_or_else(|| ApiError::entity_not_found::<Organization>(id))?;
+    locked.org.base.name = name;
+    validate_entity(
+        || CrudHandlers::validate(&locked.org),
+        Organization::entity_name(),
+    )?;
+    let updated = locked.save(auth.into_entity()).await?;
 
-    org.base.name = name;
-
-    update_handler::<Organization>(
-        axum::extract::State(state),
-        auth.into_permission::<Member>(),
-        axum::extract::Path(id),
-        ApiJson(org),
-    )
-    .await
+    Ok(Json(ApiResponse::success(updated)))
 }
 
 /// Request to update user profile (deferred marketing fields)
@@ -145,6 +145,12 @@ async fn update_profile(
     let org_id = auth.organization_id().unwrap();
     let authentication: AuthenticatedEntity = auth.into();
 
+    // Every submission is published with its answers; the milestone hides the prompt.
+    state
+        .services
+        .organization_service
+        .record_milestone(org_id, OnboardingOperationDiscriminants::ProfileCompleted)
+        .await?;
     state
         .services
         .event_bus
@@ -212,6 +218,15 @@ async fn submit_referral_source(
     let org_id = auth.organization_id().unwrap();
     let authentication: AuthenticatedEntity = auth.into();
 
+    // Every submission is published with its answer; the milestone hides the prompt.
+    state
+        .services
+        .organization_service
+        .record_milestone(
+            org_id,
+            OnboardingOperationDiscriminants::ReferralSourceCompleted,
+        )
+        .await?;
     state
         .services
         .event_bus
@@ -249,8 +264,9 @@ pub struct DaemonPromptResponseRequest {
 }
 
 /// Record the user's response to the daemon-install prompt so it is not shown again.
-/// Each CTA persists a distinct onboarding milestone (the org subscriber dedups); the
-/// PostHog subscriber turns these into funnel events, so no client-side telemetry is needed.
+/// Each CTA records a distinct onboarding milestone, which the UI reads to hide the prompt.
+/// Every response is published; the PostHog subscriber turns these into funnel events, so
+/// no client-side telemetry is needed.
 #[utoipa::path(
     post,
     path = "/daemon-prompt-response",
@@ -268,10 +284,22 @@ async fn daemon_prompt_response(
     let org_id = auth.organization_id().unwrap();
     let authentication: AuthenticatedEntity = auth.into();
 
-    let operation = match request.action {
-        DaemonPromptAction::Dismissed => OnboardingOperation::DaemonPromptDismissed,
-        DaemonPromptAction::Accepted => OnboardingOperation::DaemonPromptAccepted,
+    let (operation, step) = match request.action {
+        DaemonPromptAction::Dismissed => (
+            OnboardingOperation::DaemonPromptDismissed,
+            OnboardingOperationDiscriminants::DaemonPromptDismissed,
+        ),
+        DaemonPromptAction::Accepted => (
+            OnboardingOperation::DaemonPromptAccepted,
+            OnboardingOperationDiscriminants::DaemonPromptAccepted,
+        ),
     };
+
+    state
+        .services
+        .organization_service
+        .record_milestone(org_id, step)
+        .await?;
 
     state
         .services
@@ -580,17 +608,17 @@ async fn run_populate_demo(
     id: Uuid,
     user_id: Uuid,
     entity: AuthenticatedEntity,
-    mut org: Organization,
+    org: Organization,
 ) -> ApiResult<()> {
     // First, reset all existing data
     reset_organization_data(&state, &id, entity.clone()).await?;
 
-    org.base.onboarding = OnboardingOperationDiscriminants::iter().collect();
-
     state
         .services
         .organization_service
-        .update(&mut org, entity.clone())
+        .modify(id, entity.clone(), |org| {
+            org.base.onboarding = OnboardingOperationDiscriminants::iter().collect();
+        })
         .await?;
 
     seed_demo_data(&state.services, id, user_id, org.base.use_case, entity).await

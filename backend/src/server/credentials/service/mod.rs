@@ -166,43 +166,48 @@ impl CrudService<Credential> for CredentialService {
 
         // Emit onboarding events for credential creation
         let organization_id = created.base.organization_id;
-        if let Some(organization) = self
+
+        // Generic event for any credential type
+        if self
             .organization_service
-            .get_by_id(&organization_id)
+            .record_milestone(
+                organization_id,
+                OnboardingOperationDiscriminants::FirstCredentialCreated,
+            )
             .await?
         {
-            // Generic event for any credential type
-            if organization.not_onboarded(&OnboardingOperationDiscriminants::FirstCredentialCreated)
-            {
-                self.event_bus
-                    .publish(Event::new(
-                        OrgScope { organization_id },
-                        OnboardingOperation::FirstCredentialCreated,
-                        authentication.clone(),
-                    ))
-                    .await?;
-            }
+            self.event_bus
+                .publish(Event::new(
+                    OrgScope { organization_id },
+                    OnboardingOperation::FirstCredentialCreated,
+                    authentication.clone(),
+                ))
+                .await?;
+        }
 
-            // Clears the interface prompts on home and the L2 view; a container or Wake-on-LAN
-            // credential adds no interfaces, so it does not count.
-            if created
-                .base
-                .credential_type
-                .discriminant()
-                .integration()
-                .reports_interfaces()
-                && organization.not_onboarded(
-                    &OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated,
+        // Clears the interface prompts on home and the L2 view; a container or Wake-on-LAN
+        // credential adds no interfaces, so it does not count.
+        if created
+            .base
+            .credential_type
+            .discriminant()
+            .integration()
+            .reports_interfaces()
+            && self
+                .organization_service
+                .record_milestone(
+                    organization_id,
+                    OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated,
                 )
-            {
-                self.event_bus
-                    .publish(Event::new(
-                        OrgScope { organization_id },
-                        OnboardingOperation::FirstInterfaceCredentialCreated,
-                        authentication,
-                    ))
-                    .await?;
-            }
+                .await?
+        {
+            self.event_bus
+                .publish(Event::new(
+                    OrgScope { organization_id },
+                    OnboardingOperation::FirstInterfaceCredentialCreated,
+                    authentication,
+                ))
+                .await?;
         }
 
         Ok(created)

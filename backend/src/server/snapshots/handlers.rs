@@ -176,12 +176,14 @@ async fn create_snapshot(
     // the request — same fire-and-forget pattern as SecondSiteCreated in
     // sites/handlers.rs.
     if let Some(organization_id) = auth.organization_id()
-        && let Ok(Some(org)) = state
+        && let Ok(true) = state
             .services
             .organization_service
-            .get_by_id(&organization_id)
+            .record_milestone(
+                organization_id,
+                OnboardingOperationDiscriminants::FirstSnapshotCreated,
+            )
             .await
-        && org.not_onboarded(&OnboardingOperationDiscriminants::FirstSnapshotCreated)
     {
         let _ = state
             .services

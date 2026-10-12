@@ -522,25 +522,28 @@ impl DiscoveryService {
         {
             let is_rescan = session.discovery_type.rescan_target_host_id().is_some();
 
-            // Publish onboarding milestone BEFORE SSE update so it's
-            // in the DB when the SSE-triggered org refetch arrives
+            // Record the onboarding milestone on the org row BEFORE the SSE update, so it's
+            // committed when the SSE-triggered org refetch arrives. The event is published
+            // only by the call that recorded it.
             if session.phase == DiscoveryPhase::Complete
                 && matches!(
                     session.discovery_type,
                     DiscoveryType::Network { .. } | DiscoveryType::Unified { .. }
                 )
                 && let Ok(Some(site)) = self.site_service.get_by_id(&site_id).await
-                && let Ok(Some(org)) = self
+                && let Ok(true) = self
                     .organization_service
-                    .get_by_id(&site.base.organization_id)
+                    .record_milestone(
+                        site.base.organization_id,
+                        OnboardingOperationDiscriminants::FirstDiscoveryCompleted,
+                    )
                     .await
-                && org.not_onboarded(&OnboardingOperationDiscriminants::FirstDiscoveryCompleted)
             {
                 let _ = self
                     .event_bus
                     .publish(Event::new(
                         OrgScope {
-                            organization_id: org.id,
+                            organization_id: site.base.organization_id,
                         },
                         OnboardingOperation::FirstDiscoveryCompleted {
                             discovery_type: session.discovery_type.clone(),
@@ -634,25 +637,75 @@ impl DiscoveryService {
             }
 
             // Save to database
-            if let Err(e) = self.discovery_storage.create(&historical_discovery).await {
-                record_finish_error(DiscoveryFinishStep::HistoryRecord);
+            let history_written =
+                if let Err(e) = self.discovery_storage.create(&historical_discovery).await {
+                    record_finish_error(DiscoveryFinishStep::HistoryRecord);
+                    tracing::error!(
+                        "Failed to create historical discovery record for session {}: {}",
+                        session.session_id,
+                        e
+                    );
+                    false
+                } else {
+                    true
+                };
+
+            // The FKs point at the historical row, so they are written once it exists and before
+            // its `Created` event goes out.
+            if history_written
+                && let Some(scanned) = session.scanned.as_ref()
+                && let Some(host_service) = self.host_service.get()
+                && let Err(e) = host_service
+                    .stamp_discovery(scanned, historical_discovery.id)
+                    .await
+            {
+                record_finish_error(DiscoveryFinishStep::DiscoveryFks);
                 tracing::error!(
-                    "Failed to create historical discovery record for session {}: {}",
-                    session.session_id,
-                    e
+                    session_id = %session_id,
+                    discovery_id = %historical_discovery.id,
+                    error = %e,
+                    "Failed to stamp discovery FKs on scanned entities"
                 );
-            } else if let Some(scope) = EntityScope::from_ids(
-                historical_discovery.id(),
-                historical_discovery.clone().into(),
-                self.get_site_id(&historical_discovery),
-                self.get_organization_id(&historical_discovery),
-            ) && let Err(e) = self
-                .event_bus()
-                .publish(
-                    Event::new(scope, EntityOperation::Created, AuthenticatedEntity::System)
-                        .with_flags(EntityEventFlags::default()),
+            }
+
+            // The digest covers successful sweeps. A rescan is user-initiated and watched live in
+            // the UI, so a digest about one host is noise. Its email goes out from the
+            // `DiscoveryDigestOperation` subscriber.
+            if history_written
+                && session.phase == DiscoveryPhase::Complete
+                && !is_rescan
+                && let Some(digest_service) = self.digest_service.get()
+            {
+                // `scanned` is how the digest tells a child removed from a scanned host from one
+                // the scan never looked at. A daemon that sent none gets an empty set.
+                let empty = ScannedEntityIds::default();
+                let scanned = session.scanned.as_ref().unwrap_or(&empty);
+                // Not retried: it may have published the digest, and so sent its emails, before
+                // failing, and a second run would send them again.
+                if let Err(e) = digest_service.compute_and_publish(&session, scanned).await {
+                    record_finish_error(DiscoveryFinishStep::Digest);
+                    tracing::error!(
+                        session_id = %session_id,
+                        error = %e,
+                        "Failed to compute the discovery digest"
+                    );
+                }
+            }
+
+            if history_written
+                && let Some(scope) = EntityScope::from_ids(
+                    historical_discovery.id(),
+                    historical_discovery.clone().into(),
+                    self.get_site_id(&historical_discovery),
+                    self.get_organization_id(&historical_discovery),
                 )
-                .await
+                && let Err(e) = self
+                    .event_bus()
+                    .publish(
+                        Event::new(scope, EntityOperation::Created, AuthenticatedEntity::System)
+                            .with_flags(EntityEventFlags::default()),
+                    )
+                    .await
             {
                 tracing::error!(
                     session_id = %session_id,
@@ -668,8 +721,7 @@ impl DiscoveryService {
             // subscriber raced a row that did not exist yet and quietly found nothing to annotate.
             // That work now runs in `DaemonService::process_discovery_progress` *before* this
             // function is called, so its findings are in the row as written and there is no race
-            // left to order around. The row still goes first, because the `Created` event above is
-            // what carries the session's scanned set to the discovery-FK and digest subscribers.
+            // left to order around.
             if let Err(e) = self
                 .event_bus()
                 .publish(session.into_discovery_event())
@@ -682,11 +734,11 @@ impl DiscoveryService {
                 );
             }
 
-            // A rescan's parent exists only to carry the targets to the daemon.
-            // Delete it now that the historical row (which the user actually sees)
-            // is persisted and its subscribers — including the scan-target subnet
-            // reaper — have run. Discovery FKs on scanned entities point at the
-            // historical row, not this one, and are ON DELETE SET NULL regardless.
+            // A rescan's parent exists only to carry the targets to the daemon. Delete it now that
+            // the historical row (which the user actually sees) is persisted and the scanned
+            // entities' discovery FKs are stamped. Those FKs point at the historical row, not this
+            // one, and are ON DELETE SET NULL regardless. The events published above carry their
+            // own copy of what they describe, so their subscribers never read this row.
             if is_rescan
                 && let Some(discovery_id) = parent_discovery_id
                 && let Err(e) = self.discovery_storage.delete(&discovery_id).await
@@ -904,9 +956,12 @@ impl DiscoveryService {
 pub(super) enum DiscoveryFinishStep {
     /// Bumping `scan_count` and consuming the one-shot integration targets.
     FinalizeScan,
-    /// The historical discovery row: the run's record, and the `Created` event the digest and
-    /// discovery-FK subscribers read.
+    /// The historical discovery row: the run's record.
     HistoryRecord,
+    /// `last_discovery_id` / `first_discovery_id` on the entities the run scanned.
+    DiscoveryFks,
+    /// The run's digest, computed and handed to the email subscriber.
+    Digest,
 }
 
 /// A finished session the server failed to record. The session has already left the maps and its

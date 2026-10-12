@@ -6,6 +6,94 @@ impl HostService {
     // Discovery support (internal API)
     // =========================================================================
 
+    /// Point `last_discovery_id` (and `first_discovery_id`, where unset) at `discovery_id` on
+    /// every row a finished session scanned: hosts and their IP addresses, ports, interfaces,
+    /// subnets, VLANs, services and bindings.
+    ///
+    /// Each entity type is written independently, so one failing does not leave the others
+    /// unstamped. The error names every type that failed.
+    pub async fn stamp_discovery(
+        &self,
+        scanned: &crate::server::daemons::r#impl::api::ScannedEntityIds,
+        discovery_id: Uuid,
+    ) -> Result<()> {
+        use crate::server::shared::services::traits::DiscoveryFkUpdater;
+        use crate::server::vlans::r#impl::base::Vlan;
+
+        let results = [
+            (
+                "host",
+                <Self as DiscoveryFkUpdater<Host>>::update_discovery_fks(
+                    self,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "ip_address",
+                <IPAddressService as DiscoveryFkUpdater<IPAddress>>::update_discovery_fks(
+                    &self.ip_address_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "port",
+                <PortService as DiscoveryFkUpdater<Port>>::update_discovery_fks(
+                    &self.port_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "interface",
+                <InterfaceService as DiscoveryFkUpdater<Interface>>::update_discovery_fks(
+                    &self.interface_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "subnet",
+                <SubnetService as DiscoveryFkUpdater<Subnet>>::update_discovery_fks(
+                    &self.subnet_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "vlan",
+                <VlanService as DiscoveryFkUpdater<Vlan>>::update_discovery_fks(
+                    &self.vlan_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "service and binding",
+                self.service_service
+                    .stamp_discovery(scanned, discovery_id)
+                    .await,
+            ),
+        ];
+
+        let failures: Vec<String> = results
+            .into_iter()
+            .filter_map(|(entity, result)| result.err().map(|e| format!("{entity}: {e:#}")))
+            .collect();
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(failures.join("; ")))
+        }
+    }
+
     /// Seed a daemon host's loopback subnet (`127.0.0.0/8`) and IP (`127.0.0.1`).
     ///
     /// A daemon-host socket/proxy credential is reached by the daemon at `127.0.0.1`,

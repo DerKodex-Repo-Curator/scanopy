@@ -7,7 +7,7 @@ use crate::server::organizations::demo_status::DemoPopulateStatus;
 use crate::server::organizations::r#impl::base::LICENSE_SILENCE_THRESHOLD_DAYS;
 use crate::server::shared::events::bus::EventBus;
 use crate::server::shared::events::traits::{Event, OrgScope};
-use crate::server::shared::events::types::BillingOperation;
+use crate::server::shared::events::types::{BillingOperation, OnboardingOperationDiscriminants};
 use crate::server::shared::services::traits::EventBusService;
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::lock::{
@@ -114,11 +114,45 @@ fn whole_second(at: DateTime<Utc>) -> DateTime<Utc> {
     DateTime::from_timestamp(at.timestamp(), 0).unwrap_or(at)
 }
 
+/// An organization row read under its advisory lock. Change `org`, awaiting other work in between
+/// if the change depends on it, then [`save`](Self::save) it. Dropping it unsaved writes nothing
+/// and releases the lock.
+pub struct LockedOrganization<'a> {
+    pub org: Organization,
+    lock: SessionLockGuard,
+    service: &'a OrganizationService,
+}
+
+impl LockedOrganization<'_> {
+    /// Write the row, publish its `Updated` event, and release the lock.
+    pub async fn save(
+        mut self,
+        authentication: AuthenticatedEntity,
+    ) -> Result<Organization, Error> {
+        let updated = self.service.update(&mut self.org, authentication).await?;
+        self.lock.release().await?;
+        Ok(updated)
+    }
+
+    /// Write the row without an entity event, for frequent bookkeeping no user edits (license
+    /// check-ins, notification ratchets).
+    pub async fn save_quietly(mut self) -> Result<Organization, Error> {
+        let updated = self.service.storage.update(&mut self.org).await?;
+        self.lock.release().await?;
+        Ok(updated)
+    }
+
+    /// Release the lock without writing.
+    pub async fn release(self) -> Result<(), Error> {
+        Ok(self.lock.release().await?)
+    }
+}
+
 impl OrganizationService {
     /// Hold the organization row's advisory lock. Every read-modify-write of
-    /// an org that can race another (the billing event mirror, license key
-    /// rotation, license check-ins) takes it, because each writes the
-    /// whole row back and would otherwise revert the other's change.
+    /// an org takes it, through [`lock_for_update`](Self::lock_for_update),
+    /// because each writes the whole row back and would otherwise revert a
+    /// concurrent writer's change.
     pub(crate) async fn lock_organization(
         &self,
         organization_id: Uuid,
@@ -127,6 +161,61 @@ impl OrganizationService {
             .storage
             .session_lock(LockKey::Organization(organization_id), DEFAULT_LOCK_TIMEOUT)
             .await?)
+    }
+
+    /// Lock the organization and read it fresh, for a read-modify-write. `None` (lock released)
+    /// when the organization doesn't exist.
+    pub async fn lock_for_update(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<Option<LockedOrganization<'_>>, Error> {
+        let lock = self.lock_organization(organization_id).await?;
+        match self.get_by_id(&organization_id).await? {
+            Some(org) => Ok(Some(LockedOrganization {
+                org,
+                lock,
+                service: self,
+            })),
+            None => {
+                lock.release().await?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// Apply `change` to the organization under its lock and save it with an `Updated` event.
+    /// Returns what `change` returned, or `None` when the organization doesn't exist.
+    pub async fn modify<T>(
+        &self,
+        organization_id: Uuid,
+        authentication: AuthenticatedEntity,
+        change: impl FnOnce(&mut Organization) -> T,
+    ) -> Result<Option<T>, Error> {
+        let Some(mut locked) = self.lock_for_update(organization_id).await? else {
+            return Ok(None);
+        };
+        let result = change(&mut locked.org);
+        locked.save(authentication).await?;
+        Ok(Some(result))
+    }
+
+    /// Record an onboarding milestone. `true` only for the call that added it, so the caller
+    /// publishes the milestone event once however many requests reach it together.
+    pub async fn record_milestone(
+        &self,
+        organization_id: Uuid,
+        step: OnboardingOperationDiscriminants,
+    ) -> Result<bool, Error> {
+        let Some(mut locked) = self.lock_for_update(organization_id).await? else {
+            return Ok(false);
+        };
+        if !locked.org.not_onboarded(&step) {
+            locked.release().await?;
+            return Ok(false);
+        }
+        locked.org.base.onboarding.push(step);
+        locked.save(AuthenticatedEntity::System).await?;
+        Ok(true)
     }
 
     /// Record that a self-hosted server fetched an entitlement. Publishes no
@@ -140,13 +229,11 @@ impl OrganizationService {
         at: DateTime<Utc>,
         server_version: Option<Version>,
     ) -> Result<(), Error> {
-        let lock = self.lock_organization(organization_id).await?;
         let mut events = Vec::new();
-        if let Some(mut organization) = self.get_by_id(&organization_id).await? {
-            events = organization.record_license_check_in(at, server_version);
-            self.storage.update(&mut organization).await?;
+        if let Some(mut locked) = self.lock_for_update(organization_id).await? {
+            events = locked.org.record_license_check_in(at, server_version);
+            locked.save_quietly().await?;
         }
-        lock.release().await?;
 
         for operation in events {
             self.publish_license_event(organization_id, operation).await;
@@ -188,15 +275,15 @@ impl OrganizationService {
 
         let mut reported = 0u64;
         for candidate in candidates {
-            let lock = self.lock_organization(candidate.id).await?;
             let mut operation = None;
-            if let Some(mut organization) = self.get_by_id(&candidate.id).await?
-                && let Some(op) = organization.report_license_silence(now)
-            {
-                self.storage.update(&mut organization).await?;
-                operation = Some(op);
+            if let Some(mut locked) = self.lock_for_update(candidate.id).await? {
+                operation = locked.org.report_license_silence(now);
+                if operation.is_some() {
+                    locked.save_quietly().await?;
+                } else {
+                    locked.release().await?;
+                }
             }
-            lock.release().await?;
 
             if let Some(operation) = operation {
                 self.publish_license_event(candidate.id, operation).await;
@@ -220,24 +307,26 @@ impl OrganizationService {
         &self,
         organization_id: Uuid,
     ) -> Result<DateTime<Utc>, Error> {
-        let lock = self.lock_organization(organization_id).await?;
-        let mut organization = self
-            .get_by_id(&organization_id)
+        let mut locked = self
+            .lock_for_update(organization_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Organization {organization_id} not found"))?;
 
         // Rotation and switching set the stamp themselves, so an unset stamp
         // means the org has never been issued a key.
-        let first_issue = organization.base.license_key_issued_at.is_none();
-        let issued_at = match organization.base.license_key_issued_at {
-            Some(issued_at) => issued_at,
+        let first_issue = locked.org.base.license_key_issued_at.is_none();
+        let issued_at = match locked.org.base.license_key_issued_at {
+            Some(issued_at) => {
+                locked.release().await?;
+                issued_at
+            }
             None => {
                 // Whole seconds: the claim carries seconds, and Postgres keeps
                 // microseconds, so a truncating round trip would otherwise hand
                 // back a different stamp than the one just written.
                 let issued_at = whole_second(Utc::now());
-                organization.base.license_key_issued_at = Some(issued_at);
-                self.storage.update(&mut organization).await?;
+                locked.org.base.license_key_issued_at = Some(issued_at);
+                let organization = locked.save_quietly().await?;
                 tracing::info!(
                     organization_id = %organization_id,
                     key_version = organization.base.license_key_version,
@@ -247,7 +336,6 @@ impl OrganizationService {
             }
         };
 
-        lock.release().await?;
         if first_issue {
             self.publish_license_event(organization_id, BillingOperation::LicenseKeyIssued)
                 .await;
@@ -277,14 +365,14 @@ impl OrganizationService {
         authentication: AuthenticatedEntity,
         can_issue: impl Fn(&Organization) -> Result<(), MintError>,
     ) -> Result<Organization, SwitchKeyTypeError> {
-        let lock = self.lock_organization(organization_id).await?;
-        let mut organization = self
-            .get_by_id(&organization_id)
+        let mut locked = self
+            .lock_for_update(organization_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Organization {organization_id} not found"))?;
 
-        if organization.base.license_key_type.unwrap_or_default() == key_type {
-            lock.release().await?;
+        if locked.org.base.license_key_type.unwrap_or_default() == key_type {
+            let organization = locked.org.clone();
+            locked.release().await?;
             return Ok(organization);
         }
 
@@ -293,19 +381,20 @@ impl OrganizationService {
         // working whatever we do here, so letting them switch would leave two
         // live keys and no way to retire the one that matters.
         if key_type == LicenseKeyType::Online
-            && let Some(paid_through) = organization.air_gapped_key_current_until()
+            && let Some(paid_through) = locked.org.air_gapped_key_current_until()
         {
-            lock.release().await?;
+            locked.release().await?;
             return Err(SwitchKeyTypeError::AirGappedStillCurrent { paid_through });
         }
 
-        organization.base.license_key_type = Some(key_type);
-        organization.base.license_key_version = organization
+        locked.org.base.license_key_type = Some(key_type);
+        locked.org.base.license_key_version = locked
+            .org
             .base
             .license_key_version
             .checked_add(1)
             .ok_or_else(|| anyhow::anyhow!("License key version overflow"))?;
-        organization.base.license_key_issued_at = Some(whole_second(Utc::now()));
+        locked.org.base.license_key_issued_at = Some(whole_second(Utc::now()));
 
         // Dry-run the mint against the state about to be written. The loaded
         // copy is mutated but not yet persisted, so a refusal here leaves the
@@ -313,16 +402,16 @@ impl OrganizationService {
         // online key embeds — exact for both key types rather than an
         // approximation from the pre-switch row.
         //
-        // This belongs under the lock rather than in the caller: the billing
-        // subscriber writes `plan_status`, `has_payment_method` and
+        // This belongs under the lock rather than in the caller: billing
+        // webhooks write `plan_status`, `has_payment_method` and
         // `license_paid_through` under the same lock, so a Stripe webhook
         // could land between a caller's own check and this write.
-        if let Err(e) = can_issue(&organization) {
-            lock.release().await?;
+        if let Err(e) = can_issue(&locked.org) {
+            locked.release().await?;
             return Err(SwitchKeyTypeError::Mint(e));
         }
 
-        let updated = self.update(&mut organization, authentication).await?;
+        let updated = locked.save(authentication).await?;
         tracing::info!(
             organization_id = %organization_id,
             key_type = %key_type,
@@ -330,7 +419,6 @@ impl OrganizationService {
             "Switched license key type"
         );
 
-        lock.release().await?;
         Ok(updated)
     }
 
@@ -349,21 +437,17 @@ impl OrganizationService {
         &self,
         organization_id: Uuid,
     ) -> Result<Organization, Error> {
-        let lock = self.lock_organization(organization_id).await?;
-        let mut organization = self
-            .get_by_id(&organization_id)
+        let mut locked = self
+            .lock_for_update(organization_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Organization {organization_id} not found"))?;
-        organization.base.license_key_type = Some(LicenseKeyType::Online);
-        let updated = self
-            .update(&mut organization, AuthenticatedEntity::System)
-            .await?;
+        locked.org.base.license_key_type = Some(LicenseKeyType::Online);
+        let updated = locked.save(AuthenticatedEntity::System).await?;
         tracing::warn!(
             organization_id = %organization_id,
             key_version = updated.base.license_key_version,
             "Reverted a stranded organization to an online license key"
         );
-        lock.release().await?;
         Ok(updated)
     }
 
@@ -375,26 +459,25 @@ impl OrganizationService {
         organization_id: Uuid,
         authentication: AuthenticatedEntity,
     ) -> Result<Organization, Error> {
-        let lock = self.lock_organization(organization_id).await?;
-        let mut organization = self
-            .get_by_id(&organization_id)
+        let mut locked = self
+            .lock_for_update(organization_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Organization {organization_id} not found"))?;
-        organization.base.license_key_version = organization
+        locked.org.base.license_key_version = locked
+            .org
             .base
             .license_key_version
             .checked_add(1)
             .ok_or_else(|| anyhow::anyhow!("License key version overflow"))?;
         // Move the stamp too. The version alone already changes the key; this
         // keeps the stamp honest about when the current key was issued.
-        organization.base.license_key_issued_at = Some(whole_second(Utc::now()));
-        let updated = self.update(&mut organization, authentication).await?;
+        locked.org.base.license_key_issued_at = Some(whole_second(Utc::now()));
+        let updated = locked.save(authentication).await?;
         tracing::info!(
             organization_id = %organization_id,
             key_version = updated.base.license_key_version,
             "Rotated license key"
         );
-        lock.release().await?;
         Ok(updated)
     }
 }
@@ -454,11 +537,10 @@ impl OrganizationService {
     /// Grandfathered customers hold claim-absent keys, which resolve to the same
     /// `CommercialSelfHosted` plan their orgs already carry, so this is a no-op
     /// for them. Idempotent — plans equal to `target` are skipped, so re-running
-    /// on every boot does nothing once reconciled. The plan write goes through the
-    /// `LicenseReconciled` billing event → this service's own
-    /// `Subscriber<BillingOperation>` impl (the sole writer of
-    /// `organizations.plan`); we never write the row here. Best-effort: a per-org
-    /// publish failure is logged, not fatal. Returns the number of orgs moved.
+    /// on every boot does nothing once reconciled. The plan is written through the
+    /// `LicenseReconciled` billing event's [`BillingOperation::apply`] under the
+    /// org lock, then the event is published. Best-effort: a per-org failure is
+    /// logged, not fatal. Returns the number of orgs moved.
     pub async fn reconcile_self_hosted_license_plans(
         &self,
         target: BillingPlan,
@@ -467,17 +549,20 @@ impl OrganizationService {
 
         let mut upgraded = 0u64;
         for org in orgs {
-            // `None` resolves to the build default. Plan equality is config-based
-            // (see `BillingPlan`'s `PartialEq`), so an org already on `target`
-            // is skipped regardless of how its plan was set.
-            let current = org.base.plan.unwrap_or_default();
-            if current == target {
-                continue;
-            }
-
-            if let Err(e) = self
-                .event_bus()
-                .publish(Event::new(
+            let reconciled = async {
+                let Some(locked) = self.lock_for_update(org.id).await? else {
+                    return Ok(false);
+                };
+                // `None` resolves to the build default. Plan equality is
+                // config-based (see `BillingPlan`'s `PartialEq`), so an org
+                // already on `target` is skipped regardless of how its plan
+                // was set.
+                let current = locked.org.base.plan.unwrap_or_default();
+                if current == target {
+                    locked.release().await?;
+                    return Ok(false);
+                }
+                let event = Event::new(
                     OrgScope {
                         organization_id: org.id,
                     },
@@ -486,17 +571,21 @@ impl OrganizationService {
                         to: target,
                     },
                     AuthenticatedEntity::System,
-                ))
-                .await
-            {
-                tracing::warn!(
+                );
+                self.commit_billing(locked, None, vec![event]).await?;
+                Ok::<_, Error>(true)
+            }
+            .await;
+
+            match reconciled {
+                Ok(true) => upgraded += 1,
+                Ok(false) => {}
+                Err(e) => tracing::warn!(
                     organization_id = %org.id,
                     error = %e,
-                    "Failed to publish license reconciliation for org",
-                );
-                continue;
+                    "Failed to reconcile license plan for org",
+                ),
             }
-            upgraded += 1;
         }
 
         if upgraded > 0 {
@@ -520,10 +609,13 @@ impl OrganizationService {
         entitlement: Option<String>,
         checked_at: DateTime<Utc>,
     ) -> Result<(), Error> {
-        for mut org in self.get_all(StorableFilter::<Organization>::new()).await? {
-            org.base.license_entitlement = entitlement.clone();
-            org.base.license_entitlement_at = Some(checked_at);
-            self.storage.update(&mut org).await?;
+        for org in self.get_all(StorableFilter::<Organization>::new()).await? {
+            let Some(mut locked) = self.lock_for_update(org.id).await? else {
+                continue;
+            };
+            locked.org.base.license_entitlement = entitlement.clone();
+            locked.org.base.license_entitlement_at = Some(checked_at);
+            locked.save_quietly().await?;
         }
         Ok(())
     }

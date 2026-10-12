@@ -4,10 +4,14 @@ use crate::daemon::runtime::service::LOG_TARGET;
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::credentials::r#impl::mapping::{IntegrationTarget, Target};
 use crate::server::credentials::service::CredentialService;
-use crate::server::daemons::r#impl::api::{DaemonDiscoveryRequest, DiscoveryUpdatePayload};
+use crate::server::daemons::r#impl::api::{
+    DaemonDiscoveryRequest, DiscoveryUpdatePayload, ScannedEntityIds,
+};
 use crate::server::daemons::service::DaemonService;
+use crate::server::digest::service::DiscoveryDigestService;
 use crate::server::discovery::r#impl::base::{Discovery, DiscoveryBase};
 use crate::server::discovery::r#impl::types::{DiscoveryType, RunType};
+use crate::server::hosts::service::HostService;
 use crate::server::organizations::service::OrganizationService;
 use crate::server::shared::entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants};
 use crate::server::shared::events::bus::EventBus;
@@ -79,8 +83,12 @@ pub struct DiscoveryService {
     credential_service: Arc<CredentialService>,
     site_service: Arc<SiteService>,
     organization_service: Arc<OrganizationService>,
-    // Lazy dependency (set after construction to break circular dependency)
+    // Lazy dependencies (set after construction to break circular dependencies)
     daemon_service: std::sync::OnceLock<Arc<DaemonService>>,
+    /// Stamps the discovery FKs on what a finished session scanned.
+    host_service: std::sync::OnceLock<Arc<HostService>>,
+    /// Computes a finished session's digest.
+    digest_service: std::sync::OnceLock<Arc<DiscoveryDigestService>>,
 }
 
 impl EventBusService<Discovery> for DiscoveryService {

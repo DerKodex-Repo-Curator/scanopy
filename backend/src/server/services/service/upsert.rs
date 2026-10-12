@@ -218,4 +218,34 @@ impl ServiceService {
 
         Ok(existing_service)
     }
+
+    /// Point the discovery FKs of the services and bindings a finished session scanned at
+    /// `discovery_id`. Called from `HostService::stamp_discovery`. Both types are written even
+    /// when the first fails.
+    pub async fn stamp_discovery(
+        &self,
+        scanned: &crate::server::daemons::r#impl::api::ScannedEntityIds,
+        discovery_id: Uuid,
+    ) -> Result<()> {
+        use crate::server::shared::services::traits::DiscoveryFkUpdater;
+
+        let services = <Self as DiscoveryFkUpdater<Service>>::update_discovery_fks(
+            self,
+            scanned,
+            discovery_id,
+        )
+        .await;
+        let bindings = <BindingService as DiscoveryFkUpdater<Binding>>::update_discovery_fks(
+            &self.binding_service,
+            scanned,
+            discovery_id,
+        )
+        .await;
+        match (services, bindings) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(e), Ok(())) => Err(e.context("services")),
+            (Ok(()), Err(e)) => Err(e.context("bindings")),
+            (Err(s), Err(b)) => Err(anyhow!("services: {s:#}; bindings: {b:#}")),
+        }
+    }
 }

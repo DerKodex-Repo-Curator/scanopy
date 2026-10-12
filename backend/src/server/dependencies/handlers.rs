@@ -225,27 +225,26 @@ async fn create_dependency(
         create_handler::<Dependency>(State(state.clone()), auth, ApiJson(dependency)).await?;
 
     // Emit FirstDependencyCreated telemetry event if this is the first dependency
-    if response.data().is_some() {
-        let organization = state
+    if response.data().is_some()
+        && state
             .services
             .organization_service
-            .get_by_id(&organization_id)
+            .record_milestone(
+                organization_id,
+                OnboardingOperationDiscriminants::FirstDependencyCreated,
+            )
+            .await?
+    {
+        state
+            .services
+            .dependency_service
+            .event_bus()
+            .publish(Event::new(
+                OrgScope { organization_id },
+                OnboardingOperation::FirstDependencyCreated,
+                entity,
+            ))
             .await?;
-
-        if let Some(organization) = organization
-            && organization.not_onboarded(&OnboardingOperationDiscriminants::FirstDependencyCreated)
-        {
-            state
-                .services
-                .dependency_service
-                .event_bus()
-                .publish(Event::new(
-                    OrgScope { organization_id },
-                    OnboardingOperation::FirstDependencyCreated,
-                    entity,
-                ))
-                .await?;
-        }
     }
 
     Ok(response)

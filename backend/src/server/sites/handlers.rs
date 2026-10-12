@@ -173,36 +173,33 @@ async fn create_site(
 
         // Emit SecondSiteCreated telemetry event
         if let Some(organization_id) = organization_id {
-            let organization = state
-                .services
-                .organization_service
-                .get_by_id(&organization_id)
-                .await?;
+            // Count sites to confirm this is actually the second+
+            let site_filter = StorableFilter::<Site>::new_from_org_id(&organization_id);
+            let sites = service.get_all(site_filter).await.unwrap_or_default();
+            let site_count = sites.len();
 
-            if let Some(organization) = organization {
-                // Check for SecondSiteCreated (if first is already onboarded but second is not)
-                if organization.not_onboarded(&OnboardingOperationDiscriminants::SecondSiteCreated)
-                {
-                    // Count sites to confirm this is actually the second+
-                    let site_filter = StorableFilter::<Site>::new_from_org_id(&organization_id);
-                    let sites = service.get_all(site_filter).await.unwrap_or_default();
-                    let site_count = sites.len();
-
-                    if site_count >= 2 {
-                        service
-                            .event_bus()
-                            .publish(Event::new(
-                                OrgScope { organization_id },
-                                OnboardingOperation::SecondSiteCreated {
-                                    site_id: site.id,
-                                    site_name: site.base.name.clone(),
-                                    total_sites: site_count as u32,
-                                },
-                                entity,
-                            ))
-                            .await?;
-                    }
-                }
+            if site_count >= 2
+                && state
+                    .services
+                    .organization_service
+                    .record_milestone(
+                        organization_id,
+                        OnboardingOperationDiscriminants::SecondSiteCreated,
+                    )
+                    .await?
+            {
+                service
+                    .event_bus()
+                    .publish(Event::new(
+                        OrgScope { organization_id },
+                        OnboardingOperation::SecondSiteCreated {
+                            site_id: site.id,
+                            site_name: site.base.name.clone(),
+                            total_sites: site_count as u32,
+                        },
+                        entity,
+                    ))
+                    .await?;
             }
         }
     }

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 
@@ -7,7 +7,7 @@ use crate::{
     server::{
         digest::payload::DiscoveryDigestOperation,
         shared::events::{
-            traits::{Event, Operation, Subscriber, TypedChannel},
+            traits::{DispatchTracker, Event, Operation, Subscriber, TypedChannel},
             types::{
                 AnalyticsOperation, AuthOperation, BillingOperation, EntityOperation,
                 OnboardingOperation,
@@ -32,6 +32,8 @@ pub struct EventBus {
     /// scan — a daemon's interfaced subnets arrive on status, not on a discovery submission — so it
     /// has neither a session nor a daemon to hang off the warning scope.
     pub subnet_correction_channel: TypedChannel<SubnetCorrection>,
+    /// Shared by every channel: what `flush` and `shutdown` wait on.
+    tracker: Arc<DispatchTracker>,
 }
 
 impl Default for EventBus {
@@ -42,16 +44,18 @@ impl Default for EventBus {
 
 impl EventBus {
     pub fn new() -> Self {
+        let tracker = Arc::new(DispatchTracker::default());
         Self {
-            billing_channel: TypedChannel::new(),
-            onboarding_channel: TypedChannel::new(),
-            analytics_channel: TypedChannel::new(),
-            auth_channel: TypedChannel::new(),
-            entity_channel: TypedChannel::new(),
-            discovery_channel: TypedChannel::new(),
-            discovery_digest_channel: TypedChannel::new(),
-            discovery_warning_channel: TypedChannel::new(),
-            subnet_correction_channel: TypedChannel::new(),
+            tracker: tracker.clone(),
+            billing_channel: TypedChannel::with_tracker(tracker.clone()),
+            onboarding_channel: TypedChannel::with_tracker(tracker.clone()),
+            analytics_channel: TypedChannel::with_tracker(tracker.clone()),
+            auth_channel: TypedChannel::with_tracker(tracker.clone()),
+            entity_channel: TypedChannel::with_tracker(tracker.clone()),
+            discovery_channel: TypedChannel::with_tracker(tracker.clone()),
+            discovery_digest_channel: TypedChannel::with_tracker(tracker.clone()),
+            discovery_warning_channel: TypedChannel::with_tracker(tracker.clone()),
+            subnet_correction_channel: TypedChannel::with_tracker(tracker.clone()),
         }
     }
 
@@ -68,13 +72,32 @@ impl EventBus {
     }
 
     /// Publish a typed event. Op is inferred from the event's type; the bus
-    /// routes to the right channel via `BusChannel<Op>`.
+    /// routes to the right channel via `BusChannel<Op>`. Returns once the
+    /// event is queued; subscribers handle it in the background.
     pub async fn publish<Op>(&self, event: Event<Op>) -> Result<()>
     where
         Op: Operation,
         Self: BusChannel<Op>,
     {
         self.channel().publish(event).await
+    }
+
+    /// Wait until every published event has been handled by every subscriber, including events
+    /// subscribers publish along the way.
+    pub async fn flush(&self) {
+        self.tracker.flush().await
+    }
+
+    /// Drain queued subscriber work before the server exits, waiting at most `budget`. Anything
+    /// still queued after that is logged and dropped.
+    pub async fn shutdown(&self, budget: Duration) {
+        if tokio::time::timeout(budget, self.flush()).await.is_err() {
+            tracing::error!(
+                undelivered = self.tracker.in_flight(),
+                budget_secs = budget.as_secs(),
+                "Event subscribers did not drain before shutdown; dropping the rest"
+            );
+        }
     }
 }
 

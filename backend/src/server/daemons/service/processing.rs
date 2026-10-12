@@ -389,7 +389,7 @@ impl DaemonService {
             // provisioning), not in the new-registration branch — so emit the onboarding
             // milestone here too, or the org never records FirstDaemonRegistered and the UI
             // keeps showing "install a daemon" while discovery actually runs. Idempotent: the
-            // emit is guarded by org.not_onboarded, so restarts don't re-fire it.
+            // emit is guarded by record_milestone, so restarts don't re-fire it.
             self.emit_first_daemon_telemetry(updated_daemon.id, updated_daemon.base.site_id)
                 .await?;
 
@@ -1017,6 +1017,13 @@ impl DaemonService {
                 .get_by_id(&site.base.organization_id)
                 .await
             && org.not_onboarded(&OnboardingOperationDiscriminants::FirstHostDiscovered)
+            && let Ok(true) = self
+                .organization_service
+                .record_milestone(
+                    org.id,
+                    OnboardingOperationDiscriminants::FirstHostDiscovered,
+                )
+                .await
         {
             let _ = self
                 .event_bus
@@ -1374,7 +1381,15 @@ impl DaemonService {
             .await?
             .ok_or_else(|| ApiError::not_found("Organization not found".to_string()))?;
 
-        if org.not_onboarded(&OnboardingOperationDiscriminants::FirstDaemonRegistered) {
+        if org.not_onboarded(&OnboardingOperationDiscriminants::FirstDaemonRegistered)
+            && self
+                .organization_service
+                .record_milestone(
+                    org.id,
+                    OnboardingOperationDiscriminants::FirstDaemonRegistered,
+                )
+                .await?
+        {
             let daemon_name = self
                 .get_by_id(&daemon_id)
                 .await?

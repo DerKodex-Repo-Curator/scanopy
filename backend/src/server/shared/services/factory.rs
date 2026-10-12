@@ -333,6 +333,7 @@ impl ServiceFactory {
         let _ = organization_service.set_credential_service(credential_service.clone());
         let _ = site_service.set_credential_service(credential_service.clone());
         let _ = discovery_service.set_daemon_service(daemon_service.clone());
+        let _ = discovery_service.set_host_service(host_service.clone());
 
         let topology_service = Arc::new(TopologyService::new(
             host_service.clone(),
@@ -374,6 +375,7 @@ impl ServiceFactory {
             discovery_service.clone(),
             event_bus.clone(),
         ));
+        let _ = discovery_service.set_digest_service(discovery_digest_service.clone());
 
         for (var, region) in config.aws_region_mismatches() {
             tracing::error!(
@@ -519,6 +521,8 @@ impl ServiceFactory {
             email_service.is_some(),
             event_bus.clone(),
             license_service.clone(),
+            tag_group_service.clone(),
+            topology_service.clone(),
         ));
 
         let posthog_service = if let Some(api_key) = config.posthog_key {

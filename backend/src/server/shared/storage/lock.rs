@@ -69,6 +69,10 @@ pub enum LockKey {
     Organization(Uuid),
     /// Serialize creating an organization's tag groups and reordering any group's tags.
     TagGroups { organization_id: Uuid },
+    /// Serialize an organization's cloud setup (site, system subnets, live topology, starter
+    /// tags), so registration and a billing event landing together can't both create a site.
+    /// Taken before `TagGroups`, never after.
+    CloudSetup { organization_id: Uuid },
     /// Serialize the once-per-version release announcement across containers
     /// starting at the same time. One server-wide key.
     ReleaseAnnouncement,
@@ -95,6 +99,7 @@ impl LockKey {
             LockKey::ApiKey(id) => format!("api-key:{id}"),
             LockKey::Organization(id) => format!("organization:{id}"),
             LockKey::TagGroups { organization_id } => format!("tag-groups:{organization_id}"),
+            LockKey::CloudSetup { organization_id } => format!("cloud-setup:{organization_id}"),
             LockKey::ReleaseAnnouncement => "release-announcement".to_string(),
         }
     }
@@ -310,6 +315,15 @@ mod tests {
             }
             .pg_key(),
             LockKey::ApiKey(uuid_a()).pg_key(),
+            LockKey::Organization(uuid_a()).pg_key(),
+            LockKey::TagGroups {
+                organization_id: uuid_a(),
+            }
+            .pg_key(),
+            LockKey::CloudSetup {
+                organization_id: uuid_a(),
+            }
+            .pg_key(),
         ];
         let unique: std::collections::HashSet<i64> = keys.iter().copied().collect();
         assert_eq!(unique.len(), keys.len(), "lock key collision: {keys:?}");
