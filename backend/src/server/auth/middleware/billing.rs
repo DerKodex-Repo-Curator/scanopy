@@ -138,11 +138,11 @@ pub async fn require_billing_for_users(
 }
 
 /// Billed routes the Settings modal calls, which stay open to an org on a
-/// self-hosted license plan and to a lapsed org: reading, renaming, and
-/// deleting the org, and editing the current user. Everything else Settings
-/// needs (auth, billing, licenses, config) sits outside this middleware
-/// already.
-fn settings_route(method: &Method, path: &str) -> bool {
+/// self-hosted license plan, to a lapsed org, and to a self-hosted server
+/// with a locked license: reading, renaming, and deleting the org, and
+/// editing the current user. Everything else Settings needs (auth, billing,
+/// licenses, config) sits outside this middleware already.
+pub(crate) fn settings_route(method: &Method, path: &str) -> bool {
     const ORGANIZATIONS: &str = "/api/v1/organizations";
     const USERS: &str = "/api/v1/users";
     let single_entity = |prefix: &str| {

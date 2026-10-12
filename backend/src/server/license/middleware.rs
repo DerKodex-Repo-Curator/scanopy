@@ -9,6 +9,7 @@ use axum::{
 use std::sync::Arc;
 
 use super::online::ENTITLEMENT_PATH;
+use crate::server::auth::middleware::billing::settings_route;
 use crate::server::email::handlers::{SNS_FEEDBACK_PATH, UNSUBSCRIBE_PATH_PREFIX};
 
 /// Requests the guard lets through whatever the license status is.
@@ -23,8 +24,11 @@ use crate::server::email::handlers::{SNS_FEEDBACK_PATH, UNSUBSCRIBE_PATH_PREFIX}
 ///   clears its own `Pending` status.
 /// - One-click unsubscribes and SES feedback — turning off email a recipient
 ///   no longer wants is not a licensed feature.
+/// - The Settings routes a lapsed cloud org keeps: renaming and deleting the
+///   org, and editing the current user.
 fn always_allowed(method: &Method, path: &str) -> bool {
     method.is_safe()
+        || settings_route(method, path)
         || path.starts_with("/api/auth/")
         || path == "/api/config"
         || path == "/api/health"
@@ -73,6 +77,17 @@ mod tests {
     fn writes_are_blocked_by_a_lock() {
         assert!(!always_allowed(&Method::POST, "/api/hosts"));
         assert!(!always_allowed(&Method::DELETE, "/api/sites/some-id"));
+    }
+
+    #[test]
+    fn org_settings_survive_a_lock() {
+        let org = format!("/api/v1/organizations/{}", uuid::Uuid::nil());
+        let user = format!("/api/v1/users/{}", uuid::Uuid::nil());
+        assert!(always_allowed(&Method::DELETE, &org));
+        assert!(always_allowed(&Method::PUT, &org));
+        assert!(always_allowed(&Method::PUT, &user));
+        assert!(!always_allowed(&Method::DELETE, &user));
+        assert!(!always_allowed(&Method::POST, &format!("{org}/reset")));
     }
 
     #[test]
