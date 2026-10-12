@@ -301,7 +301,7 @@ impl DiscoveryWarningCode {
     /// Exhaustive, so a new code cannot ship without someone deciding whether it is work for the
     /// reader — which is the question the warning list is organised around and the one the old
     /// flat list never answered.
-    fn remedy(&self) -> WarningRemedy {
+    pub(crate) fn remedy(&self) -> WarningRemedy {
         match self {
             // The credential family stays whole. Several of these sentences straddle Scanopy and
             // the far end ("check the address and port, and that the service is listening"), and

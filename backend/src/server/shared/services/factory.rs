@@ -452,6 +452,7 @@ impl ServiceFactory {
             user_service.clone(),
             site_service.clone(),
             discovery_service.clone(),
+            credential_service.clone(),
             event_bus.clone(),
         ));
         let _ = discovery_service.set_digest_service(discovery_digest_service.clone());

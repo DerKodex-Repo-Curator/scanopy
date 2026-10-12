@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::bindings::service::BindingService;
+use crate::server::credentials::{r#impl::base::Credential, service::CredentialService};
 use crate::server::daemons::r#impl::api::{DiscoveryUpdatePayload, ScannedEntityIds};
 use crate::server::discovery::r#impl::types::DiscoveryType;
 use crate::server::discovery::service::DiscoveryService;
@@ -19,6 +20,7 @@ use crate::server::{
         InterfaceSummary, IpAddressSummary, PortSummary, ServiceSummary, SubnetSummary,
         VlanSummary,
     },
+    digest::run_report,
     hosts::{r#impl::base::Host, service::HostService},
     interfaces::{r#impl::base::Interface, service::InterfaceService},
     ip_addresses::{r#impl::base::IPAddress, service::IPAddressService},
@@ -51,6 +53,7 @@ pub struct DiscoveryDigestService {
     pub user_service: Arc<UserService>,
     pub site_service: Arc<SiteService>,
     pub discovery_service: Arc<DiscoveryService>,
+    pub credential_service: Arc<CredentialService>,
     pub event_bus: Arc<EventBus>,
 }
 
@@ -68,6 +71,7 @@ impl DiscoveryDigestService {
         user_service: Arc<UserService>,
         site_service: Arc<SiteService>,
         discovery_service: Arc<DiscoveryService>,
+        credential_service: Arc<CredentialService>,
         event_bus: Arc<EventBus>,
     ) -> Self {
         Self {
@@ -82,6 +86,7 @@ impl DiscoveryDigestService {
             user_service,
             site_service,
             discovery_service,
+            credential_service,
             event_bus,
         }
     }
@@ -89,11 +94,13 @@ impl DiscoveryDigestService {
     /// Compute the digest for `payload` and publish a
     /// `DiscoveryDigestOperation::Computed` event. Skips publishing entirely
     /// when timestamps are missing — those would yield meaningless filter
-    /// windows.
+    /// windows. `discovery_id` is the historical row the session was recorded
+    /// as, which the email links to.
     pub async fn compute_and_publish(
         &self,
         payload: &DiscoveryUpdatePayload,
         scanned: &ScannedEntityIds,
+        discovery_id: Uuid,
     ) -> Result<()> {
         let (Some(t_start), Some(t_end)) = (payload.started_at, payload.finished_at) else {
             tracing::warn!(
@@ -114,9 +121,34 @@ impl DiscoveryDigestService {
             }
         };
 
-        let digest = self
+        let mut digest = self
             .compute(payload, scanned, t_start, t_end, &site)
             .await?;
+
+        // The run's warnings and credential results, read from the same payload the historical
+        // row stores. Credentials are looked up within this organization only, so an id from
+        // anywhere else never puts a name in the email.
+        let credential_ids =
+            run_report::referenced_credential_ids(&payload.warnings, &payload.credential_results);
+        let credentials: HashMap<Uuid, Credential> = if credential_ids.is_empty() {
+            HashMap::new()
+        } else {
+            self.credential_service
+                .get_all(
+                    StorableFilter::<Credential>::new_from_entity_ids(&credential_ids)
+                        .organization_id(&site.base.organization_id),
+                )
+                .await?
+                .into_iter()
+                .map(|c| (c.id, c))
+                .collect()
+        };
+        let report =
+            run_report::run_report(&payload.warnings, &payload.credential_results, &credentials);
+        digest.discovery_id = Some(discovery_id);
+        digest.warnings = report.warnings;
+        digest.credentials_used = report.credentials_used;
+        digest.credential_problems = report.credential_problems;
 
         let scope = DiscoveryDigestScope {
             organization_id: site.base.organization_id,
@@ -351,6 +383,11 @@ impl DiscoveryDigestService {
             vlans_added,
             vlans_stale,
             recipients,
+            // Filled by `compute_and_publish` from the run's warnings and credential results.
+            discovery_id: None,
+            warnings: Default::default(),
+            credentials_used: 0,
+            credential_problems: Vec::new(),
         })
     }
 
