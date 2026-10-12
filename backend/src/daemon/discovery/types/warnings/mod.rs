@@ -18,6 +18,7 @@
 //!   `collected` counts, per-address diagnostics, and the pairing between a credential and the
 //!   address it failed at.
 
+pub mod entity_ids;
 pub mod metadata;
 pub mod summary;
 pub mod values;
@@ -32,6 +33,7 @@ use uuid::Uuid;
 
 use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscriminants;
 
+pub use entity_ids::EntityIdSlots;
 pub use metadata::WarningRemedy;
 pub use summary::{RemedyCount, RunWarningSummary};
 pub use values::{ClaimSource, MalformedNeighbourConsequence, SnmpWalkGroup};
@@ -545,8 +547,10 @@ pub struct CredentialAttempt {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, ToSchema)]
 pub struct UnmatchedNeighbour {
     /// The local device that saw the neighbour, not the far end — the far end is what could not
-    /// be identified.
-    pub host_id: Uuid,
+    /// be identified. `None` once that host has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub host_id: Option<Uuid>,
     /// The local interface that advertised the neighbour.
     pub if_descr: String,
     /// The chassis ID (LLDP) or device id (CDP) that did not identify one host.
@@ -576,8 +580,11 @@ pub struct UnmatchedNeighbour {
 pub struct ProvisionalSubnet {
     /// The range, in CIDR notation.
     pub cidr: String,
-    /// The subnet row created for it, so the UI can link straight to it.
-    pub subnet_id: Uuid,
+    /// The subnet row created for it, so the UI can link straight to it. `None` once that subnet
+    /// has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub subnet_id: Option<Uuid>,
     /// The addresses that motivated it, in the order observed.
     pub addresses: Vec<String>,
     /// The far ends' own `sysName`s, where they sent any — the labels an operator recognises.
@@ -593,13 +600,18 @@ pub struct ProvisionalSubnet {
 /// A neighbour whose far-end host resolved but whose far-end *port* did not.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, ToSchema)]
 pub struct UnresolvedPort {
-    /// The local device that saw the neighbour, and the port it saw it on.
-    pub host_id: Uuid,
+    /// The local device that saw the neighbour, and the port it saw it on. `None` once that host
+    /// has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub host_id: Option<Uuid>,
     /// The local interface that advertised the neighbour.
     pub if_descr: String,
     /// The far-end device, already resolved — this is what makes it distinct from
-    /// [`UnmatchedNeighbour`].
-    pub remote_host_id: Uuid,
+    /// [`UnmatchedNeighbour`]. `None` once that host has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub remote_host_id: Option<Uuid>,
     /// The advertised port id in `Debug` form, which carries subtype and value together
     /// (`MacAddress("00:ad:24:af:4e:00")`, `InterfaceName("2")`). Both halves are needed: the
     /// subtype says which tier ran and the value says what it looked for.
@@ -952,7 +964,7 @@ where
     Ok(raw.into_iter().map(warning_from_value).collect())
 }
 
-fn warning_from_value(value: serde_json::Value) -> DiscoveryWarning {
+pub fn warning_from_value(value: serde_json::Value) -> DiscoveryWarning {
     if let serde_json::Value::String(detail) = value {
         return DiscoveryWarning::Unknown { detail };
     }

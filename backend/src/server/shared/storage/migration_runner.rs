@@ -185,7 +185,7 @@ async fn apply_tx_migration(pool: &PgPool, sql: &str) -> anyhow::Result<()> {
 /// semicolons, and splitting on them yields fragments that are not valid SQL. This
 /// runner used to refuse such migrations outright; a batched backfill is exactly what
 /// the migration guidelines ask for on a table with data, so it has to be able to run one.
-fn split_statements(sql: &str) -> Vec<String> {
+pub(crate) fn split_statements(sql: &str) -> Vec<String> {
     let chars: Vec<char> = sql.chars().collect();
     let mut statements = Vec::new();
     let mut current = String::new();

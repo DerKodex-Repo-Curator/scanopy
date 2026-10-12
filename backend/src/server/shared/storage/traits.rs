@@ -1,7 +1,8 @@
 use std::net::IpAddr;
 
 use crate::daemon::discovery::types::warnings::{
-    ClaimSource, DiscoveryWarningCode, MalformedNeighbourConsequence, SnmpWalkGroup,
+    ClaimSource, DiscoveryWarning, DiscoveryWarningCode, MalformedNeighbourConsequence,
+    SnmpWalkGroup,
 };
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::bindings::r#impl::base::Binding;
@@ -420,6 +421,8 @@ pub enum SqlValue {
     OrgNotifications(OrgNotifications),
     OptionalUuidVec(Option<Vec<Uuid>>),
     IntegrationTargets(Vec<IntegrationTarget>),
+    DiscoveryWarningCode(DiscoveryWarningCode),
+    DiscoveryWarningDetails(DiscoveryWarning),
 }
 
 // ============================================================================
@@ -522,13 +525,12 @@ impl<T: DbEnumContributor> DbEnumContributor for Vec<T> {
 }
 
 // Trait object: no enumerable variants. Dynamic dispatch through
-/// `RunType` is the one composite whose nested enums are reachable nowhere else.
+/// `RunType` is a composite whose nested enums are reachable nowhere else.
 ///
-/// `RunType::Historical` boxes a whole `DiscoveryUpdatePayload`, and that payload's `warnings` are
-/// coded — so the warning code and the three enums that fill its slots are all persisted JSONB
-/// values that `strum::VariantNames` on `RunType` alone cannot see. This is the delegation the
-/// note above the empty impls calls for: without it, adding a warning code would slip past both
-/// coexistence gates while being written to the database.
+/// `RunType::Historical` boxes a whole `DiscoveryUpdatePayload`, whose credential results name an
+/// integration — a persisted JSONB value that `strum::VariantNames` on `RunType` alone cannot see.
+/// This is the delegation the note above the empty impls calls for. Its warnings are stored in
+/// `discovery_warnings` instead, and contribute through [`DiscoveryWarning`] below.
 impl DbEnumContributor for RunType {
     fn contribute(out: &mut std::collections::BTreeMap<&'static str, Vec<String>>) {
         let variants: Vec<String> = <RunType as ::strum::VariantNames>::VARIANTS
@@ -537,6 +539,15 @@ impl DbEnumContributor for RunType {
             .collect();
         out.insert(db_enum_key_for::<RunType>(), variants);
 
+        CredentialQueryPayloadDiscriminants::contribute(out);
+    }
+}
+
+/// A stored warning's details: the warning code and the enums that fill its slots are persisted
+/// JSONB values that nothing else reaches. Without this delegation, adding a warning code would
+/// slip past both coexistence gates while being written to the database.
+impl DbEnumContributor for DiscoveryWarning {
+    fn contribute(out: &mut std::collections::BTreeMap<&'static str, Vec<String>>) {
         DiscoveryWarningCode::contribute(out);
         SnmpWalkGroup::contribute(out);
         ClaimSource::contribute(out);
@@ -631,9 +642,9 @@ impl_db_enum_contributor_empty!(
 // crate — we can't add derives to it. Treated as empty below (Stripe SDK
 // version bumps are explicit and coordinated with server deploys, so the
 // coexistence-window risk is negligible in practice).
-// The enums that ride inside a discovery session's coded warnings. Not reachable through any
-// `SqlValue` variant of their own — they are nested inside `RunType::Historical` — so `RunType`'s
-// contributor below delegates to them explicitly. Without that the coexistence gate would pass
+// The enums that ride inside a discovery session's coded warnings. The ones nested in a stored
+// warning's details are reachable through no `SqlValue` variant of their own, so `DiscoveryWarning`'s
+// contributor above delegates to them explicitly. Without that the coexistence gate would pass
 // while the current binary was writing warning codes the previous release cannot read.
 impl_db_enum_contributor_via_variant_names!(
     DiscoveryWarningCode,
@@ -820,6 +831,8 @@ impl SqlValue {
             SqlValueDiscriminants::Vlans => Vlan::contribute(out),
             SqlValueDiscriminants::OrgNotifications => OrgNotifications::contribute(out),
             SqlValueDiscriminants::IntegrationTargets => IntegrationTarget::contribute(out),
+            SqlValueDiscriminants::DiscoveryWarningCode => DiscoveryWarningCode::contribute(out),
+            SqlValueDiscriminants::DiscoveryWarningDetails => DiscoveryWarning::contribute(out),
         }
     }
 

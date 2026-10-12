@@ -12,6 +12,7 @@ use crate::server::daemons::service::DaemonService;
 use crate::server::digest::service::DiscoveryDigestService;
 use crate::server::discovery::r#impl::base::{Discovery, DiscoveryBase};
 use crate::server::discovery::r#impl::types::{DiscoveryType, RunType};
+use crate::server::discovery_warnings::service::DiscoveryWarningService;
 use crate::server::hosts::service::HostService;
 use crate::server::organizations::service::OrganizationService;
 use crate::server::shared::entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants};
@@ -23,7 +24,7 @@ use crate::server::shared::events::types::{
 use crate::server::shared::services::traits::{CrudService, EventBusService};
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::generic::GenericPostgresStorage;
-use crate::server::shared::storage::traits::{Entity, Storable, Storage};
+use crate::server::shared::storage::traits::{Entity, PaginatedResult, Storable, Storage, Unique};
 use crate::server::shared::types::api::ApiError;
 use crate::server::sites::service::SiteService;
 use crate::server::subnets::r#impl::base::Subnet;
@@ -88,6 +89,8 @@ pub struct DiscoveryService {
     credential_service: Arc<CredentialService>,
     site_service: Arc<SiteService>,
     organization_service: Arc<OrganizationService>,
+    /// Each historical run's warnings, stored as rows beside it.
+    warning_service: Arc<DiscoveryWarningService>,
     // Lazy dependencies (set after construction to break circular dependencies)
     daemon_service: std::sync::OnceLock<Arc<DaemonService>>,
     /// Stamps the discovery FKs on what a finished session scanned.
@@ -117,6 +120,64 @@ impl CrudService<Discovery> for DiscoveryService {
 
     fn entity_tag_service(&self) -> Option<&Arc<EntityTagService>> {
         Some(&self.entity_tag_service)
+    }
+
+    // Every read attaches a historical run's warnings, which the run's own row does not hold.
+
+    async fn get_by_id(&self, id: &Uuid) -> Result<Option<Discovery>, anyhow::Error> {
+        let Some(mut discovery) = self.discovery_storage.get_by_id(id).await? else {
+            return Ok(None);
+        };
+        self.hydrate_tags(&mut discovery).await?;
+        self.attach_warnings(std::slice::from_mut(&mut discovery))
+            .await?;
+        Ok(Some(discovery))
+    }
+
+    async fn get_all(
+        &self,
+        filter: StorableFilter<Discovery>,
+    ) -> Result<Vec<Discovery>, anyhow::Error> {
+        let mut all = self.discovery_storage.get_all(filter).await?;
+        self.bulk_hydrate_tags(&mut all, None).await?;
+        self.attach_warnings(&mut all).await?;
+        Ok(all)
+    }
+
+    async fn get_paginated(
+        &self,
+        filter: StorableFilter<Discovery>,
+    ) -> Result<PaginatedResult<Discovery>, anyhow::Error> {
+        self.get_paginated_ordered(filter, "created_at ASC").await
+    }
+
+    async fn get_paginated_ordered(
+        &self,
+        filter: StorableFilter<Discovery>,
+        order_by: &str,
+    ) -> Result<PaginatedResult<Discovery>, anyhow::Error> {
+        let mut paginated = self
+            .discovery_storage
+            .get_paginated(filter, order_by)
+            .await?;
+        self.bulk_hydrate_tags(&mut paginated.items, None).await?;
+        self.attach_warnings(&mut paginated.items).await?;
+        Ok(paginated)
+    }
+
+    async fn get_unique(
+        &self,
+        filter: StorableFilter<Discovery>,
+    ) -> Result<Unique<Discovery>, anyhow::Error> {
+        Ok(match self.discovery_storage.get_unique(filter).await? {
+            Unique::One(mut discovery) => {
+                self.hydrate_tags(&mut discovery).await?;
+                self.attach_warnings(std::slice::from_mut(&mut discovery))
+                    .await?;
+                Unique::One(discovery)
+            }
+            other => other,
+        })
     }
 
     async fn update(
@@ -242,3 +303,4 @@ mod lifecycle;
 mod scheduling;
 mod sessions;
 mod state;
+mod warnings;

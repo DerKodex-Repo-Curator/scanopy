@@ -18,7 +18,12 @@
 	import { openModal } from '$lib/shared/stores/modal-registry';
 	import { entities } from '$lib/shared/stores/metadata';
 	import type { IconComponent } from '$lib/shared/utils/types';
-	import type { Subnet } from '../types/base';
+	import type { Subnet, SubnetResponse } from '../types/base';
+	import EntityTag from '$lib/shared/components/data/EntityTag.svelte';
+	import Tag from '$lib/shared/components/data/Tag.svelte';
+	import { entityRef } from '$lib/shared/components/data/types';
+	import { useHostsByIds } from '$lib/features/hosts/queries';
+	import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 	import {
 		subnets_confirmRange,
 		subnets_confirmRangeDetail,
@@ -28,12 +33,15 @@
 		subnets_deployDaemonHereDetail,
 		subnets_mergeInto,
 		subnets_mergeIntoDetail,
+		subnets_rangeEvidenceAddresses,
+		subnets_rangeEvidenceOpenScan,
+		subnets_rangeEvidenceSeenBy,
 		subnets_resolveRange,
 		subnets_resolveRangeIntro
 	} from '$lib/paraglide/messages';
 
 	interface Props {
-		subnet: Subnet | null;
+		subnet: SubnetResponse | null;
 		/**
 		 * A live subnet with a settled range that already covers this one, if there is one. Offered
 		 * as a merge: containment means every address fits, so folding them loses nothing.
@@ -64,6 +72,22 @@
 	 * this modal as everywhere else it appears and a change to it reaches all of them at once.
 	 */
 	const DaemonIcon = entities.getIconComponent('Daemon');
+
+	/**
+	 * Where the range came from, carried on the subnet itself: the devices that saw the far ends and
+	 * what those far ends published. Absent for a range no scan created. A device deleted since then
+	 * resolves to nothing and is left out.
+	 */
+	let evidence = $derived(subnet?.range_evidence ?? null);
+	const seenByQuery = useHostsByIds(() => evidence?.seen_by_host_ids ?? []);
+	let seenBy = $derived(seenByQuery.data ?? []);
+	let published = $derived(evidence ? [...evidence.addresses, ...evidence.sys_names] : []);
+
+	function openSourceScan(discoveryId: string) {
+		onClose();
+		window.location.hash = 'discovery-history';
+		openModal('discovery-history-detail', { id: discoveryId });
+	}
 
 	type Option = {
 		id: string;
@@ -143,6 +167,39 @@
 					<p class="text-secondary text-sm">
 						{subnets_resolveRangeIntro({ cidr: subnet.cidr })}
 					</p>
+
+					{#if evidence}
+						<div class="space-y-2 text-sm">
+							{#if seenBy.length > 0}
+								<div class="flex flex-wrap items-center gap-2">
+									<span class="text-secondary">{subnets_rangeEvidenceSeenBy()}</span>
+									{#each seenBy as host (host.id)}
+										<EntityTag
+											entityRef={entityRef('Host', host.id, host)}
+											label={hostDisplayName(host)}
+											icon={entities.getIconComponent('Host')}
+											color={entities.getColorHelper('Host').color}
+										/>
+									{/each}
+								</div>
+							{/if}
+							{#if published.length > 0}
+								<div class="flex flex-wrap items-center gap-2">
+									<span class="text-secondary">{subnets_rangeEvidenceAddresses()}</span>
+									{#each published as label (label)}
+										<Tag {label} color={null} />
+									{/each}
+								</div>
+							{/if}
+							<button
+								type="button"
+								class="text-link text-sm hover:underline"
+								onclick={() => evidence && openSourceScan(evidence.discovery_id)}
+							>
+								{subnets_rangeEvidenceOpenScan()}
+							</button>
+						</div>
+					{/if}
 
 					<div class="flex flex-col gap-3">
 						{#each options as option (option.id)}
