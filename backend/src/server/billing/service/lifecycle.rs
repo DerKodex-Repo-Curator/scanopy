@@ -10,7 +10,7 @@ impl BillingService {
     /// Pattern A: this endpoint calls Stripe (with the duration stashed in
     /// `metadata.scanopy_pause_duration_days`) and returns. The resulting
     /// `customer.subscription.updated` webhook detects the transition and
-    /// emits `BillingOperation::Paused`. The org subscriber then mirrors
+    /// applies and emits `BillingOperation::Paused`, which mirrors
     /// `plan_status` to `paused` via `implied_status`.
     pub async fn pause_subscription(
         &self,
@@ -265,7 +265,7 @@ impl BillingService {
     /// Pattern A: the endpoint stashes `scanopy_trial_extended_days` in
     /// metadata and calls Stripe. The webhook recognizes the key as a
     /// Scanopy-driven extend and emits `BillingOperation::TrialExtended`;
-    /// the subscriber flips `trial_extended_used` to true.
+    /// applying it flips `trial_extended_used` to true.
     pub async fn extend_trial(
         &self,
         organization_id: Uuid,
@@ -362,7 +362,7 @@ impl BillingService {
     ///
     /// Pattern A: the webhook handler detects `sub.cancel_at.is_some()` and
     /// emits `BillingOperation::CancellationInitiated` with the
-    /// metadata-derived payload. The subscriber then mirrors `plan_status`
+    /// metadata-derived payload; applying it mirrors `plan_status`
     /// to `pending_cancellation`. We standardize on `cancel_at` because it's
     /// the universal scheduled-cancel signal across all Stripe paths (in-app,
     /// Customer Portal, dashboard); `cancel_at_period_end` is only set when
@@ -450,8 +450,8 @@ impl BillingService {
     /// clear the scheduled cancellation (see in-line comment about the SDK
     /// constraint that forces us to use `cancel_at_period_end(false)` for
     /// the clear-only path); the webhook detects `sub.cancel_at` flipping
-    /// back to `None` and emits `BillingOperation::Reactivated`. The
-    /// subscriber mirrors `plan_status` back to `active`.
+    /// back to `None` and emits `BillingOperation::Reactivated`;
+    /// applying it mirrors `plan_status` back to `active`.
     pub async fn reactivate_subscription(
         &self,
         organization_id: Uuid,
@@ -693,15 +693,18 @@ impl BillingService {
         let duration_in_months = coupon.duration_in_months.unwrap_or(12);
         let expires_at = Utc::now() + chrono::Duration::days(duration_in_months * 30);
 
-        self.event_bus
-            .publish(Event::new(
-                OrgScope { organization_id },
-                BillingOperation::DiscountApplied {
-                    percent_off,
-                    expires_at,
-                },
-                authentication,
-            ))
+        self.organization_service
+            .apply_billing(
+                organization_id,
+                vec![Event::new(
+                    OrgScope { organization_id },
+                    BillingOperation::DiscountApplied {
+                        percent_off,
+                        expires_at,
+                    },
+                    authentication,
+                )],
+            )
             .await?;
 
         Ok("Discount applied to your subscription.".to_string())
@@ -711,67 +714,70 @@ impl BillingService {
     ///
     /// Every Stripe call is made before the first event is published. The
     /// events send email, and a failure after them would have Stripe redeliver
-    /// this and send it again.
+    /// this and send it again. The org is locked from the read to the write,
+    /// and the events are applied in order in that one write, so the final
+    /// `license_paid_through` is the resume's whatever order subscribers see
+    /// them in.
     pub(crate) async fn handle_invoice_paid(
         &self,
         invoice: stripe_billing::Invoice,
     ) -> Result<(), Error> {
-        let Some(organization) = self.get_org_from_invoice(&invoice).await? else {
+        let Some(found) = self.get_org_from_invoice(&invoice).await? else {
             tracing::debug!("No org found for invoice.paid — ignoring");
             return Ok(());
         };
+        let Some(locked) = self.organization_service.lock_for_update(found.id).await? else {
+            return Ok(());
+        };
+        let organization = locked.org.clone();
 
         let resume = self.prepare_license_resume(&organization, &invoice).await?;
 
         let was_past_due = organization.base.plan_status == Some(PlanStatus::PastDue);
+        let mut events = Vec::new();
 
         if was_past_due {
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: organization.id,
-                    },
-                    BillingOperation::PaymentRecovered {
-                        invoice_id: invoice
-                            .id
-                            .as_ref()
-                            .map(|i| i.to_string())
-                            .unwrap_or_default(),
-                        amount_cents: invoice.amount_paid,
-                        plan: organization.base.plan.unwrap_or_else(get_free_plan),
-                        attempt_count: invoice.attempt_count as u32,
-                        // The sub object isn't in scope here; Stripe fires
-                        // customer.subscription.updated right after this
-                        // webhook for renewals, and the handler-side emits
-                        // (CheckoutCompleted / PlanChanged / Reactivated /
-                        // TrialEnded) carry next_renewal_at. For a pure
-                        // renewal without a status/plan change, the org
-                        // value lags by ~one webhook tick; acceptable for
-                        // the UI use case (BillingPlanModal is glanced
-                        // at occasionally, not real-time).
-                        next_renewal_at: None,
-                    },
-                    AuthenticatedEntity::System,
-                ))
-                .await?;
-        }
-
-        self.event_bus
-            .publish(Event::new(
+            events.push(Event::new(
                 OrgScope {
                     organization_id: organization.id,
                 },
-                BillingOperation::PaymentSucceeded {
-                    invoice: BillingInvoice::from(&invoice),
-                    // Captured here, before any subscriber runs. The
-                    // organization subscriber advances this column off this
-                    // same event, so a subscriber that read the row could not
-                    // tell the old value from the new one.
-                    previous_license_paid_through: organization.base.license_paid_through,
+                BillingOperation::PaymentRecovered {
+                    invoice_id: invoice
+                        .id
+                        .as_ref()
+                        .map(|i| i.to_string())
+                        .unwrap_or_default(),
+                    amount_cents: invoice.amount_paid,
+                    plan: organization.base.plan.unwrap_or_else(get_free_plan),
+                    attempt_count: invoice.attempt_count as u32,
+                    // The sub object isn't in scope here; Stripe fires
+                    // customer.subscription.updated right after this
+                    // webhook for renewals, and the handler-side emits
+                    // (CheckoutCompleted / PlanChanged / Reactivated /
+                    // TrialEnded) carry next_renewal_at. For a pure
+                    // renewal without a status/plan change, the org
+                    // value lags by ~one webhook tick; acceptable for
+                    // the UI use case (BillingPlanModal is glanced
+                    // at occasionally, not real-time).
+                    next_renewal_at: None,
                 },
                 AuthenticatedEntity::System,
-            ))
-            .await?;
+            ));
+        }
+
+        events.push(Event::new(
+            OrgScope {
+                organization_id: organization.id,
+            },
+            BillingOperation::PaymentSucceeded {
+                invoice: BillingInvoice::from(&invoice),
+                // Captured from the row before this event is applied, which
+                // advances the column, so a subscriber reading the row could
+                // not tell the old value from the new one.
+                previous_license_paid_through: organization.base.license_paid_through,
+            },
+            AuthenticatedEntity::System,
+        ));
 
         // After `PaymentSucceeded`, which sets the licence date the invoice
         // carried: this replaces it with the date the resume runs to.
@@ -781,22 +787,22 @@ impl BillingService {
             subscription,
         }) = resume
         {
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: organization.id,
-                    },
-                    BillingOperation::LicenseResumed {
-                        plan,
-                        resumed_through,
-                        next_renewal_at: next_renewal_from_subscription(&subscription),
-                    },
-                    AuthenticatedEntity::System,
-                ))
-                .await?;
+            events.push(Event::new(
+                OrgScope {
+                    organization_id: organization.id,
+                },
+                BillingOperation::LicenseResumed {
+                    plan,
+                    resumed_through,
+                    next_renewal_at: next_renewal_from_subscription(&subscription),
+                },
+                AuthenticatedEntity::System,
+            ));
         }
 
-        Ok(())
+        self.organization_service
+            .commit_billing(locked, None, events)
+            .await
     }
 
     /// The subscription that brings back an organization that lapsed for

@@ -132,35 +132,36 @@ impl BillingService {
         plan: BillingPlan,
         authentication: AuthenticatedEntity,
     ) -> Result<String, Error> {
-        let organization = self.get_organization(organization_id).await?;
+        let locked = self
+            .organization_service
+            .lock_for_update(organization_id)
+            .await?
+            .ok_or_else(|| anyhow!("Organization {} doesn't exist.", organization_id))?;
 
-        // Publish PlanSelected onboarding event
-        if organization.not_onboarded(&OnboardingOperationDiscriminants::PlanSelected) {
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope { organization_id },
-                    OnboardingOperation::PlanSelected { plan },
-                    authentication.clone(),
-                ))
-                .await?;
-        }
+        // PlanSelected onboarding milestone, published only the first time
+        let milestone = Event::new(
+            OrgScope { organization_id },
+            OnboardingOperation::PlanSelected { plan },
+            authentication.clone(),
+        );
 
-        // Publish CheckoutCompleted billing event
+        // CheckoutCompleted billing event
         let plan_config = plan.config();
-        self.event_bus
-            .publish(Event::new(
-                OrgScope { organization_id },
-                BillingOperation::CheckoutCompleted {
-                    plan,
-                    included_sites: plan_config.included_sites,
-                    included_seats: plan_config.included_seats,
-                    mrr_amount_cents: 0,
-                    is_trialing: false,
-                    // Free direct-activation has no Stripe sub.
-                    next_renewal_at: None,
-                },
-                authentication,
-            ))
+        let checkout = Event::new(
+            OrgScope { organization_id },
+            BillingOperation::CheckoutCompleted {
+                plan,
+                included_sites: plan_config.included_sites,
+                included_seats: plan_config.included_seats,
+                mrr_amount_cents: 0,
+                is_trialing: false,
+                // Free direct-activation has no Stripe sub.
+                next_renewal_at: None,
+            },
+            authentication,
+        );
+        self.organization_service
+            .commit_billing(locked, Some(milestone), vec![checkout])
             .await?;
 
         tracing::info!(
@@ -466,19 +467,20 @@ impl BillingService {
         Ok(())
     }
 
-    /// Get existing customer or create new one. On create or adopt, publishes
-    /// `StripeCustomerCreated` so the org-service subscriber mirrors the
-    /// customer id onto `organizations.stripe_customer_id`.
+    /// Get existing customer or create new one. On create or adopt, writes the
+    /// customer id onto `organizations.stripe_customer_id` under the org lock
+    /// before returning, then publishes `StripeCustomerCreated`. Webhooks that
+    /// find the org by customer id can therefore find it as soon as Stripe
+    /// sends them.
     ///
-    /// The mirror write runs after the customer exists in Stripe and can fail,
+    /// The write runs after the customer exists in Stripe and can fail,
     /// leaving a customer the org row doesn't name. Before creating, this
     /// searches Stripe for a customer carrying the org's id in metadata and
     /// adopts it, which heals the mirror. Stripe search lags writes by up to a
     /// minute (longer during incidents), so two requests close together can
     /// both miss; the create's idempotency key makes those return one
-    /// customer. No org lock is taken here: the `StripeCustomerCreated`
-    /// subscriber takes the org lock itself, so publishing while holding it
-    /// would block that subscriber until the lock times out.
+    /// customer. The lock is taken only for the write, not across the Stripe
+    /// calls.
     pub(crate) async fn get_or_create_customer(
         &self,
         organization_id: Uuid,
@@ -536,14 +538,17 @@ impl BillingService {
             }
         };
 
-        self.event_bus
-            .publish(Event::new(
-                OrgScope { organization_id },
-                BillingOperation::StripeCustomerCreated {
-                    customer_id: customer_id.to_string(),
-                },
-                AuthenticatedEntity::System,
-            ))
+        self.organization_service
+            .apply_billing(
+                organization_id,
+                vec![Event::new(
+                    OrgScope { organization_id },
+                    BillingOperation::StripeCustomerCreated {
+                        customer_id: customer_id.to_string(),
+                    },
+                    AuthenticatedEntity::System,
+                )],
+            )
             .await?;
 
         Ok(customer_id)

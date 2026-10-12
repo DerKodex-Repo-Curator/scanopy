@@ -341,26 +341,29 @@ async fn a_cloud_org_lapses_on_its_plan_when_the_subscription_ends() {
         .unwrap();
 
     service
-        .handle(vec![Event::new(
-            OrgScope {
-                organization_id: org.id,
-            },
-            BillingOperation::SubscriptionCancelled {
-                plan: pro_plan(),
-                reason_code: None,
-                stripe_feedback: None,
-                stripe_reason: None,
-                internal_reason: None,
-                comment: None,
-                period_end: Utc::now(),
-                was_trialing: true,
-                mrr_amount_cents: 0,
-                tenure_days: 14,
-                license_key_type: None,
-                defaulted: false,
-            },
-            AuthenticatedEntity::System,
-        )])
+        .apply_billing(
+            org.id,
+            vec![Event::new(
+                OrgScope {
+                    organization_id: org.id,
+                },
+                BillingOperation::SubscriptionCancelled {
+                    plan: pro_plan(),
+                    reason_code: None,
+                    stripe_feedback: None,
+                    stripe_reason: None,
+                    internal_reason: None,
+                    comment: None,
+                    period_end: Utc::now(),
+                    was_trialing: true,
+                    mrr_amount_cents: 0,
+                    tenure_days: 14,
+                    license_key_type: None,
+                    defaulted: false,
+                },
+                AuthenticatedEntity::System,
+            )],
+        )
         .await
         .unwrap();
 
@@ -595,10 +598,20 @@ async fn license_paid_through_follows_self_hosted_trials_and_invoices() {
         )
     };
     service
-        .handle(vec![
-            trial_started(self_hosted.id, get_self_hosted_standard_plan()),
-            trial_started(cloud.id, get_enterprise_plan()),
-        ])
+        .apply_billing(
+            self_hosted.id,
+            vec![trial_started(
+                self_hosted.id,
+                get_self_hosted_standard_plan(),
+            )],
+        )
+        .await
+        .unwrap();
+    service
+        .apply_billing(
+            cloud.id,
+            vec![trial_started(cloud.id, get_enterprise_plan())],
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -639,16 +652,19 @@ async fn license_paid_through_follows_self_hosted_trials_and_invoices() {
         due_date: None,
     };
     service
-        .handle(vec![Event::new(
-            OrgScope {
-                organization_id: self_hosted.id,
-            },
-            BillingOperation::PaymentSucceeded {
-                invoice,
-                previous_license_paid_through: None,
-            },
-            AuthenticatedEntity::System,
-        )])
+        .apply_billing(
+            self_hosted.id,
+            vec![Event::new(
+                OrgScope {
+                    organization_id: self_hosted.id,
+                },
+                BillingOperation::PaymentSucceeded {
+                    invoice,
+                    previous_license_paid_through: None,
+                },
+                AuthenticatedEntity::System,
+            )],
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -778,8 +794,8 @@ async fn the_airgap_renewal_email_dates_the_key_already_installed() {
     };
 
     // Driven straight at the email subscriber. The date rides on the event
-    // precisely so it no longer depends on which subscriber ran first, and
-    // the organization subscriber is deliberately not run here.
+    // precisely so it does not depend on the org row, which is deliberately
+    // left at its old value here.
     let email_service = state.services.email_service.clone().unwrap();
     email_service
         .handle(vec![Event::new(
@@ -850,13 +866,16 @@ async fn sent_invoices_license_until_due_and_give_back_on_void() {
         due_date: Some(due_date),
     };
     let publish = |operation: BillingOperation| {
-        service.handle(vec![Event::new(
-            OrgScope {
-                organization_id: org.id,
-            },
-            operation,
-            AuthenticatedEntity::System,
-        )])
+        service.apply_billing(
+            org.id,
+            vec![Event::new(
+                OrgScope {
+                    organization_id: org.id,
+                },
+                operation,
+                AuthenticatedEntity::System,
+            )],
+        )
     };
 
     // Issued: licensed past the due date, and the org counts as able to pay.

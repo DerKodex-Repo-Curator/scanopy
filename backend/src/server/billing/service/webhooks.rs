@@ -185,22 +185,28 @@ impl BillingService {
             "Subscription updated"
         );
 
-        let organization = match self.organization_service.get_by_id(&org_id).await? {
-            Some(org) => org,
-            None => {
-                // Organization was deleted - acknowledge webhook to stop retries
-                tracing::warn!(
-                    stripe_customer_id = %sub.customer.id(),
-                    "Received subscription update for deleted organization, ignoring"
-                );
-                return Ok(());
-            }
+        // Held until the transitions below are written. Stripe sends some
+        // updates in quick pairs (see the Portal cancel below), and the second
+        // must read the row the first one wrote, or both see the same prior
+        // state and both announce the transition.
+        let Some(locked) = self.organization_service.lock_for_update(org_id).await? else {
+            // Organization was deleted - acknowledge webhook to stop retries
+            tracing::warn!(
+                stripe_customer_id = %sub.customer.id(),
+                "Received subscription update for deleted organization, ignoring"
+            );
+            return Ok(());
         };
+        let organization = locked.org.clone();
 
         let owners = self
             .user_service
             .get_organization_owners(&organization.id)
             .await?;
+
+        // Every event this update raises, applied to the org row in this order
+        // and published once it is written.
+        let mut events: Vec<Event<BillingOperation>> = Vec::new();
 
         // Snapshot pre-webhook state from the org row so we can detect
         // transitions (None plan, was-trialing, etc.) before applying
@@ -249,53 +255,30 @@ impl BillingService {
                     let planned_period_end =
                         chrono::DateTime::<Utc>::from_timestamp(period_end_ts, 0)
                             .unwrap_or_else(Utc::now);
-                    self.event_bus
-                        .publish(Event::new(
-                            OrgScope {
-                                organization_id: organization.id,
-                            },
-                            BillingOperation::CancellationInitiated {
-                                plan: organization.base.plan,
-                                reason_code: meta.scanopy_cancel_reason,
-                                stripe_feedback: stripe_feedback.clone(),
-                                stripe_reason: stripe_reason.clone(),
-                                comment: comment.clone(),
-                                save_offer_shown: meta
-                                    .scanopy_cancel_save_offer_shown
-                                    .clone()
-                                    .unwrap_or_default(),
-                                save_offer_redeemed: meta.scanopy_cancel_save_offer_redeemed,
-                                planned_period_end,
-                            },
-                            authentication.clone(),
-                        ))
-                        .await?;
+                    events.push(Event::new(
+                        OrgScope {
+                            organization_id: organization.id,
+                        },
+                        BillingOperation::CancellationInitiated {
+                            plan: organization.base.plan,
+                            reason_code: meta.scanopy_cancel_reason,
+                            stripe_feedback: stripe_feedback.clone(),
+                            stripe_reason: stripe_reason.clone(),
+                            comment: comment.clone(),
+                            save_offer_shown: meta
+                                .scanopy_cancel_save_offer_shown
+                                .clone()
+                                .unwrap_or_default(),
+                            save_offer_redeemed: meta.scanopy_cancel_save_offer_redeemed,
+                            planned_period_end,
+                        },
+                        authentication.clone(),
+                    ));
                     // In-app modal may set feedback in the same Stripe call,
                     // so the first webhook can already carry user input.
                     // Portal-with-reason's first webhook never does.
                     if has_user_feedback {
-                        self.event_bus
-                            .publish(Event::new(
-                                OrgScope {
-                                    organization_id: organization.id,
-                                },
-                                BillingOperation::CancellationFeedbackProvided {
-                                    stripe_feedback,
-                                    stripe_reason,
-                                    comment,
-                                },
-                                authentication,
-                            ))
-                            .await?;
-                    }
-                }
-            } else if has_user_feedback {
-                // Follow-up webhook with user input — emit only the feedback
-                // event. The cancellation itself was already announced.
-                if let Some(owner) = owners.first() {
-                    let authentication: AuthenticatedEntity = owner.clone().into();
-                    self.event_bus
-                        .publish(Event::new(
+                        events.push(Event::new(
                             OrgScope {
                                 organization_id: organization.id,
                             },
@@ -305,31 +288,49 @@ impl BillingService {
                                 comment,
                             },
                             authentication,
-                        ))
-                        .await?;
+                        ));
+                    }
+                }
+            } else if has_user_feedback {
+                // Follow-up webhook with user input — emit only the feedback
+                // event. The cancellation itself was already announced.
+                if let Some(owner) = owners.first() {
+                    let authentication: AuthenticatedEntity = owner.clone().into();
+                    events.push(Event::new(
+                        OrgScope {
+                            organization_id: organization.id,
+                        },
+                        BillingOperation::CancellationFeedbackProvided {
+                            stripe_feedback,
+                            stripe_reason,
+                            comment,
+                        },
+                        authentication,
+                    ));
                 }
             }
             // Otherwise: already initiated, no user feedback on this webhook
             // — nothing to emit.
-            return Ok(());
+            return self
+                .organization_service
+                .commit_billing(locked, None, events)
+                .await;
         }
 
-        // First time signing up for a plan
-        if let Some(owner) = owners.first()
-            && (prior_plan.is_free() || prior_status.is_none())
-            && organization.not_onboarded(&OnboardingOperationDiscriminants::PlanSelected)
-        {
-            let authentication: AuthenticatedEntity = owner.clone().into();
-            self.event_bus
-                .publish(Event::new(
+        // First time signing up for a plan. Recorded and published only if the
+        // org has not selected one before.
+        let milestone = owners
+            .first()
+            .filter(|_| prior_plan.is_free() || prior_status.is_none())
+            .map(|owner| {
+                Event::new(
                     OrgScope {
                         organization_id: organization.id,
                     },
                     OnboardingOperation::PlanSelected { plan },
-                    authentication,
-                ))
-                .await?;
-        }
+                    owner.clone().into(),
+                )
+            });
 
         // Publish billing lifecycle events for email automation
         if let Some(owner) = owners.first() {
@@ -348,60 +349,55 @@ impl BillingService {
             // `report_invoice_overdue` to let a lapsed org back in.
             if resubscribed(prior_status, prior_was_free, &plan, sub.status.clone()) {
                 let plan_config = plan.config();
-                self.event_bus
-                    .publish(Event::new(
-                        OrgScope {
-                            organization_id: organization.id,
-                        },
-                        BillingOperation::CheckoutCompleted {
-                            plan,
-                            included_sites: plan_config.included_sites,
-                            included_seats: plan_config.included_seats,
-                            mrr_amount_cents: mrr_from_subscription(&sub),
-                            is_trialing,
-                            next_renewal_at: next_renewal_from_subscription(&sub),
-                        },
-                        authentication.clone(),
-                    ))
-                    .await?;
+                events.push(Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::CheckoutCompleted {
+                        plan,
+                        included_sites: plan_config.included_sites,
+                        included_seats: plan_config.included_seats,
+                        mrr_amount_cents: mrr_from_subscription(&sub),
+                        is_trialing,
+                        next_renewal_at: next_renewal_from_subscription(&sub),
+                    },
+                    authentication.clone(),
+                ));
 
-                // Trial started (if subscription is in trialing state)
+                // Trial started (if subscription is in trialing state).
+                // Applied after `CheckoutCompleted`, so the org ends Trialing.
                 if is_trialing {
                     let trial_days = plan.config().trial_days;
                     let trial_end_dt = sub
                         .trial_end
                         .and_then(|t| chrono::DateTime::<Utc>::from_timestamp(t, 0))
                         .unwrap_or_else(Utc::now);
-                    self.event_bus
-                        .publish(Event::new(
-                            OrgScope {
-                                organization_id: organization.id,
-                            },
-                            BillingOperation::TrialStarted {
-                                plan,
-                                trial_end: trial_end_dt,
-                                trial_days,
-                            },
-                            authentication.clone(),
-                        ))
-                        .await?;
+                    events.push(Event::new(
+                        OrgScope {
+                            organization_id: organization.id,
+                        },
+                        BillingOperation::TrialStarted {
+                            plan,
+                            trial_end: trial_end_dt,
+                            trial_days,
+                        },
+                        authentication.clone(),
+                    ));
                 }
             }
 
             // Trial ended (transition from trialing to active)
             if prior_was_trialing && sub.status == SubscriptionStatus::Active {
-                self.event_bus
-                    .publish(Event::new(
-                        OrgScope {
-                            organization_id: organization.id,
-                        },
-                        BillingOperation::TrialEnded {
-                            plan,
-                            next_renewal_at: next_renewal_from_subscription(&sub),
-                        },
-                        authentication,
-                    ))
-                    .await?;
+                events.push(Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::TrialEnded {
+                        plan,
+                        next_renewal_at: next_renewal_from_subscription(&sub),
+                    },
+                    authentication,
+                ));
             }
         }
 
@@ -447,21 +443,19 @@ impl BillingService {
             && prior_plan.name() != plan.name()
             && let Some(owner) = owners.first()
         {
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: org_id,
-                    },
-                    BillingOperation::PlanChanged {
-                        from: prior_plan,
-                        to: plan,
-                        is_downgrade: plan.is_free(),
-                        next_renewal_at: next_renewal_from_subscription(&sub),
-                        license_key_type: organization.base.license_key_type,
-                    },
-                    owner.clone().into(),
-                ))
-                .await?;
+            events.push(Event::new(
+                OrgScope {
+                    organization_id: org_id,
+                },
+                BillingOperation::PlanChanged {
+                    from: prior_plan,
+                    to: plan,
+                    is_downgrade: plan.is_free(),
+                    next_renewal_at: next_renewal_from_subscription(&sub),
+                    license_key_type: organization.base.license_key_type,
+                },
+                owner.clone().into(),
+            ));
         }
 
         // Phase 5 transition arms — each one fires on the false→true edge
@@ -479,19 +473,17 @@ impl BillingService {
                 .resumes_at
                 .and_then(|t| chrono::DateTime::<Utc>::from_timestamp(t, 0))
                 .unwrap_or_else(Utc::now);
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: org_id,
-                    },
-                    BillingOperation::Paused {
-                        plan,
-                        duration_days: meta.scanopy_pause_duration_days.unwrap_or(0),
-                        resumes_at,
-                    },
-                    owner.clone().into(),
-                ))
-                .await?;
+            events.push(Event::new(
+                OrgScope {
+                    organization_id: org_id,
+                },
+                BillingOperation::Paused {
+                    plan,
+                    duration_days: meta.scanopy_pause_duration_days.unwrap_or(0),
+                    resumes_at,
+                },
+                owner.clone().into(),
+            ));
         }
 
         // Resumed arm — pause_collection cleared. `was_early` degrades to
@@ -504,9 +496,9 @@ impl BillingService {
         // pause→resume cycle (pause_collection doesn't move the cycle).
         // This arm is the only writer of the prorated pause credit, for both
         // a manual resume and Stripe's scheduled auto-resume. A failed credit
-        // returns the error before `Resumed` is published, so the webhook
-        // answers non-2xx and Stripe redelivers: the org is still Paused, so
-        // this arm runs again. The balance transaction carries a
+        // returns the error before anything from this update is written or
+        // published, so the webhook answers non-2xx and Stripe redelivers: the
+        // org is still Paused, so this arm runs again. The balance transaction carries a
         // `pause-credit-{sub_id}-{paused_at}` idempotency key and is timed from
         // the event's `created`, so a redelivery after a credit that landed in
         // Stripe but whose response was lost replays it instead of crediting
@@ -526,20 +518,18 @@ impl BillingService {
                     ))
                 })?;
 
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: org_id,
-                    },
-                    BillingOperation::Resumed { was_early: false },
-                    owner.clone().into(),
-                ))
-                .await?;
+            events.push(Event::new(
+                OrgScope {
+                    organization_id: org_id,
+                },
+                BillingOperation::Resumed { was_early: false },
+                owner.clone().into(),
+            ));
         }
 
         // TrialExtended arm — endpoint stashed `scanopy_trial_extended_days`
-        // in metadata; subscriber flips `trial_extended_used` to true on
-        // emission so subsequent webhooks skip.
+        // in metadata; applying the event flips `trial_extended_used` to true
+        // so subsequent webhooks skip.
         if !organization.base.trial_extended_used
             && let Some(days_added) = meta.scanopy_trial_extended_days
             && let Some(owner) = owners.first()
@@ -548,41 +538,44 @@ impl BillingService {
                 .trial_end
                 .and_then(|t| chrono::DateTime::<Utc>::from_timestamp(t, 0))
                 .unwrap_or_else(Utc::now);
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: org_id,
-                    },
-                    BillingOperation::TrialExtended {
-                        days_added,
-                        new_trial_end,
-                    },
-                    owner.clone().into(),
-                ))
-                .await?;
+            events.push(Event::new(
+                OrgScope {
+                    organization_id: org_id,
+                },
+                BillingOperation::TrialExtended {
+                    days_added,
+                    new_trial_end,
+                },
+                owner.clone().into(),
+            ));
         }
 
         // Reactivated arm — pending cancellation cleared. Idempotency via
-        // `prior_status == pending_cancellation`; the subscriber then restores
+        // `prior_status == pending_cancellation`; applying the event restores
         // `plan_status` via `implied_status`. Carry the live trial state so a sub
         // reactivated mid-trial returns to `trialing`, not `active`.
         if prior_status == Some(PlanStatus::PendingCancellation)
             && sub.cancel_at.is_none()
             && let Some(owner) = owners.first()
         {
-            self.event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: org_id,
-                    },
-                    BillingOperation::Reactivated {
-                        trialing: sub.status == SubscriptionStatus::Trialing,
-                        next_renewal_at: next_renewal_from_subscription(&sub),
-                    },
-                    owner.clone().into(),
-                ))
-                .await?;
+            events.push(Event::new(
+                OrgScope {
+                    organization_id: org_id,
+                },
+                BillingOperation::Reactivated {
+                    trialing: sub.status == SubscriptionStatus::Trialing,
+                    next_renewal_at: next_renewal_from_subscription(&sub),
+                },
+                owner.clone().into(),
+            ));
         }
+
+        self.organization_service
+            .commit_billing(locked, milestone, events)
+            .await?;
+
+        // The rest take the org lock themselves, so they run after it is
+        // released above.
 
         // An unpaid sent invoice is the one way a licence buyer stops paying,
         // and this is the only event that reports it without any dashboard
@@ -596,7 +589,7 @@ impl BillingService {
             sub.collection_method.clone(),
         ) && let Some(invoice) = self.open_license_invoice(&organization).await?
         {
-            self.report_invoice_overdue(&organization, invoice).await?;
+            self.report_invoice_overdue(org_id, invoice).await?;
         }
 
         // Stripe stops collecting on a subscription it marks `unpaid`, which
@@ -752,16 +745,18 @@ impl BillingService {
             .send(&self.stripe)
             .await?;
 
-        // The PaymentMethodAdded event below is logged by the logging
-        // subscriber; the org subscriber flips `has_payment_method`.
-        self.event_bus
-            .publish(Event::new(
-                OrgScope {
-                    organization_id: organization.id,
-                },
-                BillingOperation::PaymentMethodAdded,
-                AuthenticatedEntity::System,
-            ))
+        // Applying PaymentMethodAdded flips `has_payment_method`.
+        self.organization_service
+            .apply_billing(
+                organization.id,
+                vec![Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::PaymentMethodAdded,
+                    AuthenticatedEntity::System,
+                )],
+            )
             .await?;
 
         Ok(())
@@ -796,14 +791,17 @@ impl BillingService {
             return Ok(());
         }
 
-        self.event_bus
-            .publish(Event::new(
-                OrgScope {
-                    organization_id: organization.id,
-                },
-                BillingOperation::PaymentMethodRemoved,
-                AuthenticatedEntity::System,
-            ))
+        self.organization_service
+            .apply_billing(
+                organization.id,
+                vec![Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::PaymentMethodRemoved,
+                    AuthenticatedEntity::System,
+                )],
+            )
             .await?;
 
         Ok(())
@@ -840,12 +838,12 @@ impl BillingService {
             return Ok(());
         }
 
-        // --- Snapshot prior subscription state, then publish the cancellation
-        // event. The lapse (plan kept, plan_status = Cancelled) is owned by the
-        // `SubscriptionCancelled` arm of the org billing subscriber (single
-        // writer); this handler does not touch the org row. ---
+        // --- Snapshot prior subscription state under the org lock, then write
+        // and publish the cancellation event. The lapse (plan kept,
+        // plan_status = Cancelled) is the `SubscriptionCancelled` arm of
+        // `BillingOperation::apply`. ---
 
-        let Some(organization) = self.organization_service.get_by_id(&org_id).await? else {
+        let Some(locked) = self.organization_service.lock_for_update(org_id).await? else {
             tracing::warn!(
                 organization_id = %org_id,
                 subscription_id = %sub.id,
@@ -854,6 +852,7 @@ impl BillingService {
             );
             return Ok(());
         };
+        let organization = &locked.org;
 
         let cancelled_plan = organization
             .base
@@ -880,9 +879,9 @@ impl BillingService {
         let free_plan = get_free_plan();
 
         // Inline, so a failure answers the webhook with an error and Stripe
-        // redelivers it. Publishing comes last, so a redelivery after a failure
-        // sends no email twice.
-        Self::process_subscription_deleted_side_effects(
+        // redelivers it. Writing and publishing come last, so a redelivery
+        // after a failure sends no email twice.
+        let cancelled = Self::process_subscription_deleted_side_effects(
             org_id,
             sub.id.to_string(),
             customer_id,
@@ -902,16 +901,20 @@ impl BillingService {
             tenure_days,
             license_key_type,
             Arc::clone(&self.user_service),
-            Arc::clone(&self.event_bus),
             self.stripe.clone(),
         )
-        .await
+        .await?;
+
+        self.organization_service
+            .commit_billing(locked, None, cancelled.into_iter().collect())
+            .await
     }
 
     /// Side effects of a subscription deletion: guard 2 (revert if needed),
-    /// plan restriction enforcement, event publishing, and emails. Invite
+    /// the Stripe-side cleanup, and the `SubscriptionCancelled` event for the
+    /// caller to write and publish (`None` when guard 2 suppresses it). Invite
     /// revocation runs separately via `InviteService::Subscriber<BillingOperation>`
-    /// triggered by the `SubscriptionCancelled` event published below.
+    /// triggered by that event.
     #[allow(clippy::too_many_arguments)]
     async fn process_subscription_deleted_side_effects(
         org_id: Uuid,
@@ -930,9 +933,8 @@ impl BillingService {
         tenure_days: u32,
         license_key_type: Option<LicenseKeyType>,
         user_service: Arc<UserService>,
-        event_bus: Arc<EventBus>,
         stripe: RateLimitedStripe,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<Event<BillingOperation>>, Error> {
         // Guard 2: If org has another active subscription, revert the downgrade
         if let Some(customer_id) = &customer_id {
             let all_subs = ListSubscription::new()
@@ -948,23 +950,23 @@ impl BillingService {
             }) {
                 // Another active subscription exists, so the cancel was an
                 // upgrade-side-effect. Suppress SubscriptionCancelled here;
-                // the subscriber consequently never runs for this deletion,
-                // so has_payment_method stays at its pre-deletion value
-                // (true, given another active sub). No defensive revert
-                // needed — the subscriber is the sole writer for this field.
+                // nothing is written for this deletion, so has_payment_method
+                // stays at its pre-deletion value (true, given another active
+                // sub). No defensive revert needed — `PaymentMethodAdded` /
+                // `PaymentMethodRemoved` are the sole writers for this field.
                 tracing::info!(
                     organization_id = %org_id,
                     "Org has another active subscription — preserved previous plan derivation"
                 );
-                return Ok(());
+                return Ok(None);
             }
         }
 
         // The lapse is now committed (Guard 2 passed). If a
         // save-offer discount was applied, remove it from the Stripe customer
         // so it can't carry over to a future subscription. The org's discount
-        // mirror fields are cleared by the `SubscriptionCancelled` subscriber
-        // arm; `last_discount_at` is preserved there so the user stays
+        // mirror fields are cleared by the `SubscriptionCancelled` arm of
+        // `BillingOperation::apply`; `last_discount_at` is preserved there so the user stays
         // ineligible for a second discount. Best-effort: a missing discount is
         // not worth failing the webhook over.
         if had_active_discount
@@ -1012,39 +1014,33 @@ impl BillingService {
             }
         }
 
-        // Publish events and send emails. Invites get revoked downstream
-        // by `InviteService::Subscriber<BillingOperation>` reacting to the
-        // `SubscriptionCancelled` event we publish below.
+        // The caller writes and publishes this, which sends the emails.
+        // Invites get revoked downstream by
+        // `InviteService::Subscriber<BillingOperation>` reacting to it.
         let owners = user_service.get_organization_owners(&org_id).await?;
 
-        if let Some(owner) = owners.first() {
-            let authentication: AuthenticatedEntity = owner.clone().into();
-
-            event_bus
-                .publish(Event::new(
-                    OrgScope {
-                        organization_id: org_id,
-                    },
-                    BillingOperation::SubscriptionCancelled {
-                        plan: cancelled_plan.unwrap_or(free_plan),
-                        reason_code: None,
-                        stripe_feedback,
-                        stripe_reason,
-                        internal_reason: internal_reason.clone(),
-                        comment: cancel_comment.clone(),
-                        period_end,
-                        was_trialing,
-                        mrr_amount_cents,
-                        tenure_days,
-                        license_key_type,
-                        defaulted,
-                    },
-                    authentication.clone(),
-                ))
-                .await?;
-        }
-
-        Ok(())
+        Ok(owners.first().map(|owner| {
+            Event::new(
+                OrgScope {
+                    organization_id: org_id,
+                },
+                BillingOperation::SubscriptionCancelled {
+                    plan: cancelled_plan.unwrap_or(free_plan),
+                    reason_code: None,
+                    stripe_feedback,
+                    stripe_reason,
+                    internal_reason,
+                    comment: cancel_comment,
+                    period_end,
+                    was_trialing,
+                    mrr_amount_cents,
+                    tenure_days,
+                    license_key_type,
+                    defaulted,
+                },
+                owner.clone().into(),
+            )
+        }))
     }
 }
 

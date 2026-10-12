@@ -699,8 +699,6 @@ mod tests {
     async fn entitlement_swap_reconciles_plans_and_survives_restart() {
         use crate::server::auth::middleware::auth::AuthenticatedEntity;
         use crate::server::organizations::r#impl::base::{Organization, OrganizationBase};
-        use crate::server::shared::events::traits::Subscriber;
-        use crate::server::shared::events::types::BillingOperation;
         use crate::server::shared::services::traits::CrudService;
         use crate::server::shared::storage::traits::Storable;
         use crate::tests::test_storage;
@@ -711,8 +709,6 @@ mod tests {
             storage.organizations.clone(),
             event_bus.clone(),
         ));
-        let subscriber: Arc<dyn Subscriber<BillingOperation>> = orgs.clone();
-        event_bus.register(subscriber, "organization_service").await;
         let org = orgs
             .create(
                 Organization::new(OrganizationBase {
@@ -733,15 +729,8 @@ mod tests {
             .check_in(&entitlement_cloud(LicensePlan::Plus, 30).await)
             .await;
 
-        // The org subscriber applies `LicenseReconciled` from its event batch.
-        let mut stored = orgs.get_by_id(&org.id).await.unwrap().unwrap();
-        for _ in 0..100 {
-            if stored.base.plan == Some(get_self_hosted_plus_plan()) {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            stored = orgs.get_by_id(&org.id).await.unwrap().unwrap();
-        }
+        // The check-in writes the reconciled plan before it returns.
+        let stored = orgs.get_by_id(&org.id).await.unwrap().unwrap();
         assert_eq!(stored.base.plan, Some(get_self_hosted_plus_plan()));
         assert!(stored.base.license_entitlement.is_some());
 
