@@ -4157,7 +4157,7 @@ export interface components {
                 /** @description Current usage against the organization's plan allowances. */
                 plan_usage: components["schemas"]["PlanUsage"];
                 /** @description The most recent discovery runs, newest first. */
-                recent_discoveries: components["schemas"]["Discovery"][];
+                recent_discoveries: components["schemas"]["RecentDiscovery"][];
                 /** @description Per-site counts for every site the caller can see. */
                 sites: components["schemas"]["SiteSummary"][];
             };
@@ -8165,7 +8165,7 @@ export interface components {
             /** @description Current usage against the organization's plan allowances. */
             plan_usage: components["schemas"]["PlanUsage"];
             /** @description The most recent discovery runs, newest first. */
-            recent_discoveries: components["schemas"]["Discovery"][];
+            recent_discoveries: components["schemas"]["RecentDiscovery"][];
             /** @description Per-site counts for every site the caller can see. */
             sites: components["schemas"]["SiteSummary"][];
         };
@@ -12858,6 +12858,13 @@ export interface components {
             /** @description Whether a password must be supplied before the topology is returned. */
             requires_password: boolean;
         };
+        /** @description A recent discovery run with its warnings counted by remedy. */
+        RecentDiscovery: {
+            /** @description The historical run. */
+            discovery: components["schemas"]["Discovery"];
+            /** @description The run's warnings counted by remedy. Empty for a run that recorded none. */
+            warning_summary: components["schemas"]["RunWarningSummary"];
+        };
         /**
          * @description How a user first heard about Scanopy, as offered by the onboarding prompt.
          * @enum {string}
@@ -12901,6 +12908,16 @@ export interface components {
             url: string;
             /** @description The release, as semver (e.g. `0.18.0`). */
             version: string;
+        };
+        /** @description The number of a run's warnings on one [`WarningRemedy`] rung. */
+        RemedyCount: {
+            /**
+             * Format: int32
+             * @description Warnings on that rung.
+             */
+            count: number;
+            /** @description The rung these warnings sit on. */
+            remedy: components["schemas"]["WarningRemedy"];
         };
         RequestEmailChangeRequest: {
             /**
@@ -12997,6 +13014,24 @@ export interface components {
             readonly last_run?: string | null;
             /** @enum {string} */
             type: "AdHoc";
+        };
+        /** @description One run's warnings, counted by remedy. */
+        RunWarningSummary: {
+            /**
+             * Format: int32
+             * @description Warnings whose remedy asks the reader to act ([`WarningRemedy::is_actionable`]).
+             */
+            actionable: number;
+            /**
+             * @description Counts per remedy in [`WarningRemedy`] declaration order. Rungs with no warnings are left
+             *     out.
+             */
+            by_remedy: components["schemas"]["RemedyCount"][];
+            /**
+             * Format: int32
+             * @description Every warning the run recorded.
+             */
+            total: number;
         };
         /**
          * @description Save-offer choices presented during in-app cancellation (Phase 5).
@@ -15098,6 +15133,19 @@ export interface components {
             /** @description Whether the scan found the address after the packets went out. */
             woke: boolean;
         };
+        /**
+         * @description What a warning asks of the person reading it.
+         *
+         *     The rung a code sits on *is* its instruction, which is why the warning list is grouped by this
+         *     and not by [`Severity`]: a reader scanning a completed run needs to know whether they are being
+         *     asked for something before they need to know how much data was lost. It reaches the UI as each
+         *     code's `category`, with this enum's own registry supplying the heading — the same shape
+         *     `service-definitions.json` and `service-categories.json` use.
+         *
+         *     Declaration order is the order the sections render in, most demanding first.
+         * @enum {string}
+         */
+        WarningRemedy: "FixInScanopy" | "CheckTheDevice" | "ClearsOnTheNextScan" | "NothingToDo";
         /** @enum {string} */
         WeekStart: "monday" | "sunday";
     };

@@ -18699,7 +18699,7 @@
               "recent_discoveries": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Discovery"
+                  "$ref": "#/components/schemas/RecentDiscovery"
                 },
                 "description": "The most recent discovery runs, newest first."
               },
@@ -26735,7 +26735,7 @@
           "recent_discoveries": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Discovery"
+              "$ref": "#/components/schemas/RecentDiscovery"
             },
             "description": "The most recent discovery runs, newest first."
           },
@@ -37350,6 +37350,24 @@
           }
         }
       },
+      "RecentDiscovery": {
+        "type": "object",
+        "description": "A recent discovery run with its warnings counted by remedy.",
+        "required": [
+          "discovery",
+          "warning_summary"
+        ],
+        "properties": {
+          "discovery": {
+            "$ref": "#/components/schemas/Discovery",
+            "description": "The historical run."
+          },
+          "warning_summary": {
+            "$ref": "#/components/schemas/RunWarningSummary",
+            "description": "The run's warnings counted by remedy. Empty for a run that recorded none."
+          }
+        }
+      },
       "ReferralSource": {
         "type": "string",
         "description": "How a user first heard about Scanopy, as offered by the onboarding prompt.",
@@ -37452,6 +37470,26 @@
           "version": {
             "type": "string",
             "description": "The release, as semver (e.g. `0.18.0`)."
+          }
+        }
+      },
+      "RemedyCount": {
+        "type": "object",
+        "description": "The number of a run's warnings on one [`WarningRemedy`] rung.",
+        "required": [
+          "remedy",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Warnings on that rung.",
+            "minimum": 0
+          },
+          "remedy": {
+            "$ref": "#/components/schemas/WarningRemedy",
+            "description": "The rung these warnings sit on."
           }
         }
       },
@@ -37644,6 +37682,36 @@
             }
           }
         ]
+      },
+      "RunWarningSummary": {
+        "type": "object",
+        "description": "One run's warnings, counted by remedy.",
+        "required": [
+          "by_remedy",
+          "actionable",
+          "total"
+        ],
+        "properties": {
+          "actionable": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Warnings whose remedy asks the reader to act ([`WarningRemedy::is_actionable`]).",
+            "minimum": 0
+          },
+          "by_remedy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemedyCount"
+            },
+            "description": "Counts per remedy in [`WarningRemedy`] declaration order. Rungs with no warnings are left\nout."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Every warning the run recorded.",
+            "minimum": 0
+          }
+        }
       },
       "SaveOffer": {
         "type": "string",
@@ -41804,6 +41872,16 @@
             "description": "Whether the scan found the address after the packets went out."
           }
         }
+      },
+      "WarningRemedy": {
+        "type": "string",
+        "description": "What a warning asks of the person reading it.\n\nThe rung a code sits on *is* its instruction, which is why the warning list is grouped by this\nand not by [`Severity`]: a reader scanning a completed run needs to know whether they are being\nasked for something before they need to know how much data was lost. It reaches the UI as each\ncode's `category`, with this enum's own registry supplying the heading — the same shape\n`service-definitions.json` and `service-categories.json` use.\n\nDeclaration order is the order the sections render in, most demanding first.",
+        "enum": [
+          "FixInScanopy",
+          "CheckTheDevice",
+          "ClearsOnTheNextScan",
+          "NothingToDo"
+        ]
       },
       "WeekStart": {
         "type": "string",
