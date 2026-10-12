@@ -31,6 +31,7 @@ erDiagram
 "public.topologies" }o--|| "public.sites" : "FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE"
 "public.tags" }o--|| "public.organizations" : "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
 "public.tags" }o--o| "public.snapshots" : "FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE"
+"public.tags" }o--o| "public.tag_groups" : "FOREIGN KEY (tag_group_id) REFERENCES tag_groups(id) ON DELETE SET NULL"
 "public.invites" }o--|| "public.users" : "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE"
 "public.invites" }o--|| "public.organizations" : "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
 "public.shares" }o--|| "public.users" : "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE"
@@ -100,6 +101,7 @@ erDiagram
 "public.interface_neighbor_hosts" }o--|| "public.hosts" : "FOREIGN KEY (neighbor_host_id) REFERENCES hosts(id) ON DELETE CASCADE"
 "public.interface_neighbor_hosts" }o--|| "public.interfaces" : "FOREIGN KEY (interface_id) REFERENCES interfaces(id) ON DELETE CASCADE"
 "public.interface_neighbor_hosts" }o--o| "public.snapshots" : "FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE"
+"public.tag_groups" }o--|| "public.organizations" : "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
 
 "public._sqlx_migrations" {
   bigint version
@@ -131,6 +133,8 @@ erDiagram
   jsonb email_settings
   bigint session_epoch
   jsonb display_settings
+  uuid email_unsubscribe_token
+  text release_notes_seen_version
 }
 "public.sites" {
   uuid id
@@ -150,7 +154,6 @@ erDiagram
   jsonb virtualization_metadata
   timestamp_with_time_zone created_at
   timestamp_with_time_zone updated_at
-  boolean hidden
   text sys_descr
   text sys_object_id
   text sys_location
@@ -301,7 +304,6 @@ erDiagram
   timestamp_with_time_zone created_at
   timestamp_with_time_zone updated_at
   jsonb onboarding
-  text brevo_company_id
   boolean has_payment_method
   timestamp_with_time_zone trial_end_date
   text use_case
@@ -339,13 +341,13 @@ erDiagram
   timestamp_with_time_zone created_at
   timestamp_with_time_zone updated_at
   text color
-  boolean is_application
   timestamp_with_time_zone valid_from
   timestamp_with_time_zone valid_to
   uuid lineage_id
   uuid snapshot_id FK
-  text tag_group
   text icon
+  uuid tag_group_id FK
+  integer position
 }
 "public.invites" {
   uuid id
@@ -399,6 +401,7 @@ erDiagram
   uuid first_discovery_id FK
   uuid snapshot_id FK
   jsonb mac_address_source
+  jsonb ip_address_source
 }
 "public.ports" {
   uuid id
@@ -416,6 +419,7 @@ erDiagram
   uuid last_discovery_id FK
   uuid first_discovery_id FK
   uuid snapshot_id FK
+  jsonb port_source
 }
 "public.bindings" {
   uuid id
@@ -504,6 +508,9 @@ erDiagram
   uuid snapshot_id FK
   jsonb mac_address_source
   boolean ip_configured
+  jsonb interface_source
+  jsonb fdb_macs_source
+  jsonb vlan_membership_source
 }
 "public.credentials" {
   uuid id
@@ -579,6 +586,7 @@ erDiagram
   text cdp_platform
   inet cdp_address
   timestamp_with_time_zone created_at
+  jsonb evidence_source
 }
 "public.interface_neighbor_interfaces" {
   uuid id
@@ -611,6 +619,24 @@ erDiagram
   uuid last_discovery_id
   uuid first_discovery_id
   uuid snapshot_id FK
+}
+"public.tag_groups" {
+  uuid id
+  uuid organization_id FK
+  text name
+  text description
+  text group_type
+  text__ entity_types
+  boolean ordered
+  timestamp_with_time_zone created_at
+  timestamp_with_time_zone updated_at
+}
+"public.release_announcements" {
+  uuid id
+  text version
+  timestamp_with_time_zone email_sent_at
+  timestamp_with_time_zone created_at
+  timestamp_with_time_zone updated_at
 }
 "tower_sessions.session" {
   text id
