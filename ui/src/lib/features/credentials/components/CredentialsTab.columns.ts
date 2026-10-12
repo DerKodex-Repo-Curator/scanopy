@@ -4,7 +4,7 @@ import { defineRegistryFields } from '$lib/shared/entity-fields/table';
 import type { EntityLookup } from '$lib/shared/entity-fields';
 import type { Site } from '$lib/features/sites/types';
 import type { Tag } from '$lib/features/tags/types/base';
-import { credentialTypes, entities } from '$lib/shared/stores/metadata';
+import { credentialIntegrations, credentialTypes, entities } from '$lib/shared/stores/metadata';
 import {
 	getCredentialTypeId,
 	getStabilityTagProps,
@@ -17,6 +17,7 @@ import osFamilies from '$lib/data/os-families.json';
 import {
 	common_beta,
 	common_created,
+	common_integration,
 	common_type,
 	common_updated,
 	credentials_unofficialApi,
@@ -26,6 +27,11 @@ import {
 	common_targets
 } from '$lib/paraglide/messages';
 import { tagNames } from '$lib/features/tags/columns';
+
+/** The integration a credential's type belongs to, as its `credentialIntegrations` id. */
+function integrationId(item: Credential): string {
+	return credentialTypes.getMetadata(getCredentialTypeId(item))?.integration ?? '';
+}
 
 /** What the credential columns read from the tab, each as a getter or function so values stay live. */
 export interface CredentialColumnsContext {
@@ -72,12 +78,39 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				display: { hiddenByDefault: true }
 			},
 			{
+				// The integration a credential's type is a transport of (e.g. Docker for both the
+				// socket and the proxy). The axis credentials are organized by.
+				key: 'integration',
+				label: common_integration(),
+				type: 'string',
+				searchable: true,
+				filterable: true,
+				groupable: true,
+				sortable: true,
+				filterMode: 'include',
+				filterOptions: credentialIntegrations
+					.getItems()
+					.map((i) => credentialIntegrations.getName(i.id)),
+				getValue: (item: Credential) => credentialIntegrations.getName(integrationId(item)),
+				display: {
+					getItems: (item: Credential) => {
+						const id = integrationId(item);
+						return [
+							{
+								id,
+								...credentialIntegrations.getTag(id),
+								icon: credentialIntegrations.getIconComponent(id)
+							}
+						];
+					}
+				}
+			},
+			{
 				key: 'credential_type',
 				label: common_type(),
 				type: 'string',
 				searchable: true,
 				filterable: true,
-				// Type is the axis credentials are actually organized by.
 				groupable: true,
 				sortable: true,
 				filterMode: 'include',

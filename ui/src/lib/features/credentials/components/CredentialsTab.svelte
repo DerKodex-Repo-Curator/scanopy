@@ -257,8 +257,8 @@
 		return credential.tags;
 	}
 
-	const tableDefaults: TableDefaults<CredentialOrderField | 'credential_type'> = {
-		group: 'credential_type',
+	const tableDefaults: TableDefaults<CredentialOrderField | 'credential_type' | 'integration'> = {
+		group: 'integration',
 		sort: { field: 'name', direction: 'asc' }
 	};
 
