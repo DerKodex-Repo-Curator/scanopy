@@ -26,7 +26,10 @@
     "DnsSdAirPlayMatch",
     "ContainerRuntimeInfo",
     "HypervisorConfig",
-    "GuestAgent"
+    "GuestAgent",
+    "Lldpd",
+    "IcmpEcho",
+    "PortScan"
   ],
   "AuthenticatedEntity": [
     "User",
@@ -253,7 +256,8 @@
     "Dependency",
     "Topology",
     "Snapshot",
-    "Unknown"
+    "Unknown",
+    "TagGroup"
   ],
   "EntitySource": [
     "Manual",
@@ -368,7 +372,8 @@
     "ProfileCompleted",
     "ReferralSourceCompleted",
     "DaemonPromptDismissed",
-    "DaemonPromptAccepted"
+    "DaemonPromptAccepted",
+    "FirstInterfaceCredentialCreated"
   ],
   "OsFamily": [
     "Unix",
