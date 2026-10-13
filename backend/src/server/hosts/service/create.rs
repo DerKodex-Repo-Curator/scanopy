@@ -1109,35 +1109,6 @@ impl HostService {
         let mut created_services = Vec::new();
 
         for service in services {
-            // DIAGNOSTIC (GH #784): the bindings each service arrives with, as (port, address).
-            // Remove once the loopback-scoped container publish is traced.
-            let incoming: Vec<(String, String)> = service
-                .base
-                .bindings
-                .iter()
-                .map(|b| {
-                    let port = b
-                        .port_id()
-                        .and_then(|id| original_ports.iter().find(|p| p.id == id))
-                        .map_or("-".to_string(), |p| p.base.port_type.number().to_string());
-                    let ip = b.ip_address_id().map_or("ALL".to_string(), |id| {
-                        original_ip_addresses
-                            .iter()
-                            .find(|i| i.id == id)
-                            .map_or(format!("unknown {id}"), |i| i.base.ip_address.to_string())
-                    });
-                    (port, ip)
-                })
-                .collect();
-            tracing::info!(
-                diag = "gh784",
-                host_id = %created_host.id,
-                service_name = %service.base.name,
-                service_definition = %service.base.service_definition.name(),
-                bindings = ?incoming,
-                "Incoming service bindings"
-            );
-
             let mut reassigned = self
                 .service_service
                 .reassign_service_interface_bindings(
