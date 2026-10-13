@@ -2,11 +2,13 @@ import { get, writable } from 'svelte/store';
 import { SvelteSet } from 'svelte/reactivity';
 import type { EntityDiscriminants } from '$lib/api/entities';
 import { entityModalNames, entityUIConfig, TAB_LABELS } from '$lib/shared/entity-ui-config';
-import { reopenGlobalSearch, type GlobalSearchState } from '$lib/features/search/results';
-
-/** Return-URL parameters carrying the global search an entity was opened from: its text and tag chips. */
-const RETURN_SEARCH_PARAM = 'search';
-const RETURN_SEARCH_TAGS_PARAM = 'searchTags';
+import {
+	globalSearchFromUrl,
+	globalSearchUrlParams,
+	reopenGlobalSearch,
+	type GlobalSearchState
+} from '$lib/features/search/results';
+import { registerUrlOwner, syncUrl, takeInitialParams, URL_SCOPES } from './url-state';
 
 export interface ModalState {
 	name: string | null;
@@ -64,7 +66,7 @@ export function openModal(
 		prefill: opts?.prefill
 	};
 	modalState.set(state);
-	syncToUrl(state);
+	syncUrl();
 }
 
 /**
@@ -72,7 +74,7 @@ export function openModal(
  */
 export function closeModal(): void {
 	modalState.set({ ...EMPTY_STATE });
-	syncToUrl(EMPTY_STATE);
+	syncUrl();
 }
 
 /**
@@ -88,7 +90,7 @@ export function closeModal(): void {
  */
 export function restoreModal(state: ModalState): void {
 	modalState.set({ ...state });
-	syncToUrl(state);
+	syncUrl();
 }
 
 /**
@@ -103,13 +105,12 @@ export function goBack(): void {
 	// Set hash (triggers tab reactivity)
 	window.location.hash = target.hash || '';
 
-	// Opened from the global search palette, which lives outside the URL: close this modal and reopen the
-	// palette on the query it was opened from.
-	const returnSearch = target.searchParams.get(RETURN_SEARCH_PARAM);
-	if (returnSearch !== null) {
+	// Opened from the global search palette: close this modal and reopen the palette on the search it
+	// was opened from, which the return URL carries as the palette's own params.
+	const returnSearch = globalSearchFromUrl(target.searchParams);
+	if (returnSearch) {
 		closeModal();
-		const tags = target.searchParams.get(RETURN_SEARCH_TAGS_PARAM);
-		reopenGlobalSearch({ text: returnSearch, tagIds: tags ? tags.split(',') : [] });
+		reopenGlobalSearch(returnSearch);
 		return;
 	}
 
@@ -132,7 +133,7 @@ export function goBack(): void {
 export function setModalTab(tab: string): void {
 	modalState.update((s) => {
 		const next = { ...s, tab };
-		syncToUrl(next);
+		syncUrl();
 		return next;
 	});
 }
@@ -142,7 +143,7 @@ export function setModalTab(tab: string): void {
  */
 export function initModalFromUrl(): void {
 	if (typeof window === 'undefined') return;
-	const params = new URLSearchParams(window.location.search);
+	const params = takeInitialParams('modal');
 	const name = params.get('modal');
 	if (!name) return;
 	// Support was its own modal before it became a Settings tab; older links
@@ -187,11 +188,18 @@ export function navigateToEntity(
 
 	// Snapshot current URL and modal title before navigation so the back button can return here
 	let returnUrl = typeof window !== 'undefined' ? window.location.href : undefined;
-	if (returnUrl && opts?.returnSearch !== undefined) {
+	// The palette's params mark it open. Set from the search the entity was opened from, or dropped so
+	// the back button doesn't reopen a palette the entity wasn't opened from.
+	if (
+		returnUrl &&
+		(opts?.returnSearch !== undefined || globalSearchFromUrl(new URL(returnUrl).searchParams))
+	) {
 		const url = new URL(returnUrl);
-		url.searchParams.set(RETURN_SEARCH_PARAM, opts.returnSearch.text);
-		if (opts.returnSearch.tagIds.length > 0) {
-			url.searchParams.set(RETURN_SEARCH_TAGS_PARAM, opts.returnSearch.tagIds.join(','));
+		for (const key of URL_SCOPES.search.keys) url.searchParams.delete(key);
+		if (opts?.returnSearch) {
+			for (const [key, value] of globalSearchUrlParams(opts.returnSearch)) {
+				url.searchParams.append(key, value);
+			}
 		}
 		returnUrl = url.toString();
 	}
@@ -270,43 +278,25 @@ function captureReturnTitle(): string | undefined {
 	return TAB_LABELS[tabId] || undefined;
 }
 
-function syncToUrl(state: ModalState): void {
-	if (typeof window === 'undefined') return;
-	const url = new URL(window.location.href);
-	if (state.name) {
-		url.searchParams.set('modal', state.name);
-		if (state.id) {
-			url.searchParams.set('id', state.id);
-		} else {
-			url.searchParams.delete('id');
-		}
-		if (state.tab) {
-			url.searchParams.set('tab', state.tab);
-		} else {
-			url.searchParams.delete('tab');
-		}
-		if (state.subEntityId) {
-			url.searchParams.set('subEntityId', state.subEntityId);
-		} else {
-			url.searchParams.delete('subEntityId');
-		}
-		for (const key of PREFILL_PARAMS) {
-			const value = state.prefill?.[key];
-			if (value) {
-				url.searchParams.set(key, value);
-			} else {
-				url.searchParams.delete(key);
-			}
-		}
-	} else {
-		url.searchParams.delete('modal');
-		url.searchParams.delete('id');
-		url.searchParams.delete('tab');
-		url.searchParams.delete('subEntityId');
-		for (const key of PREFILL_PARAMS) url.searchParams.delete(key);
+/** The modal's URL params. A modal opens over any tab, so they show on every one. */
+function modalParams(state: ModalState): Record<string, string> {
+	if (!state.name) return {};
+	const params: Record<string, string> = { modal: state.name };
+	if (state.id) params.id = state.id;
+	if (state.tab) params.tab = state.tab;
+	if (state.subEntityId) params.subEntityId = state.subEntityId;
+	for (const key of PREFILL_PARAMS) {
+		const value = state.prefill?.[key];
+		if (value) params[key] = value;
 	}
-	window.history.replaceState({}, '', url.toString());
+	return params;
 }
+
+registerUrlOwner({
+	scope: 'modal',
+	isActive: () => true,
+	params: () => new URLSearchParams(modalParams(get(modalState)))
+});
 
 /**
  * An entity list on screen, as its rows render: filtered, sorted, grouped and paginated.

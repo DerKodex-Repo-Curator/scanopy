@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
 	columnControls,
 	columnControlState,
@@ -198,7 +198,6 @@ describe('dropHiddenColumnState', () => {
 		expect(next.filterState.tags.values.has('t1')).toBe(true);
 		expect(next.sortState).toEqual({ field: null, direction: 'asc' });
 		expect(next.groupField).toBeNull();
-		expect(next.serverKeys).toEqual([]);
 	});
 
 	it('keeps sort and group on visible columns while clearing a hidden filter', () => {
@@ -216,17 +215,17 @@ describe('dropHiddenColumnState', () => {
 		expect(next.groupField).toBe('status');
 	});
 
-	it('names the cleared server-side filters so the parent can be told', () => {
-		let filterState = filtersWith((s) => toggleValue(s, 'category', 'Media'));
-		filterState = toggleBoolean(filterState, 'hidden', 'showTrue', true)!.state;
-		const next = dropHiddenColumnState(
-			bound({ filterState }),
-			FIELDS,
-			without('category', 'hidden')
-		)!;
+	it('resets a hidden boolean to both boxes, which is no constraint', () => {
+		const filterState = toggleBoolean(
+			filtersWith((s) => s),
+			'hidden',
+			'showTrue',
+			true
+		)!.state;
+		const next = dropHiddenColumnState(bound({ filterState }), FIELDS, without('hidden'))!;
 
-		expect(next.serverKeys.sort()).toEqual(['category', 'hidden']);
 		expect(next.filterState.hidden.showTrue).toBe(true);
+		expect(next.filterState.hidden.showFalse).toBe(true);
 	});
 
 	it('clears staleness when its column is hidden', () => {
@@ -235,7 +234,7 @@ describe('dropHiddenColumnState', () => {
 			FIELDS,
 			without('last_seen_at')
 		)!;
-		expect(next).toMatchObject({ staleOnly: false, staleCleared: true });
+		expect(next.staleOnly).toBe(false);
 	});
 
 	it('offers only rendered fields to the header controls', () => {
@@ -245,20 +244,18 @@ describe('dropHiddenColumnState', () => {
 });
 
 describe('createFilterActions', () => {
-	function setup(onFilterChange: FilterActionsContext<Row>['onFilterChange']) {
+	function setup(serverFields: boolean) {
 		const ctx: FilterActionsContext<Row> = {
 			fields: FIELDS,
 			filterState: blankFilterState(FIELDS, false),
 			staleOnly: false,
-			onFilterChange,
-			onStaleFilterChange: vi.fn(),
-			resetToFirstPage: vi.fn()
+			serverFields
 		};
 		return { ctx, actions: createFilterActions(ctx) };
 	}
 
 	it("clears one column's filter and leaves the others", () => {
-		const { ctx, actions } = setup(null);
+		const { ctx, actions } = setup(false);
 		actions.toggleString('status', 'up');
 		actions.toggleTag('t1');
 		actions.clearField('status');
@@ -267,35 +264,20 @@ describe('createFilterActions', () => {
 		expect(ctx.filterState.tags.values.has('t1')).toBe(true);
 	});
 
-	it('tells the parent a cleared server filter means no constraint', () => {
-		const onFilterChange = vi.fn();
-		const { ctx, actions } = setup(onFilterChange);
-		actions.toggleString('category', 'Media');
+	it('clears a server-side boolean to both boxes, not to an empty selection', () => {
+		// An empty selection would read as "show neither" in the query the parent sends.
+		const { ctx, actions } = setup(true);
 		actions.toggleBoolean('hidden', 'showFalse');
-		onFilterChange.mockClear();
-
-		actions.clearField('category');
 		actions.clearField('hidden');
 
-		expect(onFilterChange).toHaveBeenCalledWith('category', []);
-		// Both boxes, not an empty selection, which a parent would read as "show neither".
-		expect(onFilterChange).toHaveBeenCalledWith('hidden', ['true', 'false']);
-		expect(ctx.resetToFirstPage).toHaveBeenCalled();
-	});
-
-	it('does not notify the parent for a client-side filter', () => {
-		const onFilterChange = vi.fn();
-		const { actions } = setup(onFilterChange);
-		actions.toggleString('status', 'up');
-		actions.clearField('status');
-		expect(onFilterChange).not.toHaveBeenCalled();
+		expect(ctx.filterState.hidden.showTrue).toBe(true);
+		expect(ctx.filterState.hidden.showFalse).toBe(true);
 	});
 
 	it("clears staleness from its column's clear", () => {
-		const { ctx, actions } = setup(null);
+		const { ctx, actions } = setup(false);
 		actions.toggleStale();
 		actions.clearField('last_seen_at');
 		expect(ctx.staleOnly).toBe(false);
-		expect(ctx.onStaleFilterChange).toHaveBeenLastCalledWith(null);
 	});
 });

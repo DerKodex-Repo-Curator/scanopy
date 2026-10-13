@@ -8,8 +8,14 @@ import type { SortState } from './sorting';
  *
  * Builds before 2 wrote a null sort and a null group on a tab's first mount, so
  * in an older blob a null is the absence of a choice, not a choice of "none".
+ * Builds before 3 stored filter selections as the labels the panel showed (a
+ * site's name) rather than the values the API filters on (its id), so their
+ * filters are dropped rather than restored as selections that match nothing.
  */
-export const STORED_STATE_VERSION = 2;
+export const STORED_STATE_VERSION = 3;
+
+/** The first format whose null sort and group are a choice of "none". */
+const EXPLICIT_ORDERING_VERSION = 2;
 
 /** Filter selections as they sit in localStorage — sets marshalled to arrays. */
 export interface StoredFieldFilter {
@@ -68,7 +74,7 @@ function isPageSize(raw: unknown): raw is PageSizeOption {
 	return PAGE_SIZE_OPTIONS.includes(raw as PageSizeOption);
 }
 
-function parseSortState(raw: unknown, current: boolean): SortState | undefined {
+export function parseSortState(raw: unknown, current: boolean): SortState | undefined {
 	if (!raw || typeof raw !== 'object') return undefined;
 	const value = raw as Partial<SortState>;
 	const field = typeof value.field === 'string' ? value.field : null;
@@ -81,7 +87,7 @@ function parseGroupField(raw: unknown, current: boolean): string | null | undefi
 	return raw === null && current ? null : undefined;
 }
 
-function parseFilterState(raw: unknown): Record<string, StoredFieldFilter> {
+export function parseFilterState(raw: unknown): Record<string, StoredFieldFilter> {
 	if (!raw || typeof raw !== 'object') return {};
 
 	const out: Record<string, StoredFieldFilter> = {};
@@ -117,14 +123,15 @@ export function parseStoredState(raw: string | null): StoredState | null {
 
 	if (!parsed || typeof parsed !== 'object') return null;
 	const state = parsed as Record<string, unknown>;
-	const current = state.version === STORED_STATE_VERSION;
+	const version = typeof state.version === 'number' ? state.version : 0;
+	const current = version >= EXPLICIT_ORDERING_VERSION;
 
 	// A retired `viewMode` (card view) or `showFilters` key is simply not read:
 	// every tab renders the table.
 	return {
 		version: STORED_STATE_VERSION,
 		searchQuery: typeof state.searchQuery === 'string' ? state.searchQuery : '',
-		filterState: parseFilterState(state.filterState),
+		filterState: version >= STORED_STATE_VERSION ? parseFilterState(state.filterState) : {},
 		sortState: parseSortState(state.sortState, current),
 		selectedGroupField: parseGroupField(state.selectedGroupField, current),
 		currentPage:

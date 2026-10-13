@@ -9,7 +9,7 @@
 		type CardAction,
 		type TableDefaults
 	} from './types';
-	import { getUniqueValues as uniqueValuesOf } from './controls/fieldValues';
+	import { filterOptionsOf } from './controls/fieldValues';
 	import {
 		sortItems,
 		nextSortState,
@@ -22,7 +22,6 @@
 		matchesSearch,
 		matchesFilters,
 		blankFilterState,
-		restoredServerFilters,
 		hasActiveFilters as hasActiveFiltersOf,
 		activeFilterCount as activeFilterCountOf,
 		type FilterState
@@ -31,7 +30,7 @@
 	import { guardServerPaginatedConfig, guardTableDefaults } from './controls/devGuards.svelte';
 	import { columnControls, renderedFields, dropHiddenColumnState } from './controls/headerControls';
 	import { paginationView, pageSlice } from './controls/pagination';
-	import { createChangeTracker, sameOrder } from './controls/changeTracker';
+	import { createChangeTracker } from './controls/changeTracker';
 	import {
 		groupItems as groupItemsBy,
 		buildTreeSections,
@@ -59,6 +58,18 @@
 		STORED_STATE_VERSION,
 		type OrderingChoice
 	} from './controls/dataControlsStorage';
+	import {
+		CLIENT_QUERY,
+		decodeFilters,
+		decodeListParams,
+		hasListParams,
+		listParamKeys,
+		listParams,
+		PAGE_PARAM,
+		SELECTED_PARAM,
+		type ServerQuery
+	} from './controls/listQuery';
+	import { registerUrlOwner, syncUrl, takeInitialParams } from '$lib/shared/stores/url-state';
 	import ControlsBar from './controls/ControlsBar.svelte';
 	import ColumnControlsMenu from './table/ColumnControlsMenu.svelte';
 	import TagPickerInline from '$lib/features/tags/components/TagPickerInline.svelte';
@@ -138,21 +149,11 @@
 		// Server-side pagination (optional)
 		serverPagination = null,
 		onPageChange = null,
-		// Server-side ordering callback (optional)
-		// Called when grouping or sorting changes, allowing parent to update query params
-		onOrderChange = null,
-		// Server-side tag filtering callback (optional)
-		// Called when tag filter selection changes, with array of selected tag IDs
-		onTagFilterChange = null,
-		// Server-side field filter callback (optional)
-		// Called when a `serverFiltered` field's selection changes
-		onFilterChange = null,
-		// Server-side staleness filtering callback (optional)
-		// Called when the "Stale only" toggle changes
-		onStaleFilterChange = null,
-		// Server-side search callback (optional)
-		// Called (debounced) when the search box changes
-		onSearchChange = null,
+		// Server-side query (optional): the request the parent sends its endpoint, in the endpoint's
+		// own param names. Called once the view is restored and on every change after.
+		onQueryChange = null,
+		// Which parts of the view the server applies from that query. Absent: every part.
+		serverQuery = null,
 		// CSV export callback (optional, default behavior)
 		// Called when user clicks export button; parent handles the actual export
 		onCsvExport = null,
@@ -189,28 +190,14 @@
 		// Callback receives both page and pageSize so parent can use in query
 		serverPagination?: PaginationMeta | null;
 		onPageChange?: ((page: number, pageSize: number) => void) | null;
-		// Server-side ordering: called when group/sort changes
-		// Args: (groupBy field key, orderBy field key, direction)
-		onOrderChange?:
-			((groupBy: string | null, orderBy: string | null, direction: 'asc' | 'desc') => void) | null;
-		// Server-side tag filtering: called when tag filter changes
-		// Args: array of tag IDs to filter by
-		onTagFilterChange?: ((tagIds: string[]) => void) | null;
-		// Server-side field filter: called when a field marked `serverFiltered`
-		// changes. Args: (fieldKey, selected values). The field opts in explicitly
-		// rather than this applying to every filter, so a key the parent doesn't
-		// handle keeps its client-side filtering instead of silently doing nothing.
-		onFilterChange?: ((fieldKey: string, values: string[]) => void) | null;
-		// Server-side staleness filtering: called when the "Stale only" toggle
-		// changes. `true` = only stale, `null` = no staleness constraint.
-		// Server-side because these lists are server-paginated — a client-side
-		// filter would only ever filter the page currently loaded.
-		onStaleFilterChange?: ((stale: boolean | null) => void) | null;
-		// Server-side search: called with the current query, debounced.
-		// Server-side for the same reason as the filters above — searching the
-		// loaded page would silently miss every match on another page. Lists
-		// that load everything omit this and keep the client-side search.
-		onSearchChange?: ((query: string) => void) | null;
+		// Server-side query: search, tags, staleness, ordering and `serverFiltered` fields, as the
+		// endpoint takes them. The same params, plus `page` and `selected`, are the list's URL, so a
+		// link and an API call with this query return the same rows. Server-side because the client
+		// would only ever narrow the page it holds. Search is throttled.
+		onQueryChange?: ((query: URLSearchParams) => void) | null;
+		// The parts of the view the server applies. A list held whole that sends only staleness to
+		// its endpoint passes the rest as false.
+		serverQuery?: Partial<ServerQuery> | null;
 		// CSV export: default behavior when user clicks export button
 		onCsvExport?: (() => void | Promise<void>) | null;
 		// Export button click override: if provided, replaces onCsvExport entirely
@@ -231,6 +218,9 @@
 	const tagGroupsQuery = useTagGroupsQuery();
 	let tagGroups = $derived(tagGroupsQuery.data ?? []);
 
+	// Check if using server-side pagination
+	let useServerPagination = $derived(serverPagination !== null && onPageChange !== null);
+
 	/**
 	 * The tab's fields, then one per tag group that applies to the rows, built here so every
 	 * taggable table gets them: hidden until shown, and sorted, filtered and grouped like any other
@@ -244,11 +234,18 @@
 					tags: allTags,
 					entityType,
 					getItemTags,
-					serverPaginated: serverPagination !== null && onPageChange !== null,
+					serverPaginated: useServerPagination,
 					cell: canEditTags ? tagGroupCell : undefined
 				})
 			: [])
 	]);
+
+	/** What the server applies from the query. A list without `onQueryChange` applies everything here. */
+	let server = $derived<ServerQuery>(
+		onQueryChange
+			? { search: true, tags: true, stale: true, order: true, fields: true, ...serverQuery }
+			: CLIENT_QUERY
+	);
 
 	// Bulk tag mutations
 	const bulkAddTagMutation = useBulkAddTagMutation();
@@ -256,6 +253,10 @@
 
 	// Search state
 	let searchQuery = $state('');
+	/** The search as last sent to the parent and the URL; trails `searchQuery` by the throttle. */
+	let sentSearch = $state('');
+	/** Whether the parent has had its first query, sent once the view is restored. */
+	let queryNotified = false;
 
 	// Filter state. The shape lives with the filtering logic that reads it, so
 	// there is one definition of what a filter selection is.
@@ -302,10 +303,6 @@
 		if (state.columnOrder) columnOrder = state.columnOrder;
 		if (state.columnSizing) columnSizing = state.columnSizing;
 
-		// Before the restored filters are replayed to the parent, so a dropped
-		// one is simply never sent.
-		dropHiddenColumns(false);
-
 		if (state.pageSize) {
 			pageSize = state.pageSize;
 			return state.pageSize;
@@ -313,6 +310,60 @@
 
 		return null;
 	}
+
+	/**
+	 * Apply the view a link carried, over what localStorage restored, for each param it carries.
+	 * Only the list on screen takes it: every list tab is mounted, and the link describes one.
+	 */
+	function loadUrlView() {
+		if (!isOnVisiblePage(rootRef)) return;
+
+		const params = takeInitialParams('list');
+		if (params.size === 0) return;
+		linkParams = params;
+		// Plain on purpose: the late-field effect writes it, so tracking it would re-run that effect.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		linkFieldKeys = new Set(fields.filter(optionsReady).map(getFieldKey));
+		if (!hasListParams(params, fields)) return;
+
+		// A link describes the whole view: what it leaves out is at its default, not at whatever this
+		// browser last saved.
+		const view = decodeListParams(params, fields);
+		searchQuery = view.search;
+		filterState = reviveFilterState(view.filterState);
+		staleOnly = view.staleOnly;
+		ordering = { sort: view.sort, group: view.group };
+		currentPage = view.page ?? 1;
+		selectedIds.clear();
+		view.selected?.forEach((id) => selectedIds.add(id));
+
+		seedFilterDefaults = false;
+	}
+
+	/**
+	 * The link the list opened with, kept for fields that arrive after mount (tag-group columns wait
+	 * on the tag groups), whose filters it applies once they exist.
+	 */
+	let linkParams: URLSearchParams | null = null;
+	let linkFieldKeys = new Set<string>();
+
+	/** Whether a field can read its params: a tag group can't before its tags load. */
+	function optionsReady(field: FieldConfig<T>): boolean {
+		return field.filterOptions === undefined || field.filterOptions.length > 0;
+	}
+
+	$effect(() => {
+		if (!linkParams) return;
+		const late = fields.filter(
+			(field) => !linkFieldKeys.has(getFieldKey(field)) && optionsReady(field)
+		);
+		if (late.length === 0) return;
+		late.forEach((field) => linkFieldKeys.add(getFieldKey(field)));
+		const filters = decodeFilters(linkParams, late);
+		if (Object.keys(filters).length > 0) {
+			filterState = { ...filterState, ...reviveFilterState(filters) };
+		}
+	});
 
 	// Save state to localStorage
 	function saveState() {
@@ -339,9 +390,15 @@
 		}
 	}
 
+	/**
+	 * Whether a field missing from the filters starts at its `filterDefaults`. Not under a link: it
+	 * lists every active filter, so a field it leaves out had none.
+	 */
+	let seedFilterDefaults = true;
+
 	// Seed a filter for any field that lacks one, leaving restored state alone.
 	$effect(() => {
-		const seeded = blankFilterState(fields, true);
+		const seeded = blankFilterState(fields, seedFilterDefaults);
 		for (const [key, filter] of Object.entries(seeded)) {
 			if (!filterState[key]) filterState[key] = filter;
 		}
@@ -350,33 +407,15 @@
 	// Load state on mount and set up auto-save
 	onMount(() => {
 		const restoredPageSize = loadState();
+		loadUrlView();
 
-		// Notify parent of restored state for server-side pagination
-		// This ensures the parent's query uses the restored pageSize
-		if (restoredPageSize && onPageChange) {
-			onPageChange(currentPage, restoredPageSize);
-		}
+		// Before the first query reaches the parent, so a dropped filter is simply never sent.
+		dropHiddenColumns();
+		sentSearch = searchQuery;
 
-		// Notify parent of the ordering in force, restored or default. Always, so
-		// a saved "no grouping" also replaces the default the parent started with.
-		onOrderChange?.(activeGroupField, activeSort.field, activeSort.direction);
-
-		// Notify parent of restored search state
-		if (onSearchChange && searchQuery.trim()) {
-			onSearchChange(searchQuery);
-		}
-
-		// Notify parent of restored tag filter state
-		const tagFilter = filterState['tags'];
-		if (onTagFilterChange && tagFilter && tagFilter.values.size > 0) {
-			onTagFilterChange(Array.from(tagFilter.values));
-		}
-
-		// Notify parent of restored server-side filter state
-		if (onFilterChange) {
-			for (const { key, values } of restoredServerFilters(fields, filterState)) {
-				onFilterChange(key, values);
-			}
+		// The parent's query has to use the restored page and page size.
+		if (onPageChange && (restoredPageSize || currentPage !== 1)) {
+			onPageChange(currentPage, pageSize);
 		}
 
 		// Set up reactive save (debounced)
@@ -408,13 +447,10 @@
 		};
 	});
 
-	// Get unique string values for a field (handles arrays by flattening)
-	function getUniqueValues(field: FieldConfig<T>): string[] {
-		return uniqueValuesOf(items, field);
+	// The values a field's filter offers, ordered by label
+	function getFilterOptions(field: FieldConfig<T>): string[] {
+		return filterOptionsOf(items, field);
 	}
-
-	// Check if using server-side pagination
-	let useServerPagination = $derived(serverPagination !== null && onPageChange !== null);
 
 	// ---- Table columns -------------------------------------------------------
 
@@ -443,7 +479,7 @@
 	let renderedColumnIds = $derived(new Set(renderedColumns.map((c) => c.id)));
 	/** The fields the list filters, sorts and groups by: those with a rendered column. */
 	let columnFields = $derived(renderedFields(fields, renderedColumnIds));
-	let staleAvailable = $derived(onStaleFilterChange !== null);
+	let staleAvailable = $derived(server.stale);
 
 	// Under server pagination only server-orderable fields are offered: the
 	// client holds one page, so sorting or grouping it here would describe that
@@ -466,19 +502,16 @@
 
 	// Apply all filters, sorting, and grouping
 	let processedItems = $derived.by(() => {
-		const serverMode = {
-			tags: onTagFilterChange !== null,
-			fields: onFilterChange !== null
-		};
+		const serverMode = { tags: server.tags, fields: server.fields };
 
 		const result = items.filter((item) => {
 			// Search is skipped when the parent searches server-side — the rows that
 			// arrived are already the matches.
-			if (!onSearchChange && !matchesSearch(item, fields, searchQuery)) return false;
+			if (!server.search && !matchesSearch(item, fields, searchQuery)) return false;
 			return matchesFilters(item, fields, filterState, serverMode, getItemTags);
 		});
 
-		return sortItems(result, fields, activeSort, onOrderChange !== null, useServerPagination);
+		return sortItems(result, fields, activeSort, server.order, useServerPagination);
 	});
 
 	// Per-group totals across every page, when the server supplied them.
@@ -600,26 +633,21 @@
 		set staleOnly(next) {
 			staleOnly = next;
 		},
-		get onFilterChange() {
-			return onFilterChange;
-		},
-		get onStaleFilterChange() {
-			return onStaleFilterChange;
-		},
-		resetToFirstPage
+		get serverFields() {
+			return server.fields;
+		}
 	});
 
 	/**
 	 * Clear whatever hidden columns filter, sort or group by. A list only
 	 * narrows and orders by columns it renders, so hiding one takes its state
-	 * with it. `notify` is false while restoring, before anything reached the
-	 * parent; the order and tag effects pick up their own changes.
+	 * with it. The query derived from that state carries the change to the parent.
 	 *
 	 * Only the user's own sort and group are cleared. A default on a hidden
 	 * column is already inert, since the list orders by rendered columns only,
 	 * and it comes back with the column.
 	 */
-	function dropHiddenColumns(notify: boolean) {
+	function dropHiddenColumns() {
 		const next = dropHiddenColumnState(
 			{
 				filterState,
@@ -638,10 +666,6 @@
 			sort: ordering.sort && next.sortState,
 			group: ordering.group === undefined ? undefined : next.groupField
 		};
-
-		if (!notify) return;
-		if (next.staleCleared) onStaleFilterChange?.(null);
-		filters.notifyServerCleared(next.serverKeys);
 	}
 
 	function clearSearch() {
@@ -649,9 +673,8 @@
 	}
 
 	/**
-	 * Everything that can narrow the list, in one action — including the
-	 * server-side ones, which `clearAll` and the search effect notify the
-	 * parent about. This is what the filtered-empty state offers, so a filter
+	 * Everything that can narrow the list, in one action, server-side ones
+	 * included. This is what the filtered-empty state offers, so a filter
 	 * that matches nothing is always reversible from where the user is looking.
 	 */
 	function clearAllNarrowing() {
@@ -713,7 +736,7 @@
 	guardServerPaginatedConfig(() => ({
 		fields,
 		serverPaginated: useServerPagination,
-		server: { tags: onTagFilterChange !== null, fields: onFilterChange !== null }
+		server: { tags: server.tags, fields: server.fields }
 	}));
 	guardTableDefaults(() => ({ fields, defaults, serverPaginated: useServerPagination }));
 
@@ -749,6 +772,49 @@
 			isVisible: () => isOnVisiblePage(sentinelRef)
 		})
 	);
+
+	// The view as URL params, so the address bar is a link to it. Written only while this list is
+	// the one on screen; switching tabs puts the next list's view there instead.
+	// The URL is the view's params plus the page and the selection, neither of which the endpoint
+	// takes: the page is an offset only with the viewer's own page size.
+	let urlView = $derived.by(() => {
+		// A fresh copy built and returned here; nothing mutates it later.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const params = new URLSearchParams(viewParams.url);
+		if (effectiveCurrentPage > 1) params.set(PAGE_PARAM, String(effectiveCurrentPage));
+		selectedIds.forEach((id) => params.append(SELECTED_PARAM, id));
+		return params;
+	});
+
+	$effect(() =>
+		registerUrlOwner({
+			scope: 'list',
+			isActive: () => isOnVisiblePage(rootRef),
+			params: () => urlView,
+			keys: () => listParamKeys(fields)
+		})
+	);
+
+	// Debounced like the localStorage save: Safari throttles a burst of history writes.
+	let urlSyncTimeout: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		void urlView;
+		clearTimeout(urlSyncTimeout);
+		urlSyncTimeout = setTimeout(() => {
+			if (isOnVisiblePage(rootRef)) syncUrl();
+		}, 100);
+		return () => clearTimeout(urlSyncTimeout);
+	});
+
+	// A list held whole drops selected ids it doesn't have: rows deleted since, or a shared link's
+	// rows the viewer can't see. A server-paginated list keeps ids on other pages.
+	$effect(() => {
+		if (useServerPagination || items.length === 0 || selectedIds.size === 0) return;
+		const present = new Set(items.map(getItemId));
+		for (const id of [...selectedIds]) {
+			if (!present.has(id)) selectedIds.delete(id);
+		}
+	});
 
 	/** The row the last plain click toggled: one end of a Shift+click block. */
 	let selectionAnchor: string | null = null;
@@ -797,7 +863,7 @@
 
 	function toggleColumn(id: string) {
 		columnVisibility = { ...columnState.visibility, [id]: columnState.visibility[id] === false };
-		dropHiddenColumns(true);
+		dropHiddenColumns();
 	}
 
 	function reorderColumns(order: string[]) {
@@ -812,7 +878,7 @@
 		columnVisibility = {};
 		columnOrder = [];
 		columnSizing = {};
-		dropHiddenColumns(true);
+		dropHiddenColumns();
 	}
 
 	// Reset to page 1 when filters/search change and current page would be out of bounds
@@ -822,59 +888,46 @@
 		}
 	});
 
-	// Each of the three trackers below skips its first run, which only restores
-	// saved state: firing there would reset the restored page to 1 on every mount.
-	const orderTracker = createChangeTracker<[string | null, string | null, 'asc' | 'desc']>((a, b) =>
-		sameOrder(a, b)
-	);
-
-	// Notify parent of ordering changes and reset pagination
-	$effect(() => {
-		const ordering: [string | null, string | null, 'asc' | 'desc'] = [
-			activeGroupField,
-			activeSort.field,
-			activeSort.direction
-		];
-
-		if (orderTracker.changed(ordering)) {
-			resetToFirstPage();
-			onOrderChange?.(...ordering);
-		}
-	});
-
-	// Trailing throttle so a burst of keystrokes costs one request and the last
-	// one is never dropped. Built once — rebuilding it per keystroke would
-	// defeat the debounce entirely.
-	const notifySearchChange = throttle(
+	// The view as the parent's endpoint and the URL take it, with the search as last sent: the box
+	// reaches both on a trailing throttle, so a burst of keystrokes costs one request and the last
+	// one is never dropped. Built once; rebuilding it per keystroke would defeat it.
+	const sendSearch = throttle(
 		(query: string) => {
-			onSearchChange?.(query);
-			// Page 3 of the old result set is meaningless against the new one.
-			resetToFirstPage();
+			sentSearch = query;
 		},
 		SEARCH_THROTTLE_MS,
 		{ leading: false, trailing: true }
 	);
 
 	const searchTracker = createChangeTracker<string>();
-
-	// Notify parent of search changes. `notifySearchChange` resets the page
-	// itself, on the throttle's trailing edge rather than per keystroke.
 	$effect(() => {
-		if (searchTracker.changed(searchQuery)) {
-			notifySearchChange(searchQuery);
-		}
+		if (searchTracker.changed(searchQuery)) sendSearch(searchQuery);
 	});
 
-	const tagFilterTracker = createChangeTracker<string[]>(sameOrder);
+	let viewParams = $derived(
+		listParams(
+			{
+				sort: activeSort,
+				group: activeGroupField,
+				filterState,
+				staleOnly,
+				search: sentSearch
+			},
+			fields,
+			defaults,
+			server
+		)
+	);
 
-	// Notify parent of tag filter changes
+	// The first run sends the restored view and keeps its page. After that, any change to the view
+	// starts again at page 1: page 3 of the old result set is not page 3 of the new one.
+	const viewTracker = createChangeTracker<string>();
 	$effect(() => {
-		const tagFilter = filterState['tags'];
-		const tagIds = tagFilter ? Array.from(tagFilter.values).sort() : [];
-
-		if (tagFilterTracker.changed(tagIds)) {
-			resetToFirstPage();
-			onTagFilterChange?.(tagIds);
+		const changed = viewTracker.changed(viewParams.url.toString());
+		if (changed) resetToFirstPage();
+		if (changed || !queryNotified) {
+			queryNotified = true;
+			onQueryChange?.(viewParams.request);
 		}
 	});
 
@@ -1325,7 +1378,7 @@
 			{activeGroupField}
 			{allTags}
 			{tagGroups}
-			{getUniqueValues}
+			{getFilterOptions}
 			{filters}
 			onToggleGroup={toggleGroup}
 		/>

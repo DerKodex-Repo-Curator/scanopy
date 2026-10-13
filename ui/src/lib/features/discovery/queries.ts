@@ -14,7 +14,8 @@ import { queryClient, queryKeys } from '$lib/api/query-client';
 import { apiClient } from '$lib/api/client';
 import { requireSuccess, unwrapData, unwrapEnvelope } from '$lib/api/query-helpers';
 import type { Discovery } from './types/base';
-import type { components } from '$lib/api/schema';
+import type { components, operations } from '$lib/api/schema';
+import { withListParams } from '$lib/api/list-params';
 import type { DiscoveryUpdatePayload } from './types/api';
 import type { Organization } from '../organizations/types';
 import { pushError, pushSuccess, pushWarning } from '$lib/shared/stores/feedback';
@@ -76,27 +77,14 @@ export function useDiscoveriesByIds(idsGetter: () => string[]) {
 	});
 }
 
-/** Query parameters for the paginated discovery-history list. */
-export interface DiscoveryHistoryQueryParams {
-	limit?: number;
-	offset?: number;
-	/** Primary ordering field (used for grouping). Always sorts ASC. */
-	group_by?: components['schemas']['DiscoveryOrderField'];
-	/** Secondary ordering field (sorting within groups or standalone sort). */
-	order_by?: components['schemas']['DiscoveryOrderField'];
-	/** Direction for order_by field. */
-	order_direction?: components['schemas']['OrderDirection'];
-	/** Free-text search across the run's name and its daemon's name. */
-	search?: string;
-	/** Filter by site ID. Several narrows to the union of them. */
-	site_ids?: string[];
-	/** Filter by daemon ID. Several narrows to the union of them. */
-	daemon_ids?: string[];
-	/** Only runs of one of these discovery types (raw discriminants). */
-	discovery_types?: string[];
-	/** Only runs that ended in one of these phases. */
-	phases?: components['schemas']['DiscoveryPhase'][];
-}
+/**
+ * Query parameters for the paginated discovery-history list: the page, and the list's view in
+ * the endpoint's own param names (`DataControls`' `onQueryChange`), which is sent as written.
+ */
+export type DiscoveryHistoryQueryParams = Pick<
+	NonNullable<operations['get_all_discoveries']['parameters']['query']>,
+	'limit' | 'offset'
+> & { list?: URLSearchParams };
 
 /** Pagination metadata, derived from the generated schema. */
 export type PaginationMeta = components['schemas']['PaginationMeta'];
@@ -118,55 +106,16 @@ export function useDiscoveryHistoryQuery(
 ) {
 	return createQuery(() => {
 		const params = typeof paramsOrGetter === 'function' ? paramsOrGetter() : paramsOrGetter;
-		const {
-			limit,
-			offset,
-			group_by,
-			order_by,
-			order_direction,
-			search,
-			site_ids,
-			daemon_ids,
-			discovery_types,
-			phases
-		} = params;
+		const { limit, offset, list } = params;
 
 		return {
-			queryKey: [
-				...queryKeys.discovery.all,
-				'history',
-				{
-					limit,
-					offset,
-					group_by,
-					order_by,
-					order_direction,
-					search,
-					site_ids,
-					daemon_ids,
-					discovery_types,
-					phases
-				}
-			],
+			queryKey: [...queryKeys.discovery.all, 'history', { limit, offset, list: list?.toString() }],
 			enabled: enabled(),
 			queryFn: async (): Promise<{ items: Discovery[]; pagination: PaginationMeta | null }> => {
 				const envelope = unwrapEnvelope(
 					await apiClient.GET('/api/v1/discovery', {
-						params: {
-							query: {
-								limit,
-								offset,
-								group_by,
-								order_by,
-								order_direction,
-								search,
-								site_ids,
-								daemon_ids,
-								discovery_types,
-								phases,
-								historical: true
-							}
-						}
+						params: { query: { limit, offset, historical: true } },
+						querySerializer: withListParams(list)
 					})
 				);
 				return {
@@ -514,6 +463,11 @@ export const discoveryFields = (
 		type: 'string',
 		searchable: true,
 		filterable: true,
+		queryParam: 'daemon_ids',
+		getFilterValue: (item: Discovery) => item.daemon_id,
+		filterLabel: (id: string) =>
+			daemons.find((d) => d.id === id)?.name ??
+			m.common_unknownEntity({ entity: m.common_daemon() }),
 		groupable: true,
 		getValue: (item: Discovery) =>
 			daemons.find((d) => d.id == item.daemon_id)?.name ??
@@ -525,6 +479,9 @@ export const discoveryFields = (
 		type: 'string',
 		searchable: true,
 		filterable: true,
+		queryParam: 'site_ids',
+		getFilterValue: (item: Discovery) => item.site_id,
+		filterLabel: (id: string) => sites.find((n) => n.id === id)?.name ?? m.common_unknownSite(),
 		groupable: true,
 		getValue: (item: Discovery) =>
 			sites.find((n) => n.id === item.site_id)?.name ?? m.common_unknownSite(),
@@ -536,8 +493,11 @@ export const discoveryFields = (
 		searchable: true,
 		filterable: true,
 		groupable: true,
-		// Every type the backend defines, named the way the column renders them.
-		filterOptions: discoveryTypes.getItems().map((type) => discoveryTypes.getName(type.id)),
+		queryParam: 'discovery_types',
+		// Every type the backend defines.
+		filterOptions: discoveryTypes.getItems().map((type) => type.id),
+		filterLabel: (id: string) => discoveryTypes.getName(id),
+		getFilterValue: (item: Discovery) => item.discovery_type.type,
 		getValue: (item: Discovery) => discoveryTypes.getName(item.discovery_type.type)
 	}
 });

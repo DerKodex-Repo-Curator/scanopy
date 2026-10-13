@@ -82,26 +82,23 @@ export interface ColumnBoundState {
  *
  * A list only filters, sorts and groups by columns it renders, so hiding one
  * drops its state rather than leaving a constraint nobody can see. Returns null
- * when nothing changes. `serverKeys` names the cleared filters the parent
- * applies, so the caller can tell it; `staleCleared` likewise.
+ * when nothing changes.
  */
 export function dropHiddenColumnState<T>(
 	state: ColumnBoundState,
 	fields: FieldConfig<T>[],
 	renderedColumnIds: ReadonlySet<string>
-): (ColumnBoundState & { serverKeys: string[]; staleCleared: boolean }) | null {
+): ColumnBoundState | null {
 	const hidden = fields.filter((f) => !renderedColumnIds.has(getFieldKey(f)));
 	const hiddenKeys = new Set(hidden.map(getFieldKey));
 
 	const filterState = { ...state.filterState };
-	const serverKeys: string[] = [];
 	let changed = false;
 
 	for (const field of hidden) {
 		const key = getFieldKey(field);
 		if (!isFieldFilterActive(field, filterState[key])) continue;
 		filterState[key] = blankFilter(field, false);
-		if (field.serverFiltered) serverKeys.push(key);
 		changed = true;
 	}
 
@@ -115,8 +112,6 @@ export function dropHiddenColumnState<T>(
 		filterState,
 		staleOnly: staleCleared ? false : state.staleOnly,
 		sortState: sortCleared ? { field: null, direction: 'asc' } : state.sortState,
-		groupField: groupCleared ? null : state.groupField,
-		serverKeys,
-		staleCleared
+		groupField: groupCleared ? null : state.groupField
 	};
 }

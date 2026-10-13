@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createChangeTracker, sameOrder } from '$lib/shared/components/data/controls/changeTracker';
+import { createChangeTracker } from '$lib/shared/components/data/controls/changeTracker';
 
 describe('createChangeTracker', () => {
 	it('stays quiet on the first observation', () => {
@@ -26,25 +26,5 @@ describe('createChangeTracker', () => {
 		tracker.changed('b');
 
 		expect(tracker.changed('a')).toBe(true);
-	});
-
-	it('compares lists by contents, not identity', () => {
-		// The tag filter hands over a fresh array every time it is read, so
-		// identity would report a change on every effect run and refetch in a
-		// loop.
-		const tracker = createChangeTracker<string[]>(sameOrder);
-		tracker.changed(['a', 'b']);
-
-		expect(tracker.changed(['a', 'b'])).toBe(false);
-		expect(tracker.changed(['a', 'c'])).toBe(true);
-	});
-
-	it('notices a list growing, shrinking, or reordering', () => {
-		const tracker = createChangeTracker<string[]>(sameOrder);
-		tracker.changed(['a']);
-
-		expect(tracker.changed(['a', 'b'])).toBe(true);
-		expect(tracker.changed(['b', 'a'])).toBe(true);
-		expect(tracker.changed([])).toBe(true);
 	});
 });

@@ -1,5 +1,5 @@
 import type { components } from '$lib/api/schema';
-import type { FieldConfig } from '$lib/shared/components/data/types';
+import type { FieldConfig, FilterCodec } from '$lib/shared/components/data/types';
 import type { Snippet } from 'svelte';
 import { tagItems } from './columns';
 import { compareTagOrder, groupsFor, tagGroupLabel, tagsInGroup } from './groups';
@@ -68,8 +68,11 @@ export function tagGroupFields<T>({
 			type: 'string' as const,
 			searchable: true,
 			filterable: true,
-			filterOptions: groupTags.map((tag) => tag.name),
+			filterOptions: groupTags.map((tag) => tag.id),
+			filterLabel: (id: string) => groupTags.find((tag) => tag.id === id)?.name ?? id,
+			filterCodec: tagSetCodec(groupTags.map((tag) => tag.id)),
 			getValue: (item: T) => held(item)?.name ?? null,
+			getFilterValue: (item: T) => held(item)?.id ?? null,
 			// Rows holding no tag of the group have no value, so `compareByField` sorts them last.
 			compare: (a: T, b: T) => {
 				const [ta, tb] = [held(a), held(b)];
@@ -97,19 +100,22 @@ export function tagGroupFields<T>({
 	});
 }
 
+const TAG_SETS_PARAM = 'tag_sets';
+
 /**
- * The `tag_sets` query values for the tag-group filters a server-paged list holds: one entry per
- * filtered group, the ids of the tags whose names are checked, comma-separated. Names are unique
- * within an organization.
+ * A tag-group column's filter as the API takes it: one `tag_sets` value per filtered group, its
+ * checked tag ids comma-separated. Several groups repeat the param. Reading it back, a group
+ * takes the set made of its own tags.
  */
-export function tagSetsParam(filters: Record<string, string[]>, tags: Tag[]): string[] | undefined {
-	const sets = Object.entries(filters)
-		.map(([groupId, names]) =>
-			tags
-				.filter((tag) => tag.tag_group_id === groupId && names.includes(tag.name))
-				.map((tag) => tag.id)
-		)
-		.filter((ids) => ids.length > 0)
-		.map((ids) => ids.join(','));
-	return sets.length > 0 ? sets : undefined;
+function tagSetCodec(groupTagIds: string[]): FilterCodec {
+	const own = new Set(groupTagIds);
+	return {
+		keys: [TAG_SETS_PARAM],
+		encode: (ids) => [[TAG_SETS_PARAM, ids.join(',')]],
+		decode: (params) =>
+			params
+				.getAll(TAG_SETS_PARAM)
+				.map((set) => set.split(',').filter(Boolean))
+				.find((ids) => ids.length > 0 && ids.every((id) => own.has(id)))
+	};
 }

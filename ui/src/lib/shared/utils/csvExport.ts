@@ -21,12 +21,31 @@ export interface CsvExportParams {
 }
 
 /**
+ * Put an export's params on its URL. A list's own query (`URLSearchParams`) is already in the
+ * endpoint's names, so an export mirrors exactly what the list requested.
+ */
+function appendExportParams(url: URL, params: CsvExportParams | URLSearchParams) {
+	if (params instanceof URLSearchParams) {
+		params.forEach((value, key) => url.searchParams.append(key, value));
+		return;
+	}
+	for (const [key, value] of Object.entries(params)) {
+		if (value === undefined) continue;
+		if (Array.isArray(value)) {
+			value.forEach((v) => url.searchParams.append(key, String(v)));
+		} else {
+			url.searchParams.set(key, String(value));
+		}
+	}
+}
+
+/**
  * Download CSV export for an entity with the given filter parameters.
  * Uses fetch with credentials to handle authentication.
  */
 export async function downloadCsv(
 	entityType: EntityDiscriminants,
-	params: CsvExportParams
+	params: CsvExportParams | URLSearchParams
 ): Promise<void> {
 	const apiPath = entityToExportPath[entityType];
 	if (!apiPath) {
@@ -37,15 +56,7 @@ export async function downloadCsv(
 	const baseUrl = getServerUrl();
 	const url = new URL(`/api/v1/${apiPath}/export/csv`, baseUrl);
 
-	// Add all params to URL
-	for (const [key, value] of Object.entries(params)) {
-		if (value === undefined) continue;
-		if (Array.isArray(value)) {
-			value.forEach((v) => url.searchParams.append(key, String(v)));
-		} else {
-			url.searchParams.set(key, String(value));
-		}
-	}
+	appendExportParams(url, params);
 
 	const response = await fetch(url.toString(), {
 		method: 'GET',
@@ -108,19 +119,11 @@ export async function downloadTopologyExport(
  * Download ZIP export for hosts with all children.
  * Returns a zip containing hosts.csv, interfaces.csv, ports.csv, services.csv, interfaces.csv
  */
-export async function downloadHostsZip(params: CsvExportParams): Promise<void> {
+export async function downloadHostsZip(params: CsvExportParams | URLSearchParams): Promise<void> {
 	const baseUrl = getServerUrl();
 	const url = new URL('/api/v1/hosts/export/zip', baseUrl);
 
-	// Add all params to URL (same as CSV export)
-	for (const [key, value] of Object.entries(params)) {
-		if (value === undefined) continue;
-		if (Array.isArray(value)) {
-			value.forEach((v) => url.searchParams.append(key, String(v)));
-		} else {
-			url.searchParams.set(key, String(value));
-		}
-	}
+	appendExportParams(url, params);
 
 	const response = await fetch(url.toString(), {
 		method: 'GET',

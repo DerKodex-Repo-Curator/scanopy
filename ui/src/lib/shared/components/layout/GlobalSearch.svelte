@@ -9,6 +9,9 @@
 -->
 <script lang="ts">
 	import throttle from 'just-throttle';
+	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
+	import { registerUrlOwner, syncUrl, takeInitialParams } from '$lib/shared/stores/url-state';
 	import { createForm } from '@tanstack/svelte-form';
 	import GenericModal from './GenericModal.svelte';
 	import SearchInput from '$lib/shared/components/forms/input/SearchInput.svelte';
@@ -34,8 +37,11 @@
 		backspaceChip,
 		EMPTY_SEARCH,
 		flattenGroups,
+		globalSearchFromUrl,
 		globalSearchOpen,
 		globalSearchRestoreQuery,
+		globalSearchUrlParams,
+		reopenGlobalSearch,
 		hasSearchTerms,
 		isGlobalSearchShortcut,
 		moveHighlight,
@@ -146,6 +152,26 @@
 		query = restored.text;
 		tagIds = restored.tagIds;
 		search = restored;
+	});
+
+	// While open, the URL carries the search as sent: the same `q` and `tag_ids` the endpoint takes.
+	$effect(() =>
+		registerUrlOwner({
+			scope: 'search',
+			isActive: () => get(globalSearchOpen),
+			params: () => globalSearchUrlParams(search)
+		})
+	);
+	$effect(() => {
+		void search;
+		void $globalSearchOpen;
+		syncUrl();
+	});
+
+	// A palette link opens the palette on its search.
+	onMount(() => {
+		const linked = globalSearchFromUrl(takeInitialParams('search'));
+		if (linked) reopenGlobalSearch(linked);
 	});
 
 	function groupLabel(type: EntityDiscriminants): string {

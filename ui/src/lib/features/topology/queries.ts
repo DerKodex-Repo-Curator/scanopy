@@ -15,6 +15,7 @@ import type { Organization } from '$lib/features/organizations/types';
 import { BaseSSEManager, type SSEConfig } from '$lib/shared/utils/sse';
 import throttle from 'just-throttle';
 import { writable, derived, get } from 'svelte/store';
+import { registerUrlOwner, syncUrl } from '$lib/shared/stores/url-state';
 import { UNTAGGED_SENTINEL } from './interactions';
 import { getDefaultHiddenEdgeTypes } from './layout/edge-classification';
 import type { components } from '$lib/api/schema';
@@ -481,43 +482,32 @@ export const showDependencyTutorial = writable(false);
 
 const VALID_VIEWS: Set<string> = new Set(viewsJson.map((v) => v.id));
 
-/** Read topology ID and view from current URL search params. */
-export function getTopologyParamsFromUrl(): {
+/** The topology and view a link names. A view this build doesn't have is ignored. */
+export function topologyParamsFrom(params: URLSearchParams): {
 	topologyId: string | null;
 	view: TopologyView | null;
 } {
-	if (!browser) return { topologyId: null, view: null };
-	const params = new URLSearchParams(window.location.search);
 	const topologyId = params.get('topologyId');
 	const viewParam = params.get('view');
 	const view = viewParam && VALID_VIEWS.has(viewParam) ? (viewParam as TopologyView) : null;
 	return { topologyId, view };
 }
 
-/** Update URL search params to reflect current topology state. Uses replaceState (no history entry). */
-function syncTopologyParamsToUrl(topologyId: string | null, view: TopologyView): void {
-	if (!browser) return;
-	const url = new URL(window.location.href);
-	if (topologyId) {
-		url.searchParams.set('topologyId', topologyId);
-	} else {
-		url.searchParams.delete('topologyId');
+/** Step to the topology and view of a history entry the user went back or forward to. */
+function restoreTopologyParams(params: URLSearchParams): void {
+	const { topologyId, view } = topologyParamsFrom(params);
+	if (topologyId && topologyId !== get(selectedTopologyId)) {
+		selectedTopologyId.set(topologyId);
+		selectedNodes.set([]);
 	}
-	url.searchParams.set('view', view);
-	window.history.replaceState(window.history.state, '', url.toString());
+	if (view && view !== get(activeView)) {
+		activeView.set(view);
+	}
 }
 
-/** Push a new history entry with updated topology params. For user-initiated changes. */
-export function pushTopologyParams(topologyId: string | null, view: TopologyView): void {
-	if (!browser) return;
-	const url = new URL(window.location.href);
-	if (topologyId) {
-		url.searchParams.set('topologyId', topologyId);
-	} else {
-		url.searchParams.delete('topologyId');
-	}
-	url.searchParams.set('view', view);
-	window.history.pushState({}, '', url.toString());
+/** Add a history entry for a topology change the user should be able to step back from. */
+export function pushTopologyParams(): void {
+	syncUrl({ push: true });
 }
 
 // Single source of truth for topology options, saved as one value for every view.
@@ -891,19 +881,21 @@ if (browser) {
 	// view switch is a pure client-side slice selection (see toRenderableTopology).
 	// View deep-linking is handled via URL params below.
 
-	// Sync stores → URL (replaceState, no history entry)
-	// User-initiated changes use pushTopologyParams from TopologyTab instead.
-	selectedTopologyId.subscribe((id) => {
-		if (id !== null) {
-			syncTopologyParamsToUrl(id, get(activeView));
-		}
+	// The topology and view show in the URL on the topology tab only. Store changes replace the
+	// current entry; a view the user picks pushes one, through `pushTopologyParams`.
+	registerUrlOwner({
+		scope: 'topology',
+		isActive: () => true,
+		params: () => {
+			const id = get(selectedTopologyId);
+			const params = new URLSearchParams({ view: get(activeView) });
+			if (id) params.set('topologyId', id);
+			return params;
+		},
+		restore: restoreTopologyParams
 	});
-	activeView.subscribe((view) => {
-		const id = get(selectedTopologyId);
-		if (id !== null) {
-			syncTopologyParamsToUrl(id, view);
-		}
-	});
+	selectedTopologyId.subscribe(() => syncUrl());
+	activeView.subscribe(() => syncUrl());
 }
 
 // ============================================================================

@@ -28,7 +28,7 @@
 		activeGroupField,
 		allTags,
 		tagGroups,
-		getUniqueValues,
+		getFilterOptions,
 		filters,
 		onToggleGroup
 	}: {
@@ -39,7 +39,7 @@
 		activeGroupField: string | null;
 		allTags: TagType[];
 		tagGroups: TagGroup[];
-		getUniqueValues: (field: FieldConfig<T>) => string[];
+		getFilterOptions: (field: FieldConfig<T>) => string[];
 		filters: FilterActions;
 		onToggleGroup: (fieldKey: string) => void;
 	} = $props();
@@ -93,7 +93,7 @@
 				{tagGroups}
 				showStale={control.stale}
 				{staleOnly}
-				{getUniqueValues}
+				{getFilterOptions}
 				onToggleBoolean={filters.toggleBoolean}
 				onToggleString={filters.toggleString}
 				onToggleTag={filters.toggleTag}

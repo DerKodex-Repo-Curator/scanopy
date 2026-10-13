@@ -7,7 +7,9 @@ import {
 	tagTooltip,
 	withTagAdded
 } from '$lib/features/tags/groups';
-import { tagGroupFields, tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
+import { tagGroupFields, tagGroupIdOf } from '$lib/features/tags/groupFields';
+import { blankFilterState, toggleValue } from '$lib/shared/components/data/controls/filtering';
+import { decodeFilters, listParams } from '$lib/shared/components/data/controls/listQuery';
 import {
 	createDefaultTag,
 	createDefaultTagGroup,
@@ -183,11 +185,39 @@ describe('tag group table columns', () => {
 	});
 });
 
-describe('tagSetsParam', () => {
-	it('sends one set per filtered group and drops a group with nothing checked', () => {
-		expect(
-			tagSetsParam({ Status: ['planned', 'active'], Environment: [], Backup: ['nightly'] }, tags)
-		).toEqual(['planned,active', 'nightly']);
-		expect(tagSetsParam({ Status: [] }, tags)).toBeUndefined();
+describe('tag-group filters as tag_sets', () => {
+	type Row = { id: string; tags: string[] };
+	const fields = tagGroupFields<Row>({
+		groups,
+		tags,
+		entityType: 'Service',
+		getItemTags: (row) => row.tags,
+		serverPaginated: true
+	});
+	const [, status, environment] = fields;
+
+	it('sends one set of tag ids per filtered group, and reads each back to its own group', () => {
+		let filterState = blankFilterState(fields, false);
+		filterState = toggleValue(filterState, getFieldKey(status), 'planned')!;
+		filterState = toggleValue(filterState, getFieldKey(status), 'active')!;
+		filterState = toggleValue(filterState, getFieldKey(environment), 'production')!;
+
+		const { request } = listParams(
+			{
+				sort: { field: null, direction: 'asc' },
+				group: null,
+				filterState,
+				staleOnly: false,
+				search: ''
+			},
+			fields,
+			{},
+			{ search: true, tags: true, stale: true, order: false, fields: true }
+		);
+		expect(request.getAll('tag_sets')).toEqual(['planned,active', 'production']);
+
+		const decoded = decodeFilters(request, fields);
+		expect(decoded[getFieldKey(status)].values).toEqual(['planned', 'active']);
+		expect(decoded[getFieldKey(environment)].values).toEqual(['production']);
 	});
 });

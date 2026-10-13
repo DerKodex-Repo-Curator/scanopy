@@ -38,6 +38,8 @@ export function apiKeyColumns(ctx: ApiKeyColumnsContext): FieldConfig<ApiKey>[] 
 			label: common_site(),
 			searchable: true,
 			filterable: true,
+			getFilterValue: (item) => item.site_id,
+			filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? common_unknownSite(),
 			groupable: true,
 			sortable: true,
 			getValue(item) {

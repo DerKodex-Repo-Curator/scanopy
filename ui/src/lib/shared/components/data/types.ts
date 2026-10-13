@@ -203,9 +203,19 @@ export interface TreeConfig<T> {
 }
 
 /**
+ * How a filter's selected values become query params and back, for a filter the API takes as
+ * more than one param. `decode` returns undefined when the params carry no selection.
+ */
+export interface FilterCodec {
+	keys: readonly string[];
+	encode: (values: string[]) => [string, string][];
+	decode: (params: URLSearchParams) => string[] | undefined;
+}
+
+/**
  * Base configuration shared by all field types.
  */
-export interface BaseFieldConfig<T> {
+export interface BaseFieldConfig<T, Q extends string = string> {
 	/** How this field renders in the table. Omit for plain text. */
 	display?: DisplayConfig<T>;
 	type: 'string' | 'boolean' | 'date' | 'array';
@@ -224,13 +234,33 @@ export interface BaseFieldConfig<T> {
 	/** 'include' (default): checked values shown. 'exclude': checked values hidden. */
 	filterMode?: 'include' | 'exclude';
 	/**
-	 * The parent applies this filter server-side via `onFilterChange`, so the
-	 * client-side pass leaves it alone. Required for any filter on a
-	 * server-paginated list: filtering the loaded rows would only ever narrow the
-	 * page in hand, silently hiding matches on every other page.
+	 * The server applies this filter, through the query `onQueryChange` hands the parent, so the
+	 * client-side pass leaves it alone. Required for any filter on a server-paginated list:
+	 * filtering the loaded rows would only ever narrow the page in hand, silently hiding matches on
+	 * every other page.
 	 */
 	serverFiltered?: boolean;
-	/** External filter options (bypasses getUniqueValues). Use when values aren't derivable from current items (e.g., server-side pagination). */
+	/**
+	 * The value a filter matches an item on: an id, an enum id or a stored string, the same value
+	 * the API filters on. Defaults to `getValue`, which suits a field that already shows the raw
+	 * value. A field showing a name (a site's) or a translated label returns the id here and renders
+	 * it through `filterLabel`, so a filter, its URL and its API request all hold the same value.
+	 */
+	getFilterValue?: (item: T) => string | boolean | string[] | null;
+	/** The text a filter option shows for a value. Defaults to the value itself. */
+	filterLabel?: (value: string) => string;
+	/**
+	 * The query param this filter is sent and linked as: the endpoint's own name where it has one
+	 * (`site_ids`), so a list's URL is the request it makes. Defaults to the field key, and to
+	 * `tag_ids` for the `tags` field.
+	 */
+	queryParam?: Q;
+	/**
+	 * For a filter the API takes as more than one param, such as "Virtualized By": service names in
+	 * one, "not virtualized" as a flag in another. Absent, the values go in `queryParam`, repeated.
+	 */
+	filterCodec?: FilterCodec;
+	/** The values a filter offers, when they can't be read off the loaded items (server pagination). */
 	filterOptions?: string[];
 	/**
 	 * The raw value the server groups this item under, when it differs from
@@ -263,7 +293,7 @@ export interface BaseFieldConfig<T> {
 	 * server-side constraint rather than a value filter, so it has no field of
 	 * its own; marking the last-seen column gives it the same home as every
 	 * other filter, in the column's header popover. Only takes effect
-	 * when the parent passes `onStaleFilterChange`.
+	 * when the server applies staleness from the list's query (`serverQuery.stale`).
 	 */
 	staleFilter?: boolean;
 }
@@ -273,7 +303,11 @@ export interface BaseFieldConfig<T> {
  * The orderField property IS the backend OrderField value (e.g., 'name', 'created_at').
  * Presence of this property implies the field is sortable/groupable.
  */
-export interface OrderableFieldConfig<T, O extends string> extends BaseFieldConfig<T> {
+export interface OrderableFieldConfig<
+	T,
+	O extends string,
+	Q extends string = string
+> extends BaseFieldConfig<T, Q> {
 	orderField: O;
 	/** Whether this field can be used for grouping. Defaults to true for string types. */
 	groupable?: boolean;
@@ -284,7 +318,7 @@ export interface OrderableFieldConfig<T, O extends string> extends BaseFieldConf
  * Used for fields that are shown in the UI but can't be sorted/grouped on the backend.
  * Can opt-in to client-side sorting/grouping via `sortable` and `groupable` flags.
  */
-export interface DisplayFieldConfig<T> extends BaseFieldConfig<T> {
+export interface DisplayFieldConfig<T, Q extends string = string> extends BaseFieldConfig<T, Q> {
 	key: string;
 	/** Whether this field can be used for client-side sorting. */
 	sortable?: boolean;
@@ -297,8 +331,8 @@ export interface DisplayFieldConfig<T> extends BaseFieldConfig<T> {
  * - Fields with `orderField` are sortable/groupable via backend
  * - Fields with `key` are display-only
  */
-export type FieldConfig<T, O extends string = string> =
-	OrderableFieldConfig<T, O> | DisplayFieldConfig<T>;
+export type FieldConfig<T, O extends string = string, Q extends string = string> =
+	OrderableFieldConfig<T, O, Q> | DisplayFieldConfig<T, Q>;
 
 /**
  * Type guard to check if a field supports server-side ordering.
@@ -389,7 +423,7 @@ export function groupPageSlice(
  * Configuration for a single orderable field entry.
  * The orderField value is derived from the map key, so it's not included here.
  */
-export type OrderableFieldEntry<T> = BaseFieldConfig<T> & {
+export type OrderableFieldEntry<T, Q extends string = string> = BaseFieldConfig<T, Q> & {
 	groupable?: boolean;
 };
 
@@ -397,8 +431,8 @@ export type OrderableFieldEntry<T> = BaseFieldConfig<T> & {
  * A map that REQUIRES an entry for every value in the OrderField union O.
  * TypeScript will error if any OrderField value is missing.
  */
-type OrderableFieldsMap<T, O extends string> = {
-	[K in O]: OrderableFieldEntry<T>;
+type OrderableFieldsMap<T, O extends string, Q extends string = string> = {
+	[K in O]: OrderableFieldEntry<T, Q>;
 };
 
 /**
@@ -425,16 +459,16 @@ type OrderableFieldsMap<T, O extends string> = {
  * );
  * ```
  */
-export function defineFields<T, O extends string>(
-	orderableFields: OrderableFieldsMap<T, O>,
-	displayFields?: DisplayFieldConfig<T>[]
-): FieldConfig<T, O>[] {
-	const orderable = (Object.entries(orderableFields) as [O, OrderableFieldEntry<T>][]).map(
+export function defineFields<T, O extends string, Q extends string = string>(
+	orderableFields: OrderableFieldsMap<T, O, Q>,
+	displayFields?: DisplayFieldConfig<T, Q>[]
+): FieldConfig<T, O, Q>[] {
+	const orderable = (Object.entries(orderableFields) as [O, OrderableFieldEntry<T, Q>][]).map(
 		([orderField, config]) => ({
 			...config,
 			orderField
 		})
-	) as OrderableFieldConfig<T, O>[];
+	) as OrderableFieldConfig<T, O, Q>[];
 
 	return [...orderable, ...(displayFields ?? [])];
 }

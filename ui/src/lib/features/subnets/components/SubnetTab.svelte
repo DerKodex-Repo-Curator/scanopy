@@ -11,6 +11,7 @@
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import type { Subnet, SubnetResponse } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
+	import { STALE_PARAM } from '$lib/shared/components/data/controls/listQuery';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { subnetColumns } from './SubnetTab.columns';
@@ -65,8 +66,9 @@
 	let stale = $state<boolean | null>(null);
 	const subnetsQuery = useSubnetsQuery(undefined, () => stale ?? undefined);
 
-	function handleStaleFilterChange(next: boolean | null) {
-		stale = next;
+	// The list sends only staleness to the endpoint; it filters, searches and orders the rest itself.
+	function handleQueryChange(query: URLSearchParams) {
+		stale = query.get(STALE_PARAM) === 'true' ? true : null;
 	}
 	const sitesQuery = useSitesQuery();
 	// The container runtimes that manage the bridge subnets, fetched by id.
@@ -315,6 +317,7 @@
 			discoveryRuns: () => discoveryRunsData,
 			nesting: () => nesting,
 			runtimeOf,
+			runtimes: () => runtimesData,
 			utilizationCell
 		})
 	);
@@ -363,7 +366,8 @@
 			canEditTags={!isReadOnly}
 			getItemTags={getSubnetTags}
 			getItemId={(item) => item.id}
-			onStaleFilterChange={handleStaleFilterChange}
+			onQueryChange={handleQueryChange}
+			serverQuery={{ search: false, tags: false, order: false, fields: false }}
 			onCsvExport={handleCsvExport}
 			getActions={subnetActions}
 			entityLabel={common_subnets()}

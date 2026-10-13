@@ -279,6 +279,7 @@
 	const credentialFields = credentialColumns({
 		lookup: () => lookup,
 		tags: () => tagsData,
+		sites: () => sitesData,
 		sitesForCredential,
 		hostsForCredential,
 		targetsFor,

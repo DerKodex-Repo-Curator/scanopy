@@ -26,41 +26,72 @@ import {
 export const DAEMON_STATUS_DOCS_URL = 'https://scanopy.net/docs/reference/daemon-status/';
 
 /**
- * Returns the highest-priority status tag for a daemon.
- * Priority: Unsupported > Unreachable > Standby > Deprecated > Outdated > Unknown > Healthy
+ * A daemon's status, the highest-priority one that applies.
+ * Priority: Unsupported > Unreachable > Standby > Awaiting connection > Deprecated > Outdated >
+ * Unknown > Healthy
  *
  * Unsupported ranks above Unreachable: a rejected daemon can't connect, so its
- * unreachability is a symptom — the version is the actionable cause.
+ * unreachability is a symptom — the version is the actionable cause. A key rather than its label,
+ * so a filter on it holds the same value in every language.
  */
-/**
- * The `label` is guaranteed, unlike the optional one on `TagProps`: callers use it as the daemon's
- * searchable, groupable status value and as the chip's id, not only as display text.
- */
-export function getDaemonStatusTag(daemon: Daemon): TagProps & { label: string } {
-	const docsTag = { href: DAEMON_STATUS_DOCS_URL, icon: CircleHelp };
+export const DAEMON_STATUSES = [
+	'unsupported',
+	'unreachable',
+	'standby',
+	'awaiting_connection',
+	'deprecated',
+	'outdated',
+	'unknown',
+	'healthy'
+] as const;
+export type DaemonStatus = (typeof DAEMON_STATUSES)[number];
 
-	if (daemon.version_status.status === 'Unsupported') {
-		return { label: common_unsupported(), color: toColor('red'), ...docsTag };
-	}
-	if (daemon.is_unreachable === true) {
-		return { label: common_unreachable(), color: toColor('red'), ...docsTag };
-	}
-	if (daemon.standby === true) {
-		return { label: common_standby(), color: toColor('purple'), ...docsTag };
-	}
-	if (!daemon.last_seen) {
-		return { label: daemons_awaitingConnection(), color: toColor('blue'), ...docsTag };
-	}
+export function getDaemonStatus(daemon: Daemon): DaemonStatus {
+	if (daemon.version_status.status === 'Unsupported') return 'unsupported';
+	if (daemon.is_unreachable === true) return 'unreachable';
+	if (daemon.standby === true) return 'standby';
+	if (!daemon.last_seen) return 'awaiting_connection';
 	switch (daemon.version_status.status) {
 		case 'Deprecated':
-			return { label: common_deprecated(), color: toColor('orange'), ...docsTag };
+			return 'deprecated';
 		case 'Outdated':
-			return { label: common_outdated(), color: toColor('yellow'), ...docsTag };
+			return 'outdated';
 		case 'Unknown':
-			return { label: common_unknown(), color: toColor('gray'), ...docsTag };
+			return 'unknown';
 		default:
+			return 'healthy';
+	}
+}
+
+/**
+ * A status's tag. The `label` is guaranteed, unlike the optional one on `TagProps`: callers use it
+ * as the daemon's searchable status text and as the chip's id, not only as display text.
+ */
+export function daemonStatusTag(status: DaemonStatus): TagProps & { label: string } {
+	const docsTag = { href: DAEMON_STATUS_DOCS_URL, icon: CircleHelp };
+	switch (status) {
+		case 'unsupported':
+			return { label: common_unsupported(), color: toColor('red'), ...docsTag };
+		case 'unreachable':
+			return { label: common_unreachable(), color: toColor('red'), ...docsTag };
+		case 'standby':
+			return { label: common_standby(), color: toColor('purple'), ...docsTag };
+		case 'awaiting_connection':
+			return { label: daemons_awaitingConnection(), color: toColor('blue'), ...docsTag };
+		case 'deprecated':
+			return { label: common_deprecated(), color: toColor('orange'), ...docsTag };
+		case 'outdated':
+			return { label: common_outdated(), color: toColor('yellow'), ...docsTag };
+		case 'unknown':
+			return { label: common_unknown(), color: toColor('gray'), ...docsTag };
+		case 'healthy':
 			return { label: common_healthy(), color: toColor('green') };
 	}
+}
+
+/** The tag for a daemon's current status. */
+export function getDaemonStatusTag(daemon: Daemon): TagProps & { label: string } {
+	return daemonStatusTag(getDaemonStatus(daemon));
 }
 
 /**

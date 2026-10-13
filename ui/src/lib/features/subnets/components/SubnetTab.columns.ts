@@ -45,6 +45,8 @@ export interface SubnetColumnsContext {
 	nesting: () => SubnetNesting;
 	/** The container runtime that manages a subnet, if it has one. */
 	runtimeOf: (subnet: Subnet) => Service | undefined;
+	/** The container runtimes that manage the loaded subnets. */
+	runtimes: () => Service[];
 	/** The utilization column's cell. */
 	utilizationCell: Snippet<[SubnetResponse, string]>;
 }
@@ -84,8 +86,10 @@ export function subnetColumns(ctx: SubnetColumnsContext) {
 				label: subnets_subnetType(),
 				searchable: true,
 				filterable: true,
-				// Every type the backend defines, named the way the chip renders them.
-				filterOptions: subnetTypes.getItems().map((type) => subnetTypes.getName(type.id)),
+				// Every type the backend defines.
+				filterOptions: subnetTypes.getItems().map((type) => type.id),
+				filterLabel: (id) => subnetTypes.getName(id),
+				getFilterValue: (subnet) => subnet.subnet_type,
 				display: {
 					order: 4,
 					getItems: (subnet) => [
@@ -102,6 +106,9 @@ export function subnetColumns(ctx: SubnetColumnsContext) {
 				type: 'string',
 				searchable: true,
 				filterable: true,
+				queryParam: 'site_id',
+				getFilterValue: (item) => item.site_id,
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? common_unknownSite(),
 				groupable: true,
 				getValue: (item) =>
 					ctx.sites().find((n) => n.id == item.site_id)?.name || common_unknownSite(),
@@ -142,8 +149,10 @@ export function subnetColumns(ctx: SubnetColumnsContext) {
 				filterable: true,
 				groupable: true,
 				sortable: true,
-				// Every source the backend can stamp, named the way the column renders them.
-				filterOptions: entitySources.getItems().map((source) => entitySources.getName(source.id)),
+				// Every source the backend can stamp.
+				filterOptions: entitySources.getItems().map((source) => source.id),
+				filterLabel: (id) => entitySources.getName(id),
+				getFilterValue: (subnet) => subnet.source.type,
 				getValue: (subnet) => entitySources.getName(subnet.source.type),
 				display: {
 					hiddenByDefault: true,
@@ -160,6 +169,8 @@ export function subnetColumns(ctx: SubnetColumnsContext) {
 				groupable: true,
 				sortable: true,
 				getValue: (subnet) => ctx.runtimeOf(subnet)?.name ?? null,
+				getFilterValue: (subnet) => ctx.runtimeOf(subnet)?.id ?? null,
+				filterLabel: (id) => ctx.runtimes().find((s) => s.id === id)?.name ?? id,
 				display: {
 					hiddenByDefault: true,
 					getItems: (subnet) => {
