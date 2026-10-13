@@ -14,6 +14,7 @@ import type { components } from '$lib/api/schema';
 import type { EntityDiscriminants } from '$lib/api/entities';
 import type { Tag } from '$lib/features/tags/types/base';
 import { isEditableTarget } from '$lib/shared/utils/shortcuts';
+import { SEARCH_MAX_LENGTH } from '$lib/shared/components/forms/input/SearchInput.svelte';
 
 /** What the palette searches for: the typed text and the tag chips before it. */
 export interface GlobalSearchState {
@@ -48,7 +49,10 @@ export function globalSearchUrlParams(state: GlobalSearchState): URLSearchParams
 /** The search a palette URL carries, or null when it carries none. */
 export function globalSearchFromUrl(params: URLSearchParams): GlobalSearchState | null {
 	if (!params.has('q')) return null;
-	return { text: params.get('q') ?? '', tagIds: params.getAll('tag_ids').filter(Boolean) };
+	return {
+		text: (params.get('q') ?? '').slice(0, SEARCH_MAX_LENGTH),
+		tagIds: params.getAll('tag_ids').filter(Boolean)
+	};
 }
 
 /** Whether the palette is open. The sidebar's search bar and the shortcut both set it. */

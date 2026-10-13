@@ -66,7 +66,6 @@
 		listParamKeys,
 		listParams,
 		PAGE_PARAM,
-		SELECTED_PARAM,
 		type ServerQuery
 	} from './controls/listQuery';
 	import { registerUrlOwner, syncUrl, takeInitialParams } from '$lib/shared/stores/url-state';
@@ -334,8 +333,6 @@
 		staleOnly = view.staleOnly;
 		ordering = { sort: view.sort, group: view.group };
 		currentPage = view.page ?? 1;
-		selectedIds.clear();
-		view.selected?.forEach((id) => selectedIds.add(id));
 
 		seedFilterDefaults = false;
 	}
@@ -775,14 +772,13 @@
 
 	// The view as URL params, so the address bar is a link to it. Written only while this list is
 	// the one on screen; switching tabs puts the next list's view there instead.
-	// The URL is the view's params plus the page and the selection, neither of which the endpoint
-	// takes: the page is an offset only with the viewer's own page size.
+	// The URL is the view's params plus the page, which the endpoint doesn't take: a page is an
+	// offset only with the viewer's own page size. The selection stays out of the URL.
 	let urlView = $derived.by(() => {
 		// A fresh copy built and returned here; nothing mutates it later.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams(viewParams.url);
 		if (effectiveCurrentPage > 1) params.set(PAGE_PARAM, String(effectiveCurrentPage));
-		selectedIds.forEach((id) => params.append(SELECTED_PARAM, id));
 		return params;
 	});
 
@@ -804,16 +800,6 @@
 			if (isOnVisiblePage(rootRef)) syncUrl();
 		}, 100);
 		return () => clearTimeout(urlSyncTimeout);
-	});
-
-	// A list held whole drops selected ids it doesn't have: rows deleted since, or a shared link's
-	// rows the viewer can't see. A server-paginated list keeps ids on other pages.
-	$effect(() => {
-		if (useServerPagination || items.length === 0 || selectedIds.size === 0) return;
-		const present = new Set(items.map(getItemId));
-		for (const id of [...selectedIds]) {
-			if (!present.has(id)) selectedIds.delete(id);
-		}
 	});
 
 	/** The row the last plain click toggled: one end of a Shift+click block. */

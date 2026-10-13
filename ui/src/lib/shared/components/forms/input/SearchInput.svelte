@@ -7,6 +7,14 @@
 	Bound to a TanStack field. The caller keeps its own `$state` copy of the query for reactive
 	reads, since `field.state.value` is not tracked by `$derived`; `onInput` is where it updates it.
 -->
+<script lang="ts" module>
+	/**
+	 * The longest search any box takes, in characters. Searches go into the URL, which a link
+	 * sends to the server, so an unbounded box could build a request a proxy rejects.
+	 */
+	export const SEARCH_MAX_LENGTH = 256;
+</script>
+
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { AnyFieldApi } from '@tanstack/svelte-form';
@@ -83,6 +91,7 @@
 		oninput={handleInput}
 		{onkeydown}
 		type="text"
+		maxlength={SEARCH_MAX_LENGTH}
 		autocomplete="off"
 		placeholder={hidePlaceholder ? '' : placeholder}
 		aria-label={placeholder}

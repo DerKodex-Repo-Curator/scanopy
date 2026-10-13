@@ -1,4 +1,5 @@
 import { tagGroupFieldKey, tagGroupIdOf } from '$lib/features/tags/groupFields';
+import { SEARCH_MAX_LENGTH } from '$lib/shared/components/forms/input/SearchInput.svelte';
 import { getFieldKey, type FieldConfig, type FilterCodec, type TableDefaults } from '../types';
 import { parseSortState, type StoredFieldFilter } from './dataControlsStorage';
 import { booleanFilterValues, isFieldFilterActive, type FilterState } from './filtering';
@@ -8,15 +9,14 @@ import type { SortState } from './sorting';
  * A list's view as query params, named and valued as the list's endpoint takes them.
  *
  * One pass builds both the URL a list shows and the request its parent sends, so a link and the
- * API return the same rows: for a list the server filters, the URL is the request plus `page` and
- * `selected`. A list held whole uses the same names, from each field's `queryParam` or key, and
+ * API return the same rows: for a list the server filters, the URL is the request plus `page`. A list
+ * held whole uses the same names, from each field's `queryParam` or key, and
  * applies them here.
  */
 
 export const SEARCH_PARAM = 'search';
 export const STALE_PARAM = 'stale';
 export const PAGE_PARAM = 'page';
-export const SELECTED_PARAM = 'selected';
 const TAG_IDS_PARAM = 'tag_ids';
 const ORDER_BY = 'order_by';
 const ORDER_DIRECTION = 'order_direction';
@@ -158,7 +158,6 @@ export function listParamKeys<T>(fields: FieldConfig<T>[]): string[] {
 		SEARCH_PARAM,
 		STALE_PARAM,
 		PAGE_PARAM,
-		SELECTED_PARAM,
 		...ORDER_PARAMS,
 		...fields.filter((f) => f.filterable).flatMap((f) => filterCodecOf(f).keys)
 	];
@@ -172,7 +171,6 @@ export interface DecodedListView {
 	staleOnly: boolean;
 	search: string;
 	page?: number;
-	selected?: string[];
 }
 
 function decodeOrdering(params: URLSearchParams): { sort?: SortState; group?: string | null } {
@@ -243,15 +241,13 @@ export function decodeListParams<T>(
 	fields: FieldConfig<T>[]
 ): DecodedListView {
 	const page = params.get(PAGE_PARAM);
-	const selected = [...new Set(params.getAll(SELECTED_PARAM))].filter(Boolean);
 
 	return {
 		...decodeOrdering(params),
 		filterState: decodeFilters(params, fields),
 		staleOnly: params.get(STALE_PARAM) === 'true',
-		search: params.get(SEARCH_PARAM) ?? '',
-		page: page !== null && /^\d+$/.test(page) && Number(page) > 0 ? Number(page) : undefined,
-		selected: selected.length > 0 ? selected : undefined
+		search: (params.get(SEARCH_PARAM) ?? '').slice(0, SEARCH_MAX_LENGTH),
+		page: page !== null && /^\d+$/.test(page) && Number(page) > 0 ? Number(page) : undefined
 	};
 }
 
