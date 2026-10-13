@@ -230,6 +230,7 @@ jobs:
         DEPLOY_MODE: ${{ inputs.deploy_mode }}
         NOTES_FILE: ${{ steps.phase.outputs.notes_file }}
         EMAIL: ${{ steps.email.outputs.email }}
+        PREV_TAG: ${{ steps.prev_tag.outputs.prev_tag }}
       run: |
         BRANCH="release/v${VERSION}"
         git config user.name "github-actions[bot]"
@@ -243,6 +244,10 @@ jobs:
         else
           EMAIL_LINE="\`email: false\`: the notes show in the app only. Set it to \`true\` to email them."
         fi
+        # Terms updates added since the last release. Cloud emails each one on deploy.
+        TERMS_FILES=$(git diff --name-only --diff-filter=A "$PREV_TAG"..HEAD -- backend/release-notes/terms/ \
+          | grep -E '/[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$' || true)
+
         # publish_release.yml reads the Deploy-Mode line when this PR is merged.
         {
           echo "Deploy-Mode: ${DEPLOY_MODE}"
@@ -252,6 +257,9 @@ jobs:
           echo "- [ ] Edit \`${NOTES_FILE}\` until it reads right"
           echo "- [ ] Check the \`email\` flag. ${EMAIL_LINE}"
           echo "- [ ] Check the Deploy-Mode line above (\`backward-compatible\` or \`downtime\`)"
+          for TERMS_FILE in $TERMS_FILES; do
+            echo "- [ ] Read the terms update \`${TERMS_FILE}\`. Scanopy Cloud emails it to every user once v${VERSION} deploys."
+          done
           echo ""
           echo "Merging this PR publishes v${VERSION}: it creates the release, which builds the images. If the publish or the build fails, re-run **Prepare Release** for \`${VERSION}\`; it reuses these notes."
         } > "$RUNNER_TEMP/pr_body.md"

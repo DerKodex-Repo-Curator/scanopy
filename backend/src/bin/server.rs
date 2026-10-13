@@ -15,6 +15,7 @@ use scanopy::server::{
     },
     billing::plans::get_purchasable_plans,
     config::{AppState, DeploymentType, ServerCli, ServerConfig, get_deployment_type},
+    email,
     license::middleware::license_guard_middleware,
     shared::handlers::{
         cache::AppCache,
@@ -217,6 +218,26 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         release_notes.announce_running_version().await;
     });
+
+    // Terms-update notices (at startup, then daily). Scanopy Cloud emails each
+    // user notice of a terms update before it takes effect, once per update;
+    // a deploy shipping a new update sends it, and a sweep the relay cut short
+    // finishes the next day. A no-op on self-hosted servers.
+    if let Some(terms_email) = state.services.email_service.clone() {
+        // Half the relay's rate, so other email keeps the rest while it goes out.
+        let bulk = governor::RateLimiter::direct(email::rate_limit::per_second(
+            state.config.smtp_max_per_second / 2,
+        ));
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+            loop {
+                interval.tick().await;
+                if let Err(e) = terms_email.send_terms_notices(&bulk).await {
+                    tracing::error!(error = %e, "Terms notice sweep failed");
+                }
+            }
+        });
+    }
 
     // Snapshot retention sweep (daily). Deletes snapshots past the per-plan
     // retention window; the FK cascade reaps closed entity rows + topology

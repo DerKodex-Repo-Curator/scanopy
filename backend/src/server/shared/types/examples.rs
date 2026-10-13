@@ -415,6 +415,7 @@ pub fn user() -> User {
             display_settings: Default::default(),
             session_epoch: 0,
             release_notes_seen_version: None,
+            terms_notice_version: None,
         },
     }
 }

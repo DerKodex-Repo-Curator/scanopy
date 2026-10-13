@@ -32,7 +32,7 @@
 
 use std::borrow::Cow;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use ipnetwork::IpNetwork;
 use mac_address::MacAddress;
 use serde_json::Value as JsonValue;
@@ -176,6 +176,7 @@ pub enum Bound<'q> {
     Bool(&'q bool),
     Timestamp(&'q DateTime<Utc>),
     OptTimestamp(&'q Option<DateTime<Utc>>),
+    OptDate(&'q Option<NaiveDate>),
     IpNet(IpNetwork),
     OptIpNet(Option<IpNetwork>),
     Mac(MacAddress),
@@ -363,6 +364,7 @@ impl SqlValue {
             Self::Bool(v) => Bound::Bool(v),
             Self::Timestamp(v) => Bound::Timestamp(v),
             Self::OptionTimestamp(v) => Bound::OptTimestamp(v),
+            Self::OptionDate(v) => Bound::OptDate(v),
             // Converted to IpNetwork for proper INET binding.
             Self::IpAddr(v) => Bound::IpNet(IpNetwork::from(*v)),
             Self::OptionalIpAddr(v) => Bound::OptIpNet(v.map(IpNetwork::from)),

@@ -11,7 +11,10 @@ use anyhow::{Error, anyhow};
 use async_trait::async_trait;
 use email_address::EmailAddress;
 
-use super::{messages::Email, transport::EmailTransport};
+use super::{
+    messages::Email,
+    transport::{EmailTransport, SES_MESSAGE_TAGS},
+};
 use crate::server::metrics::dependency::{Dependency, observe};
 use crate::server::shared::trusted_ca::{TrustedCaBundle, is_untrusted_certificate};
 
@@ -79,6 +82,33 @@ impl Header for ListUnsubscribePost {
 
     fn display(&self) -> HeaderValue {
         HeaderValue::new(Self::name(), Self::VALUE.to_string())
+    }
+}
+
+/// `X-SES-MESSAGE-TAGS: name=value, ...`. SES reads it for event publishing and
+/// strips it before delivery.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SesMessageTags(String);
+
+impl Header for SesMessageTags {
+    fn name() -> HeaderName {
+        HeaderName::new_from_ascii_str(SES_MESSAGE_TAGS)
+    }
+
+    fn parse(s: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(Self(s.trim().to_string()))
+    }
+
+    fn display(&self) -> HeaderValue {
+        HeaderValue::new(Self::name(), self.0.clone())
+    }
+}
+
+/// Add the SES message tags header, if there are tags.
+fn with_ses_tags(builder: MessageBuilder, ses_tags: Option<&str>) -> MessageBuilder {
+    match ses_tags {
+        Some(tags) => builder.header(SesMessageTags(tags.to_string())),
+        None => builder,
     }
 }
 
@@ -169,6 +199,7 @@ impl EmailTransport for SmtpEmailProvider {
         base_url: &str,
         self_hosted: bool,
         unsubscribe_url: Option<&str>,
+        ses_tags: Option<&str>,
     ) -> Result<(), Error> {
         let to_mbox = Mailbox::new(
             None,
@@ -203,6 +234,7 @@ impl EmailTransport for SmtpEmailProvider {
             .from(self.from.clone())
             .to(to_mbox)
             .subject(email.subject());
+        let builder = with_ses_tags(builder, ses_tags);
         let message = with_unsubscribe_headers(builder, unsubscribe_url).multipart(body)?;
 
         // Log here rather than at the ~8 call sites: they each know *which* email failed
@@ -308,6 +340,7 @@ mod tests {
                 "https://app.example.test",
                 true,
                 None,
+                None,
             )
             .await
             .expect_err("sending to a closed port must fail");
@@ -343,6 +376,27 @@ mod tests {
         with_unsubscribe_headers(builder, url)
             .body("body".to_string())
             .unwrap()
+    }
+
+    /// Tags reach the wire as the header SES reads, and a send without tags
+    /// carries none.
+    #[test]
+    fn ses_tags_are_sent_only_when_given() {
+        let message = |tags| {
+            let builder = lettre::Message::builder()
+                .from("Scanopy <scanopy@example.test>".parse().unwrap())
+                .to("user@example.test".parse().unwrap())
+                .subject("Notice");
+            with_ses_tags(builder, tags)
+                .body("body".to_string())
+                .unwrap()
+        };
+        let tags = "category=legal, terms_version=2026-12-01";
+        assert_eq!(
+            message(Some(tags)).headers().get::<SesMessageTags>(),
+            Some(SesMessageTags(tags.to_string()))
+        );
+        assert_eq!(message(None).headers().get::<SesMessageTags>(), None);
     }
 
     /// RFC 8058 one-click needs HTTPS. A plain-HTTP self-host still gets a

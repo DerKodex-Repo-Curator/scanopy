@@ -50,7 +50,7 @@ use crate::server::{
     },
 };
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use cidr::IpCidr;
 use email_address::EmailAddress;
 use mac_address::MacAddress;
@@ -367,6 +367,7 @@ pub enum SqlValue {
     Email(EmailAddress),
     Timestamp(DateTime<Utc>),
     OptionTimestamp(Option<DateTime<Utc>>),
+    OptionDate(Option<NaiveDate>),
     UuidArray(Vec<Uuid>),
     IpCidr(IpCidr),
     IpAddr(IpAddr),
@@ -507,6 +508,7 @@ impl_db_enum_contributor_empty!(
     bool,
     EmailAddress,
     DateTime<Utc>,
+    NaiveDate,
     IpCidr,
     IpAddr,
     MacAddress,
@@ -775,6 +777,7 @@ impl SqlValue {
             SqlValueDiscriminants::Timestamp | SqlValueDiscriminants::OptionTimestamp => {
                 <DateTime<Utc>>::contribute(out)
             }
+            SqlValueDiscriminants::OptionDate => NaiveDate::contribute(out),
             SqlValueDiscriminants::IpCidr => IpCidr::contribute(out),
             SqlValueDiscriminants::IpAddr | SqlValueDiscriminants::OptionalIpAddr => {
                 IpAddr::contribute(out)

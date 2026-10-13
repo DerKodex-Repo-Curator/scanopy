@@ -57,7 +57,8 @@ impl EmailSettings {
             | EmailCategory::Account
             | EmailCategory::Billing
             | EmailCategory::DaemonSetup
-            | EmailCategory::Invitation => true,
+            | EmailCategory::Invitation
+            | EmailCategory::Legal => true,
             EmailCategory::DiscoveryDigest => self.discovery_digest,
             EmailCategory::ProductOnboarding => self.product_onboarding,
             EmailCategory::DaemonAlerts => self.daemon_alerts,
@@ -92,7 +93,8 @@ impl EmailSettings {
             | EmailCategory::Account
             | EmailCategory::Billing
             | EmailCategory::DaemonSetup
-            | EmailCategory::Invitation => None,
+            | EmailCategory::Invitation
+            | EmailCategory::Legal => None,
             EmailCategory::DiscoveryDigest => Some(&mut self.discovery_digest),
             EmailCategory::ProductOnboarding => Some(&mut self.product_onboarding),
             EmailCategory::DaemonAlerts => Some(&mut self.daemon_alerts),

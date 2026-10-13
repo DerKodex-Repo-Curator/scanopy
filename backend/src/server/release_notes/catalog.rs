@@ -18,9 +18,41 @@ pub const MAX_SHOWN: usize = 5;
 /// The public changelog, for releases past [`MAX_SHOWN`].
 pub const CHANGELOG_URL: &str = "https://scanopy.net/changelog";
 
+/// `backend/release-notes/`: the release notes, and the terms updates under
+/// `terms/` (see [`super::terms`]).
 #[derive(Embed)]
 #[folder = "release-notes/"]
-struct EmbeddedNotes;
+pub(crate) struct EmbeddedNotes;
+
+/// The `key: value` lines between a file's `---` fences.
+pub(crate) struct Frontmatter<'a>(&'a str);
+
+impl Frontmatter<'_> {
+    pub(crate) fn field(&self, key: &str) -> Option<String> {
+        self.0.lines().find_map(|line| {
+            let (k, v) = line.split_once(':')?;
+            (k.trim() == key).then(|| unquote(v.trim()))
+        })
+    }
+
+    pub(crate) fn required(&self, key: &str) -> Result<String, String> {
+        self.field(key).ok_or(format!("missing `{key}`"))
+    }
+}
+
+/// Split a file into its YAML-style frontmatter and markdown body.
+pub(crate) fn split_frontmatter(source: &str) -> Result<(Frontmatter<'_>, &str), String> {
+    let rest = source.strip_prefix("---\n").ok_or("missing frontmatter")?;
+    let (frontmatter, body) = rest
+        .split_once("\n---\n")
+        .ok_or("unterminated frontmatter")?;
+    Ok((Frontmatter(frontmatter), body))
+}
+
+/// Render a markdown body with raw HTML left out.
+pub(crate) fn render_markdown(body: &str) -> String {
+    comrak::markdown_to_html(body.trim(), &comrak::Options::default())
+}
 
 /// One release's notes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,18 +75,8 @@ impl ReleaseNote {
     /// Parse a notes file: YAML-style frontmatter (`version`, `date`, `title`,
     /// `email`), then the markdown body.
     pub fn parse(source: &str) -> Result<Self, String> {
-        let rest = source.strip_prefix("---\n").ok_or("missing frontmatter")?;
-        let (frontmatter, body) = rest
-            .split_once("\n---\n")
-            .ok_or("unterminated frontmatter")?;
-
-        let field = |key: &str| {
-            frontmatter.lines().find_map(|line| {
-                let (k, v) = line.split_once(':')?;
-                (k.trim() == key).then(|| unquote(v.trim()))
-            })
-        };
-        let required = |key: &str| field(key).ok_or(format!("missing `{key}`"));
+        let (frontmatter, body) = split_frontmatter(source)?;
+        let required = |key: &str| frontmatter.required(key);
 
         let version = required("version")?;
         let version = Version::parse(version.trim_start_matches('v'))
@@ -73,7 +95,7 @@ impl ReleaseNote {
             date,
             title: required("title")?,
             email,
-            html: comrak::markdown_to_html(body.trim(), &comrak::Options::default()),
+            html: render_markdown(body),
         })
     }
 }
