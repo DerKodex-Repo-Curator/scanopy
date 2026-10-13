@@ -3,6 +3,7 @@ import { get } from 'svelte/store';
 import { closeModal, initModalFromUrl, modalState } from '$lib/shared/stores/modal-registry';
 import { openCredentialCreate, typesForIntegration } from '$lib/features/credentials/utils/prefill';
 import type { CredentialTypeMetadata } from '$lib/shared/stores/metadata';
+import { attachUrlState } from '$lib/shared/stores/url-state';
 
 const type = (
 	id: string,
@@ -33,6 +34,7 @@ describe('typesForIntegration', () => {
 
 describe('openCredentialCreate', () => {
 	let href = 'http://localhost/#home';
+	let detach: () => void;
 	beforeEach(() => {
 		vi.stubGlobal('window', {
 			get location() {
@@ -53,23 +55,31 @@ describe('openCredentialCreate', () => {
 				replaceState: (_: unknown, __: string, next: string) => {
 					href = next;
 				}
-			}
+			},
+			addEventListener: () => {},
+			removeEventListener: () => {}
 		});
+		detach = attachUrlState();
 	});
 	afterEach(() => {
 		closeModal();
+		detach();
 		vi.unstubAllGlobals();
 		href = 'http://localhost/#home';
 	});
 
 	// The digest email links the same URL, so a reload or an emailed link must open the same form.
-	it('survives the URL: a reload opens the same pre-filled create flow', () => {
+	it('survives the URL: a reload opens the same pre-filled create flow', async () => {
 		openCredentialCreate('Proxmox', ['h1', 'h2']);
+		await Promise.resolve();
 		const link = href;
 
 		// A fresh page load at that URL.
 		closeModal();
+		await Promise.resolve();
+		detach();
 		href = link;
+		detach = attachUrlState();
 		initModalFromUrl();
 
 		expect(get(modalState)).toMatchObject({
