@@ -1535,6 +1535,125 @@ async fn a_container_conflicting_with_an_identified_service_and_open_ports_enric
     );
 }
 
+/// The daemon's own host, as a socket credential reports it. The network scan put 3000 under
+/// Unclaimed Open Ports on the LAN address. The Docker scan then runs over the daemon's loopback,
+/// so the host arrives at 127.0.0.1 with the container's bridge address, and the container's
+/// `0.0.0.0:3000` publish arrives unscoped. The container takes 3000 on every address.
+#[tokio::test]
+async fn a_socket_scanned_container_reclaims_its_published_port_on_every_address() {
+    use crate::server::bindings::r#impl::base::Binding;
+    use crate::server::ports::r#impl::base::{Port, PortBase, PortType};
+    use crate::server::services::r#impl::virtualization::{
+        DockerVirtualization, ServiceVirtualization,
+    };
+
+    harness!(_storage, services, lab, _container);
+    let loopback = create_subnet(&services, lab.site_id, "127.0.0.0/8", SubnetType::Loopback).await;
+    let host_id = Uuid::new_v4();
+    let submit = |ips: Vec<IPAddress>, ports: Vec<Port>, svcs: Vec<Service>| {
+        let mut host = Host::new(HostBase {
+            site_id: lab.site_id,
+            source: EntitySource::Discovery,
+            ..Default::default()
+        });
+        host.id = host_id;
+        services.host_service.discover_host(
+            host,
+            ips,
+            ports,
+            svcs,
+            vec![],
+            vec![],
+            false,
+            InterfaceDataComplete::none(),
+            None,
+            AuthenticatedEntity::System,
+            None,
+        )
+    };
+    let tcp = |n| {
+        Port::new(PortBase::new(
+            Uuid::nil(),
+            lab.site_id,
+            PortType::new_tcp(n),
+        ))
+    };
+
+    // The daemon reports its own host at loopback first.
+    submit(
+        vec![address(&lab, loopback, "127.0.0.1", None)],
+        vec![],
+        vec![],
+    )
+    .await
+    .expect("self-report persists");
+
+    // Network scan: the LAN address with 3000 unclaimed.
+    let lan = arp(&lab, "192.168.4.58", ens18());
+    let p3000 = tcp(3000);
+    let mut open_ports = service(&lab, "Unclaimed Open Ports");
+    open_ports.base.bindings = vec![Binding::new_port_serviceless(p3000.id, Some(lan.id))];
+    submit(vec![lan], vec![p3000], vec![open_ports])
+        .await
+        .expect("network scan persists");
+
+    // Docker scan over the socket: loopback and the container's bridge address.
+    let lo = address(&lab, loopback, "127.0.0.1", None);
+    let bridge = address(&lab, lab.bridge, "172.17.0.4", None);
+    let (p3000, p8000) = (tcp(3000), tcp(8000));
+    let mut runtime = service(&lab, "Docker");
+    runtime.base.bindings = vec![Binding::new_ip_address_serviceless(lo.id)];
+    let mut container = service(&lab, "Docker Container");
+    container.base.name = "plain-http".to_string();
+    container.base.virtualization_service_id = Some(runtime.id);
+    container.base.virtualization_metadata =
+        Some(ServiceVirtualization::Docker(DockerVirtualization {
+            container_name: Some("plain-http".to_string()),
+            container_id: Some("298f41e5ae2e".to_string()),
+            compose_project: None,
+        }));
+    container.base.bindings = vec![
+        Binding::new_port_serviceless(p8000.id, Some(bridge.id)),
+        Binding::new_port_serviceless(p3000.id, None),
+    ];
+    submit(
+        vec![lo, bridge],
+        vec![p3000, p8000],
+        vec![runtime, container],
+    )
+    .await
+    .expect("docker scan persists");
+
+    let all = docker_services(&services, &lab).await;
+    let container = find_by_definition(&all, "Docker Container").expect("container stored");
+    let ports = services.port_service.get_for_host(&host_id).await.unwrap();
+    let ips = services
+        .ip_address_service
+        .get_for_host(&host_id)
+        .await
+        .unwrap();
+    let on_3000: Vec<Option<IpAddr>> = container
+        .base
+        .bindings
+        .iter()
+        .filter(|b| {
+            b.port_id()
+                .and_then(|id| ports.iter().find(|p| p.id == id))
+                .is_some_and(|p| p.base.port_type.number() == 3000)
+        })
+        .map(|b| {
+            b.ip_address_id()
+                .and_then(|id| ips.iter().find(|i| i.id == id))
+                .map(|i| i.base.ip_address)
+        })
+        .collect();
+    assert_eq!(on_3000, vec![None], "3000 is bound on every address");
+    assert!(
+        find_by_definition(&all, "Unclaimed Open Ports").is_none(),
+        "Unclaimed Open Ports held only 3000 and is deleted"
+    );
+}
+
 /// The lab's ipvlan endpoint, replayed in the lab's order. VM 103's Proxmox payload lists .63 for
 /// ens19. The sweep then finds .231 behind ens19's MAC, which is the ipvlan container sharing the
 /// NIC, and the container scan submits .231 as a Docker ipvlan guest. The VM keeps its own two
