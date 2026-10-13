@@ -205,9 +205,7 @@
 	// Check if typed value matches an existing tag name exactly. Names are unique across the org, so
 	// this checks every tag, including any the caller left out of `availableTags`.
 	let exactMatch = $derived(
-		(tagsQuery.data ?? tags).some(
-			(t) => t.name.toLowerCase() === inputValue.trim().toLowerCase()
-		)
+		(tagsQuery.data ?? tags).some((t) => t.name.toLowerCase() === inputValue.trim().toLowerCase())
 	);
 
 	// Show create option if user typed something, can create, and no exact match exists

@@ -124,8 +124,9 @@ impl Discovery {
 
     /// Whether the next run should scan all 65,535 ports. Only Unified discoveries port-scan.
     ///
-    /// The first run is light so the first results arrive fast. The second run (`scan_count`
-    /// 1) is a full baseline, and after that every `full_scan_interval`-th run is full.
+    /// The first run is light so the first results arrive fast. The second run
+    /// (`scan_count == 1`) is a full baseline, and after that every `full_scan_interval`-th run
+    /// is full.
     /// An interval of 0 means light scans only, 1 means every run is full, and
     /// `force_full_scan` overrides the interval for one run.
     pub fn full_scan_is_due(&self) -> bool {
