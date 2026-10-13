@@ -17,7 +17,7 @@ services:
       retries: 15
     volumes:
       - daemon-config:/root/.config/scanopy/daemon
-      # Comment out the line below to disable docker discovery
+      # Mounted for the Docker integration. Comment out the line below if you don't use it
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   postgres:
