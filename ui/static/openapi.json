@@ -10379,6 +10379,110 @@
         }
       }
     },
+    "/api/v1/licenses/instances": {
+      "get": {
+        "tags": [
+          "billing",
+          "internal"
+        ],
+        "summary": "List the server instances running this organization's license key",
+        "description": "An instance counts against the limit while it has checked in within the\nlast week.",
+        "operationId": "list_license_instances",
+        "responses": {
+          "200": {
+            "description": "The organization's server instances",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_LicenseInstancesResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/licenses/instances/{id}": {
+      "delete": {
+        "tags": [
+          "billing",
+          "internal"
+        ],
+        "summary": "Delete a server instance from this organization's license key",
+        "description": "Frees its slot. A server that is still running is listed again at its next\ncheck-in; rotating the key is what stops one.",
+        "operationId": "delete_license_instance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "License instance ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Instance deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such instance in this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "user_api_key": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v1/licenses/keys": {
       "post": {
         "tags": [
@@ -18089,19 +18193,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-12T16:19:02.085237Z",
+              "created_at": "2026-10-13T14:16:35.518275Z",
               "first_discovery_id": null,
-              "id": "cfb92547-c0e1-4dac-8a1d-517b485d7f4b",
+              "id": "fd95676f-3cf6-4449-97fe-411ff59ffe9b",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-12T16:19:02.085237Z",
+              "last_seen_at": "2026-10-13T14:16:35.518275Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-12T16:19:02.085237Z",
-              "valid_from": "2026-10-12T16:19:02.085237Z",
+              "updated_at": "2026-10-13T14:16:35.518275Z",
+              "valid_from": "2026-10-13T14:16:35.518275Z",
               "valid_to": null
             }
           },
@@ -19236,6 +19340,17 @@
               "entitlement": {
                 "type": "string",
                 "description": "An offline-format license key (claims: [`super::types::LicenseClaims`])\nwith `org_id` and `plan` set from the organization's current state."
+              },
+              "instances": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/InstanceUsage",
+                    "description": "How many server instances the key is running on, against how many it\ncovers. Absent from clouds older than instance counting."
+                  }
+                ]
               }
             }
           },
@@ -19825,19 +19940,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-12T16:19:02.054298Z",
+                      "created_at": "2026-10-13T14:16:35.477563Z",
                       "first_discovery_id": null,
-                      "id": "70a9ff33-9da1-4a1e-b994-6dbcd2c00a31",
+                      "id": "4186abd7-546a-4fa0-839c-a3944ad7895d",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-12T16:19:02.054298Z",
+                      "last_seen_at": "2026-10-13T14:16:35.477563Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-12T16:19:02.054298Z",
-                      "valid_from": "2026-10-12T16:19:02.054298Z",
+                      "updated_at": "2026-10-13T14:16:35.477563Z",
+                      "valid_from": "2026-10-13T14:16:35.477563Z",
                       "valid_to": null
                     }
                   ],
@@ -19850,7 +19965,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Wazuh",
+                  "service_definition": "Gatus",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -20376,6 +20491,52 @@
                     "description": "An invoice this customer defaulted on and we wrote off. While one\nstands, they cannot take payment terms again."
                   }
                 ]
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
+      "ApiResponse_LicenseInstancesResponse": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "The server instances an organization's online key is running on.",
+            "required": [
+              "instances",
+              "usage"
+            ],
+            "properties": {
+              "instances": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LicenseInstanceSummary"
+                },
+                "description": "Every instance that has checked in, most recent first, including ones\nsilent long enough to no longer count."
+              },
+              "usage": {
+                "$ref": "#/components/schemas/InstanceUsage",
+                "description": "Instances counting against the limit now, and the limit."
               }
             }
           },
@@ -20927,6 +21088,17 @@
                 "type": "boolean",
                 "description": "True when the license is past `intended_exp` but not yet past\nthe hard `exp` — the silent grace window."
               },
+              "license_instances": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/InstanceUsage",
+                    "description": "How many server instances this instance's online key is running on,\nagainst how many it covers, as Scanopy Cloud reported at the last\ncheck-in. Online keys only."
+                  }
+                ]
+              },
               "license_intended_expiry": {
                 "type": [
                   "string",
@@ -21260,19 +21432,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-12T16:19:02.080061Z",
+                  "created_at": "2026-10-13T14:16:35.509617Z",
                   "first_discovery_id": null,
-                  "id": "dfaa7d76-0617-4878-91be-f8632c857a6e",
+                  "id": "fdf5e05b-82c3-424f-b79a-028e56d22a53",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-12T16:19:02.080061Z",
+                  "last_seen_at": "2026-10-13T14:16:35.509617Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-12T16:19:02.080061Z",
-                  "valid_from": "2026-10-12T16:19:02.080061Z",
+                  "updated_at": "2026-10-13T14:16:35.509617Z",
+                  "valid_from": "2026-10-13T14:16:35.509617Z",
                   "valid_to": null
                 }
               ],
@@ -21285,7 +21457,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Wazuh",
+              "service_definition": "Gatus",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -24262,19 +24434,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-12T16:19:02.055013Z",
+          "created_at": "2026-10-13T14:16:35.478247Z",
           "first_discovery_id": null,
-          "id": "ec4c397c-1524-4eab-9b55-57d493626c28",
+          "id": "279ee951-0a7f-48d1-a031-b84a828926e2",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-12T16:19:02.055013Z",
+          "last_seen_at": "2026-10-13T14:16:35.478247Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-12T16:19:02.055013Z",
-          "valid_from": "2026-10-12T16:19:02.055013Z",
+          "updated_at": "2026-10-13T14:16:35.478247Z",
+          "valid_from": "2026-10-13T14:16:35.478247Z",
           "valid_to": null
         }
       },
@@ -25035,7 +25207,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Wazuh",
+              "service_definition": "Gatus",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -30036,6 +30208,14 @@
           "key"
         ],
         "properties": {
+          "instance_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The random id this server's database holds (`server_instance`), shared\nby every container on that database. Absent from servers older than\ninstance counting; those share one instance slot."
+          },
           "key": {
             "type": "string",
             "description": "The online key configured via `SCANOPY_LICENSE_KEY`."
@@ -30052,6 +30232,17 @@
           "entitlement": {
             "type": "string",
             "description": "An offline-format license key (claims: [`super::types::LicenseClaims`])\nwith `org_id` and `plan` set from the organization's current state."
+          },
+          "instances": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstanceUsage",
+                "description": "How many server instances the key is running on, against how many it\ncovers. Absent from clouds older than instance counting."
+              }
+            ]
           }
         }
       },
@@ -32041,19 +32232,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-12T16:19:02.053431Z",
+                  "created_at": "2026-10-13T14:16:35.476878Z",
                   "first_discovery_id": null,
-                  "id": "ead674e7-d7eb-492b-9a06-9a5eda9fff12",
+                  "id": "567d4aa9-89fa-4e4e-8022-35da7c643070",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-12T16:19:02.053431Z",
+                  "last_seen_at": "2026-10-13T14:16:35.476878Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-12T16:19:02.053431Z",
-                  "valid_from": "2026-10-12T16:19:02.053431Z",
+                  "updated_at": "2026-10-13T14:16:35.476878Z",
+                  "valid_from": "2026-10-13T14:16:35.476878Z",
                   "valid_to": null
                 }
               ],
@@ -32066,7 +32257,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Wazuh",
+              "service_definition": "Gatus",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -32926,6 +33117,26 @@
           "rekey",
           "reconfigure"
         ]
+      },
+      "InstanceUsage": {
+        "type": "object",
+        "description": "Server instances an online key has checked in from within the last\n`LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence\ncovers. Over the limit, every instance keeps its entitlement and shows a\nwarning.",
+        "required": [
+          "active",
+          "limit"
+        ],
+        "properties": {
+          "active": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "IntegrationTarget": {
         "oneOf": [
@@ -33887,6 +34098,121 @@
               "format": "uuid"
             },
             "description": "Subnets the daemon has an interface on, as reported by older daemons."
+          }
+        }
+      },
+      "LicenseInstance": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LicenseInstanceBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "readOnly": true
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "readOnly": true
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "readOnly": true
+              }
+            }
+          }
+        ],
+        "description": "A server instance that has checked in with an organization's online key,\nas the cloud records it."
+      },
+      "LicenseInstanceBase": {
+        "type": "object",
+        "required": [
+          "organization_id",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "properties": {
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "instance_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The id the server's database holds. `None` on the one row shared by\nservers too old to send it."
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_ip": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source address the cloud observed on the latest check-in. The server\nnever sends an address; behind NAT several servers share one.",
+            "example": "203.0.113.7"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "server_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Version the latest check-in reported, as semver text."
+          }
+        }
+      },
+      "LicenseInstanceSummary": {
+        "type": "object",
+        "required": [
+          "instance",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "Whether the instance counts against the limit: it checked in within\nthe last week."
+          },
+          "instance": {
+            "$ref": "#/components/schemas/LicenseInstance"
+          }
+        }
+      },
+      "LicenseInstancesResponse": {
+        "type": "object",
+        "description": "The server instances an organization's online key is running on.",
+        "required": [
+          "instances",
+          "usage"
+        ],
+        "properties": {
+          "instances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LicenseInstanceSummary"
+            },
+            "description": "Every instance that has checked in, most recent first, including ones\nsilent long enough to no longer count."
+          },
+          "usage": {
+            "$ref": "#/components/schemas/InstanceUsage",
+            "description": "Instances counting against the limit now, and the limit."
           }
         }
       },
@@ -35988,19 +36314,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-12T16:19:02.037602Z",
+                        "created_at": "2026-10-13T14:16:35.462066Z",
                         "first_discovery_id": null,
-                        "id": "a4c1cf3d-154c-4529-9c35-254cdfac4e05",
+                        "id": "902f54e5-55df-4a81-b150-a9b9da925f6b",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-12T16:19:02.037602Z",
+                        "last_seen_at": "2026-10-13T14:16:35.462066Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-12T16:19:02.037602Z",
-                        "valid_from": "2026-10-12T16:19:02.037602Z",
+                        "updated_at": "2026-10-13T14:16:35.462066Z",
+                        "valid_from": "2026-10-13T14:16:35.462066Z",
                         "valid_to": null
                       }
                     ],
@@ -36013,7 +36339,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Wazuh",
+                    "service_definition": "Gatus",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -36162,19 +36488,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-12T16:19:02.079283Z",
+                    "created_at": "2026-10-13T14:16:35.508553Z",
                     "first_discovery_id": null,
-                    "id": "eaa42743-6e09-4812-967c-fc0ce98d15cf",
+                    "id": "60817da7-bf4b-4861-a5f8-a6ccaf56d220",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-12T16:19:02.079283Z",
+                    "last_seen_at": "2026-10-13T14:16:35.508553Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-12T16:19:02.079283Z",
-                    "valid_from": "2026-10-12T16:19:02.079283Z",
+                    "updated_at": "2026-10-13T14:16:35.508553Z",
+                    "valid_from": "2026-10-13T14:16:35.508553Z",
                     "valid_to": null
                   }
                 ],
@@ -36187,7 +36513,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Wazuh",
+                "service_definition": "Gatus",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -37538,6 +37864,17 @@
             "type": "boolean",
             "description": "True when the license is past `intended_exp` but not yet past\nthe hard `exp` — the silent grace window."
           },
+          "license_instances": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstanceUsage",
+                "description": "How many server instances this instance's online key is running on,\nagainst how many it covers, as Scanopy Cloud reported at the last\ncheck-in. Online keys only."
+              }
+            ]
+          },
           "license_intended_expiry": {
             "type": [
               "string",
@@ -38791,19 +39128,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-12T16:19:02.054791Z",
+              "created_at": "2026-10-13T14:16:35.478024Z",
               "first_discovery_id": null,
-              "id": "8f53e5bc-1fad-4eb2-9b3c-7078b43704e9",
+              "id": "7126dd83-54c0-4ac1-a4ef-c091b7563c1a",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-12T16:19:02.054791Z",
+              "last_seen_at": "2026-10-13T14:16:35.478024Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-12T16:19:02.054791Z",
-              "valid_from": "2026-10-12T16:19:02.054791Z",
+              "updated_at": "2026-10-13T14:16:35.478024Z",
+              "valid_from": "2026-10-13T14:16:35.478024Z",
               "valid_to": null
             }
           ],
@@ -38816,7 +39153,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Wazuh",
+          "service_definition": "Gatus",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -40927,7 +41264,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "21184a75-4340-4227-94cf-de7cf2663223",
+                  "id": "856b6fc3-6ff9-4e36-a415-89c8cfba6e6b",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -40937,23 +41274,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "730ea126-d009-43cc-b9fc-59669d8c3ab6",
+                  "id": "712db1ff-5f59-41d9-9b96-fac581b28654",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "5590cfd7-e873-4f53-878d-6a589da9324d",
+                  "id": "2674f361-2fc5-4bf5-b313-59f2f26dd21e",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "3f9a0d77-4bb7-4e67-bc88-3039a7883dc3",
+                  "id": "eb0a26d2-7c9c-4466-9f9f-86ff62b23cd9",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "730ea126-d009-43cc-b9fc-59669d8c3ab6",
+                  "id": "712db1ff-5f59-41d9-9b96-fac581b28654",
                   "rule": "ByHost"
                 }
               ]
@@ -40983,19 +41320,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "84cd9ad7-9bb2-4e79-838b-3608d6f543e3",
+                "id": "f94b1ba2-0f93-4bcc-9560-02a331bc7b4b",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "08f8049a-68f8-4087-b44d-ed20965be92e",
+                "id": "f3aadfb5-7141-4876-911d-2aa348e6d302",
                 "rule": "ByVLAN"
               },
               {
-                "id": "2aeb9072-ea05-4808-84fc-3fc5a96f78b1",
+                "id": "0aa90da3-c3b4-4620-a696-9502434da364",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "2cc4a99f-4dc0-4524-a8f5-bd47881fd15c",
+                "id": "7938db3b-34e1-4bcd-9ab8-7563a2bcccb2",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -41016,7 +41353,7 @@
                 }
               },
               {
-                "id": "14bc5072-b627-4ec9-8928-d21116291695",
+                "id": "ac1f870a-00e4-40d1-8f9c-a7210b843fec",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -41025,15 +41362,15 @@
                 }
               },
               {
-                "id": "587ea4b0-b2c1-4732-86e7-dea23d4d3b00",
+                "id": "8ed6bb99-6db4-4085-9284-49cc04c21266",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "454cd1b4-3a89-4b2a-9609-b462958125f7",
+                "id": "44c59f96-a1f7-4402-a553-a660503d08b8",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "1fb61c79-bee3-40ef-8830-ef43eef7ff12",
+                "id": "07980e36-381e-4c01-954a-4ac3995f24e9",
                 "rule": "ByStack"
               }
             ]

@@ -2309,6 +2309,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/licenses/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the server instances running this organization's license key
+         * @description An instance counts against the limit while it has checked in within the
+         *     last week.
+         */
+        get: operations["list_license_instances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/licenses/instances/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a server instance from this organization's license key
+         * @description Frees its slot. A server that is still running is listed again at its next
+         *     check-in; rotating the key is what stops one.
+         */
+        delete: operations["delete_license_instance"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/licenses/keys": {
         parameters: {
             query?: never;
@@ -3776,19 +3818,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-12T16:19:02.085237Z",
+             *       "created_at": "2026-10-13T14:16:35.518275Z",
              *       "first_discovery_id": null,
-             *       "id": "cfb92547-c0e1-4dac-8a1d-517b485d7f4b",
+             *       "id": "fd95676f-3cf6-4449-97fe-411ff59ffe9b",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-12T16:19:02.085237Z",
+             *       "last_seen_at": "2026-10-13T14:16:35.518275Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-12T16:19:02.085237Z",
-             *       "valid_from": "2026-10-12T16:19:02.085237Z",
+             *       "updated_at": "2026-10-13T14:16:35.518275Z",
+             *       "valid_from": "2026-10-13T14:16:35.518275Z",
              *       "valid_to": null
              *     }
              */
@@ -4486,6 +4528,7 @@ export interface components {
                  *     with `org_id` and `plan` set from the organization's current state.
                  */
                 entitlement: string;
+                instances?: null | components["schemas"]["InstanceUsage"];
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -4658,19 +4701,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-12T16:19:02.054298Z",
+             *               "created_at": "2026-10-13T14:16:35.477563Z",
              *               "first_discovery_id": null,
-             *               "id": "70a9ff33-9da1-4a1e-b994-6dbcd2c00a31",
+             *               "id": "4186abd7-546a-4fa0-839c-a3944ad7895d",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-12T16:19:02.054298Z",
+             *               "last_seen_at": "2026-10-13T14:16:35.477563Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-12T16:19:02.054298Z",
-             *               "valid_from": "2026-10-12T16:19:02.054298Z",
+             *               "updated_at": "2026-10-13T14:16:35.477563Z",
+             *               "valid_from": "2026-10-13T14:16:35.477563Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4683,7 +4726,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Wazuh",
+             *           "service_definition": "Gatus",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5187,6 +5230,31 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_LicenseInstancesResponse: {
+            /** @description The server instances an organization's online key is running on. */
+            data?: {
+                /**
+                 * @description Every instance that has checked in, most recent first, including ones
+                 *     silent long enough to no longer count.
+                 */
+                instances: components["schemas"]["LicenseInstanceSummary"][];
+                /** @description Instances counting against the limit now, and the limit. */
+                usage: components["schemas"]["InstanceUsage"];
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_LicenseKeyResponse: {
             /** @description The result payload. Omitted on failure. */
             data?: {
@@ -5482,6 +5550,7 @@ export interface components {
                  *     the hard `exp` — the silent grace window.
                  */
                 license_in_grace_period: boolean;
+                license_instances?: null | components["schemas"]["InstanceUsage"];
                 /**
                  * Format: date
                  * @description User-visible expiry — the date displayed to end users under
@@ -5641,19 +5710,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-12T16:19:02.080061Z",
+             *           "created_at": "2026-10-13T14:16:35.509617Z",
              *           "first_discovery_id": null,
-             *           "id": "dfaa7d76-0617-4878-91be-f8632c857a6e",
+             *           "id": "fdf5e05b-82c3-424f-b79a-028e56d22a53",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-12T16:19:02.080061Z",
+             *           "last_seen_at": "2026-10-13T14:16:35.509617Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-12T16:19:02.080061Z",
-             *           "valid_from": "2026-10-12T16:19:02.080061Z",
+             *           "updated_at": "2026-10-13T14:16:35.509617Z",
+             *           "valid_from": "2026-10-13T14:16:35.509617Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5666,7 +5735,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Wazuh",
+             *       "service_definition": "Gatus",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -7018,19 +7087,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-12T16:19:02.055013Z",
+         *       "created_at": "2026-10-13T14:16:35.478247Z",
          *       "first_discovery_id": null,
-         *       "id": "ec4c397c-1524-4eab-9b55-57d493626c28",
+         *       "id": "279ee951-0a7f-48d1-a031-b84a828926e2",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-12T16:19:02.055013Z",
+         *       "last_seen_at": "2026-10-13T14:16:35.478247Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-12T16:19:02.055013Z",
-         *       "valid_from": "2026-10-12T16:19:02.055013Z",
+         *       "updated_at": "2026-10-13T14:16:35.478247Z",
+         *       "valid_from": "2026-10-13T14:16:35.478247Z",
          *       "valid_to": null
          *     }
          */
@@ -7376,7 +7445,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Wazuh",
+         *           "service_definition": "Gatus",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -9463,6 +9532,13 @@ export interface components {
         };
         /** @description Body the instance POSTs to [`ENTITLEMENT_PATH`]. */
         EntitlementRequest: {
+            /**
+             * Format: uuid
+             * @description The random id this server's database holds (`server_instance`), shared
+             *     by every container on that database. Absent from servers older than
+             *     instance counting; those share one instance slot.
+             */
+            instance_id?: string | null;
             /** @description The online key configured via `SCANOPY_LICENSE_KEY`. */
             key: string;
         };
@@ -9473,6 +9549,7 @@ export interface components {
              *     with `org_id` and `plan` set from the organization's current state.
              */
             entitlement: string;
+            instances?: null | components["schemas"]["InstanceUsage"];
         };
         /** @enum {string} */
         EntityDiscriminants: "Site" | "Vlan" | "Subnet" | "Host" | "Service" | "IPAddress" | "Interface" | "Port" | "Binding" | "Discovery" | "Daemon" | "DaemonApiKey" | "Tag" | "TagGroup" | "User" | "UserApiKey" | "Credential" | "Organization" | "Invite" | "Topology" | "Snapshot" | "Share" | "Dependency";
@@ -10144,19 +10221,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-12T16:19:02.053431Z",
+         *               "created_at": "2026-10-13T14:16:35.476878Z",
          *               "first_discovery_id": null,
-         *               "id": "ead674e7-d7eb-492b-9a06-9a5eda9fff12",
+         *               "id": "567d4aa9-89fa-4e4e-8022-35da7c643070",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-12T16:19:02.053431Z",
+         *               "last_seen_at": "2026-10-13T14:16:35.476878Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-12T16:19:02.053431Z",
-         *               "valid_from": "2026-10-12T16:19:02.053431Z",
+         *               "updated_at": "2026-10-13T14:16:35.476878Z",
+         *               "valid_from": "2026-10-13T14:16:35.476878Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10169,7 +10246,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Wazuh",
+         *           "service_definition": "Gatus",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10756,6 +10833,18 @@ export interface components {
          */
         InstallCommandType: "install" | "rekey" | "reconfigure";
         /**
+         * @description Server instances an online key has checked in from within the last
+         *     `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
+         *     covers. Over the limit, every instance keeps its entitlement and shows a
+         *     warning.
+         */
+        InstanceUsage: {
+            /** Format: int32 */
+            active: number;
+            /** Format: int32 */
+            limit: number;
+        };
+        /**
          * @description Per-daemon integration targeting, stored on the `Discovery` entity and delivered via the
          *     init command at registration. Each entry references exactly one stored credential and says
          *     where it applies on this daemon. This is the single home for cred↔IP targeting — it replaces
@@ -11276,6 +11365,58 @@ export interface components {
         LegacyCapabilities: {
             /** @description Subnets the daemon has an interface on, as reported by older daemons. */
             interfaced_subnet_ids: string[];
+        };
+        /**
+         * @description A server instance that has checked in with an organization's online key,
+         *     as the cloud records it.
+         */
+        LicenseInstance: components["schemas"]["LicenseInstanceBase"] & {
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        LicenseInstanceBase: {
+            /** Format: date-time */
+            first_seen_at: string;
+            /**
+             * Format: uuid
+             * @description The id the server's database holds. `None` on the one row shared by
+             *     servers too old to send it.
+             */
+            instance_id?: string | null;
+            /** Format: date-time */
+            last_seen_at: string;
+            /**
+             * @description Source address the cloud observed on the latest check-in. The server
+             *     never sends an address; behind NAT several servers share one.
+             * @example 203.0.113.7
+             */
+            last_seen_ip?: string | null;
+            /** Format: uuid */
+            organization_id: string;
+            /** @description Version the latest check-in reported, as semver text. */
+            server_version?: string | null;
+        };
+        LicenseInstanceSummary: {
+            /**
+             * @description Whether the instance counts against the limit: it checked in within
+             *     the last week.
+             */
+            active: boolean;
+            instance: components["schemas"]["LicenseInstance"];
+        };
+        /** @description The server instances an organization's online key is running on. */
+        LicenseInstancesResponse: {
+            /**
+             * @description Every instance that has checked in, most recent first, including ones
+             *     silent long enough to no longer count.
+             */
+            instances: components["schemas"]["LicenseInstanceSummary"][];
+            /** @description Instances counting against the limit now, and the limit. */
+            usage: components["schemas"]["InstanceUsage"];
         };
         LicenseKeyResponse: {
             /** @description Signed key to set as `SCANOPY_LICENSE_KEY` on a self-hosted server. */
@@ -12908,6 +13049,7 @@ export interface components {
              *     the hard `exp` — the silent grace window.
              */
             license_in_grace_period: boolean;
+            license_instances?: null | components["schemas"]["InstanceUsage"];
             /**
              * Format: date
              * @description User-visible expiry — the date displayed to end users under
@@ -13464,19 +13606,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-12T16:19:02.054791Z",
+         *           "created_at": "2026-10-13T14:16:35.478024Z",
          *           "first_discovery_id": null,
-         *           "id": "8f53e5bc-1fad-4eb2-9b3c-7078b43704e9",
+         *           "id": "7126dd83-54c0-4ac1-a4ef-c091b7563c1a",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-12T16:19:02.054791Z",
+         *           "last_seen_at": "2026-10-13T14:16:35.478024Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-12T16:19:02.054791Z",
-         *           "valid_from": "2026-10-12T16:19:02.054791Z",
+         *           "updated_at": "2026-10-13T14:16:35.478024Z",
+         *           "valid_from": "2026-10-13T14:16:35.478024Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13489,7 +13631,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Wazuh",
+         *       "service_definition": "Gatus",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -14568,7 +14710,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "21184a75-4340-4227-94cf-de7cf2663223",
+             *           "id": "856b6fc3-6ff9-4e36-a415-89c8cfba6e6b",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14578,23 +14720,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "730ea126-d009-43cc-b9fc-59669d8c3ab6",
+             *           "id": "712db1ff-5f59-41d9-9b96-fac581b28654",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "5590cfd7-e873-4f53-878d-6a589da9324d",
+             *           "id": "2674f361-2fc5-4bf5-b313-59f2f26dd21e",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "3f9a0d77-4bb7-4e67-bc88-3039a7883dc3",
+             *           "id": "eb0a26d2-7c9c-4466-9f9f-86ff62b23cd9",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "730ea126-d009-43cc-b9fc-59669d8c3ab6",
+             *           "id": "712db1ff-5f59-41d9-9b96-fac581b28654",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14608,19 +14750,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "84cd9ad7-9bb2-4e79-838b-3608d6f543e3",
+             *         "id": "f94b1ba2-0f93-4bcc-9560-02a331bc7b4b",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "08f8049a-68f8-4087-b44d-ed20965be92e",
+             *         "id": "f3aadfb5-7141-4876-911d-2aa348e6d302",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "2aeb9072-ea05-4808-84fc-3fc5a96f78b1",
+             *         "id": "0aa90da3-c3b4-4620-a696-9502434da364",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "2cc4a99f-4dc0-4524-a8f5-bd47881fd15c",
+             *         "id": "7938db3b-34e1-4bcd-9ab8-7563a2bcccb2",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14641,7 +14783,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "14bc5072-b627-4ec9-8928-d21116291695",
+             *         "id": "ac1f870a-00e4-40d1-8f9c-a7210b843fec",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14650,15 +14792,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "587ea4b0-b2c1-4732-86e7-dea23d4d3b00",
+             *         "id": "8ed6bb99-6db4-4085-9284-49cc04c21266",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "454cd1b4-3a89-4b2a-9609-b462958125f7",
+             *         "id": "44c59f96-a1f7-4402-a553-a660503d08b8",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "1fb61c79-bee3-40ef-8830-ef43eef7ff12",
+             *         "id": "07980e36-381e-4c01-954a-4ac3995f24e9",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -20779,6 +20921,76 @@ export interface operations {
             };
             /** @description Too many requests for this organization */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    list_license_instances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organization's server instances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_LicenseInstancesResponse"];
+                };
+            };
+            /** @description Not an owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_license_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description License instance ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Instance deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse"];
+                };
+            };
+            /** @description Not an owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description No such instance in this organization */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

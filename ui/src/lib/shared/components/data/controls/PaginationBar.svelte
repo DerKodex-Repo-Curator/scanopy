@@ -88,7 +88,9 @@
 		{common_clear()}
 		{#if shortcut}
 			<span
-				class="text-tertiary ml-0.5 font-normal transition-opacity {shortcutsPaused ? 'opacity-40' : ''}"
+				class="text-tertiary ml-0.5 font-normal transition-opacity {shortcutsPaused
+					? 'opacity-40'
+					: ''}"
 				title={shortcutsPaused ? common_shortcutsPausedInSearch() : undefined}>({shortcut})</span
 			>
 		{/if}
