@@ -89,6 +89,7 @@
 		common_commonTags,
 		tags_hotkeyAdd,
 		tags_hotkeyRemove,
+		common_shortcutsPausedInSearch,
 		common_item,
 		common_items,
 		common_no,
@@ -916,6 +917,8 @@
 	// T focuses the island's tag input while rows are selected. From there Shift+Tab reaches the
 	// held tags, and Delete or Backspace removes the focused one.
 	const TAG_SHORTCUT = 'T';
+	/** The table search has focus, so the shortcuts below are off; their hints dim to say so. */
+	let searchFocused = $state(false);
 	let bulkTagPicker: { focusInput: () => void } | undefined = $state();
 	let showTagIsland = $derived(hasBulkTagging && selectedIds.size > 0);
 
@@ -1001,6 +1004,7 @@
 	>
 		<ControlsBar
 			bind:searchQuery
+			bind:searchFocused
 			onClearSearch={clearSearch}
 			onExport={onExportClick ?? onCsvExport}
 			{entityLabel}
@@ -1043,6 +1047,7 @@
 				selectedCount={showSelection ? selectedIds.size : 0}
 				onClearSelection={selectNone}
 				{clearShortcuts}
+				shortcutsPaused={searchFocused}
 				{useServerPagination}
 				processedCount={processedItems.length}
 				itemCount={items.length}
@@ -1116,8 +1121,13 @@
 				<span
 					class="text-tertiary ml-2 flex items-center gap-1.5 whitespace-nowrap border-l border-[var(--color-border)] pl-3 text-xs"
 				>
-					<KbdKey key={TAG_SHORTCUT} size="sm" />
-					{tags_hotkeyAdd()}
+					<span
+						class="flex items-center gap-1.5 transition-opacity {searchFocused ? 'opacity-40' : ''}"
+						title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+					>
+						<KbdKey key={TAG_SHORTCUT} size="sm" />
+						{tags_hotkeyAdd()}
+					</span>
 					{#if commonTags.length > 0}
 						<KbdKey key="{keyLabel('Shift')} Tab" size="sm" class="ml-2" />
 						<KbdKey key="⌫" size="sm" />

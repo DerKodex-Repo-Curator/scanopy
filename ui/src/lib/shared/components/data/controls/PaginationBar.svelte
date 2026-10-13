@@ -17,7 +17,8 @@
 		common_clear,
 		common_filterApplied,
 		common_nFiltersApplied,
-		common_itemsSelected
+		common_itemsSelected,
+		common_shortcutsPausedInSearch
 	} from '$lib/paraglide/messages';
 
 	let {
@@ -42,7 +43,8 @@
 		onClearGrouping = undefined,
 		selectedCount = 0,
 		onClearSelection = undefined,
-		clearShortcuts = {}
+		clearShortcuts = {},
+		shortcutsPaused = false
 	}: {
 		totalCount: number;
 		totalPages: number;
@@ -69,6 +71,8 @@
 		onClearSelection?: () => void;
 		/** Key chips for the clears, as their shortcuts are shown. The caller handles the keys. */
 		clearShortcuts?: { filters?: string; grouping?: string; selection?: string };
+		/** The shortcuts are off (the table search has focus); their keys dim to say so. */
+		shortcutsPaused?: boolean;
 	} = $props();
 </script>
 
@@ -83,7 +87,10 @@
 		<Icon class="h-3 w-3" />
 		{common_clear()}
 		{#if shortcut}
-			<span class="text-tertiary ml-0.5 font-normal">({shortcut})</span>
+			<span
+				class="text-tertiary ml-0.5 font-normal transition-opacity {shortcutsPaused ? 'opacity-40' : ''}"
+				title={shortcutsPaused ? common_shortcutsPausedInSearch() : undefined}>({shortcut})</span
+			>
 		{/if}
 	</button>
 {/snippet}

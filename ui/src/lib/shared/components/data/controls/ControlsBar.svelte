@@ -5,12 +5,7 @@
 	import PageTitle from '$lib/shared/components/layout/PageTitle.svelte';
 	import SearchInput from '$lib/shared/components/forms/input/SearchInput.svelte';
 	import { isFindShortcut } from '$lib/features/search/results';
-	import {
-		isEditableTarget,
-		isShiftShortcut,
-		shiftShortcutLabel,
-		shortcutLabel
-	} from '$lib/shared/utils/shortcuts';
+	import { keyLabel, shortcutLabel } from '$lib/shared/utils/shortcuts';
 	import { isOnVisiblePage } from '$lib/shared/stores/modal-registry';
 	import { lowercasePreservingAcronyms } from '$lib/shared/utils/formatting';
 	import {
@@ -32,7 +27,8 @@
 		/** The page's own actions (Create), last in the toolbar. */
 		actions = undefined,
 		/** First among the buttons while rows are selected (bulk delete). */
-		selectionActions = undefined
+		selectionActions = undefined,
+		searchFocused = $bindable(false)
 	}: {
 		searchQuery: string;
 		onClearSearch: () => void;
@@ -46,14 +42,28 @@
 		subtitle?: string | null;
 		columnMenu?: Snippet;
 		actions?: Snippet;
+		/** Whether the search box has focus, which turns the list's single-key shortcuts off. */
+		searchFocused?: boolean;
 		selectionActions?: Snippet;
 	} = $props();
 
 	let isExporting = $state(false);
 	let inputEl: HTMLInputElement | undefined = $state();
 	const findShortcut = shortcutLabel('F');
-	const CLEAR_SEARCH_KEY = 'S';
-	const clearSearchShortcut = shiftShortcutLabel(CLEAR_SEARCH_KEY);
+	// Esc clears from inside the box (handleInputKeydown); shown beside its clear button.
+	const clearSearchShortcut = keyLabel('Escape');
+
+	$effect(() => {
+		const input = inputEl;
+		if (!input) return;
+		const update = () => (searchFocused = document.activeElement === input);
+		input.addEventListener('focus', update);
+		input.addEventListener('blur', update);
+		return () => {
+			input.removeEventListener('focus', update);
+			input.removeEventListener('blur', update);
+		};
+	});
 
 	const form = createForm(() => ({ defaultValues: { query: searchQuery } }));
 
@@ -67,26 +77,20 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (!isOnVisiblePage(inputEl)) return;
 		// Only the page on screen takes Cmd/Ctrl+F; everywhere else the browser keeps its own find.
-		if (isFindShortcut(event)) {
-			event.preventDefault();
-			inputEl?.focus();
-		} else if (
-			searchQuery &&
-			isShiftShortcut(event, CLEAR_SEARCH_KEY) &&
-			!isEditableTarget(event.target) &&
-			!document.querySelector('[aria-modal="true"]')
-		) {
-			event.preventDefault();
-			clear();
-		}
+		if (!isFindShortcut(event) || !isOnVisiblePage(inputEl)) return;
+		event.preventDefault();
+		// A second press leaves the search, so the list's single-key shortcuts work again.
+		if (document.activeElement === inputEl) inputEl?.blur();
+		else inputEl?.focus();
 	}
 
 	function handleInputKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && searchQuery) {
+		// Esc clears the search and leaves it, so the list's single-key shortcuts work again.
+		if (event.key === 'Escape') {
 			event.stopPropagation();
-			clear();
+			if (searchQuery) clear();
+			inputEl?.blur();
 		}
 	}
 

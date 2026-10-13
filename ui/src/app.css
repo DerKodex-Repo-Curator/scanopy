@@ -229,7 +229,7 @@
 
 	.entity-table :is(.pin-left, .pin-right) {
 		position: sticky;
-		z-index: 1;
+		z-index: 20;
 		background: linear-gradient(var(--row-tint), var(--row-tint)), var(--color-bg-body);
 	}
 
@@ -239,6 +239,12 @@
 
 	.entity-table .pin-right {
 		right: var(--pin-right, 0px);
+	}
+
+	/* A group header spans the whole row; its label stays at the left edge while the row scrolls. */
+	.entity-table .pin-content {
+		position: sticky;
+		left: var(--cell-px);
 	}
 
 	.entity-table .pin-edge-right {

@@ -504,6 +504,7 @@
 	"common_settings": "Settings",
 	"common_share": "Share",
 	"common_shortcuts": "Shortcuts",
+	"common_shortcutsPausedInSearch": "Shortcuts are off while you type in the search. Press Esc to leave it.",
 	"common_show": "Show",
 	"common_showFalse": "Show False",
 	"common_showTrue": "Show True",

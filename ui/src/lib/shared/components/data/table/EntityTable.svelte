@@ -356,7 +356,7 @@
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-	class="entity-table relative overflow-x-auto"
+	class="entity-table relative isolate overflow-x-auto"
 	style:--pin-select-width="{selectable ? selectWidth : 0}px"
 	style:--pin-actions-width="{getActions ? actionsWidth : 0}px"
 	data-density={displaySettings.current.table_density}
@@ -429,7 +429,7 @@
 					<th
 						bind:this={actionsHeader}
 						scope="col"
-						class="text-secondary pin-right px-[var(--cell-px)] py-[var(--cell-py)] text-right text-xs font-medium"
+						class="text-secondary pin-right px-[var(--cell-px)] py-[var(--cell-py)] text-left text-xs font-medium"
 					>
 						{common_actions()}
 					</th>
@@ -455,7 +455,7 @@
 								type="button"
 								onclick={() => onToggleCollapse(group.key)}
 								aria-expanded={!isCollapsed}
-								class="text-primary flex items-center gap-2 text-sm font-semibold"
+								class="text-primary pin-content flex w-max items-center gap-2 text-sm font-semibold"
 							>
 								{#if isCollapsed}
 									<ChevronRight class="h-4 w-4" aria-hidden="true" />
