@@ -50,7 +50,8 @@
 		onDelete = null,
 		name = undefined,
 		initialIntegration = null,
-		initialHostIds = []
+		initialHostIds = [],
+		initialSiteIds = []
 	}: {
 		credential?: Credential | null;
 		isOpen?: boolean;
@@ -63,15 +64,18 @@
 		initialIntegration?: string | null;
 		/** Create mode only: hosts the new credential starts assigned to. */
 		initialHostIds?: string[];
+		/** Create mode only: sites the new credential starts assigned to. */
+		initialSiteIds?: string[];
 	} = $props();
 
-	// The transports a pre-filled create flow offers, falling back to all of the integration's when
-	// none can be assigned to a host.
+	// The transports a pre-filled create flow offers: those that can apply where it comes assigned,
+	// falling back to all of the integration's when none can.
 	let typeChoices = $derived.by(() => {
 		if (isEditing || !initialIntegration) return undefined;
 		const types = credentialTypes.getItems() ?? [];
-		const forHosts = typesForIntegration(types, initialIntegration, initialHostIds.length > 0);
-		return forHosts.length ? forHosts : typesForIntegration(types, initialIntegration, false);
+		const target = initialSiteIds.length ? 'Site' : initialHostIds.length ? 'Hosts' : null;
+		const fitting = typesForIntegration(types, initialIntegration, target);
+		return fitting.length ? fitting : typesForIntegration(types, initialIntegration, null);
 	});
 
 	// A pre-filled credential starts named after its host, which the host ids alone cannot give.
@@ -244,7 +248,7 @@
 	function handleOpen() {
 		activeTab = 'details';
 		furthestReached = 0;
-		assignedSiteIds = credential?.assigned_site_ids ?? [];
+		assignedSiteIds = credential?.assigned_site_ids ?? initialSiteIds;
 		hostAssignments =
 			credential?.host_assignments ??
 			initialHostIds.map((host_id) => ({ host_id, ip_address_ids: null }));

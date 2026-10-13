@@ -2,7 +2,7 @@
 //! read back onto `run_type.results.warnings` wherever the run is read through this service.
 use super::*;
 use crate::daemon::discovery::types::warnings::DiscoveryWarning;
-use crate::server::credentials::service::FoundIntegration;
+use crate::server::credentials::service::{FoundIntegration, SiteTriedAt};
 
 impl DiscoveryService {
     /// Store the warnings a historical run carries in memory. Called once, right after the run's
@@ -17,16 +17,18 @@ impl DiscoveryService {
     }
 
     /// What each site's latest completed full scan found on hosts with no credential, as
-    /// recorded then. A host deleted since is left out. The caller re-checks coverage, since a
-    /// credential saved after the scan covers the host now.
+    /// recorded then, and when each of those scans started. A host deleted since is left out. The
+    /// caller re-checks coverage, since a credential saved after the scan covers the host now, and
+    /// the start times say which site credentials that scan already tried.
     ///
     /// A rescan is skipped: it touches one host, so it would hide every other host the last full
     /// scan reported.
     pub async fn latest_integrations_without_credentials(
         &self,
         site_ids: &[Uuid],
-    ) -> Result<Vec<FoundIntegration>> {
+    ) -> Result<(Vec<FoundIntegration>, SiteTriedAt)> {
         let mut found = Vec::new();
+        let mut tried_at = SiteTriedAt::new();
         for site_id in site_ids {
             let filter = StorableFilter::<Discovery>::new_from_site_ids(&[*site_id])
                 .historical_discovery()
@@ -42,6 +44,9 @@ impl DiscoveryService {
                 let RunType::Historical { results } = &discovery.base.run_type else {
                     continue;
                 };
+                if let Some(started) = results.started_at.or(results.finished_at) {
+                    tried_at.insert(discovery.base.site_id, started);
+                }
                 found.extend(results.warnings.iter().filter_map(|w| match w {
                     DiscoveryWarning::IntegrationWithoutCredential {
                         host_id: Some(host_id),
@@ -55,7 +60,7 @@ impl DiscoveryService {
                 }));
             }
         }
-        Ok(found)
+        Ok((found, tried_at))
     }
 
     /// Fill each historical run's warnings from the table.

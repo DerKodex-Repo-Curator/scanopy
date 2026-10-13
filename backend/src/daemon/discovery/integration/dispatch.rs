@@ -185,11 +185,10 @@ fn resolve_ledger(ledger: Vec<DispositionEntry>, ip: IpAddr) -> Vec<CredentialIs
 pub struct IntegrationProbeResults {
     pub client_responses: HashMap<ClientProbe, Vec<PortType>>,
     pub probe_handles: HashMap<CredentialQueryPayloadDiscriminants, Box<dyn Any + Send + Sync>>,
-    /// The credential that successfully probed per integration — `cred_id` is
-    /// `Some` for user-configured (host-assigned) credentials and `None` for
-    /// site-default fallbacks. Execute reads from this to run against the
-    /// credential that actually worked; only `Some` entries participate in
-    /// credential_assignments (defaults are site-wide, not host-scoped).
+    /// The credential that successfully probed per integration. `cred_id` is the stored
+    /// credential, site defaults included, and `None` only when an older server sent none.
+    /// Execute reads from this to run against the credential that actually worked, and only
+    /// `Some` entries become host assignments.
     pub working_credential_ids:
         HashMap<CredentialQueryPayloadDiscriminants, (Option<Uuid>, CredentialQueryPayload)>,
     /// Ports discovered by integration probes (added to open_ports).
@@ -709,10 +708,14 @@ pub async fn execute_integrations(
 /// credential probed over the daemon's own loopback address earns an assignment
 /// on the daemon host and so keeps scanning containers on every later scan.
 ///
-/// Two types are deliberately excluded:
-/// - **SNMP**, which records its own assignments in `SnmpIntegration::execute`.
-/// - **Site defaults** (`None` id), which are site-wide by definition and
-///   must not be pinned to whichever host happened to answer them.
+/// A site default that worked is pinned too. It is a guess tried on every host of the site,
+/// failing silently, so the assignment is the only record of where it is known to work: it makes a
+/// later failure on that host a warning rather than silence, and it is what
+/// `IntegrationWithoutCredential` counts as covering (`credentials/service/coverage.rs`). The
+/// site assignment stays, so the credential is still tried on hosts found later.
+///
+/// Excluded: **SNMP**, which records its own assignments in `SnmpIntegration::execute`, and a
+/// winner with no id (an older server sent none), which names nothing to assign.
 ///
 /// Runs on probe success alone — a matched-service skip or a failed `execute()`
 /// does not suppress it, because the credential is proven either way.
@@ -852,12 +855,10 @@ mod tests {
         assert_eq!(assignments[0].ip_address_ids, Some(vec![loopback_ip_id]));
     }
 
-    /// Two types must never be promoted here: SNMP records its own assignments inside
-    /// `SnmpIntegration::execute`, and a site default (`None` id) is site-wide by
-    /// definition — pinning it to whichever host answered would turn a broadcast credential
-    /// into a host-scoped one.
+    /// SNMP records its own assignments inside `SnmpIntegration::execute`, and a winner with no
+    /// id names no stored credential, so neither earns one here.
     #[test]
-    fn snmp_and_site_defaults_are_not_promoted() {
+    fn snmp_and_unidentified_winners_are_not_promoted_here() {
         let w = winners(vec![
             (
                 CredentialQueryPayloadDiscriminants::Snmp,
@@ -873,7 +874,7 @@ mod tests {
 
         assert!(
             credential_assignments_from_probes(&w, Some(Uuid::new_v4())).is_empty(),
-            "neither an SNMP winner nor an unidentified site default earns a host assignment"
+            "neither an SNMP winner nor an unidentified winner earns a host assignment"
         );
     }
 }

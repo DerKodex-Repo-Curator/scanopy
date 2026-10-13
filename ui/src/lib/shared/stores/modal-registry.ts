@@ -24,7 +24,7 @@ export interface ModalState {
 }
 
 /** The URL params a modal can be pre-filled from. */
-export const PREFILL_PARAMS = ['integration', 'hosts'] as const;
+export const PREFILL_PARAMS = ['integration', 'hosts', 'sites'] as const;
 export type PrefillParam = (typeof PREFILL_PARAMS)[number];
 
 const EMPTY_STATE: ModalState = {

@@ -735,6 +735,7 @@ impl DaemonService {
                 &integration_targets,
                 update.site_id,
                 daemon_host_id,
+                update.started_at.unwrap_or_else(chrono::Utc::now),
             )
             .await
         {

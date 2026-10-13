@@ -22,7 +22,7 @@ import osFamilies from '$lib/data/os-families.json';
 import snmpWalkGroups from '$lib/data/snmp-walk-groups.json';
 import warningCodes from '$lib/data/warning-codes.json';
 import warningRemedies from '$lib/data/warning-remedies.json';
-import { metaDescription, metaDescriptionWith, metaName } from '$lib/i18n/metadata';
+import { metaDescription, metaDescriptionWith, metaName, metaNameWith } from '$lib/i18n/metadata';
 import { joinList, MAX_LISTED } from '$lib/i18n/list';
 import { toColor, type Color } from '$lib/shared/utils/styling';
 import { osLabel } from '$lib/features/daemons/utils';
@@ -95,6 +95,9 @@ export interface WarningStatement {
 
 /** One warning code's worth of a run, as a row in the report. */
 export interface WarningEntry {
+	/** Unique within a run: the code and the title, since a code whose name is a template has a row
+	 *  per title. */
+	key: string;
 	code: DiscoveryWarningCode;
 	/** The code's short name — "Credential incomplete" — which is what the row is headed by. */
 	title: string;
@@ -433,6 +436,13 @@ export function integrationWithoutCredentialParams(
 		count: hosts,
 		discovers: credentialIntegrations.getDescription(id)
 	};
+}
+
+/** `IntegrationWithoutCredential`'s title for one integration, which heads its run report row. */
+export function integrationWithoutCredentialTitle(id: CredentialIntegration): string {
+	const code: DiscoveryWarningCode = 'IntegrationWithoutCredential';
+	const fallback = warningCodes.find((c) => c.id === code)?.name ?? code;
+	return metaNameWith('warning_codes', code, integrationWithoutCredentialParams(id, 0), fallback);
 }
 
 /** `IntegrationWithoutCredential`'s sentence for one integration found on `hosts` hosts. */
@@ -807,6 +817,25 @@ export function warningCountsByCredential(warnings: DiscoveryWarning[]): Map<str
 }
 
 /**
+ * One code's occurrences, split by the title each fills its name in with. Insertion-ordered. A
+ * fixed name fills in the same for all of them, so that is one group.
+ */
+function byTitle(
+	code: DiscoveryWarningCode,
+	group_: DiscoveryWarning[],
+	fallback: string,
+	context: ParamContext
+): Map<string, DiscoveryWarning[]> {
+	const build = WARNING_PARAMS[code] as (w: DiscoveryWarning[], context: ParamContext) => Params;
+	const rows = new Map<string, DiscoveryWarning[]>();
+	for (const warning of group_) {
+		const title = metaNameWith('warning_codes', code, build([warning], context), fallback);
+		rows.set(title, [...(rows.get(title) ?? []), warning]);
+	}
+	return rows;
+}
+
+/**
  * A run's warnings, grouped into the sections an operator reads them in.
  *
  * The sections are the rungs of `warning-remedies.json` — what the reader has to do — in fixture
@@ -821,6 +850,10 @@ export function warningCountsByCredential(warnings: DiscoveryWarning[]): Map<str
  * devices restricting the same SNMP view produced four near-identical paragraphs, and are now one
  * row and one sentence. Occurrences that genuinely differ — a credential diagnostic, a device's own
  * figures — still get a sentence each, so nothing the backend kept apart is merged.
+ *
+ * A row's title may name only what every occurrence under it shares. So a code whose name is a
+ * template ("{integration} found without a credential") becomes one row per distinct title, each
+ * with its own action, and a code with a fixed name stays one row.
  */
 export function buildWarningReport(
 	warnings: DiscoveryWarning[],
@@ -849,15 +882,18 @@ export function buildWarningReport(
 		// sentence to show and no rung to file it under.
 		if (!meta) continue;
 
-		entries.push({
-			code,
-			title: metaName('warning_codes', code, meta.name ?? code),
-			color: toColor(meta.color),
-			icon: meta.icon,
-			subjects: subjectsOf(group_, nameOfEntity),
-			details: renderStatements(code, group_, hostName, context),
-			warnings: group_
-		});
+		for (const [title, row] of byTitle(code, group_, meta.name ?? code, context)) {
+			entries.push({
+				key: `${code}:${title}`,
+				code,
+				title,
+				color: toColor(meta.color),
+				icon: meta.icon,
+				subjects: subjectsOf(row, nameOfEntity),
+				details: renderStatements(code, row, hostName, context),
+				warnings: row
+			});
+		}
 	}
 
 	return warningRemedies

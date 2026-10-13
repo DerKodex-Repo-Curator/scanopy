@@ -2,12 +2,14 @@
 //!
 //! Before a v3 manager can authenticate it has to learn the agent's engine id, so RFC 3414 §4 has
 //! the agent answer a keyless request carrying an empty engine id with a Report
-//! (`usmStatsUnknownEngineIDs`) naming its engine. Any agent with v3 enabled answers it, whether or
-//! not a user is configured, and net-snmp enables v3 by default.
+//! (`usmStatsUnknownEngineIDs`) naming its engine. Any agent whose software implements v3 answers
+//! it, whatever versions its configuration grants access to: net-snmp's `snmpd` configured with
+//! only a v2c community still does. So this finds the agent, and says nothing about which version
+//! or community it accepts. Nothing unauthenticated can: a wrong community is dropped without a
+//! word.
 //!
-//! v1/v2c-only agents stay invisible: they drop a request with the wrong community without a word,
-//! so without a credential there is nothing to observe. Those are still found by the SNMP
-//! integration once a community answers.
+//! Agents whose software lacks v3, or has it switched off, stay invisible. Those are still found by
+//! the SNMP integration once a community answers.
 //!
 //! This is evidence that an SNMP agent answered, not that a credential worked, so it has its own
 //! [`ClientProbe::SnmpEngine`] and leaves [`ClientProbe::Snmp`] meaning the latter.

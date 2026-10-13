@@ -410,7 +410,7 @@ describe('discovery warning rendering', () => {
 		expect(rendered[1]).toContain('10.0.0.3');
 	});
 
-	it('names forty hosts running one integration in one sentence, one per integration', () => {
+	it('gives each integration its own row, naming all its hosts in one sentence', () => {
 		const found = (integration: string, n: number) =>
 			Array.from(
 				{ length: n },
@@ -426,12 +426,16 @@ describe('discovery warning rendering', () => {
 			(section) => section.entries
 		);
 
-		// One row for the code, so forty SNMP devices are not forty prompts, and inside it one
-		// sentence per integration, each counting its own hosts.
-		expect(rows).toHaveLength(1);
-		const statements = rows[0].details.map((d) => d.sentence);
-		expect(statements).toHaveLength(2);
-		expect(statements[0]).toContain('40');
-		expect(statements[1]).not.toContain('40');
+		// A row per integration, so each has its own title and its own button, and forty SNMP
+		// devices are still one row and one sentence rather than forty.
+		expect(rows).toHaveLength(2);
+		const [snmp, proxmox] = rows;
+		expect(snmp.title).toContain('SNMP');
+		expect(proxmox.title).toContain('Proxmox');
+		expect(snmp.warnings).toHaveLength(40);
+		expect(snmp.details).toHaveLength(1);
+		expect(snmp.details[0].sentence).toContain('40');
+		expect(proxmox.details[0].sentence).not.toContain('40');
+		expect(new Set(rows.map((r) => r.key)).size).toBe(2);
 	});
 });

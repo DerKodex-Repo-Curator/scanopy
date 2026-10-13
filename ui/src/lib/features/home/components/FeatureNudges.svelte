@@ -11,18 +11,24 @@
 		entities,
 		billingPlans,
 		credentialIntegrations,
+		credentialTypes,
 		interfaceIntegrationsList
 	} from '$lib/shared/stores/metadata';
-	import { openCredentialCreate } from '$lib/features/credentials/utils/prefill';
-	import { integrationWithoutCredentialSentence } from '$lib/features/discovery/utils/warnings';
+	import {
+		addIntegrationCredentialLabel,
+		openCredentialCreate,
+		prefillsSites
+	} from '$lib/features/credentials/utils/prefill';
+	import {
+		integrationWithoutCredentialSentence,
+		integrationWithoutCredentialTitle
+	} from '$lib/features/discovery/utils/warnings';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { hasSunsetWarning } from '$lib/features/daemons/utils';
 	import type { IconComponent } from '$lib/shared/utils/types';
 	import { onMount } from 'svelte';
 	import {
 		common_getStarted,
-		credentials_addIntegrationCredential,
-		home_nudges_integrationTitle,
 		home_nudges_apiKeysAction,
 		home_nudges_apiKeysDescription,
 		home_nudges_apiKeysTitle,
@@ -122,16 +128,17 @@
 			},
 			// One per integration the latest scans found with no credential, most hosts first. Gone
 			// once a covering credential is saved, so acting on it does not dismiss it.
-			...dashboard.uncovered_integrations.map(({ integration, host_ids }): Nudge => ({
+			...dashboard.uncovered_integrations.map(({ integration, host_ids, site_ids }): Nudge => ({
 				id: `integration-${integration}`,
-				title: home_nudges_integrationTitle({
-					integration: credentialIntegrations.getName(integration)
-				}),
+				title: integrationWithoutCredentialTitle(integration),
 				description: integrationWithoutCredentialSentence(integration, host_ids.length),
-				actionLabel: credentials_addIntegrationCredential({
-					integration: credentialIntegrations.getName(integration)
-				}),
-				action: () => openCredentialCreate(integration, host_ids),
+				actionLabel: addIntegrationCredentialLabel(
+					integration,
+					prefillsSites(credentialTypes.getItems() ?? [], integration) && site_ids.length === 1
+						? (dashboard.sites.find((s) => s.id === site_ids[0])?.name ?? null)
+						: null
+				),
+				action: () => openCredentialCreate(integration, { hostIds: host_ids, siteIds: site_ids }),
 				visible: has('FirstDiscoveryCompleted'),
 				icon: credentialIntegrations.getIconComponent(integration),
 				iconColor: credentialIntegrations.getColorHelper(integration).icon,

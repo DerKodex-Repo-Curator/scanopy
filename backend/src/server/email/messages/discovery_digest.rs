@@ -220,7 +220,13 @@ fn render_attention_section(payload: &DiscoveryDigestPayload, run: &RunLinks) ->
         let mut body: String = payload
             .integrations_without_credentials
             .iter()
-            .map(|e| line(&integration_without_credential_line(e, run)))
+            .map(|e| {
+                line(&integration_without_credential_line(
+                    e,
+                    payload.site_id,
+                    run,
+                ))
+            })
             .collect();
         body += &payload
             .credential_problems
@@ -274,24 +280,34 @@ fn render_attention_section(payload: &DiscoveryDigestPayload, run: &RunLinks) ->
     )
 }
 
-/// "Proxmox VE runs on 3 hosts with no credential. Add one", the link opening the credential
-/// create flow with the integration chosen and those hosts assigned. The same URL the app's own
-/// prompts open, so every surface lands in the same flow.
-fn integration_without_credential_line(e: &IntegrationWithoutCredential, run: &RunLinks) -> String {
+/// "Proxmox VE answers on 3 hosts that no credential works on. Add one", the link opening the
+/// credential create flow with the integration chosen and where it applies already assigned: the
+/// run's site for an integration whose credentials can cover a site, the hosts otherwise. The same
+/// URL the app's own prompts open, so every surface lands in the same flow.
+fn integration_without_credential_line(
+    e: &IntegrationWithoutCredential,
+    site_id: Uuid,
+    run: &RunLinks,
+) -> String {
     let name = e.integration.name();
     let text = format!(
-        "<strong>{}</strong> runs on {} with no credential.",
+        "<strong>{}</strong> answers on {} that no credential works on.",
         html_escape(name),
         plural(e.host_ids.len() as u32, "host", "hosts"),
     );
-    let hosts = e
-        .host_ids
-        .iter()
-        .map(Uuid::to_string)
-        .collect::<Vec<_>>()
-        .join(",");
+    let scope = if e.integration.applies_to_sites() {
+        format!("sites={site_id}")
+    } else {
+        let hosts = e
+            .host_ids
+            .iter()
+            .map(Uuid::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("hosts={hosts}")
+    };
     let href = run.email.with_utm(&format!(
-        "{}/?modal=credential-editor&integration={}&hosts={hosts}#credentials",
+        "{}/?modal=credential-editor&integration={}&{scope}#credentials",
         run.base,
         e.integration.id(),
     ));

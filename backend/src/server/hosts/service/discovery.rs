@@ -450,13 +450,15 @@ impl HostService {
     }
 
     /// The integrations whose services a finished run touched, on hosts no credential of that
-    /// integration covers. See `credentials/service/coverage.rs` for the rule.
+    /// integration covers. See `credentials/service/coverage.rs` for the rule. `started_at` is
+    /// when the run began, so the site's credentials that existed then count as tried.
     pub async fn uncovered_integrations_for_run(
         &self,
         scanned: &crate::server::daemons::r#impl::api::ScannedEntityIds,
         integration_targets: &[crate::server::credentials::r#impl::mapping::IntegrationTarget],
         site_id: Uuid,
         daemon_host_id: Option<Uuid>,
+        started_at: chrono::DateTime<chrono::Utc>,
     ) -> Result<Vec<FoundIntegration>> {
         if scanned.service_ids.is_empty() {
             return Ok(Vec::new());
@@ -471,7 +473,12 @@ impl HostService {
             .filter_map(FoundIntegration::from_service)
             .collect();
         self.credential_service
-            .uncovered_integrations(found, integration_targets, Some(site_id), daemon_host_id)
+            .uncovered_integrations(
+                found,
+                integration_targets,
+                daemon_host_id,
+                &HashMap::from([(site_id, started_at)]),
+            )
             .await
     }
 }
