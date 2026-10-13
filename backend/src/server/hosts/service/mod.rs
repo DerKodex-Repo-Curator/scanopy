@@ -202,6 +202,7 @@ mod detach;
 mod discovery;
 mod lifecycle;
 pub(crate) mod mac_identity;
+mod open_ports;
 mod same_device;
 mod topology;
 mod update;
