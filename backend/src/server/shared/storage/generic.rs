@@ -204,6 +204,7 @@ where
             Bound::Bool(v) => query.bind(v),
             Bound::Timestamp(v) => query.bind(v),
             Bound::OptTimestamp(v) => query.bind(v),
+            Bound::OptDate(v) => query.bind(v),
             Bound::IpNet(v) => query.bind(v),
             Bound::OptIpNet(v) => query.bind(v),
             Bound::Mac(v) => query.bind(v),

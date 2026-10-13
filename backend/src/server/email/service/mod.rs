@@ -20,7 +20,7 @@ use super::messages::{
     SubscriptionCancelled, SubscriptionPaused, SubscriptionReactivated, SubscriptionResumed,
     TrialConverted, TrialEnding, TrialExpired, TrialStarted, UsageSummary, Verification, links,
 };
-use super::transport::EmailTransport;
+use super::transport::{EmailTransport, ses_message_tags};
 use crate::server::{
     auth::middleware::auth::AuthenticatedEntity,
     billing::types::base::{BillingInvoice, BillingPlan, BillingRate},
@@ -46,6 +46,8 @@ use crate::server::{
     sites::{r#impl::Site, service::SiteService},
     users::{r#impl::base::User, service::UserService},
 };
+
+mod terms_notices;
 
 /// How far ahead an air-gapped organization is warned that its licence period
 /// is ending. Long enough to cancel before the renewal bills, or to plan a
@@ -158,6 +160,9 @@ impl EmailService {
     /// A pausable email to a known user carries a one-click unsubscribe link
     /// for its category. Required emails and recipients without an account get
     /// none: there is nothing for them to turn off.
+    ///
+    /// On Scanopy Cloud every send carries SES message tags, which the SES
+    /// event archive keeps as the record of who was sent what.
     async fn dispatch(&self, to: EmailAddress, email: &dyn Email) -> Result<()> {
         let recipient = self.user_service.get_by_email(&to).await?;
         let category = email.category();
@@ -177,6 +182,10 @@ impl EmailService {
                 unsubscribe_url = self.unsubscribe_url(user, category).await;
             }
         }
+        // Only Scanopy Cloud relays through SES; another relay would pass the
+        // header on to the recipient.
+        let ses_tags = (!self.deployment_type.is_self_hosted())
+            .then(|| ses_message_tags(email, recipient.as_ref().map(|user| user.id)));
         self.transport
             .send(
                 to,
@@ -184,6 +193,7 @@ impl EmailService {
                 &self.public_url,
                 self.deployment_type.is_self_hosted(),
                 unsubscribe_url.as_deref(),
+                ses_tags.as_deref(),
             )
             .await?;
 

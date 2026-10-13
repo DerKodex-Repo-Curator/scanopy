@@ -4,7 +4,10 @@ use anyhow::Error;
 use async_trait::async_trait;
 use email_address::EmailAddress;
 
-use super::{messages::Email, transport::EmailTransport};
+use super::{
+    messages::Email,
+    transport::{EmailTransport, SES_MESSAGE_TAGS},
+};
 
 /// Maximum length of each slug component in a written filename.
 const SLUG_MAX_LEN: usize = 48;
@@ -55,6 +58,7 @@ impl LoggingEmailProvider {
         base_url: &str,
         self_hosted: bool,
         unsubscribe_url: Option<&str>,
+        ses_tags: Option<&str>,
     ) -> Result<PathBuf, std::io::Error> {
         let subject = email.subject();
         let timestamp = chrono::Utc::now();
@@ -76,6 +80,9 @@ impl LoggingEmailProvider {
         ];
         if let Some(url) = unsubscribe_url {
             metadata.push(format!("List-Unsubscribe: <{url}>"));
+        }
+        if let Some(tags) = ses_tags {
+            metadata.push(format!("{SES_MESSAGE_TAGS}: {tags}"));
         }
         // Attachment bytes are not written out; the header records enough to
         // tell which files a real send would have carried.
@@ -118,12 +125,21 @@ impl EmailTransport for LoggingEmailProvider {
         base_url: &str,
         self_hosted: bool,
         unsubscribe_url: Option<&str>,
+        ses_tags: Option<&str>,
     ) -> Result<(), Error> {
         // Bodies carry reset/verification tokens, so the log line stays on
         // metadata; the full rendering goes to the review file only.
         let written = match &self.output_dir {
             Some(dir) => {
-                match Self::write_files(dir, &to, email, base_url, self_hosted, unsubscribe_url) {
+                match Self::write_files(
+                    dir,
+                    &to,
+                    email,
+                    base_url,
+                    self_hosted,
+                    unsubscribe_url,
+                    ses_tags,
+                ) {
                     Ok(path) => Some(path),
                     Err(e) => {
                         tracing::warn!(
@@ -229,6 +245,7 @@ mod tests {
                 "https://app.example.test",
                 false,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -270,6 +287,7 @@ mod tests {
                 "https://app.example.test",
                 true,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -292,6 +310,7 @@ mod tests {
                 "https://app.example.test",
                 false,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -309,6 +328,7 @@ mod tests {
                     &TestEmail,
                     "https://app.example.test",
                     false,
+                    None,
                     None,
                 )
                 .await

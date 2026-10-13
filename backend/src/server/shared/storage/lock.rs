@@ -82,6 +82,9 @@ pub enum LockKey {
     /// Serialize recording license check-ins from an organization's server
     /// instances, so two first check-ins from one instance can't both insert it.
     LicenseInstances { organization_id: Uuid },
+    /// Serialize the terms-notice sweep across containers, so a user is sent
+    /// each terms update once. One server-wide key.
+    TermsNotice,
 }
 
 impl LockKey {
@@ -108,6 +111,7 @@ impl LockKey {
             LockKey::CloudSetup { organization_id } => format!("cloud-setup:{organization_id}"),
             LockKey::ReleaseAnnouncement => "release-announcement".to_string(),
             LockKey::ServerInstance => "server-instance".to_string(),
+            LockKey::TermsNotice => "terms-notice".to_string(),
             LockKey::LicenseInstances { organization_id } => {
                 format!("license-instances:{organization_id}")
             }

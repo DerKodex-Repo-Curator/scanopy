@@ -66,7 +66,7 @@ pub(super) fn campaign(slug: &str) -> String {
 /// An email service over the state's own services, writing to `dir`, for a
 /// chosen deployment. The state's own service reads as a self-hosted
 /// deployment because the test config has no Stripe secret.
-fn email_service_for(
+pub(super) fn email_service_for(
     state: &AppState,
     dir: &Path,
     deployment_type: DeploymentType,

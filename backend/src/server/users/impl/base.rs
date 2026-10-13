@@ -13,7 +13,7 @@ use crate::server::{
     },
 };
 use anyhow::{Error, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -97,6 +97,10 @@ pub struct UserBase {
     /// moves it. `None` for a user created before release notes existed.
     #[serde(skip)]
     pub release_notes_seen_version: Option<String>,
+    /// The newest terms version (its effective date) this user was emailed
+    /// notice of. Server-owned; `None` until the first notice.
+    #[serde(skip)]
+    pub terms_notice_version: Option<NaiveDate>,
 }
 
 impl Default for UserBase {
@@ -123,6 +127,7 @@ impl Default for UserBase {
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
             release_notes_seen_version: None,
+            terms_notice_version: None,
         }
     }
 }
@@ -161,6 +166,7 @@ impl UserBase {
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
             release_notes_seen_version: Some(RUNNING_VERSION.to_string()),
+            terms_notice_version: None,
         }
     }
 
@@ -195,6 +201,7 @@ impl UserBase {
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
             release_notes_seen_version: Some(RUNNING_VERSION.to_string()),
+            terms_notice_version: None,
         }
     }
 }
@@ -301,6 +308,7 @@ impl Storable for User {
                     display_settings,
                     session_epoch,
                     release_notes_seen_version,
+                    terms_notice_version,
                     ..
                 },
         } = self.clone();
@@ -330,6 +338,7 @@ impl Storable for User {
                 "display_settings",
                 "session_epoch",
                 "release_notes_seen_version",
+                "terms_notice_version",
             ],
             vec![
                 SqlValue::Uuid(id),
@@ -354,6 +363,7 @@ impl Storable for User {
                 SqlValue::DisplaySettings(display_settings),
                 SqlValue::I64(session_epoch),
                 SqlValue::OptionalString(release_notes_seen_version),
+                SqlValue::OptionDate(terms_notice_version),
             ],
         ))
     }
@@ -409,6 +419,7 @@ impl Storable for User {
                     .unwrap_or_default(),
                 session_epoch: row.try_get("session_epoch").unwrap_or(0),
                 release_notes_seen_version: row.get("release_notes_seen_version"),
+                terms_notice_version: row.get("terms_notice_version"),
             },
         })
     }
@@ -485,6 +496,7 @@ impl Entity for User {
         base.email_unsubscribe_token = stored.email_unsubscribe_token;
         base.session_epoch = stored.session_epoch;
         base.release_notes_seen_version = stored.release_notes_seen_version.clone();
+        base.terms_notice_version = stored.terms_notice_version;
     }
 }
 
@@ -518,6 +530,7 @@ mod tests {
                 email_unsubscribe_token: Some(Uuid::new_v4()),
                 session_epoch: 2,
                 release_notes_seen_version: Some("0.18.0".to_string()),
+                terms_notice_version: NaiveDate::from_ymd_opt(2026, 12, 1),
                 ..UserBase::default()
             },
         }

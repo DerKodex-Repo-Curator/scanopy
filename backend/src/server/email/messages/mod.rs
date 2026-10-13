@@ -48,6 +48,7 @@ mod subscription_cancelled;
 mod subscription_paused;
 mod subscription_reactivated;
 mod subscription_resumed;
+mod terms_update;
 mod trial_converted;
 mod trial_ending;
 mod trial_expired;
@@ -104,6 +105,7 @@ pub use subscription_cancelled::SubscriptionCancelled;
 pub use subscription_paused::SubscriptionPaused;
 pub use subscription_reactivated::SubscriptionReactivated;
 pub use subscription_resumed::SubscriptionResumed;
+pub use terms_update::TermsUpdate;
 pub use trial_converted::TrialConverted;
 pub use trial_ending::TrialEnding;
 pub use trial_expired::TrialExpired;
@@ -140,6 +142,9 @@ pub enum EmailCategory {
     DiscoveryDigest,
     /// What changed in a new Scanopy release.
     ProductUpdates,
+    /// Notice of a change to Scanopy's terms, privacy policy or other legal
+    /// documents.
+    Legal,
 }
 
 impl EmailCategory {
@@ -149,9 +154,12 @@ impl EmailCategory {
     /// them as one disabled "Required emails" row.
     pub fn pausable(self) -> bool {
         match self {
-            Self::Auth | Self::Account | Self::Billing | Self::DaemonSetup | Self::Invitation => {
-                false
-            }
+            Self::Auth
+            | Self::Account
+            | Self::Billing
+            | Self::DaemonSetup
+            | Self::Invitation
+            | Self::Legal => false,
             Self::TrialAndUsage
             | Self::DaemonAlerts
             | Self::ProductOnboarding
@@ -166,9 +174,12 @@ impl EmailCategory {
     /// toggle that has nothing to act on.
     pub fn sent_while_self_hosted_plan_locked(self) -> bool {
         match self {
-            Self::Auth | Self::Account | Self::Billing | Self::DaemonSetup | Self::Invitation => {
-                true
-            }
+            Self::Auth
+            | Self::Account
+            | Self::Billing
+            | Self::DaemonSetup
+            | Self::Invitation
+            | Self::Legal => true,
             // The cloud trial and plan-limit emails are about the cloud app.
             // A licensed trial gets SelfHostedWelcome and SelfHostedTrialEnding
             // instead, and both are Billing.
@@ -196,6 +207,7 @@ impl EmailCategory {
             Self::Invitation | Self::ProductOnboarding => "onboarding",
             Self::DiscoveryDigest => "digest",
             Self::ProductUpdates => "product",
+            Self::Legal => "legal",
         }
     }
 }
@@ -231,6 +243,7 @@ impl TypeMetadataProvider for EmailCategory {
             Self::ProductOnboarding => "Product onboarding",
             Self::DiscoveryDigest => "Discovery digest",
             Self::ProductUpdates => "Product updates",
+            Self::Legal => "Legal notices",
         }
     }
 
@@ -341,6 +354,13 @@ pub trait Email: Send + Sync {
     /// encode whatever is returned. Bytes must be fetched before the email is
     /// constructed (this is sync), so an attaching email holds them by value.
     fn attachments(&self) -> Vec<EmailAttachment> {
+        Vec::new()
+    }
+
+    /// Tags this email adds to the SES message tags every cloud send carries
+    /// (`category`, `campaign`, `user_id`), as `(name, value)`. Values hold
+    /// only ASCII letters, digits, `_` and `-`. Default-empty.
+    fn ses_message_tags(&self) -> Vec<(&'static str, String)> {
         Vec::new()
     }
 }

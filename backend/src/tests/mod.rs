@@ -70,6 +70,7 @@ pub mod stripe_webhook_retries;
 pub mod stripe_webhooks;
 pub mod subnet_placement;
 pub mod tag_scope;
+pub mod terms_notices;
 pub mod virtualization_tree;
 
 pub const DAEMON_CONFIG_FIXTURE: &str = "src/tests/daemon_config.json";

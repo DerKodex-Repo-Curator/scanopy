@@ -2683,7 +2683,7 @@
 	"settings_email_onboardingLabel": "Product tips & onboarding",
 	"settings_email_productUpdatesDescription": "The release notes when this Scanopy server upgrades to a release with notable changes.",
 	"settings_email_productUpdatesLabel": "Release notes",
-	"settings_email_requiredDescription": "Security, billing, and account emails — password resets, receipts, payment notices, and the like. These are always sent and can't be turned off.",
+	"settings_email_requiredDescription": "Security, billing, account and legal emails, such as password resets, receipts, payment notices and changes to our terms. These are always sent and can't be turned off.",
 	"settings_email_requiredLabel": "Required emails",
 	"settings_email_trialDescription": "Trial start and end reminders, plus heads-ups as you approach or reach a plan limit.",
 	"settings_email_trialLabel": "Trial & usage reminders",

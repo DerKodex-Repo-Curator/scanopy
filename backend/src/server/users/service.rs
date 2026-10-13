@@ -20,6 +20,7 @@ use crate::server::{
 use anyhow::Error;
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use email_address::EmailAddress;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -188,6 +189,21 @@ impl UserService {
             return Ok(());
         }
         user.base.release_notes_seen_version = Some(version.to_string());
+        self.update(&mut user, AuthenticatedEntity::System).await?;
+        Ok(())
+    }
+
+    /// Record that the user `user_id` has been emailed notice of the terms
+    /// update effective on `version`. Reads the user afresh, so a long sweep
+    /// never writes back a copy it fetched before the user changed it.
+    pub async fn mark_terms_notified(&self, user_id: &Uuid, version: NaiveDate) -> Result<()> {
+        let Some(mut user) = self.get_by_id(user_id).await? else {
+            return Ok(());
+        };
+        if user.base.terms_notice_version >= Some(version) {
+            return Ok(());
+        }
+        user.base.terms_notice_version = Some(version);
         self.update(&mut user, AuthenticatedEntity::System).await?;
         Ok(())
     }
