@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::daemon::discovery::types::warnings::RunWarningSummary;
+use crate::server::credentials::r#impl::types::CredentialIntegration;
 use crate::server::daemons::r#impl::api::DaemonResponse;
 use crate::server::discovery::r#impl::base::Discovery;
 
@@ -60,4 +61,15 @@ pub struct DashboardSummary {
     pub recent_discoveries: Vec<RecentDiscovery>,
     /// Current usage against the organization's plan allowances.
     pub plan_usage: PlanUsage,
+    /// Integrations found on hosts with no credential of them, most hosts first.
+    pub uncovered_integrations: Vec<UncoveredIntegration>,
+}
+
+/// An integration the latest scans found on hosts with no credential of it, still uncovered now.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct UncoveredIntegration {
+    /// The integration a credential would add.
+    pub integration: CredentialIntegration,
+    /// The hosts running its service, which the create flow pre-assigns.
+    pub host_ids: Vec<Uuid>,
 }

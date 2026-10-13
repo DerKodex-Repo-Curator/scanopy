@@ -216,6 +216,25 @@ impl CredentialIntegration {
         self.interface_view_scope() != InterfaceViewScope::NoInterfaces
     }
 
+    /// Whether a scan that finds this integration's service on a host with no credential for it
+    /// raises `IntegrationWithoutCredential`.
+    ///
+    /// Exhaustive (no wildcard), so a new integration has to say. SSH runs a script the user
+    /// writes, so finding sshd (on nearly every Linux host) says nothing about wanting one.
+    /// Wake-on-LAN has no service a scan can find.
+    pub fn prompts_when_found(&self) -> bool {
+        match self {
+            Self::Snmp
+            | Self::Gnmi
+            | Self::Docker
+            | Self::Podman
+            | Self::UnifiController
+            | Self::InstantOn
+            | Self::Proxmox => true,
+            Self::Ssh | Self::WakeOnLan => false,
+        }
+    }
+
     /// The kinds of host virtualization this integration reports: the relationships it records
     /// between a host and what runs it.
     ///

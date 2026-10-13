@@ -14,13 +14,16 @@ use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscrimin
 use crate::server::credentials::r#impl::run_results::{CredentialRunOutcome, CredentialRunResult};
 use crate::server::credentials::r#impl::types::CredentialTypeDiscriminants;
 use crate::server::credentials::r#impl::types::ssh_script::SshScriptOutcome;
-use crate::server::digest::payload::{CredentialProblem, WarningCounts};
+use crate::server::digest::payload::{
+    CredentialProblem, IntegrationWithoutCredential, WarningCounts,
+};
 use crate::server::shared::types::metadata::TypeMetadataProvider;
 
 pub struct RunReport {
     pub warnings: WarningCounts,
     pub credentials_used: u32,
     pub credential_problems: Vec<CredentialProblem>,
+    pub integrations_without_credentials: Vec<IntegrationWithoutCredential>,
 }
 
 /// Every stored credential the run names, in its results or its warnings, to look up by id.
@@ -50,7 +53,30 @@ pub fn run_report(
     credentials: &HashMap<Uuid, Credential>,
 ) -> RunReport {
     let mut counts = WarningCounts::default();
+    let mut integrations_without_credentials: Vec<IntegrationWithoutCredential> = Vec::new();
     for warning in warnings {
+        // Grouped by integration and counted once each, below, rather than once per host.
+        if let DiscoveryWarning::IntegrationWithoutCredential {
+            host_id,
+            integration,
+        } = warning
+        {
+            let entry = match integrations_without_credentials
+                .iter_mut()
+                .find(|e| e.integration == *integration)
+            {
+                Some(entry) => entry,
+                None => {
+                    integrations_without_credentials.push(IntegrationWithoutCredential {
+                        integration: *integration,
+                        host_ids: Vec::new(),
+                    });
+                    integrations_without_credentials.last_mut().unwrap()
+                }
+            };
+            entry.host_ids.extend(host_id);
+            continue;
+        }
         let code = warning.code();
         match code.remedy() {
             WarningRemedy::FixInScanopy if code.concerns_credential() => {
@@ -137,10 +163,13 @@ pub fn run_report(
             }),
     );
 
+    counts.add_credentials = integrations_without_credentials.len() as u32;
+
     RunReport {
         warnings: counts,
         credentials_used: (results.len() + warned_only.len() + by_integration.len()) as u32,
         credential_problems,
+        integrations_without_credentials,
     }
 }
 
@@ -163,7 +192,9 @@ mod tests {
     use crate::daemon::discovery::types::warnings::{CredentialAttempt, SnmpWalkGroup};
     use crate::server::credentials::r#impl::base::CredentialBase;
     use crate::server::credentials::r#impl::types::ssh_script::SshScriptRun;
-    use crate::server::credentials::r#impl::types::{CredentialType, SecretValue};
+    use crate::server::credentials::r#impl::types::{
+        CredentialIntegration, CredentialType, SecretValue,
+    };
     use crate::server::digest::payload::DiscoveryDigestPayload;
     use secrecy::SecretString;
 
@@ -244,9 +275,39 @@ mod tests {
                 fix_other: 1,
                 check_device: 1,
                 no_action: 2,
+                add_credentials: 0,
             }
         );
         assert_eq!(report.warnings.actionable(), 3);
+    }
+
+    /// Forty SNMP hosts and one Proxmox host are two things to fix, each naming its hosts.
+    #[test]
+    fn integrations_without_credentials_count_once_per_integration() {
+        let without = |integration| DiscoveryWarning::IntegrationWithoutCredential {
+            host_id: Some(Uuid::new_v4()),
+            integration,
+        };
+        let mut warnings: Vec<DiscoveryWarning> = (0..40)
+            .map(|_| without(CredentialIntegration::Snmp))
+            .collect();
+        warnings.push(without(CredentialIntegration::Proxmox));
+
+        let report = run_report(&warnings, &[], &HashMap::new());
+        assert_eq!(report.warnings.add_credentials, 2);
+        assert_eq!(report.warnings.actionable(), 2);
+        let hosts: Vec<(CredentialIntegration, usize)> = report
+            .integrations_without_credentials
+            .iter()
+            .map(|e| (e.integration, e.host_ids.len()))
+            .collect();
+        assert_eq!(
+            hosts,
+            vec![
+                (CredentialIntegration::Snmp, 40),
+                (CredentialIntegration::Proxmox, 1)
+            ]
+        );
     }
 
     #[test]

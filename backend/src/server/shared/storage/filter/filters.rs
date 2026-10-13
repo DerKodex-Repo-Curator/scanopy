@@ -514,6 +514,13 @@ impl<T: Storable> StorableFilter<T> {
         self
     }
 
+    /// Historical runs that completed, leaving out failed and cancelled ones.
+    pub fn completed_runs(mut self) -> Self {
+        self.conditions
+            .push("run_type->'results'->>'phase' = 'Complete'".to_string());
+        self
+    }
+
     /// Discovery *configurations* a user owns — excludes `Historical` records of
     /// past runs and transient `Targeted` rescan rows, neither of which is
     /// something anyone configured. Mirrors `RunType::is_live_config`.

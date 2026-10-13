@@ -390,6 +390,7 @@ pub(crate) mod tests {
                             warnings: Default::default(),
                             credentials_used: 0,
                             credential_problems: vec![],
+                            integrations_without_credentials: vec![],
                         }),
                     },
                     system(),

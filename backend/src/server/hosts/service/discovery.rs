@@ -1,5 +1,6 @@
 //! Daemon-discovery upsert path: interface linking and subnet/VLAN reconciliation.
 use super::*;
+use crate::server::credentials::service::FoundIntegration;
 
 impl HostService {
     // =========================================================================
@@ -446,6 +447,32 @@ impl HostService {
         }
 
         Ok(())
+    }
+
+    /// The integrations whose services a finished run touched, on hosts no credential of that
+    /// integration covers. See `credentials/service/coverage.rs` for the rule.
+    pub async fn uncovered_integrations_for_run(
+        &self,
+        scanned: &crate::server::daemons::r#impl::api::ScannedEntityIds,
+        integration_targets: &[crate::server::credentials::r#impl::mapping::IntegrationTarget],
+        site_id: Uuid,
+        daemon_host_id: Option<Uuid>,
+    ) -> Result<Vec<FoundIntegration>> {
+        if scanned.service_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let found = self
+            .service_service
+            .get_all(StorableFilter::<Service>::new_from_entity_ids(
+                &scanned.service_ids,
+            ))
+            .await?
+            .iter()
+            .filter_map(FoundIntegration::from_service)
+            .collect();
+        self.credential_service
+            .uncovered_integrations(found, integration_targets, Some(site_id), daemon_host_id)
+            .await
     }
 }
 

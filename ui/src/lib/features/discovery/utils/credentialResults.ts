@@ -53,7 +53,9 @@ export function credentialResultRows(
 		const id = 'credential_id' in w ? w.credential_id : null;
 		if (id) {
 			byCredential.set(id, [...(byCredential.get(id) ?? []), w]);
-		} else if ('integration' in w) {
+		} else if ('integration' in w && w.code !== 'IntegrationWithoutCredential') {
+			// That one names a `CredentialIntegration`, not a wire payload type, and is never a
+			// credential warning anyway: it is about a host no credential reaches.
 			byIntegration.set(w.integration, [...(byIntegration.get(w.integration) ?? []), w]);
 		}
 	}

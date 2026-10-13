@@ -26,6 +26,7 @@ import { metaDescription, metaDescriptionWith, metaName } from '$lib/i18n/metada
 import { joinList, MAX_LISTED } from '$lib/i18n/list';
 import { toColor, type Color } from '$lib/shared/utils/styling';
 import { osLabel } from '$lib/features/daemons/utils';
+import { credentialIntegrations } from '$lib/shared/stores/metadata';
 import {
 	common_host,
 	common_moreItems,
@@ -319,6 +320,11 @@ const WARNING_PARAMS = {
 		version: w[0].daemon_version ?? common_unknown()
 	}),
 
+	// One per host. The integration identifies the statement, so every host running one
+	// integration shares a sentence, and `discovers` is that integration's own description.
+	IntegrationWithoutCredential: (w) =>
+		integrationWithoutCredentialParams(w[0].integration, w.length),
+
 	// One warning per subnet, so the first is the only one — unlike the address-scoped codes above,
 	// which the daemon raises per host and the UI folds together here.
 	ConnectionsWithoutProtocolResponse: (w) => ({
@@ -410,6 +416,38 @@ function malformedParams(
 			w.some((x) => x.consequence === 'AllLinksLost') ? 'AllLinksLost' : 'SomeLinksLost'
 		)
 	};
+}
+
+type CredentialIntegration = components['schemas']['CredentialIntegration'];
+
+/**
+ * The slots of `IntegrationWithoutCredential`'s sentence. Exported because the home nudge says the
+ * same thing in the same words, from the latest scans rather than one run.
+ */
+export function integrationWithoutCredentialParams(
+	id: CredentialIntegration,
+	hosts: number
+): Params {
+	return {
+		integration: credentialIntegrations.getName(id),
+		count: hosts,
+		discovers: credentialIntegrations.getDescription(id)
+	};
+}
+
+/** `IntegrationWithoutCredential`'s sentence for one integration found on `hosts` hosts. */
+export function integrationWithoutCredentialSentence(
+	id: CredentialIntegration,
+	hosts: number
+): string {
+	const code: DiscoveryWarningCode = 'IntegrationWithoutCredential';
+	const fallback = warningCodes.find((c) => c.id === code)?.description ?? '';
+	return metaDescriptionWith(
+		'warning_codes',
+		code,
+		integrationWithoutCredentialParams(id, hosts),
+		fallback
+	);
 }
 
 function credentialParams(

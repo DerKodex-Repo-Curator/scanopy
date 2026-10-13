@@ -409,4 +409,29 @@ describe('discovery warning rendering', () => {
 		expect(rendered[0]).toContain('10.0.0.2');
 		expect(rendered[1]).toContain('10.0.0.3');
 	});
+
+	it('names forty hosts running one integration in one sentence, one per integration', () => {
+		const found = (integration: string, n: number) =>
+			Array.from(
+				{ length: n },
+				(_, i) =>
+					({
+						code: 'IntegrationWithoutCredential',
+						integration,
+						host_id: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`
+					}) as unknown as DiscoveryWarning
+			);
+
+		const rows = buildWarningReport([...found('Snmp', 40), ...found('Proxmox', 1)]).flatMap(
+			(section) => section.entries
+		);
+
+		// One row for the code, so forty SNMP devices are not forty prompts, and inside it one
+		// sentence per integration, each counting its own hosts.
+		expect(rows).toHaveLength(1);
+		const statements = rows[0].details.map((d) => d.sentence);
+		expect(statements).toHaveLength(2);
+		expect(statements[0]).toContain('40');
+		expect(statements[1]).not.toContain('40');
+	});
 });

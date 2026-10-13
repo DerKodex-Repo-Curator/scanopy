@@ -16,7 +16,16 @@ export interface ModalState {
 	returnUrl: string | null;
 	returnTitle: string | null;
 	entityData?: Record<string, unknown>;
+	/**
+	 * Values a create-mode modal opens with, carried in the URL so a link from an email or a
+	 * reload opens the same pre-filled form. Keys are limited to {@link PREFILL_PARAMS}.
+	 */
+	prefill?: Partial<Record<PrefillParam, string>>;
 }
+
+/** The URL params a modal can be pre-filled from. */
+export const PREFILL_PARAMS = ['integration', 'hosts'] as const;
+export type PrefillParam = (typeof PREFILL_PARAMS)[number];
 
 const EMPTY_STATE: ModalState = {
 	name: null,
@@ -41,6 +50,7 @@ export function openModal(
 		returnUrl?: string;
 		returnTitle?: string;
 		entityData?: Record<string, unknown>;
+		prefill?: Partial<Record<PrefillParam, string>>;
 	}
 ): void {
 	const state: ModalState = {
@@ -50,7 +60,8 @@ export function openModal(
 		subEntityId: opts?.subEntityId ?? null,
 		returnUrl: opts?.returnUrl ?? null,
 		returnTitle: opts?.returnTitle ?? null,
-		entityData: opts?.entityData
+		entityData: opts?.entityData,
+		prefill: opts?.prefill
 	};
 	modalState.set(state);
 	syncToUrl(state);
@@ -143,9 +154,18 @@ export function initModalFromUrl(): void {
 		tab: isLegacySupport ? 'support' : params.get('tab'),
 		subEntityId: params.get('subEntityId'),
 		returnUrl: null,
-		returnTitle: null
+		returnTitle: null,
+		prefill: prefillFromParams(params)
 	};
 	modalState.set(state);
+}
+
+function prefillFromParams(params: URLSearchParams): ModalState['prefill'] {
+	const entries = PREFILL_PARAMS.flatMap((key) => {
+		const value = params.get(key);
+		return value ? [[key, value] as const] : [];
+	});
+	return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
 /**
@@ -270,11 +290,20 @@ function syncToUrl(state: ModalState): void {
 		} else {
 			url.searchParams.delete('subEntityId');
 		}
+		for (const key of PREFILL_PARAMS) {
+			const value = state.prefill?.[key];
+			if (value) {
+				url.searchParams.set(key, value);
+			} else {
+				url.searchParams.delete(key);
+			}
+		}
 	} else {
 		url.searchParams.delete('modal');
 		url.searchParams.delete('id');
 		url.searchParams.delete('tab');
 		url.searchParams.delete('subEntityId');
+		for (const key of PREFILL_PARAMS) url.searchParams.delete(key);
 	}
 	window.history.replaceState({}, '', url.toString());
 }

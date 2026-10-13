@@ -91,6 +91,9 @@
 		form: any;
 		credential?: Credential | null;
 		fixedCredentialType?: string;
+		/** Limit the type picker to these types and pre-select the first, for a create flow opened
+		 *  for one integration. Ignored when editing or when `fixedCredentialType` is set. */
+		typeChoices?: string[];
 		fixedName?: string;
 		compact?: boolean;
 		hideFields?: boolean;
@@ -140,6 +143,7 @@
 		form,
 		credential = null,
 		fixedCredentialType,
+		typeChoices,
 		fixedName,
 		compact = false,
 		hideFields = false,
@@ -424,7 +428,7 @@
 				form.setFieldValue?.('name', defaults.name);
 			}
 		} else {
-			const typeId = fixedCredentialType ?? 'SnmpV2c';
+			const typeId = fixedCredentialType ?? typeChoices?.[0] ?? 'SnmpV2c';
 			selectedTypeId = typeId;
 			initDefaultFieldValues(typeId);
 		}
@@ -544,7 +548,11 @@
 	}
 
 	// All credential types are user-selectable (sockets included, created like any other).
-	let typeOptions = $derived(credentialTypes.getItems());
+	let typeOptions = $derived(
+		typeChoices?.length
+			? credentialTypes.getItems().filter((t) => typeChoices.includes(t.id))
+			: credentialTypes.getItems()
+	);
 
 	// Whether to show type selector and name field
 	let showTypeSelector = $derived(!fixedCredentialType);

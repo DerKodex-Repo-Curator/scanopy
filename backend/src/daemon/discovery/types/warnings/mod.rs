@@ -32,6 +32,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscriminants;
+use crate::server::credentials::r#impl::types::CredentialIntegration;
 
 pub use entity_ids::EntityIdSlots;
 pub use metadata::WarningRemedy;
@@ -360,6 +361,19 @@ pub enum DiscoveryWarning {
     CredentialUnreachable(CredentialAttempt),
     /// The attempt timed out before anything answered.
     CredentialTimedOut(CredentialAttempt),
+    /// The scan found a service an integration reads, on a host no credential of that integration
+    /// is assigned to. Raised by the server at the end of a run, never a daemon: coverage is a
+    /// fact about stored assignments, which the daemon does not hold. One per host and
+    /// integration; the UI groups them.
+    #[schema(title = "IntegrationWithoutCredential")]
+    IntegrationWithoutCredential {
+        /// The host running the service. `None` once the host is deleted.
+        #[serde(default)]
+        #[schema(required)]
+        host_id: Option<Uuid>,
+        /// The integration that would read it.
+        integration: CredentialIntegration,
+    },
 
     // ---- Scan-level ------------------------------------------------------
     /// Addresses on a routed subnet completed a TCP handshake and then answered nothing, so no
@@ -694,6 +708,7 @@ pub enum DiscoveryWarningCode {
     CredentialCollectionTimedOut,
     CredentialUnreachable,
     CredentialTimedOut,
+    IntegrationWithoutCredential,
     ConnectionsWithoutProtocolResponse,
     ScanTimeLimitWithEstimate,
     ScanTimeLimit,
@@ -782,6 +797,9 @@ impl DiscoveryWarning {
             }
             Self::CredentialUnreachable(_) => DiscoveryWarningCode::CredentialUnreachable,
             Self::CredentialTimedOut(_) => DiscoveryWarningCode::CredentialTimedOut,
+            Self::IntegrationWithoutCredential { .. } => {
+                DiscoveryWarningCode::IntegrationWithoutCredential
+            }
             Self::ConnectionsWithoutProtocolResponse { .. } => {
                 DiscoveryWarningCode::ConnectionsWithoutProtocolResponse
             }
@@ -858,6 +876,9 @@ impl DiscoveryWarning {
             // Two integrations, and neither one produced it: the merge in the daemon pipeline did.
             // Naming either would count it against an integration that did nothing wrong.
             Self::EqualReachIntegrationsMerged { .. }
+            // No integration ran: this reports the absence of a credential, and the metric label
+            // is a wire payload type, which an integration with two transports has no single one of.
+            | Self::IntegrationWithoutCredential { .. }
             | Self::ConnectionsWithoutProtocolResponse { .. }
             | Self::ScanTimeLimitWithEstimate { .. }
             | Self::ScanTimeLimit { .. }
@@ -921,6 +942,7 @@ impl DiscoveryWarning {
             | Self::SnmpCollectedNothing { .. }
             | Self::VlanRecordingFailed { .. }
             | Self::EqualReachIntegrationsMerged { .. }
+            | Self::IntegrationWithoutCredential { .. }
             | Self::ConnectionsWithoutProtocolResponse { .. }
             | Self::ScanTimeLimitWithEstimate { .. }
             | Self::ScanTimeLimit { .. }

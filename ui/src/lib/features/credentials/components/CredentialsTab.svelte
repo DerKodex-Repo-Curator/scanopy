@@ -23,7 +23,11 @@
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { permissions, credentialTypes, billingPlans } from '$lib/shared/stores/metadata';
 	import { getCredentialTypeId } from '$lib/features/credentials/types/base';
-	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
+	import {
+		modalState,
+		resolveModalDeepLink,
+		type ModalState
+	} from '$lib/shared/stores/modal-registry';
 	import type { TabProps } from '$lib/shared/types';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { useSitesQuery } from '$lib/features/sites/queries';
@@ -49,6 +53,7 @@
 
 	let showCredentialEditor = $state(false);
 	let editingCredential: Credential | null = $state(null);
+	let prefill = $state<ModalState['prefill']>();
 
 	// Deep-link: open credential editor from URL
 	$effect(() => {
@@ -60,6 +65,8 @@
 			editingCredential?.id
 		);
 		if (result !== undefined) {
+			// Create mode opened from a prompt carries its integration and hosts in the URL.
+			prefill = result === null ? $modalState.prefill : undefined;
 			editingCredential = result;
 			showCredentialEditor = true;
 		}
@@ -159,6 +166,7 @@
 	);
 
 	function handleCreateCredential() {
+		prefill = undefined;
 		editingCredential = null;
 		showCredentialEditor = true;
 	}
@@ -211,6 +219,7 @@
 		await createCredentialMutation.mutateAsync(data);
 		showCredentialEditor = false;
 		editingCredential = null;
+		prefill = undefined;
 	}
 
 	async function handleCredentialUpdate(_id: string, data: Credential) {
@@ -222,6 +231,7 @@
 	function handleCloseCredentialEditor() {
 		showCredentialEditor = false;
 		editingCredential = null;
+		prefill = undefined;
 	}
 
 	async function handleBulkDelete(ids: string[]) {
@@ -321,6 +331,8 @@
 	name="credential-editor"
 	isOpen={showCredentialEditor}
 	credential={editingCredential}
+	initialIntegration={prefill?.integration ?? null}
+	initialHostIds={prefill?.hosts?.split(',') ?? []}
 	onCreate={handleCredentialCreate}
 	onUpdate={handleCredentialUpdate}
 	onClose={handleCloseCredentialEditor}

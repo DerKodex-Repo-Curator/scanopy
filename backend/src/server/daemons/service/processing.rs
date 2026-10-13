@@ -635,6 +635,11 @@ impl DaemonService {
             self.resolve_neighbours_into_session(&mut update).await;
         }
 
+        if update.phase == DiscoveryPhase::Complete {
+            self.report_integrations_without_credentials(&mut update)
+                .await;
+        }
+
         if update.phase.is_terminal() {
             self.report_superseded_wire_shape(&mut update).await;
             self.report_touched_subnets(&mut update).await;
@@ -697,6 +702,51 @@ impl DaemonService {
                 found_subnet_ids: found,
                 ..Default::default()
             });
+    }
+
+    /// Fold `IntegrationWithoutCredential` into the terminal payload: one per host this run
+    /// found an integration's service on with no credential of that integration covering it.
+    ///
+    /// Before `update_session`, like the warnings below, and best-effort: a lookup failure costs
+    /// the prompt, never the scan record. Runs on rescans too, since a single-host rescan reports
+    /// the services it touched the same way.
+    async fn report_integrations_without_credentials(&self, update: &mut DiscoveryUpdatePayload) {
+        let Some(host_service) = self.host_service.get() else {
+            return;
+        };
+        let Some(scanned) = update.scanned.as_ref() else {
+            return;
+        };
+
+        let integration_targets = self
+            .discovery_service
+            .get_integration_targets_for_session(&update.session_id)
+            .await;
+        let daemon_host_id = self
+            .get_by_id(&update.daemon_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|daemon| daemon.base.host_id);
+
+        match host_service
+            .uncovered_integrations_for_run(
+                scanned,
+                &integration_targets,
+                update.site_id,
+                daemon_host_id,
+            )
+            .await
+        {
+            Ok(uncovered) => update
+                .warnings
+                .extend(uncovered.into_iter().map(|f| f.into_warning())),
+            Err(e) => tracing::warn!(
+                session_id = %update.session_id,
+                error = %e,
+                "Could not check which integrations this scan found without a credential"
+            ),
+        }
     }
 
     /// Fold a latched "this daemon submitted an outdated format" observation into the terminal
