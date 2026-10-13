@@ -19,7 +19,13 @@
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { common_creating, tags_addTag, tags_createTagQuoted } from '$lib/paraglide/messages';
+	import {
+		common_creating,
+		tags_addTag,
+		tags_alreadyApplied,
+		tags_createTagQuoted,
+		tags_notAvailableHere
+	} from '$lib/paraglide/messages';
 	import CreatableOptionList, {
 		CREATE_ROW
 	} from '$lib/shared/components/forms/selection/CreatableOptionList.svelte';
@@ -210,9 +216,10 @@
 
 	// Check if typed value matches an existing tag name exactly. Names are unique across the org, so
 	// this checks every tag, including any the caller left out of `availableTags`.
-	let exactMatch = $derived(
-		(tagsQuery.data ?? tags).some((t) => t.name.toLowerCase() === inputValue.trim().toLowerCase())
+	let existingTag = $derived(
+		(tagsQuery.data ?? tags).find((t) => t.name.toLowerCase() === inputValue.trim().toLowerCase())
 	);
+	let exactMatch = $derived(existingTag !== undefined);
 
 	// Show create option if user typed something, can create, and no exact match exists
 	let showCreateOption = $derived(inputValue.trim().length > 0 && canCreateTags && !exactMatch);
@@ -247,7 +254,18 @@
 			.sort(compareTagsByGroup(tagGroups))
 	);
 
-	let showDropdown = $derived(open && (availableTags.length > 0 || showCreateOption));
+	// The typed name is taken by a tag this picker doesn't offer, so there is nothing to create and
+	// nothing to pick. Say why rather than showing an empty menu.
+	let unavailableNote = $derived.by(() => {
+		if (!existingTag || availableTags.some((t) => t.id === existingTag.id)) return null;
+		return shownTagIds.includes(existingTag.id)
+			? tags_alreadyApplied({ name: existingTag.name })
+			: tags_notAvailableHere({ name: existingTag.name });
+	});
+
+	let showDropdown = $derived(
+		open && (availableTags.length > 0 || showCreateOption || unavailableNote !== null)
+	);
 
 	// The existing tag the typed text completes to, ghosted in the input; Tab applies it.
 	let completion = $derived(tagCompletion(inputValue, availableTags, shownTagIds));
@@ -531,6 +549,11 @@
 		style:left="{dropdownPosition.left}px"
 		style:max-height="{dropdownPosition.maxHeight}px"
 	>
+		{#if unavailableNote}
+			<p class="text-tertiary border-b px-3 py-2 text-xs" style="border-color: var(--color-border)">
+				{unavailableNote}
+			</p>
+		{/if}
 		<CreatableOptionList
 			options={availableTags.map((tag) => ({
 				id: tag.id,

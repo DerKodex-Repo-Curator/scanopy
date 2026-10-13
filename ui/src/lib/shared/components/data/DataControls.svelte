@@ -84,10 +84,10 @@
 		common_ungrouped,
 		common_tableCaption,
 		common_tags,
-		common_deleteSelected,
+		common_delete,
 		common_noCommonTags,
 		common_commonTags,
-		tags_hotkeyAdd,
+		tags_hotkeyEdit,
 		tags_hotkeyRemove,
 		common_shortcutsPausedInSearch,
 		common_item,
@@ -111,6 +111,12 @@
 	import { isShiftShortcut, keyLabel, shiftShortcutLabel } from '$lib/shared/utils/shortcuts';
 	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
 	import { isFreeKeydown, isPlainKey, provideListShortcuts } from './controls/listShortcuts';
+	import {
+		assignActionKeys,
+		isDangerAction,
+		matchesActionKey,
+		type KeyedAction
+	} from './controls/actionShortcuts';
 	import type { components } from '$lib/api/schema';
 
 	type PaginationMeta = components['schemas']['PaginationMeta'];
@@ -933,8 +939,14 @@
 	const TAG_SHORTCUT = 'T';
 	/** The table search has focus, so the shortcuts below are off; their hints dim to say so. */
 	let searchFocused = $state(false);
+	/** Focus is in the tag island (T put it there, or a click): its tags can be removed from the keyboard. */
+	let editingTags = $state(false);
 	let bulkTagPicker: { focusInput: () => void } | undefined = $state();
 	let showTagIsland = $derived(hasBulkTagging && selectedIds.size > 0);
+	// The island unmounts without a focusout when the selection clears.
+	$effect(() => {
+		if (!showTagIsland) editingTags = false;
+	});
 
 	// List shortcuts, each shown on the control it triggers. Single keys and Shift+letter, so they
 	// stand down while typing in a field, when a modal is over the list, or when the list isn't
@@ -951,11 +963,25 @@
 		Boolean(allowBulkDelete && onBulkDelete) && selectedIds.size > 0 && selectionDeletable
 	);
 
+	// With exactly one row selected, its own actions (Edit, Rescan, ...) also show in the toolbar,
+	// each with a key. Its delete action is left out while Delete Selected already covers it.
+	let singleRowActions = $derived.by((): KeyedAction[] => {
+		if (!getActions || selectedIds.size !== 1) return [];
+		const item = items.find((i) => selectedIds.has(getItemId(i)));
+		if (!item) return [];
+		const actions = getActions(item).filter((a) => !(canBulkDelete && isDangerAction(a)));
+		return assignActionKeys(actions);
+	});
+
 	// Toolbar controls (CreateButton) take their own keys through this.
 	provideListShortcuts({
 		isActive: () => isOnVisiblePage(rootRef),
 		isPaused: () => searchFocused
 	});
+
+	function singleRowActionFor(event: KeyboardEvent): KeyedAction | undefined {
+		return singleRowActions.find(({ key }) => key !== null && matchesActionKey(event, key));
+	}
 
 	function handleListShortcut(event: KeyboardEvent) {
 		if (!isFreeKeydown(event) || !isOnVisiblePage(rootRef)) return;
@@ -970,6 +996,10 @@
 			// Cmd/Ctrl+A selects every row on the page instead of the page's text.
 			event.preventDefault();
 			visibleIds(orderedItems, getItemId).forEach((id) => selectedIds.add(id));
+		} else if (singleRowActionFor(event)) {
+			const keyed = singleRowActionFor(event)!;
+			event.preventDefault();
+			if (!keyed.action.disabled) keyed.action.onClick();
 		} else if (showTagIsland && isPlainKey(event, TAG_SHORTCUT)) {
 			event.preventDefault();
 			bulkTagPicker?.focusInput();
@@ -1019,17 +1049,41 @@
 
 <svelte:window onkeydown={handleListShortcut} onclick={handleClickOutside} />
 
-<!-- With rows selected, Delete leads the toolbar's buttons. -->
-{#snippet bulkDelete()}
-	<button onclick={handleBulkDelete} class="btn-danger toolbar-control flex items-center gap-2">
-		{common_deleteSelected()}
-		<span
-			class="inline-flex transition-opacity {searchFocused ? 'opacity-40' : ''}"
-			title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+<!-- With rows selected: the one selected row's own actions, then Delete for the selection. -->
+{#snippet selectionToolbar()}
+	{#each singleRowActions as { action, key } (action.label)}
+		{@const tip =
+			typeof action.tooltip === 'function' ? action.tooltip(!!action.disabled) : action.tooltip}
+		<button
+			onclick={action.onClick}
+			disabled={action.disabled}
+			title={tip ?? undefined}
+			class="{isDangerAction(action)
+				? 'btn-danger'
+				: 'btn-secondary'} toolbar-control flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
 		>
-			<KbdKey key={keyLabel('Delete')} size="xs" tone="inherit" />
-		</span>
-	</button>
+			{action.label}
+			{#if key}
+				<span
+					class="inline-flex transition-opacity {searchFocused ? 'opacity-40' : ''}"
+					title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+				>
+					<KbdKey key={keyLabel(key)} size="xs" tone="inherit" />
+				</span>
+			{/if}
+		</button>
+	{/each}
+	{#if canBulkDelete}
+		<button onclick={handleBulkDelete} class="btn-danger toolbar-control flex items-center gap-2">
+			{common_delete()}
+			<span
+				class="inline-flex transition-opacity {searchFocused ? 'opacity-40' : ''}"
+				title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+			>
+				<KbdKey key={keyLabel('Delete')} size="xs" tone="inherit" />
+			</span>
+		</button>
+	{/if}
 {/snippet}
 
 <div bind:this={rootRef} class="space-y-4">
@@ -1050,7 +1104,7 @@
 			onExport={onExportClick ?? onCsvExport}
 			{entityLabel}
 			actions={toolbarActions}
-			selectionActions={canBulkDelete ? bulkDelete : undefined}
+			selectionActions={canBulkDelete || singleRowActions.length > 0 ? selectionToolbar : undefined}
 			{title}
 			{subtitle}
 		>
@@ -1139,6 +1193,10 @@
 		>
 			<div
 				data-keeps-selection
+				onfocusin={() => (editingTags = true)}
+				onfocusout={(e) => {
+					if (!e.currentTarget.contains(e.relatedTarget as Node | null)) editingTags = false;
+				}}
 				class="card card-static pointer-events-auto flex max-w-full items-center gap-2 !px-4 !py-2 !shadow-[0_10px_40px_rgba(0,0,0,0.25)] ring-1 ring-black/5 dark:!border-gray-600 dark:!bg-gray-800 dark:!shadow-[0_10px_40px_rgba(0,0,0,0.7)] dark:ring-white/10"
 			>
 				<span class="text-secondary whitespace-nowrap text-sm"
@@ -1162,9 +1220,9 @@
 						title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
 					>
 						<KbdKey key={TAG_SHORTCUT} size="sm" />
-						{tags_hotkeyAdd()}
+						{tags_hotkeyEdit()}
 					</span>
-					{#if commonTags.length > 0}
+					{#if editingTags && commonTags.length > 0}
 						<KbdKey key="{keyLabel('Shift')} Tab" size="sm" class="ml-2" />
 						<KbdKey key={keyLabel('Delete')} size="sm" />
 						{tags_hotkeyRemove()}
