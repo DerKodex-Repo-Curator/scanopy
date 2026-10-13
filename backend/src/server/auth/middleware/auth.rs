@@ -947,7 +947,9 @@ async fn resolve_daemon_identity(
                 key_prefix,
             )
             .await;
-            Err(AuthError(ApiError::not_authenticated()))
+            // Coded so the daemon can tell a stale saved id (it re-registers under the key's
+            // daemon) from a rejected key.
+            Err(AuthError(ApiError::daemon_identity_mismatch()))
         }
         DaemonIdentityDecision::MissingHeader => Err(AuthError(ApiError::daemon_required())),
     }

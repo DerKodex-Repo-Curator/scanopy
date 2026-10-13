@@ -4,6 +4,7 @@
 //! terminal nor root.
 
 use super::*;
+use crate::daemon::shared::config::DaemonArgs;
 use prompt::installed_line;
 
 /// Write a daemon `config.json` for `slot` under `base`, as an installed daemon would have after
@@ -420,4 +421,62 @@ fn retired_binaries_are_swept_and_nothing_else_is() {
 
     assert!(bin.exists() && unrelated.exists());
     assert!(!retired.exists() && !legacy_retired.exists());
+}
+
+#[test]
+fn only_another_daemons_key_replaces_the_installed_daemon() {
+    assert!(replaces_daemon(Some("old"), Some("new")));
+    assert!(replaces_daemon(None, Some("new")));
+    assert!(!replaces_daemon(Some("same"), Some("same")));
+    assert!(!replaces_daemon(Some("old"), None));
+    assert!(!replaces_daemon(Some("old"), Some("")));
+}
+
+#[test]
+fn a_replaced_daemon_forgets_the_identity_the_server_gave_it() {
+    let mut config = AppConfig::default();
+    config.id = Uuid::new_v4();
+    config.site_id = Some(Uuid::new_v4());
+    config.name = "scanopy-daemon-a".to_string();
+    config.host_id = Some(Uuid::new_v4());
+    config.user_id = Some(Uuid::new_v4());
+    config.last_heartbeat = Some(chrono::Utc::now());
+    config.has_self_reported = true;
+    config.daemon_port = 60099;
+
+    config.forget_server_identity(&DaemonArgs::default());
+
+    assert!(config.id.is_nil());
+    assert_eq!(config.site_id, None);
+    assert_eq!(config.name, AppConfig::default().name);
+    assert_eq!(config.host_id, None);
+    assert_eq!(config.user_id, None);
+    assert_eq!(config.last_heartbeat, None);
+    assert!(!config.has_self_reported);
+    // Settings of the slot are not identity and stay.
+    assert_eq!(config.daemon_port, 60099);
+}
+
+#[test]
+fn a_replaced_daemon_keeps_identity_the_install_command_set() {
+    let site_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let mut config = AppConfig::default();
+    config.id = Uuid::new_v4();
+    config.site_id = Some(site_id);
+    config.name = "named-by-command".to_string();
+    config.user_id = Some(user_id);
+    let args = DaemonArgs {
+        site_id: Some(site_id.to_string()),
+        name: Some("named-by-command".to_string()),
+        user_id: Some(user_id),
+        ..DaemonArgs::default()
+    };
+
+    config.forget_server_identity(&args);
+
+    assert!(config.id.is_nil());
+    assert_eq!(config.site_id, Some(site_id));
+    assert_eq!(config.name, "named-by-command");
+    assert_eq!(config.user_id, Some(user_id));
 }
