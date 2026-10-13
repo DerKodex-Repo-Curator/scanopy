@@ -9,7 +9,7 @@ use governor::DefaultDirectRateLimiter;
 use super::*;
 use crate::server::{
     email::{messages::TermsUpdate, rate_limit},
-    release_notes::terms::{TermsCatalog, TermsUpdate as Update},
+    release_notes::terms::{MIN_NOTICE_DAYS, TermsCatalog, TermsUpdate as Update},
     shared::storage::lock::{DEFAULT_LOCK_TIMEOUT, LockError, LockKey},
 };
 
@@ -97,11 +97,15 @@ impl EmailService {
             .await?;
         for (update, due) in plan(today, catalog, &users) {
             let version = update.effective;
-            if today >= version {
+            // The release carrying the update deployed later than its file
+            // allowed for, so customers get less notice than the terms promise.
+            let notice_days = (version - today).num_days();
+            if notice_days < MIN_NOTICE_DAYS as i64 {
                 tracing::error!(
                     %version,
+                    notice_days,
                     users = due.len(),
-                    "Sending a terms notice after the update took effect"
+                    "Sending a terms notice with less than {MIN_NOTICE_DAYS} days' notice"
                 );
             }
             let email = TermsUpdate { update };

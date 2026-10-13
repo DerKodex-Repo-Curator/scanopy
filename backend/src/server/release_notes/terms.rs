@@ -13,7 +13,9 @@ use chrono::{Days, NaiveDate};
 use super::catalog::{EmbeddedNotes, render_markdown, split_frontmatter};
 
 /// The least notice an update gives: `effective` is at least this many days
-/// after `notify_from`.
+/// after `date`. The notice goes out when the release carrying the file
+/// deploys, so a release cut late eats into it; the sweep logs an error when
+/// it sends with less.
 pub const MIN_NOTICE_DAYS: u64 = 30;
 
 /// The most an update is written ahead of taking effect. A larger gap is
@@ -23,6 +25,11 @@ pub const MAX_LEAD_DAYS: u64 = 180;
 /// How long after `effective` a notice that hasn't gone out yet still does,
 /// for a deploy that lands late. After that the update is history.
 pub const LATE_SEND_DAYS: u64 = 30;
+
+/// The text `scripts/new-terms-update.sh` leaves for each change to be
+/// described. A body still holding it doesn't parse, so an unedited file fails
+/// CI instead of reaching customers.
+pub const PLACEHOLDER: &str = "<describe the change>";
 
 /// Where terms updates sit within the embedded folder.
 const TERMS_DIR: &str = "terms/";
@@ -72,10 +79,9 @@ impl TermsDocument {
 pub struct TermsUpdate {
     /// The day the update takes effect. Also its version.
     pub effective: NaiveDate,
-    /// The day it was written.
+    /// The day it was written. Its notice may go out from this day, once a
+    /// release carrying the file deploys.
     pub date: NaiveDate,
-    /// The first day its notice may go out.
-    pub notify_from: NaiveDate,
     /// The documents it changes, in the file's order.
     pub documents: Vec<TermsDocument>,
     /// What changed, rendered from markdown with raw HTML left out.
@@ -83,8 +89,8 @@ pub struct TermsUpdate {
 }
 
 impl TermsUpdate {
-    /// Parse a terms file: frontmatter (`effective`, `date`, `documents`, and
-    /// optionally `notify_from`), then the markdown body.
+    /// Parse a terms file: frontmatter (`effective`, `date`, and `documents`),
+    /// then the markdown body.
     pub fn parse(source: &str) -> Result<Self, String> {
         let (frontmatter, body) = split_frontmatter(source)?;
         let date_field = |key: &str, value: String| {
@@ -94,10 +100,6 @@ impl TermsUpdate {
 
         let effective = date_field("effective", frontmatter.required("effective")?)?;
         let date = date_field("date", frontmatter.required("date")?)?;
-        let notify_from = match frontmatter.field("notify_from") {
-            Some(value) => date_field("notify_from", value)?,
-            None => date,
-        };
         let documents = frontmatter
             .required("documents")?
             .split(',')
@@ -111,20 +113,22 @@ impl TermsUpdate {
         if body.trim().is_empty() {
             return Err("no description of what changed".into());
         }
+        if body.contains(PLACEHOLDER) {
+            return Err(format!("the body still says `{PLACEHOLDER}`"));
+        }
 
         Ok(Self {
             effective,
             date,
-            notify_from,
             documents,
             html: render_markdown(body),
         })
     }
 
-    /// Whether the notice may go out on `today`: from `notify_from` until
-    /// [`LATE_SEND_DAYS`] after `effective`.
+    /// Whether the notice may go out on `today`: from the day the release
+    /// carrying it deploys until [`LATE_SEND_DAYS`] after `effective`.
     pub fn sends_on(&self, today: NaiveDate) -> bool {
-        self.notify_from <= today && today < self.effective + Days::new(LATE_SEND_DAYS)
+        self.date <= today && today < self.effective + Days::new(LATE_SEND_DAYS)
     }
 }
 
@@ -186,12 +190,9 @@ impl TermsCatalog {
                     "{stem}: the file name doesn't match `effective: {effective}`"
                 ));
             }
-            if update.notify_from < update.date {
-                problems.push(format!("{stem}: `notify_from` is before `date`"));
-            }
-            if effective < update.notify_from + Days::new(MIN_NOTICE_DAYS) {
+            if effective < update.date + Days::new(MIN_NOTICE_DAYS) {
                 problems.push(format!(
-                    "{stem}: takes effect less than {MIN_NOTICE_DAYS} days after its notice can go out"
+                    "{stem}: takes effect less than {MIN_NOTICE_DAYS} days after `date`"
                 ));
             }
             if effective > update.date + Days::new(MAX_LEAD_DAYS) {
@@ -258,7 +259,6 @@ pub(crate) mod tests {
         let (_, source) = terms_file("2026-12-01", "2026-10-20");
         let update = TermsUpdate::parse(&source).unwrap();
         assert_eq!(update.effective, d("2026-12-01"));
-        assert_eq!(update.notify_from, d("2026-10-20"), "defaults to `date`");
         assert_eq!(
             update.documents,
             [TermsDocument::Terms, TermsDocument::Privacy]
@@ -274,6 +274,7 @@ pub(crate) mod tests {
             "---\neffective: 2026-12-01\ndate: 2026-10-20\ndocuments: terms, eula\n---\nbody",
             "---\neffective: 2026-12-01\ndate: 2026-10-20\ndocuments: terms\n---\n\n",
             "---\neffective: 2026-13-01\ndate: 2026-10-20\ndocuments: terms\n---\nbody",
+            "---\neffective: 2026-12-01\ndate: 2026-10-20\ndocuments: terms\n---\n- Section 4: <describe the change>",
         ] {
             assert!(TermsUpdate::parse(source).is_err(), "{source}");
         }
@@ -308,11 +309,6 @@ pub(crate) mod tests {
             problems(vec![terms_file("2026-11-18", "2026-10-20")], "2026-10-20").len(),
             1
         );
-        let late_notice = (
-            "2026-12-01".to_string(),
-            "---\neffective: 2026-12-01\ndate: 2026-10-20\nnotify_from: 2026-11-15\ndocuments: terms\n---\nbody".to_string(),
-        );
-        assert_eq!(problems(vec![late_notice], "2026-10-20").len(), 1);
     }
 
     #[test]
@@ -347,7 +343,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn an_update_sends_from_notify_from_until_the_late_window_closes() {
+    fn an_update_sends_from_its_date_until_the_late_window_closes() {
         let (_, source) = terms_file("2026-12-01", "2026-10-20");
         let update = TermsUpdate::parse(&source).unwrap();
         assert!(!update.sends_on(d("2026-10-19")));
