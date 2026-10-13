@@ -1168,6 +1168,29 @@ impl HostService {
                     .iter()
                     .any(|e| e.id == reassigned.id);
 
+                // Specific services a generic container could be reconciled onto: non-generic,
+                // not virtualized, claiming a conflicting port. Never the container's own
+                // runtime: a container publishing the port its runtime is reached on (an API
+                // proxy) would otherwise become the runtime's identity, and the runtime its own
+                // container. Cloned because later branches mutate existing_services_for_match.
+                let conflicting_port_ids: Vec<Uuid> = conflicting_bindings
+                    .iter()
+                    .filter_map(|b| b.port_id())
+                    .collect();
+                let enrichable_services: Vec<Service> = existing_services_for_match
+                    .iter()
+                    .filter(|s| {
+                        Some(s.id) != reassigned.base.virtualization_service_id
+                            && !ServiceDefinitionExt::is_generic(&s.base.service_definition)
+                            && s.base.virtualization_metadata.is_none()
+                            && s.base.bindings.iter().any(|b| {
+                                b.port_id()
+                                    .is_some_and(|pid| conflicting_port_ids.contains(&pid))
+                            })
+                    })
+                    .cloned()
+                    .collect();
+
                 if matches_existing_service {
                     tracing::debug!(
                         service_name = %reassigned.base.name,
@@ -1179,6 +1202,7 @@ impl HostService {
                     reassigned.base.bindings = valid_bindings;
                 } else if reassigned.base.virtualization_metadata.is_some()
                     && ServiceDefinitionExt::is_generic(&reassigned.base.service_definition)
+                    && !enrichable_services.is_empty()
                 {
                     // Safety net for Docker container → specific service reconciliation.
                     //
@@ -1188,53 +1212,32 @@ impl HostService {
                     // the specific service already found by the network scan (same port).
                     //
                     // Rather than dropping the Docker Container and losing its virtualization
-                    // metadata (container name, container ID, Docker daemon linkage), we find
-                    // the specific service that claims the conflicting port and set the Docker
-                    // virtualization on it directly. The network scan already correctly
-                    // identified the service; we're just adding the Docker container metadata.
-                    let conflicting_port_ids: Vec<Uuid> = conflicting_bindings
-                        .iter()
-                        .filter_map(|b| b.port_id())
-                        .collect();
-
-                    // Find non-generic services on this host that claim the conflicting ports. Never
-                    // the container's own runtime: a container publishing the port its runtime is
-                    // reached on (an API proxy) would otherwise become the runtime's identity, and
-                    // the runtime its own container.
-                    let enrichable_services: Vec<&Service> = existing_services_for_match
-                        .iter()
-                        .filter(|s| {
-                            Some(s.id) != reassigned.base.virtualization_service_id
-                                && !ServiceDefinitionExt::is_generic(&s.base.service_definition)
-                                && s.base.virtualization_metadata.is_none()
-                                && s.base.bindings.iter().any(|b| {
-                                    b.port_id()
-                                        .is_some_and(|pid| conflicting_port_ids.contains(&pid))
-                                })
-                        })
-                        .collect();
-
-                    if !enrichable_services.is_empty() {
-                        for existing_svc in enrichable_services {
-                            tracing::info!(
-                                service_name = %existing_svc.base.name,
-                                service_definition = %existing_svc.base.service_definition.name(),
-                                container_service = %reassigned.base.name,
-                                "Setting Docker virtualization on existing service from conflicting Docker Container"
-                            );
-                            let mut updated = existing_svc.clone();
-                            updated.base.virtualization_metadata =
-                                reassigned.base.virtualization_metadata.clone();
-                            updated.base.virtualization_service_id =
-                                reassigned.base.virtualization_service_id;
-                            let _ = self
-                                .service_service
-                                .update(&mut updated, authentication.clone())
-                                .await;
-                        }
+                    // metadata (container name, container ID, Docker daemon linkage), we set
+                    // the Docker virtualization on the specific service directly. The network
+                    // scan already identified the service; we're just adding the container
+                    // metadata. A container with no such service falls through, so one whose
+                    // ports sit only in Unclaimed Open Ports reclaims them below (GH #784).
+                    for mut updated in enrichable_services {
+                        tracing::info!(
+                            service_name = %updated.base.name,
+                            service_definition = %updated.base.service_definition.name(),
+                            container_service = %reassigned.base.name,
+                            "Setting Docker virtualization on existing service from conflicting Docker Container"
+                        );
+                        updated.base.virtualization_metadata =
+                            reassigned.base.virtualization_metadata.clone();
+                        updated.base.virtualization_service_id =
+                            reassigned.base.virtualization_service_id;
+                        let _ = self
+                            .service_service
+                            .update(&mut updated, authentication.clone())
+                            .await;
                     }
 
-                    // Still drop the generic Docker Container service itself
+                    tracing::debug!(
+                        container_service = %reassigned.base.name,
+                        "Dropping generic Docker Container after setting its virtualization on the services holding its ports"
+                    );
                     continue;
                 } else if let Some(owner_id) = reassigned.base.virtualization_service_id
                     && let Some(owner) = existing_services_for_match
