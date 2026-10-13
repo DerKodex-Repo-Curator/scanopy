@@ -28,6 +28,29 @@ export function hasSearchTerms(state: GlobalSearchState): boolean {
 	return state.text.trim().length > 0 || state.tagIds.length > 0;
 }
 
+/** The search endpoint's query for a search. The palette's URL carries the same params. */
+export function globalSearchQuery(state: GlobalSearchState): { q?: string; tag_ids: string[] } {
+	const q = state.text.trim();
+	return { q: q || undefined, tag_ids: state.tagIds };
+}
+
+/**
+ * A search as URL params: `globalSearchQuery`, with `q` written even when empty, since its presence
+ * is what marks the palette open (`URL_SCOPES.search.marker`).
+ */
+export function globalSearchUrlParams(state: GlobalSearchState): URLSearchParams {
+	const { q, tag_ids } = globalSearchQuery(state);
+	const params = new URLSearchParams({ q: q ?? '' });
+	tag_ids.forEach((id) => params.append('tag_ids', id));
+	return params;
+}
+
+/** The search a palette URL carries, or null when it carries none. */
+export function globalSearchFromUrl(params: URLSearchParams): GlobalSearchState | null {
+	if (!params.has('q')) return null;
+	return { text: params.get('q') ?? '', tagIds: params.getAll('tag_ids').filter(Boolean) };
+}
+
 /** Whether the palette is open. The sidebar's search bar and the shortcut both set it. */
 export const globalSearchOpen = writable(false);
 

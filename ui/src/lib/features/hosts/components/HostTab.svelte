@@ -1,6 +1,5 @@
 <script lang="ts">
 	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
-	import { tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
 	import type {
 		Host,
 		CreateHostWithServicesRequest,
@@ -10,11 +9,6 @@
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import { hostDisplayName } from '$lib/features/hosts/host-display-name';
-	import {
-		hostOsFamilyIds,
-		hostOsFamilyName,
-		type HostOsFamily
-	} from '$lib/features/hosts/host-os';
 	import OsTag from './OsTag.svelte';
 	import HostEditor from './HostEditModal/HostEditor.svelte';
 	import HostConsolidationModal from './HostConsolidationModal.svelte';
@@ -24,7 +18,6 @@
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { hostColumns } from './HostTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
-	import { entitySources } from '$lib/shared/stores/metadata';
 	import { Trash2, RefreshCw, Replace, Edit } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -40,8 +33,7 @@
 		common_confirmBulkDelete,
 		common_noEntityYet,
 		common_rescan,
-		daemons_installPromptHosts,
-		hosts_notVirtualized
+		daemons_installPromptHosts
 	} from '$lib/paraglide/messages';
 
 	let { isReadOnly = false }: TabProps = $props();
@@ -74,8 +66,6 @@
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
 	type HostOrderField = components['schemas']['HostOrderField'];
-	type OrderDirection = components['schemas']['OrderDirection'];
-	type EntitySourceType = components['schemas']['EntitySourceDiscriminants'];
 
 	const HOST_FIELD_VALUES = '/api/v1/hosts/field-values/{field}';
 	const SERVICE_FIELD_VALUES = '/api/v1/services/field-values/{field}';
@@ -84,52 +74,18 @@
 	let pageSize = $state(20);
 	let currentPage = $state(1);
 
-	// Ordering state (for server-side ordering).
-	// The grouping and sort the table opens with. Declared ahead of the query state so the
-	// first request already carries them; DataControls replaces them with a saved choice.
+	// The grouping and sort the table opens with until the user picks their own.
 	const tableDefaults: TableDefaults<HostOrderField> = {
 		group: 'virtualized_by',
 		sort: { field: 'name', direction: 'asc' }
 	};
-	let groupBy = $state<HostOrderField | undefined>(tableDefaults.group);
-	let orderBy = $state<HostOrderField | undefined>(tableDefaults.sort?.field);
-	let orderDirection = $state<OrderDirection>(tableDefaults.sort?.direction ?? 'asc');
 
-	// Tag filter state (for server-side filtering)
-	let tagIds = $state<string[]>([]);
-	// Tag-group columns sort, group and filter on the server, by group id.
-	let groupByTagGroup = $state<string | undefined>(undefined);
-	let orderByTagGroup = $state<string | undefined>(undefined);
-	let tagGroupFilters = $state<Record<string, string[]>>({});
-	// Staleness filter state (server-side: the list is server-paginated)
-	let stale = $state<boolean | null>(null);
-	// Search state (server-side, for the same reason)
-	let search = $state('');
-
-	// Field filter state. Server-side for the same reason as the two above: the
-	// client holds one page of hosts, so filtering here would narrow that page
-	// while the total count kept describing every match.
-	let filterSiteIds = $state<string[]>([]);
-	let filterVirtualizationServiceNames = $state<string[]>([]);
-	let filterIncludeUnvirtualized = $state(false);
-	let filterServiceNames = $state<string[]>([]);
-	let filterSources = $state<EntitySourceType[]>([]);
-	let filterManufacturers = $state<string[]>([]);
-	let filterModels = $state<string[]>([]);
-	let filterSysLocations = $state<string[]>([]);
-	let filterOsFamilies = $state<HostOsFamily[]>([]);
-	let filterCredentialIds = $state<string[]>([]);
-
-	/** The hardware, OS and credential filters, shared by the list and the export. */
-	function fieldFilterParams() {
-		return {
-			manufacturers: filterManufacturers.length > 0 ? filterManufacturers : undefined,
-			models: filterModels.length > 0 ? filterModels : undefined,
-			sys_locations: filterSysLocations.length > 0 ? filterSysLocations : undefined,
-			os_families: filterOsFamilies.length > 0 ? filterOsFamilies : undefined,
-			credential_ids: filterCredentialIds.length > 0 ? filterCredentialIds : undefined
-		};
-	}
+	// The list's view as the endpoint's params: search, tags, staleness, field filters and ordering,
+	// all server-side because the client holds one page of hosts, so filtering here would narrow
+	// that page while the total count kept describing every match. Null until DataControls has
+	// restored the view. The query is not held for it: the table only mounts once a first page
+	// has loaded.
+	let listQuery = $state<URLSearchParams | null>(null);
 
 	// Queries
 	const organizationQuery = useOrganizationQuery();
@@ -153,23 +109,7 @@
 	const hostsQuery = useHostsQuery((): HostQueryOptions => ({
 		limit: pageSize,
 		offset: (currentPage - 1) * pageSize,
-		group_by: groupBy,
-		order_by: orderBy,
-		order_direction: orderDirection,
-		tag_ids: tagIds.length > 0 ? tagIds : undefined,
-		tag_sets: tagSetsParam(tagGroupFilters, tagsQuery.data ?? []),
-		group_by_tag_group: groupByTagGroup,
-		order_by_tag_group: orderByTagGroup,
-		stale: stale ?? undefined,
-		search: search || undefined,
-		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
-		// Both values checked is no constraint, so it is sent as nothing.
-		virtualization_service_names:
-			filterVirtualizationServiceNames.length > 0 ? filterVirtualizationServiceNames : undefined,
-		include_unvirtualized: filterIncludeUnvirtualized || undefined,
-		service_names: filterServiceNames.length > 0 ? filterServiceNames : undefined,
-		sources: filterSources.length > 0 ? filterSources : undefined,
-		...fieldFilterParams()
+		list: listQuery ?? undefined
 	}));
 	const sitesQuery = useSitesQuery();
 	useDaemonsQuery();
@@ -265,127 +205,11 @@
 		pageSize = newPageSize;
 	}
 
-	// Order change handler for server-side ordering
-	// Values are now directly HostOrderField values from the orderField property
-	function handleOrderChange(
-		groupField: string | null,
-		orderField: string | null,
-		direction: 'asc' | 'desc'
-	) {
-		groupByTagGroup = tagGroupIdOf(groupField) ?? undefined;
-		orderByTagGroup = tagGroupIdOf(orderField) ?? undefined;
-		groupBy = groupByTagGroup ? undefined : ((groupField as HostOrderField) ?? undefined);
-		orderBy = orderByTagGroup ? undefined : ((orderField as HostOrderField) ?? undefined);
-		orderDirection = direction;
-	}
-
-	// Tag filter change handler for server-side filtering
-	function handleTagFilterChange(selectedTagIds: string[]) {
-		tagIds = selectedTagIds;
-		// Reset to page 1 is handled by DataControls
-	}
-
-	function handleStaleFilterChange(next: boolean | null) {
-		stale = next;
-	}
-
-	// Search change handler for server-side search (debounced by DataControls)
-	function handleSearchChange(query: string) {
-		search = query;
-	}
-
-	/**
-	 * Server-side field filter handler.
-	 *
-	 * The panel offers what the user reads — a site's name, a service's name —
-	 * while the API filters on ids, so each case resolves the labels back through
-	 * the same data the options were built from. Every key here must match a
-	 * field marked `serverFiltered`; an unhandled one would filter nothing at
-	 * all, since DataControls skips the client pass for those fields.
-	 */
-	function handleFilterChange(fieldKey: string, values: string[]) {
-		const tagGroupId = tagGroupIdOf(fieldKey);
-		if (tagGroupId) {
-			tagGroupFilters = { ...tagGroupFilters, [tagGroupId]: values };
-			return;
-		}
-		switch (fieldKey) {
-			case 'site_id':
-				filterSiteIds = idsForNames(values, sitesData);
-				break;
-			case 'virtualized_by':
-				// "Not Virtualized" is a choice about absence, so it is carried as
-				// its own flag rather than as a name nothing would match. The rest are the
-				// virtualizing services' names, which the server filters on directly: the
-				// options come from every host, and no client cache holds every service.
-				filterIncludeUnvirtualized = values.includes(hosts_notVirtualized());
-				filterVirtualizationServiceNames = values.filter(
-					(value) => value !== hosts_notVirtualized()
-				);
-				break;
-			case 'services':
-				filterServiceNames = values;
-				break;
-			case 'source':
-				// Fixture ids are the backend's `EntitySourceDiscriminants` names, emitted from
-				// that same enum, so an id is a valid filter value by construction.
-				filterSources = entitySources
-					.getItems()
-					.filter((source) => values.includes(entitySources.getName(source.id)))
-					.map((source) => source.id as EntitySourceType);
-				break;
-			// The field-values options are the stored strings themselves, so they pass through.
-			case 'manufacturer':
-				filterManufacturers = values;
-				break;
-			case 'model':
-				filterModels = values;
-				break;
-			case 'sys_location':
-				filterSysLocations = values;
-				break;
-			case 'os_family':
-				filterOsFamilies = hostOsFamilyIds.filter((family) =>
-					values.includes(hostOsFamilyName(family))
-				);
-				break;
-			case 'credentials':
-				filterCredentialIds = idsForNames(values, credentialsData);
-				break;
-			default:
-				throw new Error(
-					`HostTab: no server-side filter handles "${fieldKey}". A serverFiltered field ` +
-						`without a case here filters nothing — neither the client nor the server.`
-				);
-		}
-	}
-
-	/** Resolve display names back to the ids the API filters on. */
-	function idsForNames(names: string[], from: { id: string; name: string }[]): string[] {
-		const wanted = new Set(names);
-		return from.filter((entry) => wanted.has(entry.name)).map((entry) => entry.id);
-	}
-
 	// Export modal state
 	let showExportModal = $state(false);
-	// Carries the field filters too: the export handler applies the same
-	// `apply_field_filters` as the list, so an export mirrors what the user was
-	// looking at rather than the whole network.
-	let exportParams = $derived({
-		tag_ids: tagIds.length > 0 ? tagIds : undefined,
-		tag_sets: tagSetsParam(tagGroupFilters, tagsData),
-		group_by_tag_group: groupByTagGroup,
-		order_by_tag_group: orderByTagGroup,
-		order_by: orderBy,
-		order_direction: orderDirection,
-		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
-		virtualization_service_names:
-			filterVirtualizationServiceNames.length > 0 ? filterVirtualizationServiceNames : undefined,
-		include_unvirtualized: filterIncludeUnvirtualized || undefined,
-		service_names: filterServiceNames.length > 0 ? filterServiceNames : undefined,
-		sources: filterSources.length > 0 ? filterSources : undefined,
-		...fieldFilterParams()
-	});
+	// The list's own query: the export endpoint takes the same params, so an export mirrors what
+	// the user was looking at rather than the whole network.
+	let exportParams = $derived(listQuery ?? new URLSearchParams());
 
 	let showHostEditor = $state(false);
 	// Track the host being edited by id + a snapshot, and resolve `editingHost` from the
@@ -630,11 +454,7 @@
 			getItemId={(item) => item.id}
 			serverPagination={hostsPagination}
 			onPageChange={handlePageChange}
-			onOrderChange={handleOrderChange}
-			onTagFilterChange={handleTagFilterChange}
-			onFilterChange={handleFilterChange}
-			onStaleFilterChange={handleStaleFilterChange}
-			onSearchChange={handleSearchChange}
+			onQueryChange={(query) => (listQuery = query)}
 			onExportClick={() => {
 				showExportModal = true;
 			}}

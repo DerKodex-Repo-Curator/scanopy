@@ -37,6 +37,33 @@ export interface UserColumnsContext {
 	inviteUrl: (invite: OrganizationInvite) => string;
 }
 
+/** The site filter value of an Admin or Owner, who sees every site. */
+const ALL_SITES = 'all';
+
+/** The password half of an auth-method filter value; the provider's name is the other half. */
+const PASSWORD_METHOD = 'password';
+const NO_METHOD = 'none';
+
+/**
+ * How a user signs in, as a filter value: `<provider>`, `<provider>+password`, `password` or
+ * `none`. Provider names come from the server's OIDC config, so they read the same in any language.
+ */
+function authMethodValue(item: UserOrInvite): string | null {
+	if (!isUser(item)) return null;
+	const { oidc_provider, has_password } = item.data;
+	if (oidc_provider) return has_password ? `${oidc_provider}+${PASSWORD_METHOD}` : oidc_provider;
+	return has_password ? PASSWORD_METHOD : NO_METHOD;
+}
+
+function authMethodLabel(value: string): string {
+	if (value === PASSWORD_METHOD) return common_emailAndPassword();
+	if (value === NO_METHOD) return common_none();
+	const suffix = `+${PASSWORD_METHOD}`;
+	return value.endsWith(suffix)
+		? users_authMethodOidcAndPassword({ provider: value.slice(0, -suffix.length) })
+		: value;
+}
+
 /**
  * The sites a user can reach.
  *
@@ -49,7 +76,7 @@ function userSiteItems(ctx: UserColumnsContext, item: UserOrInvite): LabelledCar
 	const user = item.data;
 
 	if (user.permissions === 'Admin' || user.permissions === 'Owner') {
-		return [{ id: 'all', label: common_all(), color: entities.getColorHelper('Site').color }];
+		return [{ id: ALL_SITES, label: common_all(), color: entities.getColorHelper('Site').color }];
 	}
 
 	return siteItems(user.site_ids ?? [], ctx.sites());
@@ -85,6 +112,14 @@ export function userColumns(ctx: UserColumnsContext): FieldConfig<UserOrInvite>[
 					: item.data.id === ctx.currentUser()?.id
 						? common_you()
 						: common_user(),
+			getFilterValue: (item) =>
+				!isUser(item) ? 'pending' : item.data.id === ctx.currentUser()?.id ? 'you' : 'user',
+			filterLabel: (value) =>
+				value === 'pending'
+					? invites_pendingInvite()
+					: value === 'you'
+						? common_you()
+						: common_user(),
 			display: {
 				getItems: (item) => {
 					if (!isUser(item)) {
@@ -104,8 +139,10 @@ export function userColumns(ctx: UserColumnsContext): FieldConfig<UserOrInvite>[
 			filterable: true,
 			groupable: true,
 			sortable: true,
-			// Every role the backend defines, named the way the chip renders them.
-			filterOptions: permissions.getItems().map((role) => permissions.getName(role.id)),
+			// Every role the backend defines.
+			filterOptions: permissions.getItems().map((role) => role.id),
+			filterLabel: (role) => permissions.getName(role) || role,
+			getFilterValue: (item) => item.data.permissions,
 			getValue(item) {
 				return permissions.getName(item.data.permissions) || item.data.permissions;
 			},
@@ -130,6 +167,9 @@ export function userColumns(ctx: UserColumnsContext): FieldConfig<UserOrInvite>[
 			// Users share sites, so this filters; as an array it neither sorts nor groups.
 			filterable: true,
 			getValue: (item) => userSiteItems(ctx, item).map((n) => n.label),
+			getFilterValue: (item) => userSiteItems(ctx, item).map((n) => n.id),
+			filterLabel: (id) =>
+				id === ALL_SITES ? common_all() : (ctx.sites().find((n) => n.id === id)?.name ?? id),
 			display: { getItems: (item) => userSiteItems(ctx, item) }
 		},
 		{
@@ -140,16 +180,12 @@ export function userColumns(ctx: UserColumnsContext): FieldConfig<UserOrInvite>[
 			filterable: true,
 			groupable: true,
 			sortable: true,
-			getValue(item) {
-				if (!isUser(item)) return null;
-				const { oidc_provider, has_password } = item.data;
-				if (oidc_provider) {
-					return has_password
-						? users_authMethodOidcAndPassword({ provider: oidc_provider })
-						: oidc_provider;
-				}
-				return has_password ? common_emailAndPassword() : common_none();
-			}
+			getValue: (item) => {
+				const value = authMethodValue(item);
+				return value === null ? null : authMethodLabel(value);
+			},
+			getFilterValue: authMethodValue,
+			filterLabel: authMethodLabel
 		},
 		{
 			key: 'created_at',
@@ -179,6 +215,10 @@ export function userColumns(ctx: UserColumnsContext): FieldConfig<UserOrInvite>[
 					? null
 					: ctx.users().find((u) => u.id == item.data.created_by)?.email ||
 						common_unknownEntity({ entity: common_user() }),
+			getFilterValue: (item) => (isUser(item) ? null : item.data.created_by),
+			filterLabel: (id) =>
+				ctx.users().find((u) => u.id === id)?.email ??
+				common_unknownEntity({ entity: common_user() }),
 			display: { hiddenByDefault: true }
 		},
 		{

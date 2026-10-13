@@ -63,8 +63,10 @@ export function vlanColumns(ctx: VlanColumnsContext) {
 				filterable: true,
 				groupable: true,
 				sortable: true,
-				// Every source the backend can stamp, named the way the column renders them.
-				filterOptions: entitySources.getItems().map((source) => entitySources.getName(source.id)),
+				// Every source the backend can stamp.
+				filterOptions: entitySources.getItems().map((source) => source.id),
+				filterLabel: (id) => entitySources.getName(id),
+				getFilterValue: (vlan) => vlan.source?.type ?? null,
 				getValue: (vlan) => (vlan.source ? entitySources.getName(vlan.source.type) : null),
 				display: {
 					hiddenByDefault: true,
@@ -77,6 +79,9 @@ export function vlanColumns(ctx: VlanColumnsContext) {
 				type: 'string',
 				searchable: true,
 				filterable: true,
+				queryParam: 'site_id',
+				getFilterValue: (item) => item.site_id,
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? common_unknownSite(),
 				groupable: true,
 				sortable: true,
 				getValue: (item) =>

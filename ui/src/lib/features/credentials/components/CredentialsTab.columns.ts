@@ -37,6 +37,7 @@ function integrationId(item: Credential): string {
 export interface CredentialColumnsContext {
 	lookup: () => EntityLookup;
 	tags: () => Tag[];
+	sites: () => Site[];
 	sitesForCredential: (credential: Credential) => Site[];
 	hostsForCredential: (credential: Credential) => Host[];
 	targetsFor: (credential: Credential) => string[];
@@ -69,8 +70,10 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				filterable: true,
 				groupable: true,
 				sortable: true,
-				// The field holds an OS family, so the options are every family, named the same way.
-				filterOptions: osFamilies.map((family) => family.name),
+				// The field holds an OS family, so the options are every family.
+				filterOptions: osFamilies.map((family) => family.id),
+				filterLabel: (id) => osFamilies.find((family) => family.id === id)?.name ?? id,
+				getFilterValue: (item: Credential) => item.daemon_os ?? null,
 				getValue: (item: Credential) =>
 					item.daemon_os
 						? (osFamilies.find((family) => family.id === item.daemon_os)?.name ?? item.daemon_os)
@@ -88,9 +91,9 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				groupable: true,
 				sortable: true,
 				filterMode: 'include',
-				filterOptions: credentialIntegrations
-					.getItems()
-					.map((i) => credentialIntegrations.getName(i.id)),
+				filterOptions: credentialIntegrations.getItems().map((i) => i.id),
+				filterLabel: (id) => credentialIntegrations.getName(id),
+				getFilterValue: (item: Credential) => integrationId(item),
 				getValue: (item: Credential) => credentialIntegrations.getName(integrationId(item)),
 				display: {
 					getItems: (item: Credential) => {
@@ -114,7 +117,10 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				groupable: true,
 				sortable: true,
 				filterMode: 'include',
-				filterOptions: credentialTypes.getItems().map((t) => credentialTypes.getName(t.id)),
+				queryParam: 'type',
+				filterOptions: credentialTypes.getItems().map((t) => t.id),
+				filterLabel: (id) => credentialTypes.getName(id),
+				getFilterValue: (item: Credential) => getCredentialTypeId(item),
 				getValue: (item: Credential) => credentialTypes.getName(getCredentialTypeId(item)),
 				display: {
 					getItems: (item: Credential) => {
@@ -177,6 +183,8 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				// so search covers those.
 				filterable: true,
 				getValue: (item: Credential) => ctx.sitesForCredential(item).map((n) => n.name),
+				getFilterValue: (item: Credential) => ctx.sitesForCredential(item).map((n) => n.id),
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? id,
 				display: {
 					getItems: (item: Credential) =>
 						ctx.assignmentItems(

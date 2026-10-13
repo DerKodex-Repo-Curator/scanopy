@@ -56,6 +56,8 @@ export function tagColumns(ctx: TagColumnsContext) {
 				filterable: true,
 				// A system group reads under its translated name.
 				getValue: (tag) => tagGroupLabel(groupOf(tag, ctx.tagGroups())),
+				getFilterValue: (tag) => tag.tag_group_id ?? null,
+				filterLabel: (id) => tagGroupLabel(ctx.tagGroups().find((group) => group.id === id)) ?? id,
 				// Groups in the server's order, each group's tags in its own order.
 				compare: compareTagsByGroup(ctx.tagGroups())
 			},

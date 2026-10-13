@@ -7,7 +7,8 @@ import { discoveryRunItems } from '$lib/features/discovery/columns';
 import { hostDisplayName } from '$lib/features/hosts/host-display-name';
 import { defineRegistryFields } from '$lib/shared/entity-fields/table';
 import type { EntityLookup } from '$lib/shared/entity-fields';
-import type { components } from '$lib/api/schema';
+import type { components, operations } from '$lib/api/schema';
+import { NO_VALUE, valuesOrNoneCodec } from '$lib/shared/components/data/controls/listQuery';
 import type { Host } from '$lib/features/hosts/types/base';
 import type { Site } from '$lib/features/sites/types';
 import type { Tag } from '$lib/features/tags/types/base';
@@ -41,11 +42,12 @@ import {
 import {
 	fieldValueOptions,
 	hasEmptyFieldValue,
-	labelledFieldValueOptions,
 	type FieldValueCount
 } from '$lib/shared/api/field-values';
 
 type ServiceOrderField = components['schemas']['ServiceOrderField'];
+/** The service list endpoint's query params, which the filters are sent and linked as. */
+type ServiceListParam = keyof NonNullable<operations['get_all_services']['parameters']['query']>;
 
 /** What the service columns read from the tab, each as a getter so values stay live. */
 export interface ServiceColumnsContext {
@@ -58,7 +60,9 @@ export interface ServiceColumnsContext {
 	/** The runtimes containerizing the visible services. */
 	runtimes: () => Service[];
 	/** Server-counted filter options, one per server-filtered field. */
-	hostValues: () => FieldValueCount[] | undefined;
+	/** The hosts some service runs on, by id, and each one's title. */
+	hostOptions: () => string[];
+	hostLabel: (id: string) => string;
 	siteValues: () => FieldValueCount[] | undefined;
 	definitionValues: () => FieldValueCount[] | undefined;
 	containerizedByValues: () => FieldValueCount[] | undefined;
@@ -76,7 +80,7 @@ export interface ServiceColumnsContext {
  * ServiceOrderField value must be listed.
  */
 export function serviceColumns(ctx: ServiceColumnsContext) {
-	return defineRegistryFields<Service, ServiceOrderField>(
+	return defineRegistryFields<Service, ServiceOrderField, ServiceListParam>(
 		'Service',
 		ctx.lookup,
 		{
@@ -91,10 +95,10 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The titles of the hosts some service runs on: the server counts the same
-				// title ladder `hostDisplayName` renders, and the handler maps each back to
-				// ids through the full host list.
-				filterOptions: fieldValueOptions(ctx.hostValues()),
+				queryParam: 'host_ids',
+				// The hosts some service runs on.
+				filterOptions: ctx.hostOptions(),
+				filterLabel: ctx.hostLabel,
 				groupable: true,
 				// The server groups on the host's title — the same full ladder rendered below —
 				// coalescing services with no host to an empty string. Both sides have to walk
@@ -129,11 +133,10 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The sites some service is on, by name.
-				filterOptions: labelledFieldValueOptions(
-					ctx.siteValues(),
-					(id) => ctx.sites().find((n) => n.id === id)?.name
-				),
+				queryParam: 'site_ids',
+				// The sites some service is on.
+				filterOptions: fieldValueOptions(ctx.siteValues()),
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? common_unknownSite(),
 				groupable: true,
 				// Displayed as a name, but grouped by id on the server.
 				getGroupValue: (item) => item.site_id,
@@ -151,10 +154,10 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The definitions some service matched, by name.
-				filterOptions: labelledFieldValueOptions(ctx.definitionValues(), (id) =>
-					serviceDefinitions.getName(id)
-				),
+				queryParam: 'service_definitions',
+				// The definitions some service matched.
+				filterOptions: fieldValueOptions(ctx.definitionValues()),
+				filterLabel: (id) => serviceDefinitions.getName(id),
 				groupable: true,
 				// The server groups on the raw definition id; the UI renders its
 				// friendly name, so the group key has to be supplied separately.
@@ -196,7 +199,12 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 				// The names of the runtimes that containerize some service, and "Not
 				// Containerized" only when some service has none (counted as '').
 				filterOptions: fieldValueOptions(ctx.containerizedByValues()).concat(
-					hasEmptyFieldValue(ctx.containerizedByValues()) ? [services_notContainerized()] : []
+					hasEmptyFieldValue(ctx.containerizedByValues()) ? [NO_VALUE] : []
+				),
+				filterLabel: (value) => (value === NO_VALUE ? services_notContainerized() : value),
+				filterCodec: valuesOrNoneCodec<ServiceListParam>(
+					'virtualization_service_names',
+					'include_uncontainerized'
 				),
 				getValue: (item) =>
 					ctx.runtimes().find((s) => s.id == item.virtualization_service_id)?.name ||
@@ -230,10 +238,10 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The confidences some match carries, by name.
-				filterOptions: labelledFieldValueOptions(ctx.matchConfidenceValues(), (id) =>
-					matchConfidences.getName(id)
-				),
+				queryParam: 'match_confidences',
+				// The confidences some match carries.
+				filterOptions: fieldValueOptions(ctx.matchConfidenceValues()),
+				filterLabel: (id) => matchConfidences.getName(id),
 				getValue: (item) =>
 					item.source.type == 'DiscoveryWithMatch'
 						? matchConfidences.getName(item.source.details.confidence)
@@ -247,10 +255,10 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 			source: {
 				filterable: true,
 				serverFiltered: true,
-				// The sources some service was stamped with, by name.
-				filterOptions: labelledFieldValueOptions(ctx.sourceValues(), (id) =>
-					entitySources.getName(id)
-				),
+				queryParam: 'sources',
+				// The sources some service was stamped with.
+				filterOptions: fieldValueOptions(ctx.sourceValues()),
+				filterLabel: (id) => entitySources.getName(id),
 				// The server groups on the raw `source.type`.
 				getGroupValue: (service) => service.source.type,
 				display: {
@@ -270,6 +278,7 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 				// the full binding.
 				filterable: true,
 				serverFiltered: true,
+				queryParam: 'ports',
 				filterOptions: ctx.wellKnownPortNumbers(),
 				getValue: (service) => ctx.portBindingItems(service).map((b) => b.label),
 				display: { hiddenByDefault: true, getItems: ctx.portBindingItems }
@@ -289,8 +298,10 @@ export function serviceColumns(ctx: ServiceColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
+				queryParam: 'exclude_categories',
 				filterMode: 'exclude',
 				filterOptions: ctx.serviceCategories(),
+				filterLabel: (category) => serviceCategoryMeta.getName(category),
 				filterDefaults: ['OpenPorts'],
 				getValue: (item) =>
 					serviceDefinitions.getCategory(item.service_definition) || common_unknown(),

@@ -1,6 +1,7 @@
 <script lang="ts" generics="T">
 	import { getFieldKey, type FieldConfig } from '../types';
 	import type { FieldFilter } from './filtering';
+	import { filterLabelOf } from './fieldValues';
 	import type { Tag as TagType, TagGroup } from '$lib/features/tags/types/base';
 	import Tag from '../Tag.svelte';
 	import {
@@ -32,7 +33,7 @@
 		/** The parent applies staleness and this field carries the toggle. */
 		showStale,
 		staleOnly,
-		getUniqueValues,
+		getFilterOptions,
 		onToggleBoolean,
 		onToggleString,
 		onToggleTag,
@@ -44,7 +45,7 @@
 		tagGroups: TagGroup[];
 		showStale: boolean;
 		staleOnly: boolean;
-		getUniqueValues: (field: FieldConfig<T>) => string[];
+		getFilterOptions: (field: FieldConfig<T>) => string[];
 		onToggleBoolean: (fieldKey: string, which: 'showTrue' | 'showFalse') => void;
 		onToggleString: (fieldKey: string, value: string) => void;
 		onToggleTag: (tagId: string) => void;
@@ -139,15 +140,15 @@
 			(tag) => onToggleTag(tag.id)
 		)}
 	{:else if groupId}
-		<!-- A tag group's column: its tags as chips, in the group's order. Values are tag names,
-		     which is what the column's value and the server's tag sets match on. -->
+		<!-- A tag group's column: its tags as chips, in the group's order. Values are tag ids, which
+		     the column's filter value and the server's tag sets match on. -->
 		{@render tagChips(
 			groupTags,
-			(tag) => !!filter?.values.has(tag.name),
-			(tag) => onToggleString(fieldKey, tag.name)
+			(tag) => !!filter?.values.has(tag.id),
+			(tag) => onToggleString(fieldKey, tag.id)
 		)}
 	{:else}
-		{@const uniqueValues = field.filterOptions ?? getUniqueValues(field)}
+		{@const uniqueValues = getFilterOptions(field)}
 		<div
 			use:scrollFade
 			class="max-h-32 space-y-1.5 overflow-y-scroll rounded-md bg-black/5 p-2 dark:bg-white/5"
@@ -156,6 +157,7 @@
 				<p class="text-tertiary text-xs">{common_noValuesAvailable()}</p>
 			{:else}
 				{#each uniqueValues as value (value)}
+					{@const label = filterLabelOf(field, value)}
 					<label class="flex cursor-pointer items-center gap-2">
 						<input
 							type="checkbox"
@@ -163,7 +165,7 @@
 							onchange={() => onToggleString(fieldKey, value)}
 							class="checkbox-card h-4 w-4 rounded"
 						/>
-						<span class="text-secondary truncate text-sm" title={value}>{value}</span>
+						<span class="text-secondary truncate text-sm" title={label}>{label}</span>
 					</label>
 				{/each}
 			{/if}

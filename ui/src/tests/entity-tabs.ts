@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'svelte/compiler';
 import type { components } from '$lib/api/schema';
 import { getFieldKey, type FieldConfig } from '$lib/shared/components/data/types';
+import { CLIENT_QUERY, type ServerQuery } from '$lib/shared/components/data/controls/listQuery';
 
 /**
  * What the entity-tab tests share: the committed OpenAPI spec, the tabs that render
@@ -535,7 +536,7 @@ export function columnKeys(tab: string): Set<string> {
  * The props a tab passes to `<DataControls>`, from the Svelte compiler's parse of the tab. These
  * are template wiring, not values a test can call, so they are read from the syntax tree.
  */
-export function dataControlsProps(tab: string): Set<string> {
+function dataControlsAttributes(tab: string): SchemaNode[] {
 	const elements: SchemaNode[] = [];
 	const walk = (node: SchemaNode) => {
 		if (!node || typeof node !== 'object') return;
@@ -547,9 +548,29 @@ export function dataControlsProps(tab: string): Set<string> {
 	if (elements.length !== 1) {
 		throw new Error(`${tab}: expected one <DataControls> element, found ${elements.length}.`);
 	}
-	return new Set(
-		elements[0].attributes
-			.filter((attribute: SchemaNode) => attribute.type === 'Attribute')
-			.map((attribute: SchemaNode) => attribute.name)
-	);
+	return elements[0].attributes.filter((attribute: SchemaNode) => attribute.type === 'Attribute');
+}
+
+export function dataControlsProps(tab: string): Set<string> {
+	return new Set(dataControlsAttributes(tab).map((attribute: SchemaNode) => attribute.name));
+}
+
+/**
+ * What the server applies from the query a tab's list sends: every part when it passes
+ * `onQueryChange`, less those its `serverQuery` literal turns off. The same rule `DataControls`
+ * applies, read from the template.
+ */
+export function dataControlsServerQuery(tab: string): ServerQuery {
+	const attributes = dataControlsAttributes(tab);
+	if (!attributes.some((attribute: SchemaNode) => attribute.name === 'onQueryChange')) {
+		return CLIENT_QUERY;
+	}
+	const server: ServerQuery = { search: true, tags: true, stale: true, order: true, fields: true };
+	const literal = attributes.find((attribute: SchemaNode) => attribute.name === 'serverQuery')
+		?.value?.expression;
+	for (const property of literal?.properties ?? []) {
+		const key = property.key?.name as keyof ServerQuery;
+		if (key in server && property.value?.value === false) server[key] = false;
+	}
+	return server;
 }

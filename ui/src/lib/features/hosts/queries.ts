@@ -37,7 +37,8 @@ import type {
 	BindingInput
 } from './types/base';
 import type { Service } from '$lib/features/services/types/base';
-import type { components } from '$lib/api/schema';
+import type { components, operations } from '$lib/api/schema';
+import { withListParams } from '$lib/api/list-params';
 
 // Re-export types for convenience
 export type { Host, HostResponse, HostFormData, Interface, Port };
@@ -157,56 +158,16 @@ function toCreateHostRequest(formData: HostFormData): CreateHostRequest {
 	};
 }
 
+/** The host list endpoint's query. */
+type HostListQuery = NonNullable<operations['get_all_hosts']['parameters']['query']>;
+
 /**
- * Query options for host list queries including pagination and ordering
+ * Query options for host list queries: the page, an as-of time, and the list's view as the
+ * endpoint's own params (search, filters, ordering), which `DataControls` builds and the URL shows.
  */
-export interface HostQueryOptions {
-	limit?: number;
-	offset?: number;
-	/** Filter by site ID. Several narrows to the union of them. */
-	site_ids?: string[];
-	/** Filter by the name of the service virtualizing the host, the value "Virtualized By" groups on. */
-	virtualization_service_names?: string[];
-	/** Also return hosts nothing virtualizes; on its own, only those. */
-	include_unvirtualized?: boolean;
-	/** Filter to hosts running a service with one of these names. */
-	service_names?: string[];
-	/** Filter by how the host came to exist (`source.type`). */
-	sources?: components['schemas']['EntitySourceDiscriminants'][];
-	/** Filter by hardware manufacturer. */
-	manufacturers?: string[];
-	/** Filter by hardware model. */
-	models?: string[];
-	/** Filter by SNMP sysLocation. */
-	sys_locations?: string[];
-	/** Filter by operating system family. */
-	os_families?: components['schemas']['HostOsFamily'][];
-	/** Filter to hosts assigned one of these credentials. */
-	credential_ids?: string[];
-	/** Primary ordering field (used for grouping). Always sorts ASC to keep groups together. */
-	group_by?: components['schemas']['HostOrderField'];
-	/** Secondary ordering field (sorting within groups or standalone sort). */
-	order_by?: components['schemas']['HostOrderField'];
-	/** Direction for order_by field. */
-	order_direction?: components['schemas']['OrderDirection'];
-	/** Filter by tag IDs (returns hosts that have ANY of the specified tags). */
-	tag_ids?: string[];
-	/** Tag sets a host must hold one tag of each of: one comma-separated id list per tag group. */
-	tag_sets?: string[];
-	/** Group by the tag each host holds from this tag group, in place of `group_by`. */
-	group_by_tag_group?: string;
-	/** Sort by the position of the tag each host holds from this tag group, in place of `order_by`. */
-	order_by_tag_group?: string;
-	/** `true` returns only hosts discovery hasn't observed within their site's
-	 * staleness window; omit for no staleness constraint. */
-	stale?: boolean;
-	/** Free-text search across host name, hostname, serial number, asset tag,
-	 * description, IP addresses and the names of services running on the host. */
-	search?: string;
-	/** As-of timestamp (ISO 8601). When set, returns SCD2 state as of this instant
-	 * (snapshot view) instead of live state. */
-	at?: string;
-}
+export type HostQueryOptions = Pick<HostListQuery, 'limit' | 'offset' | 'at'> & {
+	list?: URLSearchParams;
+};
 
 /**
  * Pagination metadata from API response. Derived from the generated schema so
@@ -238,36 +199,17 @@ export function useHostsQuery(optionsOrGetter: HostQueryOptions | (() => HostQue
 		const options = typeof optionsOrGetter === 'function' ? optionsOrGetter() : optionsOrGetter;
 
 		return {
-			queryKey: queryKeys.hosts.list(options as Record<string, unknown>),
+			queryKey: queryKeys.hosts.list({
+				limit: options.limit,
+				offset: options.offset,
+				at: options.at,
+				list: options.list?.toString()
+			}),
 			queryFn: async (): Promise<PaginatedResult<Host>> => {
 				const envelope = unwrapEnvelope(
 					await apiClient.GET('/api/v1/hosts', {
-						params: {
-							query: {
-								limit: options.limit,
-								offset: options.offset,
-								site_ids: options.site_ids,
-								group_by: options.group_by,
-								order_by: options.order_by,
-								order_direction: options.order_direction,
-								tag_ids: options.tag_ids,
-								tag_sets: options.tag_sets,
-								group_by_tag_group: options.group_by_tag_group,
-								order_by_tag_group: options.order_by_tag_group,
-								stale: options.stale,
-								search: options.search,
-								at: options.at,
-								virtualization_service_names: options.virtualization_service_names,
-								include_unvirtualized: options.include_unvirtualized,
-								service_names: options.service_names,
-								sources: options.sources,
-								manufacturers: options.manufacturers,
-								models: options.models,
-								sys_locations: options.sys_locations,
-								os_families: options.os_families,
-								credential_ids: options.credential_ids
-							}
-						}
+						params: { query: { limit: options.limit, offset: options.offset, at: options.at } },
+						querySerializer: withListParams(options.list)
 					})
 				);
 

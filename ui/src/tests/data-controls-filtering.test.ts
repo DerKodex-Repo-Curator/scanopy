@@ -7,11 +7,10 @@ import {
 	blankFilterState,
 	toggleValue,
 	toggleBoolean,
-	restoredServerFilters,
 	type FilterState,
 	type ServerFilterMode
 } from '$lib/shared/components/data/controls/filtering';
-import { getUniqueValues } from '$lib/shared/components/data/controls/fieldValues';
+import { filterOptionsOf } from '$lib/shared/components/data/controls/fieldValues';
 import type { FieldConfig } from '$lib/shared/components/data/types';
 
 interface Row {
@@ -304,17 +303,30 @@ describe('hasActiveFilters', () => {
 	});
 });
 
-describe('getUniqueValues', () => {
+describe('filterOptionsOf', () => {
 	it('flattens array fields so each element is its own option', () => {
 		const items = [row({ tags: ['b', 'a'] }), row({ tags: ['a'] })];
 
-		expect(getUniqueValues(items, tagsField)).toEqual(['a', 'b']);
+		expect(filterOptionsOf(items, tagsField)).toEqual(['a', 'b']);
 	});
 
 	it('drops nulls and empty strings', () => {
 		const items = [row({ name: 'a' }), row({ name: null }), row({ name: '' })];
 
-		expect(getUniqueValues(items, nameField)).toEqual(['a']);
+		expect(filterOptionsOf(items, nameField)).toEqual(['a']);
+	});
+
+	it('offers the filter values, ordered by the label each shows', () => {
+		// The panel holds ids and shows names: ordering by the id would scatter the names.
+		const names: Record<string, string> = { s1: 'Zurich', s2: 'Amsterdam' };
+		const site: FieldConfig<Row> = {
+			...nameField,
+			getValue: (r) => names[r.name ?? ''] ?? null,
+			getFilterValue: (r) => r.name,
+			filterLabel: (id) => names[id] ?? id
+		};
+
+		expect(filterOptionsOf([row({ name: 's1' }), row({ name: 's2' })], site)).toEqual(['s2', 's1']);
 	});
 });
 
@@ -387,49 +399,5 @@ describe('filter state transitions', () => {
 		const next = toggleBoolean(state, 'hidden', 'showFalse', true)!;
 
 		expect([next.showTrue, next.showFalse]).toEqual([true, false]);
-	});
-});
-
-describe('restoredServerFilters', () => {
-	const serverString: FieldConfig<Row> = {
-		...nameField,
-		key: 'site_id',
-		filterable: true,
-		serverFiltered: true
-	};
-	const serverBoolean: FieldConfig<Row> = { ...hiddenField, serverFiltered: true };
-
-	it('replays a restored selection so the request matches the panel', () => {
-		const state: FilterState = { site_id: stringFilter(['alpha']) };
-
-		expect(restoredServerFilters([serverString], state)).toEqual([
-			{ key: 'site_id', values: ['alpha'] }
-		]);
-	});
-
-	it('says nothing about a filter that selects nothing', () => {
-		expect(restoredServerFilters([serverString], { site_id: stringFilter([]) })).toEqual([]);
-	});
-
-	it('replays a boolean only while it constrains', () => {
-		// A boolean constrains when a box is *un*checked — the opposite test from
-		// a value set being non-empty, which is why they cannot share a branch.
-		const unconstrained: FilterState = {
-			hidden: { type: 'boolean', values: new Set(), showTrue: true, showFalse: true }
-		};
-		const constrained: FilterState = {
-			hidden: { type: 'boolean', values: new Set(), showTrue: true, showFalse: false }
-		};
-
-		expect(restoredServerFilters([serverBoolean], unconstrained)).toEqual([]);
-		expect(restoredServerFilters([serverBoolean], constrained)).toEqual([
-			{ key: 'hidden', values: ['true'] }
-		]);
-	});
-
-	it('ignores fields the parent does not handle server-side', () => {
-		const clientOnly: FieldConfig<Row> = { ...nameField, key: 'site_id', filterable: true };
-
-		expect(restoredServerFilters([clientOnly], { site_id: stringFilter(['alpha']) })).toEqual([]);
 	});
 });

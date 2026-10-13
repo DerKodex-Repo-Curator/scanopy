@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { SvelteURL } from 'svelte/reactivity';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import Toast from '$lib/shared/components/feedback/Toast.svelte';
 	import AppBanners from '$lib/shared/components/feedback/AppBanners.svelte';
@@ -10,12 +9,8 @@
 	import { discoverySSEManager } from '$lib/features/discovery/queries';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 
-	import {
-		topologySSEManager,
-		selectedTopologyId,
-		activeView
-	} from '$lib/features/topology/queries';
-	import { get } from 'svelte/store';
+	import { topologySSEManager } from '$lib/features/topology/queries';
+	import { attachUrlState, setActiveTab } from '$lib/shared/stores/url-state';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import BillingPlanModal from '$lib/features/billing/BillingPlanModal.svelte';
@@ -49,6 +44,8 @@
 
 	// Read hash immediately during script initialization, before onMount
 	const initialHash = typeof window !== 'undefined' ? window.location.hash.substring(1) : '';
+	// Before any tab mounts, so each hydrates from the params this page loaded with.
+	const detachUrlState = typeof window !== 'undefined' ? attachUrlState() : null;
 
 	// TanStack Query for current user
 	const currentUserQuery = useCurrentUserQuery();
@@ -177,31 +174,11 @@
 		}>
 	>([]);
 
-	// Update URL hash when activeTab changes
-	// Skip the first run — on page load the topology stores haven't hydrated
-	// from URL params yet, so writing them back would overwrite with defaults.
-	let tabEffectInitialized = false;
+	// The tab becomes the hash, and decides which params the URL carries: the new tab's list view or
+	// topology, with the old tab's removed. Owners hydrate from the params the page loaded with, so
+	// this runs on load too.
 	$effect(() => {
-		if (typeof window !== 'undefined' && activeTab) {
-			if (!tabEffectInitialized) {
-				tabEffectInitialized = true;
-				return;
-			}
-			const url = new SvelteURL(window.location.href);
-			if (activeTab === 'topology') {
-				// Set topology params when entering the topology tab
-				const topoId = get(selectedTopologyId);
-				const view = get(activeView);
-				if (topoId) url.searchParams.set('topologyId', topoId);
-				url.searchParams.set('view', view);
-			} else {
-				// Clear topology-specific URL params when leaving
-				url.searchParams.delete('topologyId');
-				url.searchParams.delete('view');
-			}
-			url.hash = activeTab;
-			window.history.replaceState(window.history.state, '', url.toString());
-		}
+		if (activeTab) setActiveTab(activeTab);
 	});
 
 	// Set initial tab based on daemons (only if no hash was specified in URL)
@@ -377,6 +354,7 @@
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('hashchange', handleHashChange);
 		}
+		detachUrlState?.();
 	});
 </script>
 

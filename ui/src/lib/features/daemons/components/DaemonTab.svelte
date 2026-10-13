@@ -286,6 +286,7 @@
 			daemonHosts: () => daemonHosts,
 			maintainers: () => maintainers,
 			interfacedSubnets,
+			subnets: () => subnetsData,
 			osCell: () => osCell
 		})
 	);
