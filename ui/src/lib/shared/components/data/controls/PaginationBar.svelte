@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { ChevronLeft, ChevronRight, FunnelX, Ungroup, X } from 'lucide-svelte';
-	import type { IconComponent } from '$lib/shared/utils/types';
+	import { ChevronLeft, ChevronRight } from 'lucide-svelte';
 	import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '../types';
 	import {
 		common_noItems,
@@ -76,21 +75,17 @@
 	} = $props();
 </script>
 
-{#snippet clearButton(onclick: () => void, Icon: IconComponent, shortcut: string | undefined)}
-	<!-- The key is muted text inside the button, not a key chip: a bordered chip is taller than
-	     this compact button, inside it or beside it. -->
+{#snippet clearButton(onclick: () => void, shortcut: string | undefined)}
+	<!-- The key is muted text in parentheses: a key chip doesn't fit this compact button. -->
 	<button
 		type="button"
 		class="btn-secondary shrink-0 gap-1 rounded px-1.5 py-0 text-xs font-medium"
 		{onclick}
 	>
-		<Icon class="h-3 w-3" />
 		{common_clear()}
 		{#if shortcut}
 			<span
-				class="text-tertiary ml-0.5 font-normal transition-opacity {shortcutsPaused
-					? 'opacity-40'
-					: ''}"
+				class="text-tertiary font-normal transition-opacity {shortcutsPaused ? 'opacity-40' : ''}"
 				title={shortcutsPaused ? common_shortcutsPausedInSearch() : undefined}>({shortcut})</span
 			>
 		{/if}
@@ -132,7 +127,7 @@
 					: common_nFiltersApplied({ count: filterCount })}</span
 			>
 			{#if onClearFilters}
-				{@render clearButton(onClearFilters, FunnelX, clearShortcuts.filters)}
+				{@render clearButton(onClearFilters, clearShortcuts.filters)}
 			{/if}
 		{/if}
 		{#if groupCount !== null}
@@ -142,7 +137,7 @@
 				{groupCount === 1 ? common_group() : common_groups()}
 			</span>
 			{#if onClearGrouping}
-				{@render clearButton(onClearGrouping, Ungroup, clearShortcuts.grouping)}
+				{@render clearButton(onClearGrouping, clearShortcuts.grouping)}
 			{/if}
 		{/if}
 		{#if selectedCount > 0}
@@ -154,7 +149,7 @@
 				})}</span
 			>
 			{#if onClearSelection}
-				{@render clearButton(onClearSelection, X, clearShortcuts.selection)}
+				{@render clearButton(onClearSelection, clearShortcuts.selection)}
 			{/if}
 		{/if}
 	</div>

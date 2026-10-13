@@ -14,6 +14,9 @@
 		 */
 		group?: string | null;
 	}
+
+	/** `highlighted` value for the create row. */
+	export const CREATE_ROW = '__create__';
 </script>
 
 <script lang="ts">
@@ -35,6 +38,7 @@
 		onCreate,
 		creating = false,
 		createOnEnter = false,
+		highlighted = null,
 		row = undefined
 	}: {
 		options: CreatableOption[];
@@ -45,6 +49,11 @@
 		creating?: boolean;
 		/** Enter in the caller's input creates; shows the Enter key on the create row. */
 		createOnEnter?: boolean;
+		/**
+		 * The row the caller's arrow keys have reached: an option id, or `CREATE_ROW` for the create
+		 * row. It is drawn as hovered and kept scrolled into view.
+		 */
+		highlighted?: string | null;
 		/** Draws an option's row content in place of the swatch or icon and label (tags draw the tag). */
 		row?: Snippet<[CreatableOption]>;
 	} = $props();
@@ -58,12 +67,25 @@
 		if (index > 0 && (options[index - 1].group ?? null) === group) return null;
 		return group ?? common_ungrouped();
 	}
+
+	const ACTIVE = 'bg-gray-100 dark:bg-gray-600';
+
+	/** Keeps the highlighted row in view as the arrow keys move it. */
+	function revealWhen(node: HTMLElement, active: boolean) {
+		const reveal = (on: boolean) => on && node.scrollIntoView({ block: 'nearest' });
+		reveal(active);
+		return { update: reveal };
+	}
 </script>
 
 {#if createLabel}
 	<button
 		type="button"
-		class="select-option flex w-full items-center gap-2 border-b px-3 py-2 text-left text-xs transition-colors"
+		use:revealWhen={highlighted === CREATE_ROW}
+		class="select-option flex w-full items-center gap-2 border-b px-3 py-2 text-left text-xs transition-colors {highlighted ===
+		CREATE_ROW
+			? ACTIVE
+			: ''}"
 		style="border-color: var(--color-border)"
 		onmousedown={() => onCreate?.()}
 		disabled={creating}
@@ -88,7 +110,11 @@
 	{/if}
 	<button
 		type="button"
-		class="select-option flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
+		use:revealWhen={highlighted === option.id}
+		class="select-option flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors {highlighted ===
+		option.id
+			? ACTIVE
+			: ''}"
 		onmousedown={() => onSelect(option.id)}
 	>
 		{#if row}

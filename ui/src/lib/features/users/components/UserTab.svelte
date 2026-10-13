@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import { userColumns } from './UserTab.columns';
 	import { Edit, UserX, Trash2 } from 'lucide-svelte';
@@ -13,7 +14,6 @@
 		formatInviteUrl,
 		useRevokeInviteMutation
 	} from '$lib/features/organizations/queries';
-	import { UserPlus } from 'lucide-svelte';
 	import { isUser, type User, type UserOrInvite } from '../types';
 	import type { OrganizationInvite } from '$lib/features/organizations/types';
 	import InviteModal from './InviteModal.svelte';
@@ -228,10 +228,7 @@
 			{#if isAtSeatLimit}
 				<UpgradeButton feature="seats" surface="users_tab" gate_type="limit_hit" />
 			{:else}
-				<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateInvite}>
-					<UserPlus class="mr-2 h-5 w-5" />
-					{users_inviteUser()}
-				</button>
+				<CreateButton onclick={handleCreateInvite} label={users_inviteUser()} />
 			{/if}
 		{/if}
 	</div>

@@ -28,7 +28,7 @@
 		actions = undefined,
 		/** First among the buttons while rows are selected (bulk delete). */
 		selectionActions = undefined,
-		searchFocused = $bindable(false)
+		onSearchFocusChange = undefined
 	}: {
 		searchQuery: string;
 		onClearSearch: () => void;
@@ -42,8 +42,8 @@
 		subtitle?: string | null;
 		columnMenu?: Snippet;
 		actions?: Snippet;
-		/** Whether the search box has focus, which turns the list's single-key shortcuts off. */
-		searchFocused?: boolean;
+		/** The search box gained or lost focus; while it has it, the list's single-key shortcuts are off. */
+		onSearchFocusChange?: (focused: boolean) => void;
 		selectionActions?: Snippet;
 	} = $props();
 
@@ -56,7 +56,7 @@
 	$effect(() => {
 		const input = inputEl;
 		if (!input) return;
-		const update = () => (searchFocused = document.activeElement === input);
+		const update = () => onSearchFocusChange?.(document.activeElement === input);
 		input.addEventListener('focus', update);
 		input.addEventListener('blur', update);
 		return () => {

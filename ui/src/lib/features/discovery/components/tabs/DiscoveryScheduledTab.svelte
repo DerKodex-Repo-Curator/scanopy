@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { billingPlans } from '$lib/shared/stores/metadata';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
@@ -13,7 +14,7 @@
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import { discoveryScheduledColumns } from './DiscoveryScheduledTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
-	import { Plus, Play, Power, Edit, Trash2, Ban } from 'lucide-svelte';
+	import { Play, Power, Edit, Trash2, Ban } from 'lucide-svelte';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import {
@@ -350,9 +351,7 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if hasDaemon(onboarding) && !isReadOnly}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateDiscovery}
-			><Plus class="h-5 w-5" />{common_create()}</button
-		>
+		<CreateButton onclick={handleCreateDiscovery} />
 	{/if}
 {/snippet}
 

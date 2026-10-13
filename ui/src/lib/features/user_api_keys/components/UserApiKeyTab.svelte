@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { Edit, Trash2 } from 'lucide-svelte';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
@@ -7,7 +8,6 @@
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import { userApiKeyColumns } from './UserApiKeyTab.columns';
 	import type { FieldConfig } from '$lib/shared/components/data/types';
-	import { Plus } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import UserApiKeyModal from './UserApiKeyModal.svelte';
@@ -149,9 +149,7 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if !isReadOnly && hasApiAccess}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreate}>
-			<Plus class="h-5 w-5" />{common_create()}
-		</button>
+		<CreateButton onclick={handleCreate} />
 	{/if}
 {/snippet}
 

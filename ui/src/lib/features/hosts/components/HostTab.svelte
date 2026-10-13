@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
 	import type {
 		Host,
@@ -24,7 +25,7 @@
 	import { hostColumns } from './HostTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
 	import { entitySources } from '$lib/shared/stores/metadata';
-	import { Plus, Trash2, RefreshCw, Replace, Edit } from 'lucide-svelte';
+	import { Trash2, RefreshCw, Replace, Edit } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import UpgradeButton from '$lib/shared/components/UpgradeButton.svelte';
@@ -593,9 +594,7 @@
 					{#if isNearHostLimit}
 						<UpgradeButton feature="hosts" surface="hosts_tab" gate_type="limit_hit" />
 					{/if}
-					<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateHost}
-						><Plus class="h-5 w-5" />{common_create()}</button
-					>
+					<CreateButton onclick={handleCreateHost} />
 				{/if}
 			{/if}
 		</div>

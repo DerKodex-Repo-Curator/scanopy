@@ -96,7 +96,7 @@
 		common_yes
 	} from '$lib/paraglide/messages';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
-	import { SearchX, Trash2 } from 'lucide-svelte';
+	import { SearchX } from 'lucide-svelte';
 	import {
 		useTagsQuery,
 		useTagGroupsQuery,
@@ -108,13 +108,9 @@
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import throttle from 'just-throttle';
 	import { isOnVisiblePage, registerEntityList } from '$lib/shared/stores/modal-registry';
-	import {
-		isEditableTarget,
-		isShiftShortcut,
-		keyLabel,
-		shiftShortcutLabel
-	} from '$lib/shared/utils/shortcuts';
+	import { isShiftShortcut, keyLabel, shiftShortcutLabel } from '$lib/shared/utils/shortcuts';
 	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
+	import { isFreeKeydown, isPlainKey, provideListShortcuts } from './controls/listShortcuts';
 	import type { components } from '$lib/api/schema';
 
 	type PaginationMeta = components['schemas']['PaginationMeta'];
@@ -898,6 +894,24 @@
 		return observeStuck(sentinelRef, (stuck) => (isStuck = stuck));
 	});
 
+	// Leaving the list for another tab clears its selection, so coming back doesn't hold rows the
+	// user stopped working with. A hidden tab's wrapper clips the list to nothing, which the
+	// observer reports as an intersection ratio of 0; the tiny threshold makes that drop fire.
+	$effect(() => {
+		if (!rootRef) return;
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.intersectionRatio === 0 && selectedIds.size > 0) {
+					selectedIds.clear();
+					selectionAnchor = null;
+				}
+			},
+			{ root: rootRef.closest('main'), threshold: [0, 0.000001] }
+		);
+		observer.observe(rootRef);
+		return () => observer.disconnect();
+	});
+
 	// The bulk-tag island is fixed to the bottom of the viewport, and centred over this list
 	// rather than the window, so it tracks the list's horizontal extent (sidebar collapse, resize).
 	let rootRef: HTMLDivElement | null = $state(null);
@@ -933,22 +947,44 @@
 		selection: keyLabel('Escape')
 	};
 
+	let canBulkDelete = $derived(
+		Boolean(allowBulkDelete && onBulkDelete) && selectedIds.size > 0 && selectionDeletable
+	);
+
+	// Toolbar controls (CreateButton) take their own keys through this.
+	provideListShortcuts({
+		isActive: () => isOnVisiblePage(rootRef),
+		isPaused: () => searchFocused
+	});
+
 	function handleListShortcut(event: KeyboardEvent) {
-		if (
-			isEditableTarget(event.target) ||
-			!isOnVisiblePage(rootRef) ||
-			// A modal over the list owns the keyboard.
-			document.querySelector('[aria-modal="true"]')
-		) {
-			return;
-		}
+		if (!isFreeKeydown(event) || !isOnVisiblePage(rootRef)) return;
 		const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
-		if (showTagIsland && plain && !event.shiftKey && event.key.toUpperCase() === TAG_SHORTCUT) {
+		if (
+			showSelection &&
+			(event.metaKey || event.ctrlKey) &&
+			!event.altKey &&
+			!event.shiftKey &&
+			event.key.toLowerCase() === 'a'
+		) {
+			// Cmd/Ctrl+A selects every row on the page instead of the page's text.
+			event.preventDefault();
+			visibleIds(orderedItems, getItemId).forEach((id) => selectedIds.add(id));
+		} else if (showTagIsland && isPlainKey(event, TAG_SHORTCUT)) {
 			event.preventDefault();
 			bulkTagPicker?.focusInput();
 		} else if (showSelection && selectedIds.size > 0 && plain && event.key === 'Escape') {
 			event.preventDefault();
 			selectNone();
+		} else if (
+			canBulkDelete &&
+			plain &&
+			!event.shiftKey &&
+			(event.key === 'Delete' || event.key === 'Backspace')
+		) {
+			// The page's delete asks for confirmation, as the button does.
+			event.preventDefault();
+			handleBulkDelete();
 		} else if (activeFilterCount > 0 && isShiftShortcut(event, CLEAR_FILTERS_KEY)) {
 			event.preventDefault();
 			filters.clearAll();
@@ -986,8 +1022,13 @@
 <!-- With rows selected, Delete leads the toolbar's buttons. -->
 {#snippet bulkDelete()}
 	<button onclick={handleBulkDelete} class="btn-danger toolbar-control flex items-center gap-2">
-		<Trash2 class="h-4 w-4" />
 		{common_deleteSelected()}
+		<span
+			class="inline-flex transition-opacity {searchFocused ? 'opacity-40' : ''}"
+			title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+		>
+			<KbdKey key={keyLabel('Delete')} size="xs" tone="inherit" />
+		</span>
 	</button>
 {/snippet}
 
@@ -1004,17 +1045,12 @@
 	>
 		<ControlsBar
 			bind:searchQuery
-			bind:searchFocused
+			onSearchFocusChange={(focused) => (searchFocused = focused)}
 			onClearSearch={clearSearch}
 			onExport={onExportClick ?? onCsvExport}
 			{entityLabel}
 			actions={toolbarActions}
-			selectionActions={allowBulkDelete &&
-			onBulkDelete &&
-			selectedIds.size > 0 &&
-			selectionDeletable
-				? bulkDelete
-				: undefined}
+			selectionActions={canBulkDelete ? bulkDelete : undefined}
 			{title}
 			{subtitle}
 		>
@@ -1130,7 +1166,7 @@
 					</span>
 					{#if commonTags.length > 0}
 						<KbdKey key="{keyLabel('Shift')} Tab" size="sm" class="ml-2" />
-						<KbdKey key="⌫" size="sm" />
+						<KbdKey key={keyLabel('Delete')} size="sm" />
 						{tags_hotkeyRemove()}
 					{/if}
 				</span>

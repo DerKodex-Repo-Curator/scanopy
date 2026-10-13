@@ -20,7 +20,9 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { common_creating, tags_addTag, tags_createTagQuoted } from '$lib/paraglide/messages';
-	import CreatableOptionList from '$lib/shared/components/forms/selection/CreatableOptionList.svelte';
+	import CreatableOptionList, {
+		CREATE_ROW
+	} from '$lib/shared/components/forms/selection/CreatableOptionList.svelte';
 	import {
 		applicationGroupId,
 		compareTagsByGroup,
@@ -250,6 +252,37 @@
 	// The existing tag the typed text completes to, ghosted in the input; Tab applies it.
 	let completion = $derived(tagCompletion(inputValue, availableTags, shownTagIds));
 
+	// Up and Down move through the dropdown's rows (the create row, then the tags). The ghost
+	// follows: it shows the highlighted tag, nothing while Create is highlighted, and the typed
+	// text's completion before any arrow press. Typing starts over.
+	let highlighted = $state<string | null>(null);
+	let rowIds = $derived([
+		...(showCreateOption ? [CREATE_ROW] : []),
+		...availableTags.map((tag) => tag.id)
+	]);
+	let ghostTag = $derived(
+		highlighted === null
+			? completion
+			: (availableTags.find((tag) => tag.id === highlighted) ?? null)
+	);
+
+	$effect(() => {
+		void inputValue;
+		untrack(() => (highlighted = null));
+	});
+
+	function moveHighlight(step: 1 | -1) {
+		if (rowIds.length === 0) return;
+		const current = rowIds.indexOf(highlighted ?? completion?.id ?? '');
+		const next =
+			current === -1
+				? step === 1
+					? 0
+					: rowIds.length - 1
+				: (current + step + rowIds.length) % rowIds.length;
+		highlighted = rowIds[next];
+	}
+
 	function getRandomColor(): Color {
 		return AVAILABLE_COLORS[Math.floor(Math.random() * AVAILABLE_COLORS.length)];
 	}
@@ -374,15 +407,22 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Tab' && !e.shiftKey && completion) {
+		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
 			e.preventDefault();
-			handleAddTag(completion.id, true);
+			moveHighlight(e.key === 'ArrowDown' ? 1 : -1);
+		} else if (e.key === 'Tab' && !e.shiftKey && ghostTag) {
+			e.preventDefault();
+			handleAddTag(ghostTag.id, true);
 		} else if (e.key === 'Enter') {
-			// Enter takes the text as typed: it creates that tag, and only Tab takes the ghosted
-			// completion. With nothing to create (the name exists, or creating isn't allowed), it
-			// applies the closest match.
+			// Enter takes the row the arrows reached. Before any arrow press it takes the text as
+			// typed: it creates that tag, and only Tab takes the ghosted completion. With nothing to
+			// create (the name exists, or creating isn't allowed), it applies the closest match.
 			e.preventDefault();
-			if (showCreateOption) {
+			if (highlighted === CREATE_ROW) {
+				handleCreateTag();
+			} else if (highlighted !== null && ghostTag) {
+				handleAddTag(ghostTag.id);
+			} else if (showCreateOption) {
 				handleCreateTag();
 			} else if (availableTags.length > 0) {
 				handleAddTag((completion ?? availableTags[0]).id);
@@ -444,8 +484,9 @@
 						bind:this={inputElement}
 						bind:value={inputValue}
 						type="text"
-						placeholder={tags_addTag()}
-						class="h-6 rounded-full px-2 text-xs transition-[width] focus:outline-none focus:ring-1 focus:ring-blue-500 {completion
+						placeholder={ghostTag ? '' : tags_addTag()}
+						aria-label={tags_addTag()}
+						class="h-6 rounded-full px-2 text-xs transition-[width] focus:outline-none focus:ring-1 focus:ring-blue-500 {ghostTag
 							? 'w-56'
 							: 'w-24'}"
 						style="border: 1px solid var(--color-border-input); background: var(--color-bg-input); color: var(--color-text-primary)"
@@ -453,8 +494,8 @@
 						onblur={handleBlur}
 						onkeydown={handleKeydown}
 					/>
-					{#if completion}
-						{@const tag = completion}
+					{#if ghostTag}
+						{@const tag = ghostTag}
 						<!-- px-[9px]: the input's px-2 plus its 1px border. -->
 						<InputGhost value={inputValue} class="px-[9px] text-xs">
 							<TagCompletionGhost
@@ -504,6 +545,7 @@
 				: null}
 			onCreate={handleCreateTag}
 			createOnEnter
+			{highlighted}
 			creating={isCreating}
 		>
 			{#snippet row(option)}

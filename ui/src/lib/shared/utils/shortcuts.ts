@@ -25,6 +25,9 @@ export function keyLabel(key: string, platform = currentPlatform): string {
 			return 'Esc';
 		case 'Enter':
 			return apple ? '↵' : 'Enter';
+		// Delete or Backspace, spelled out: the ⌫ glyph reads poorly at key-chip size.
+		case 'Delete':
+			return 'DEL';
 		default:
 			return key;
 	}

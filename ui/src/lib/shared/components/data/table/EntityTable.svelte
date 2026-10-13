@@ -28,6 +28,7 @@
 	import FieldValue from '../FieldValue.svelte';
 	import TreeGuides from '../TreeGuides.svelte';
 	import { tooltip } from '$lib/shared/actions/tooltip';
+	import { shortcutLabel } from '$lib/shared/utils/shortcuts';
 	import { getFieldValue } from '../controls/fieldValues';
 	import type { RenderGroup, TreeCell, TreeEntry } from '../controls/grouping';
 	import type { SortState } from '../controls/sorting';
@@ -380,6 +381,7 @@
 							indeterminate={someSelected}
 							onchange={onToggleAll}
 							aria-label={allSelected ? common_deselectAll() : common_selectAllOnPage()}
+							title="{common_selectAllOnPage()} ({shortcutLabel('A')})"
 							class="checkbox-card h-4 w-4"
 						/>
 					</th>
@@ -567,7 +569,6 @@
 	{@const itemId = getItemId(item)}
 	{@const isSelected = selectedIds.has(itemId)}
 	<!-- The checkbox is the keyboard path; the row click is a larger mouse target for the same. -->
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<tr
 		data-keeps-selection
 		class="border-t bg-[var(--row-tint)] transition-colors {selectable

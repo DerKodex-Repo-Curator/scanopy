@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import {
 		useCredentialsQuery,
 		useCreateCredentialMutation,
@@ -17,7 +18,7 @@
 	import { credentialColumns } from './CredentialsTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
 	import type { Site } from '$lib/features/sites/types';
-	import { Plus, Trash2, Edit } from 'lucide-svelte';
+	import { Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { permissions, credentialTypes, billingPlans } from '$lib/shared/stores/metadata';
@@ -279,9 +280,7 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if canManage}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateCredential}>
-			<Plus class="h-5 w-5" />{common_create()}
-		</button>
+		<CreateButton onclick={handleCreateCredential} />
 	{/if}
 {/snippet}
 

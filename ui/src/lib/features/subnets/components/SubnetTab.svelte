@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { isProvisionalCidr } from '$lib/shared/utils/cidr-source';
 	import { cidrContains } from '$lib/shared/utils/cidr';
 	import SubnetUtilization from './SubnetUtilization.svelte';
@@ -14,7 +15,7 @@
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { subnetColumns } from './SubnetTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
-	import { Plus, Trash2, Edit, CloudAlert } from 'lucide-svelte';
+	import { Trash2, Edit, CloudAlert } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import {
@@ -326,9 +327,7 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if hasDaemon(onboarding) && !isReadOnly}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateSubnet}
-			><Plus class="h-5 w-5" />{common_create()}</button
-		>
+		<CreateButton onclick={handleCreateSubnet} />
 	{/if}
 {/snippet}
 
