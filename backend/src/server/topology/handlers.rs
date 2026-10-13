@@ -1,5 +1,6 @@
 use crate::server::openapi::tags as api_tags;
 use crate::server::shared::extractors::Query;
+use crate::server::shared::sse::until_shutdown;
 use crate::server::shared::storage::traits::Entity;
 use crate::server::shared::types::api::ApiJson;
 use crate::server::{
@@ -642,5 +643,5 @@ async fn live_topology_updates_stream(
         }
     });
 
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    Sse::new(until_shutdown(stream, &state.shutdown)).keep_alive(KeepAlive::default())
 }

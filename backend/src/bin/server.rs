@@ -551,16 +551,15 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
 
     // Spawn server in background. On shutdown it stops accepting connections and lets in-flight
-    // requests finish.
-    let http_shutdown = tokio_util::sync::CancellationToken::new();
+    // requests finish. SSE streams end on the same token, so they don't hold the drain open.
     let server = tokio::spawn({
-        let http_shutdown = http_shutdown.clone();
+        let shutdown = state.shutdown.clone();
         async move {
             axum::serve(
                 listener,
                 app.into_make_service_with_connect_info::<SocketAddr>(),
             )
-            .with_graceful_shutdown(http_shutdown.cancelled_owned())
+            .with_graceful_shutdown(shutdown.cancelled_owned())
             .await
         }
     });
@@ -696,9 +695,9 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(target: LOG_TARGET, "Shutdown signal received");
 
     // Docker sends SIGKILL 10s after SIGTERM (kamal-proxy deploys pass no `-t`, and compose uses
-    // the same default). Requests get a short drain, bounded because live-update SSE streams
-    // never end on their own; the subscriber work they queued gets the rest.
-    http_shutdown.cancel();
+    // the same default). Requests get a short drain; the subscriber work they queued gets the
+    // rest.
+    state.shutdown.cancel();
     match tokio::time::timeout(HTTP_DRAIN, server).await {
         Ok(Ok(Ok(()))) => {}
         Ok(Ok(Err(e))) => tracing::error!(target: LOG_TARGET, error = %e, "HTTP server failed"),

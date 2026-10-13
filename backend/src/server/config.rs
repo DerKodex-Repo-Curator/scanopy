@@ -30,6 +30,7 @@ use utoipa::ToSchema;
 use crate::server::shared::env_file::apply_file_env_vars;
 use crate::server::shared::storage::factory::StorageFactory;
 use sqlx::PgPool;
+use tokio_util::sync::CancellationToken;
 
 /// Prefix figment reads `ServerConfig` fields from: `SCANOPY_SERVER_PORT` sets `server_port`.
 const ENV_PREFIX: &str = "SCANOPY_";
@@ -699,6 +700,9 @@ pub struct AppState {
     /// Mints license keys and entitlements for orgs on self-hosted plans.
     pub license_issuer: Option<Arc<LicenseIssuer>>,
     pub pool: PgPool,
+    /// Cancelled when a shutdown signal arrives. Stops the HTTP listener and ends open SSE
+    /// streams so in-flight requests can drain.
+    pub shutdown: CancellationToken,
 }
 
 impl AppState {
@@ -727,6 +731,7 @@ impl AppState {
             license_service,
             license_issuer,
             pool: storage.pool,
+            shutdown: CancellationToken::new(),
         }))
     }
 }
