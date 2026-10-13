@@ -1223,7 +1223,8 @@ async fn docker_services(services: &ServiceFactory, lab: &Lab) -> Vec<Service> {
 
 /// The lab's path: the runtime holds its API port from the host scan, and a daemon that cannot
 /// identify the proxy sends it as a generic container on the same port. The container safety net
-/// must not copy the proxy's identity onto the runtime.
+/// must not copy the proxy's identity onto the runtime. The container takes the port instead, as
+/// a named proxy does: the runtime is reached through it.
 #[tokio::test]
 async fn an_unidentified_api_proxy_never_becomes_the_runtimes_identity() {
     harness!(_storage, services, lab, _container);
@@ -1248,6 +1249,16 @@ async fn an_unidentified_api_proxy_never_becomes_the_runtimes_identity() {
         .expect("runtime stored");
     assert_eq!(runtime.base.virtualization_service_id, None);
     assert_eq!(runtime.base.virtualization_metadata, None);
+    let proxy = all
+        .iter()
+        .find(|s| s.base.name == "docker-api-proxy")
+        .expect("proxy stored");
+    assert_eq!(proxy.base.virtualization_service_id, Some(runtime.id));
+    assert!(proxy.base.bindings.iter().any(|b| b.port_id().is_some()));
+    assert!(
+        runtime.base.bindings.iter().all(|b| b.port_id().is_none()),
+        "the runtime no longer binds the port it is reached through"
+    );
 }
 
 /// The new daemon's path: the proxy arrives as the runtime's API proxy, owned by the runtime and
@@ -1533,6 +1544,41 @@ async fn a_container_conflicting_with_an_identified_service_and_open_ports_enric
         bound_ports(&services, host.id, open_ports).await,
         vec![8083]
     );
+}
+
+/// A container on a port matched by port alone (PostgreSQL on 5432) links that match to Docker,
+/// which also takes the container's bridge binding. A rescan finds the same state.
+#[tokio::test]
+async fn a_container_on_a_port_only_match_links_it_and_hands_over_its_bindings() {
+    harness!(_storage, services, lab, _container);
+    let scan = DockerHost::new(&lab, &[5432]);
+    let postgres = scan.with_service(&lab, "PostgreSQL", vec![(5432, &scan.lan)]);
+    discover_with_ports(&services, &lab, scan.payload(vec![postgres])).await;
+
+    for _ in 0..2 {
+        let scan = DockerHost::new(&lab, &[5432]);
+        let container = scan.container(
+            &lab,
+            "scanopy-postgres",
+            vec![(5432, &scan.lan), (5432, &scan.bridge)],
+        );
+        let host = discover_with_ports(&services, &lab, scan.payload(vec![container])).await;
+
+        let all = docker_services(&services, &lab).await;
+        let runtime = find_by_definition(&all, "Docker").expect("runtime stored");
+        let postgres = find_by_definition(&all, "PostgreSQL").expect("postgres stored");
+        assert_eq!(postgres.base.virtualization_service_id, Some(runtime.id));
+        assert_eq!(bound_ports(&services, host.id, postgres).await, vec![5432]);
+        let addresses: Vec<Option<Uuid>> = postgres
+            .base
+            .bindings
+            .iter()
+            .map(|b| b.ip_address_id())
+            .collect();
+        assert_eq!(addresses.len(), 2, "5432 on the LAN and bridge addresses");
+        assert!(find_by_definition(&all, "Docker Container").is_none());
+        assert!(find_by_definition(&all, "Unclaimed Open Ports").is_none());
+    }
 }
 
 /// The daemon's own host in GH #784, scanned through a Docker socket credential. The daemon
