@@ -41,7 +41,7 @@ use uuid::Uuid;
 mod coverage;
 mod defaults;
 
-pub use coverage::{FoundIntegration, IntegrationCoverage, find_uncovered};
+pub use coverage::{FoundIntegration, IntegrationCoverage, SiteTriedAt, find_uncovered};
 
 /// The set of things a credential targets, normalized across the site and host
 /// junction tables so two credentials can be tested for overlap. Used to enforce

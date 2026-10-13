@@ -1,17 +1,28 @@
 //! Which hosts run a service an integration reads, with no credential of that integration
-//! assigned to them. Raised as `IntegrationWithoutCredential` at the end of a run, and re-checked
+//! working on them. Raised as `IntegrationWithoutCredential` at the end of a run, and re-checked
 //! for the home nudge so it clears as soon as a covering credential is saved.
 //!
-//! A host is covered by any credential of the integration that reaches it, whatever the scope: a
-//! host assignment (whole host or address-scoped), a site assignment on its site, or one of the
-//! run's own integration targets. A covering credential that failed on the host still covers it:
-//! the daemon reports that failure as a credential warning, and one fact gets one warning.
+//! A host is covered by a credential pinned to it: a host assignment (whole host or
+//! address-scoped), or one of the run's `Hosts` / `DaemonHost` targets. A pinned credential that
+//! failed still covers: the daemon reports that failure as a credential warning, and one fact gets
+//! one warning.
+//!
+//! A site-wide credential is different. It is a guess the scan tries on every host of the site,
+//! and its failures are silent, so it covers a host only until a scan has tried it. Where it
+//! worked, the scan pinned it to the host as a host assignment, which covers from then on. Where
+//! every one failed, the host stays uncovered and the prompt keeps naming it. That is what lets a
+//! mixed SNMP estate converge: add the community most devices use, scan, and the prompt lists the
+//! devices it did not open.
 
 use super::*;
 use crate::server::credentials::r#impl::types::CredentialIntegration;
 use crate::server::services::r#impl::base::Service;
 use crate::server::shared::types::metadata::HasId;
 use strum::IntoEnumIterator;
+
+/// When each site's credentials were last tried: the start of the scan that tried them. A site
+/// with no entry has not been scanned since, so its site-wide credentials are untried.
+pub type SiteTriedAt = HashMap<Uuid, DateTime<Utc>>;
 
 /// An integration's service, found on one host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -44,7 +55,7 @@ impl FoundIntegration {
     }
 }
 
-/// The integrations each host and site has a credential for.
+/// The integrations each host and site has a covering credential for.
 #[derive(Debug, Default)]
 pub struct IntegrationCoverage {
     hosts: HashMap<Uuid, HashSet<CredentialIntegration>>,
@@ -56,8 +67,18 @@ impl IntegrationCoverage {
         self.hosts.entry(host_id).or_default().insert(integration);
     }
 
-    pub fn add_site(&mut self, site_id: Uuid, integration: CredentialIntegration) {
-        self.sites.entry(site_id).or_default().insert(integration);
+    /// A credential assigned to a whole site, which covers its hosts only while no scan has tried
+    /// it there: one created after `tried_at`, or on a site never scanned.
+    pub fn add_site(
+        &mut self,
+        site_id: Uuid,
+        integration: CredentialIntegration,
+        created_at: DateTime<Utc>,
+        tried_at: Option<DateTime<Utc>>,
+    ) {
+        if tried_at.is_none_or(|tried| created_at > tried) {
+            self.sites.entry(site_id).or_default().insert(integration);
+        }
     }
 
     fn covers(&self, found: &FoundIntegration) -> bool {
@@ -87,16 +108,18 @@ pub fn find_uncovered(
 impl CredentialService {
     /// The found integrations no stored credential covers.
     ///
-    /// `integration_targets` are the run's own one-shot targets, which cover hosts until the scan
-    /// promotes a working one to a host assignment: `Site` covers `target_site_id`, `DaemonHost`
-    /// covers `daemon_host_id`, and `Hosts` covers each found host holding one of its addresses.
-    /// Pass none outside a run.
+    /// `integration_targets` are the run's own one-shot targets: `DaemonHost` covers
+    /// `daemon_host_id`, and `Hosts` covers each found host holding one of its addresses, until the
+    /// scan pins a working one to the host. A `Site` target was tried on every host of the run, and
+    /// is pinned where it worked, so it covers nothing more. Pass none outside a run.
+    ///
+    /// `site_tried_at` says when each site's site-wide credentials were last tried.
     pub async fn uncovered_integrations(
         &self,
         found: Vec<FoundIntegration>,
         integration_targets: &[IntegrationTarget],
-        target_site_id: Option<Uuid>,
         daemon_host_id: Option<Uuid>,
+        site_tried_at: &SiteTriedAt,
     ) -> Result<Vec<FoundIntegration>, Error> {
         if found.is_empty() {
             return Ok(Vec::new());
@@ -131,27 +154,31 @@ impl CredentialService {
             .collect::<HashSet<_>>()
             .into_iter()
             .collect();
-        let integration_of: HashMap<Uuid, CredentialIntegration> = self
+        let credentials: HashMap<Uuid, (CredentialIntegration, DateTime<Utc>)> = self
             .get_all(StorableFilter::<Credential>::new_from_entity_ids(
                 &credential_ids,
             ))
             .await?
             .into_iter()
-            .map(|c| (c.id, c.base.credential_type.discriminant().integration()))
+            .map(|c| {
+                let integration = c.base.credential_type.discriminant().integration();
+                (c.id, (integration, c.created_at))
+            })
             .collect();
 
         let mut coverage = IntegrationCoverage::default();
         for (host_id, assignments) in &host_assignments {
             for a in assignments {
-                if let Some(integration) = integration_of.get(&a.credential_id) {
+                if let Some((integration, _)) = credentials.get(&a.credential_id) {
                     coverage.add_host(*host_id, *integration);
                 }
             }
         }
         for (site_id, ids) in &site_assignments {
             for id in ids {
-                if let Some(integration) = integration_of.get(id) {
-                    coverage.add_site(*site_id, *integration);
+                if let Some((integration, created_at)) = credentials.get(id) {
+                    let tried_at = site_tried_at.get(site_id).copied();
+                    coverage.add_site(*site_id, *integration, *created_at, tried_at);
                 }
             }
         }
@@ -167,15 +194,11 @@ impl CredentialService {
             Vec::new()
         };
         for target in integration_targets {
-            let Some(integration) = integration_of.get(&target.credential_id()).copied() else {
+            let Some((integration, _)) = credentials.get(&target.credential_id()).copied() else {
                 continue;
             };
             match target {
-                IntegrationTarget::Site { .. } => {
-                    if let Some(site_id) = target_site_id {
-                        coverage.add_site(site_id, integration);
-                    }
-                }
+                IntegrationTarget::Site { .. } => {}
                 IntegrationTarget::DaemonHost { .. } => {
                     if let Some(host_id) = daemon_host_id {
                         coverage.add_host(host_id, integration);
@@ -199,6 +222,7 @@ impl CredentialService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
 
     fn found(host_id: Uuid, site_id: Uuid, integration: CredentialIntegration) -> FoundIntegration {
         FoundIntegration {
@@ -247,12 +271,19 @@ mod tests {
         assert_eq!(find_uncovered([f], &coverage), vec![f]);
     }
 
-    /// The broader scope: a site assignment covers every host on that site and none elsewhere.
+    /// An untried site credential covers every host on that site and none elsewhere, which is
+    /// what clears the home nudge the moment one is saved.
     #[test]
-    fn a_site_assignment_covers_every_host_on_its_site() {
+    fn an_untried_site_credential_covers_every_host_on_its_site() {
         let (site, other_site) = (Uuid::new_v4(), Uuid::new_v4());
+        let scanned = Utc::now();
         let mut coverage = IntegrationCoverage::default();
-        coverage.add_site(site, CredentialIntegration::Snmp);
+        coverage.add_site(
+            site,
+            CredentialIntegration::Snmp,
+            scanned + Duration::minutes(5),
+            Some(scanned),
+        );
 
         let on_site = found(Uuid::new_v4(), site, CredentialIntegration::Snmp);
         let elsewhere = found(Uuid::new_v4(), other_site, CredentialIntegration::Snmp);
@@ -262,10 +293,38 @@ mod tests {
         );
     }
 
-    /// A credential that failed on the host is still assigned to it. The daemon reports the
+    /// Once a scan has tried a site credential, it covers only the hosts it worked on, which the
+    /// scan pinned as host assignments. On a mixed SNMP estate the v3-only device stays named.
+    #[test]
+    fn a_tried_site_credential_covers_only_where_it_was_pinned() {
+        let site = Uuid::new_v4();
+        let (answered, silent) = (Uuid::new_v4(), Uuid::new_v4());
+        let scanned = Utc::now();
+        let mut coverage = IntegrationCoverage::default();
+        coverage.add_site(
+            site,
+            CredentialIntegration::Snmp,
+            scanned - Duration::days(1),
+            Some(scanned),
+        );
+        coverage.add_host(answered, CredentialIntegration::Snmp);
+
+        assert_eq!(
+            find_uncovered(
+                [
+                    found(answered, site, CredentialIntegration::Snmp),
+                    found(silent, site, CredentialIntegration::Snmp),
+                ],
+                &coverage
+            ),
+            vec![found(silent, site, CredentialIntegration::Snmp)]
+        );
+    }
+
+    /// A pinned credential that failed on the host is still assigned to it. The daemon reports the
     /// failure as a credential warning, so this raises nothing on top.
     #[test]
-    fn a_failed_credential_still_covers() {
+    fn a_failed_pinned_credential_still_covers() {
         let (host, site) = (Uuid::new_v4(), Uuid::new_v4());
         let mut coverage = IntegrationCoverage::default();
         coverage.add_host(host, CredentialIntegration::UnifiController);

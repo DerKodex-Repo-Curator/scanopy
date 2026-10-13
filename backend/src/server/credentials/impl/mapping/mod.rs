@@ -145,10 +145,8 @@ impl<T> CredentialMapping<T> {
     }
 }
 
-/// A credential payload paired with its server-side ID (if host-assignable).
-/// `credential_id` is Some for host-scoped credentials (IP overrides from host assignments).
-/// None for site-level defaults and fallbacks — those don't get auto-assigned
-/// to discovered hosts because they're already available site-wide.
+/// A credential payload paired with its server-side ID, which is what a working credential is
+/// assigned to the host by. `None` when the server sent no id for it.
 #[derive(Debug, Clone)]
 pub struct ResolvedCredential<T> {
     pub credential: T,

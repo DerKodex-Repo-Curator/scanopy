@@ -4,6 +4,7 @@ import { closeModal, initModalFromUrl, modalState } from '$lib/shared/stores/mod
 import {
 	openCredentialCreate,
 	prefillCredentialName,
+	prefillFor,
 	typesForIntegration
 } from '$lib/features/credentials/utils/prefill';
 import type { CredentialTypeMetadata } from '$lib/shared/stores/metadata';
@@ -15,24 +16,41 @@ const type = (
 	targets: CredentialTypeMetadata['targets']
 ) => ({ id, metadata: { fields: [], integration, targets } });
 
-describe('typesForIntegration', () => {
-	const types = [
-		type('DockerProxy', 'Docker', ['DaemonHost', 'Hosts']),
-		type('DockerSocket', 'Docker', ['DaemonHost']),
-		type('UnifiApiKey', 'UnifiController', ['DaemonHost', 'Hosts']),
-		type('UnifiLocalAdmin', 'UnifiController', ['DaemonHost', 'Hosts'])
-	];
+const types = [
+	type('SnmpV2c', 'Snmp', ['DaemonHost', 'Hosts', 'Site']),
+	type('SnmpV3', 'Snmp', ['DaemonHost', 'Hosts', 'Site']),
+	type('DockerProxy', 'Docker', ['DaemonHost', 'Hosts']),
+	type('DockerSocket', 'Docker', ['DaemonHost']),
+	type('UnifiApiKey', 'UnifiController', ['DaemonHost', 'Hosts']),
+	type('UnifiLocalAdmin', 'UnifiController', ['DaemonHost', 'Hosts'])
+];
 
-	it('offers only transports a host can be assigned to when hosts come pre-assigned', () => {
-		expect(typesForIntegration(types, 'Docker', true)).toEqual(['DockerProxy']);
-		expect(typesForIntegration(types, 'Docker', false)).toEqual(['DockerProxy', 'DockerSocket']);
+describe('typesForIntegration', () => {
+	it('offers only transports that can apply where the flow comes assigned', () => {
+		expect(typesForIntegration(types, 'Docker', 'Hosts')).toEqual(['DockerProxy']);
+		expect(typesForIntegration(types, 'Docker', null)).toEqual(['DockerProxy', 'DockerSocket']);
+		expect(typesForIntegration(types, 'Docker', 'Site')).toEqual([]);
 	});
 
 	it('keeps every transport of an integration with several, in fixture order', () => {
-		expect(typesForIntegration(types, 'UnifiController', true)).toEqual([
+		expect(typesForIntegration(types, 'UnifiController', 'Hosts')).toEqual([
 			'UnifiApiKey',
 			'UnifiLocalAdmin'
 		]);
+	});
+});
+
+describe('prefillFor', () => {
+	const found = { hostIds: ['h1', 'h2'], siteIds: ['s1'] };
+
+	// Nothing says which community or version a device accepts, so the credential goes where the
+	// scan tries it on every host and pins it where it works.
+	it('assigns a site-capable integration to the site, not the hosts', () => {
+		expect(prefillFor(types, 'Snmp', found)).toEqual({ integration: 'Snmp', sites: 's1' });
+	});
+
+	it('assigns a host-only integration to the hosts it was found on', () => {
+		expect(prefillFor(types, 'Docker', found)).toEqual({ integration: 'Docker', hosts: 'h1,h2' });
 	});
 });
 
@@ -74,7 +92,7 @@ describe('openCredentialCreate', () => {
 
 	// The digest email links the same URL, so a reload or an emailed link must open the same form.
 	it('survives the URL: a reload opens the same pre-filled create flow', async () => {
-		openCredentialCreate('Proxmox', ['h1', 'h2']);
+		openCredentialCreate('Proxmox', { hostIds: ['h1', 'h2'], siteIds: ['s1'] });
 		await Promise.resolve();
 		const link = href;
 

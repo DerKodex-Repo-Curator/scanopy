@@ -70,6 +70,10 @@ pub struct DashboardSummary {
 pub struct UncoveredIntegration {
     /// The integration a credential would add.
     pub integration: CredentialIntegration,
-    /// The hosts running its service, which the create flow pre-assigns.
+    /// The hosts running its service, which the create flow pre-assigns when the integration's
+    /// credentials can only be pinned to hosts.
     pub host_ids: Vec<Uuid>,
+    /// The sites those hosts are on, which the create flow pre-assigns instead when its
+    /// credentials can apply to a whole site.
+    pub site_ids: Vec<Uuid>,
 }

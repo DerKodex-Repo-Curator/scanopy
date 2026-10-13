@@ -1,41 +1,78 @@
 import type { components } from '$lib/api/schema';
-import type { CredentialTypeMetadata, TypedTypeMetadata } from '$lib/shared/stores/metadata';
-import { openModal } from '$lib/shared/stores/modal-registry';
+import {
+	credentialIntegrations,
+	credentialTypes,
+	type CredentialTypeMetadata,
+	type TypedTypeMetadata
+} from '$lib/shared/stores/metadata';
+import { openModal, type ModalState } from '$lib/shared/stores/modal-registry';
 import { slugifySiteName } from '$lib/features/daemons/utils';
+import {
+	credentials_addIntegrationCredential,
+	credentials_addIntegrationCredentialToSite
+} from '$lib/paraglide/messages';
 
 type CredentialIntegration = components['schemas']['CredentialIntegration'];
+type TypeItem = Pick<TypedTypeMetadata<CredentialTypeMetadata>, 'id' | 'metadata'>;
+type Target = NonNullable<CredentialTypeMetadata['targets']>[number];
 
 /**
- * Open the credential create flow for an integration, with these hosts assigned. The run report,
+ * Open the credential create flow for an integration, assigned where it was found. The run report,
  * the home nudge and the digest email all land here, the email through the same URL params.
  */
-export function openCredentialCreate(integration: CredentialIntegration, hostIds: string[]): void {
+export function openCredentialCreate(
+	integration: CredentialIntegration,
+	found: { hostIds: string[]; siteIds: string[] }
+): void {
 	window.location.hash = 'credentials';
 	openModal('credential-editor', {
-		prefill: { integration, hosts: hostIds.length ? hostIds.join(',') : undefined }
+		prefill: prefillFor(credentialTypes.getItems() ?? [], integration, found)
 	});
 }
 
 /**
+ * Whether a new credential for this integration starts on the whole site rather than the hosts it
+ * was found on: when one of its transports can apply to a site. A site-wide credential is tried on
+ * every host and pinned where it works, which is what a mixed estate needs, since nothing says
+ * which community or version a device accepts until one answers. The other integrations'
+ * credentials can only be pinned to hosts. Mirrors `CredentialIntegration::applies_to_sites`.
+ */
+export function prefillsSites(types: TypeItem[], integration: string): boolean {
+	return typesForIntegration(types, integration, 'Site').length > 0;
+}
+
+/** The URL params that open the create flow for an integration, assigned where it was found. */
+export function prefillFor(
+	types: TypeItem[],
+	integration: CredentialIntegration,
+	{ hostIds, siteIds }: { hostIds: string[]; siteIds: string[] }
+): NonNullable<ModalState['prefill']> {
+	const join = (ids: string[]) => (ids.length ? ids.join(',') : undefined);
+	return prefillsSites(types, integration)
+		? { integration, sites: join(siteIds) }
+		: { integration, hosts: join(hostIds) };
+}
+
+/**
  * The credential types the create flow offers for a pre-filled integration: its transports, and
- * only those that can be assigned to a host when hosts come pre-assigned (a Docker socket reaches
- * only the daemon's own host). Fixture order, so the first is the one pre-selected.
+ * only those that can apply to `target` when the flow comes pre-assigned there (a Docker socket
+ * reaches only the daemon's own host). Fixture order, so the first is the one pre-selected.
  */
 export function typesForIntegration(
-	types: Pick<TypedTypeMetadata<CredentialTypeMetadata>, 'id' | 'metadata'>[],
+	types: TypeItem[],
 	integration: string,
-	forHosts: boolean
+	target: Target | null
 ): string[] {
 	return types
 		.filter((t) => t.metadata?.integration === integration)
-		.filter((t) => !forHosts || (t.metadata?.targets ?? []).includes('Hosts'))
+		.filter((t) => !target || (t.metadata?.targets ?? []).includes(target))
 		.map((t) => t.id);
 }
 
 /**
  * The name a pre-filled credential starts with, snake_cased: the host's own name when it is for
- * one host, the integration's when it is for several (one host's name would mislabel the rest) or
- * the host has no name of its own.
+ * one host, the integration's when it is for several (one host's name would mislabel the rest), for
+ * a site, or for a host with no name of its own.
  */
 export function prefillCredentialName(
 	hosts: { display_name?: string | null }[],
@@ -43,4 +80,18 @@ export function prefillCredentialName(
 ): string {
 	const hostName = hosts.length === 1 ? hosts[0].display_name?.trim() : undefined;
 	return slugifySiteName(hostName || integrationName, '_');
+}
+
+/**
+ * The button that opens the create flow: "Add SNMP Credential to HQ" when the credential starts
+ * on a named site, "Add Proxmox VE Credential" otherwise.
+ */
+export function addIntegrationCredentialLabel(
+	integration: CredentialIntegration,
+	site: string | null
+): string {
+	const name = credentialIntegrations.getName(integration);
+	return site
+		? credentials_addIntegrationCredentialToSite({ integration: name, site })
+		: credentials_addIntegrationCredential({ integration: name });
 }

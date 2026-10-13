@@ -39,15 +39,19 @@
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
 	import { closeModal, navigateToEntity, openModal } from '$lib/shared/stores/modal-registry';
-	import { credentialIntegrations, entities } from '$lib/shared/stores/metadata';
-	import { openCredentialCreate } from '$lib/features/credentials/utils/prefill';
+	import { credentialIntegrations, credentialTypes, entities } from '$lib/shared/stores/metadata';
+	import {
+		addIntegrationCredentialLabel,
+		openCredentialCreate,
+		prefillsSites
+	} from '$lib/features/credentials/utils/prefill';
+	import { useSitesQuery } from '$lib/features/sites/queries';
 	import type { components } from '$lib/api/schema';
 	import { createColorHelper, createIconComponent } from '$lib/shared/utils/styling';
 	import type { IconComponent } from '$lib/shared/utils/types';
 	import {
 		common_credentials,
 		common_warnings,
-		credentials_addIntegrationCredential,
 		daemons_upgradeDaemon,
 		discovery_noWarnings,
 		discovery_noWarningsBeforeStop,
@@ -126,6 +130,9 @@
 	 * both from one cache entry. A viewer who cannot read them resolves nothing, which the lookup
 	 * already treats as a normal outcome.
 	 */
+	// For the site an SNMP-style credential is created on, which its button names.
+	const sitesQuery = useSitesQuery();
+
 	const credentialsQuery = useCredentialsQuery();
 	let credentialsData = $derived(credentialsQuery.data ?? []);
 
@@ -160,11 +167,11 @@
 
 	let sections = $derived(buildWarningReport(warnings, nameOfEntity));
 
-	/** Which rows are showing their explanation. Keyed by code, which is unique within a run. */
+	/** Which rows are showing their explanation, by `WarningEntry.key`. */
 	const openRows = new SvelteSet<string>();
 
-	function toggleRow(code: string) {
-		if (!openRows.delete(code)) openRows.add(code);
+	function toggleRow(key: string) {
+		if (!openRows.delete(key)) openRows.add(key);
 	}
 
 	/** The codes whose answer is a scan setting rather than a credential. */
@@ -232,24 +239,21 @@
 		}
 
 		if (entry.code === 'IntegrationWithoutCredential') {
-			// A row can hold several integrations. The button names and opens the one found on the
-			// most hosts; the others stay on home until each has a credential.
-			const hostsBy = new Map<CredentialIntegration, string[]>();
-			for (const w of entry.warnings) {
-				if (w.code !== 'IntegrationWithoutCredential') continue;
-				const hosts = hostsBy.get(w.integration) ?? [];
-				if (w.host_id) hosts.push(w.host_id);
-				hostsBy.set(w.integration, hosts);
-			}
-			const top = [...hostsBy].sort(([, a], [, b]) => b.length - a.length)[0];
-			if (!top) return null;
-			const [integration, hostIds] = top;
+			// The row's title names its integration, so every occurrence under it is that one.
+			const found = entry.warnings.flatMap((w) =>
+				w.code === 'IntegrationWithoutCredential' ? [w] : []
+			);
+			if (!found.length) return null;
+			const integration: CredentialIntegration = found[0].integration;
+			const hostIds = found.flatMap((w) => (w.host_id ? [w.host_id] : []));
+			const siteIds = [payload.site_id];
+			const site = prefillsSites(credentialTypes.getItems() ?? [], integration)
+				? (sitesQuery.data?.find((s) => s.id === payload.site_id)?.name ?? null)
+				: null;
 			return {
-				label: credentials_addIntegrationCredential({
-					integration: credentialIntegrations.getName(integration)
-				}),
+				label: addIntegrationCredentialLabel(integration, site),
 				icon: credentialIntegrations.getIconComponent(integration),
-				run: () => openCredentialCreate(integration, hostIds)
+				run: () => openCredentialCreate(integration, { hostIds, siteIds })
 			};
 		}
 
@@ -356,11 +360,11 @@
 				{/snippet}
 
 				<ul>
-					{#each section.entries as entry (entry.code)}
+					{#each section.entries as entry (entry.key)}
 						{@const EntryIcon = createIconComponent(entry.icon)}
 						{@const colors = createColorHelper(entry.color)}
 						{@const action = actionFor(entry)}
-						{@const isOpen = openRows.has(entry.code)}
+						{@const isOpen = openRows.has(entry.key)}
 						<li>
 							<div class="min-w-0">
 								<div class="flex items-start gap-2">
@@ -368,7 +372,7 @@
 										type="button"
 										class="hover:bg-tertiary/40 -mx-1 flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-left"
 										aria-expanded={isOpen}
-										onclick={() => toggleRow(entry.code)}
+										onclick={() => toggleRow(entry.key)}
 									>
 										<ChevronRight
 											class="text-secondary mt-0.5 h-4 w-4 shrink-0 transition-transform {isOpen

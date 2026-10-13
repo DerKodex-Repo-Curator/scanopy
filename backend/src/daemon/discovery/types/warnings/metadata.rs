@@ -477,7 +477,7 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
             Self::CredentialCollectionTimedOut => "Collection timed out after authenticating",
             Self::CredentialUnreachable => "Credential target unreachable",
             Self::CredentialTimedOut => "Credential attempt timed out",
-            Self::IntegrationWithoutCredential => "Integration found without a credential",
+            Self::IntegrationWithoutCredential => "{integration} found without a credential",
             Self::ConnectionsWithoutProtocolResponse => "Handshakes with nothing behind them",
             Self::ScanTimeLimitWithEstimate => "Scan hit its time limit",
             Self::ScanTimeLimit => "Scan hit its time limit",
@@ -614,7 +614,7 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
                 "The {credential} credential for {addresses} timed out before anything answered — check the address and port, and that the service is listening rather than dropping the connection. ({detail})"
             }
             Self::IntegrationWithoutCredential => {
-                "{integration} runs on {count} host(s) with no {integration} credential assigned. Add one to collect more: {discovers}"
+                "{integration} answers on {count} host(s) that no {integration} credential works on. Add one to collect more: {discovers}"
             }
             Self::ConnectionsWithoutProtocolResponse => {
                 "{declined} address(es) in {cidr} completed a TCP connection on {ports} and then answered nothing, so no host was recorded at any of them. Something in the path — a firewall session helper, a load balancer, a scrubbing appliance — answers for addresses that hold no device, and a bare handshake cannot tell one from the other. If those addresses really do hold devices, scan the subnet from a daemon with an interface on it; if they are empty, nothing here needs fixing."
@@ -792,6 +792,27 @@ mod tests {
             "description templates and slots() disagree:\n{}",
             mismatched.join("\n")
         );
+    }
+
+    /// A name may be a template too, and splits the run report into one row per distinct title. It
+    /// can only use slots the description declares, since those are the only parameters the UI
+    /// builds for the code.
+    #[test]
+    fn every_name_interpolates_only_declared_slots() {
+        for code in DiscoveryWarningCode::iter() {
+            let declared: BTreeSet<String> =
+                code.slots().iter().map(|s| (*s).to_string()).collect();
+            let undeclared: Vec<String> =
+                crate::server::shared::types::metadata::extract_slots(code.name())
+                    .into_iter()
+                    .filter(|slot| !declared.contains(slot))
+                    .collect();
+            assert!(
+                undeclared.is_empty(),
+                "{}'s name uses undeclared slots {undeclared:?}",
+                code.id()
+            );
+        }
     }
 
     /// A slot value the UI cannot resolve renders as an empty string, so every code has to have

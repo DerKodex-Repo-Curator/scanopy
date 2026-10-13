@@ -334,6 +334,7 @@
 	credential={editingCredential}
 	initialIntegration={prefill?.integration ?? null}
 	initialHostIds={prefill?.hosts?.split(',') ?? []}
+	initialSiteIds={prefill?.sites?.split(',') ?? []}
 	onCreate={handleCredentialCreate}
 	onUpdate={handleCredentialUpdate}
 	onClose={handleCloseCredentialEditor}

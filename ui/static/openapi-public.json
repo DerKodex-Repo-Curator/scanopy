@@ -21642,7 +21642,10 @@
           "Zmtp",
           "Bacula",
           "BeszelAgent",
-          "H323"
+          "H323",
+          "SnmpEngine",
+          "DockerPing",
+          "PodmanPing"
         ]
       },
       "ClockFormat": {
@@ -38442,7 +38445,8 @@
         "description": "An integration the latest scans found on hosts with no credential of it, still uncovered now.",
         "required": [
           "integration",
-          "host_ids"
+          "host_ids",
+          "site_ids"
         ],
         "properties": {
           "host_ids": {
@@ -38451,11 +38455,19 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "The hosts running its service, which the create flow pre-assigns."
+            "description": "The hosts running its service, which the create flow pre-assigns when the integration's\ncredentials can only be pinned to hosts."
           },
           "integration": {
             "$ref": "#/components/schemas/CredentialIntegration",
             "description": "The integration a credential would add."
+          },
+          "site_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The sites those hosts are on, which the create flow pre-assigns instead when its\ncredentials can apply to a whole site."
           }
         }
       },

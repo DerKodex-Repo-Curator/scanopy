@@ -84,13 +84,11 @@ pub struct Discovery {
 impl Discovery {
     /// Remove the `Site`-scope integration targets and return their credential ids.
     ///
-    /// Broadcast targets are the one scope discovery never promotes: the daemon only reports a
-    /// credential assignment for a probe it can attribute to a stored credential, and a
-    /// broadcast default reaches the probe with no id at all (`daemon/discovery/credentials.rs`
-    /// → `dispatch.rs`, which skips `None`). Pruning one outright would silently stop a
-    /// site-wide credential — typically an SNMP community seeded by the install command —
-    /// after a single scan. So the caller migrates these into the `site_credentials`
-    /// junction, which is the durable site-wide channel, before dropping them.
+    /// A broadcast target is pinned only to the hosts it worked on, and a site-wide credential has
+    /// to keep reaching hosts found later. Pruning one outright would silently stop it, typically
+    /// an SNMP community seeded by the install command, after a single scan. So the caller
+    /// migrates these into the `site_credentials` junction, which is the durable site-wide
+    /// channel, before dropping them.
     pub fn take_site_scope_credential_ids(&mut self) -> Vec<Uuid> {
         let mut credential_ids = Vec::new();
         self.integration_targets.retain(|target| match target {

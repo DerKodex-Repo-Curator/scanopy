@@ -7347,7 +7347,7 @@ export interface components {
          *     `every_client_probe_variant_has_a_producer` is what now says so.
          * @enum {string}
          */
-        ClientProbe: "Docker" | "Gnmi" | "Podman" | "Snmp" | "UnifiController" | "InstantOn" | "Proxmox" | "ModbusTcp" | "OpcUa" | "EtherNetIp" | "Sip" | "Ssh" | "Ftp" | "Telnet" | "Rtsp" | "Nut" | "ZabbixAgent" | "CheckMkAgent" | "Smb" | "Ldap" | "Kerberos" | "MySql" | "PostgreSql" | "MsSql" | "MongoDb" | "Redis" | "Cassandra" | "Kafka" | "Amqp" | "Mqtt" | "OracleTns" | "Rdp" | "Nfs" | "DnsTcp" | "DockerSwarm" | "Tls" | "Ike" | "OpenVpn" | "Zmtp" | "Bacula" | "BeszelAgent" | "H323";
+        ClientProbe: "Docker" | "Gnmi" | "Podman" | "Snmp" | "UnifiController" | "InstantOn" | "Proxmox" | "ModbusTcp" | "OpcUa" | "EtherNetIp" | "Sip" | "Ssh" | "Ftp" | "Telnet" | "Rtsp" | "Nut" | "ZabbixAgent" | "CheckMkAgent" | "Smb" | "Ldap" | "Kerberos" | "MySql" | "PostgreSql" | "MsSql" | "MongoDb" | "Redis" | "Cassandra" | "Kafka" | "Amqp" | "Mqtt" | "OracleTns" | "Rdp" | "Nfs" | "DnsTcp" | "DockerSwarm" | "Tls" | "Ike" | "OpenVpn" | "Zmtp" | "Bacula" | "BeszelAgent" | "H323" | "SnmpEngine" | "DockerPing" | "PodmanPing";
         /** @enum {string} */
         ClockFormat: "browser_default" | "twelve_hour" | "twenty_four_hour";
         /** @enum {string} */
@@ -14921,10 +14921,18 @@ export interface components {
         TupleUnit: Record<string, never>;
         /** @description An integration the latest scans found on hosts with no credential of it, still uncovered now. */
         UncoveredIntegration: {
-            /** @description The hosts running its service, which the create flow pre-assigns. */
+            /**
+             * @description The hosts running its service, which the create flow pre-assigns when the integration's
+             *     credentials can only be pinned to hosts.
+             */
             host_ids: string[];
             /** @description The integration a credential would add. */
             integration: components["schemas"]["CredentialIntegration"];
+            /**
+             * @description The sites those hosts are on, which the create flow pre-assigns instead when its
+             *     credentials can apply to a whole site.
+             */
+            site_ids: string[];
         };
         /** @description A neighbour advertised by a local interface whose far end could not be placed on a host. */
         UnmatchedNeighbour: {
