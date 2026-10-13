@@ -5,7 +5,12 @@
 	import PageTitle from '$lib/shared/components/layout/PageTitle.svelte';
 	import SearchInput from '$lib/shared/components/forms/input/SearchInput.svelte';
 	import { isFindShortcut } from '$lib/features/search/results';
-	import { shortcutLabel } from '$lib/shared/utils/shortcuts';
+	import {
+		isEditableTarget,
+		isShiftShortcut,
+		shiftShortcutLabel,
+		shortcutLabel
+	} from '$lib/shared/utils/shortcuts';
 	import { isOnVisiblePage } from '$lib/shared/stores/modal-registry';
 	import { lowercasePreservingAcronyms } from '$lib/shared/utils/formatting';
 	import {
@@ -47,6 +52,8 @@
 	let isExporting = $state(false);
 	let inputEl: HTMLInputElement | undefined = $state();
 	const findShortcut = shortcutLabel('F');
+	const CLEAR_SEARCH_KEY = 'S';
+	const clearSearchShortcut = shiftShortcutLabel(CLEAR_SEARCH_KEY);
 
 	const form = createForm(() => ({ defaultValues: { query: searchQuery } }));
 
@@ -60,10 +67,20 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
+		if (!isOnVisiblePage(inputEl)) return;
 		// Only the page on screen takes Cmd/Ctrl+F; everywhere else the browser keeps its own find.
-		if (!isFindShortcut(event) || !isOnVisiblePage(inputEl)) return;
-		event.preventDefault();
-		inputEl?.focus();
+		if (isFindShortcut(event)) {
+			event.preventDefault();
+			inputEl?.focus();
+		} else if (
+			searchQuery &&
+			isShiftShortcut(event, CLEAR_SEARCH_KEY) &&
+			!isEditableTarget(event.target) &&
+			!document.querySelector('[aria-modal="true"]')
+		) {
+			event.preventDefault();
+			clear();
+		}
 	}
 
 	function handleInputKeydown(event: KeyboardEvent) {
@@ -112,6 +129,7 @@
 						inset={false}
 						onInput={(next) => (searchQuery = next)}
 						onClear={clear}
+						clearShortcut={clearSearchShortcut}
 						onkeydown={handleInputKeydown}
 					/>
 				{/snippet}

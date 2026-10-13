@@ -437,14 +437,19 @@
 					static position deep inside the hidden tab's table — leaving `main` with
 					~2200px of scrollable nothing under a short table. `relative` makes the
 					zero-height wrapper the containing block, so those spans are clipped
-					with everything else.
+					with everything else. `contain: paint` does the same for `position: fixed`
+					descendants, such as a list's bulk-tag island.
 				-->
 				<!-- Main-app tabs mount only once the org is known to be unlocked; their
 				     queries hit routes a licensed self-hosted org is rejected from. -->
 				{#if mainAppAvailable}
 					{#each allTabs as tab (tab.id)}
 						{#if tab.subTabIds && tab.subTabDefs}
-							<div class={!tab.subTabIds.includes(activeTab) ? 'relative h-0 overflow-hidden' : ''}>
+							<div
+								class={!tab.subTabIds.includes(activeTab)
+									? 'relative h-0 overflow-hidden [contain:paint]'
+									: ''}
+							>
 								<ContentSubTabs
 									tabs={tab.subTabDefs}
 									bind:activeTab
@@ -453,7 +458,9 @@
 								/>
 							</div>
 						{:else}
-							<div class={activeTab !== tab.id ? 'relative h-0 overflow-hidden' : ''}>
+							<div
+								class={activeTab !== tab.id ? 'relative h-0 overflow-hidden [contain:paint]' : ''}
+							>
 								<tab.component isReadOnly={tab.isReadOnly} isActive={activeTab === tab.id} />
 							</div>
 						{/if}

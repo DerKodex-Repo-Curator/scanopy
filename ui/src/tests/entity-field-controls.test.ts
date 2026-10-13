@@ -61,6 +61,8 @@ const ARRAY_SORT = 'An array has no single order';
 const ARRAY_GROUP = 'An array has no single group';
 const COUNT = 'A count; every value would be its own group';
 const FREE_TEXT = 'Free text; search covers it';
+const SCAN_MODE =
+	"Read from the run's stored scan settings, which the server can't sort or filter on";
 
 /** Sorted, grouped and filtered on the client. */
 const YES: ColumnDecision = { sort: true, group: true, filter: true };
@@ -192,6 +194,8 @@ const DECISIONS: Record<string, TabDecisions> = {
 				group: COUNT,
 				filter: 'Sorting brings runs with warnings to the top'
 			},
+			// Light or full comes from the run's own stored scan settings, not a server column.
+			scan_mode: { sort: SCAN_MODE, group: SCAN_MODE, filter: SCAN_MODE },
 			tags: ownedArray('No server tag filter; runs are untagged unless tagged through the API')
 		}
 	},
@@ -342,6 +346,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			updated_at: DATE,
 			daemon_os: YES,
 			credential_type: YES,
+			integration: YES,
 			beta: BOOLEAN,
 			unofficial_api: BOOLEAN,
 			description: TEXT,

@@ -61,7 +61,7 @@
 		getActions,
 		caption,
 		onToggleSort,
-		onToggleRow,
+		onClickRow,
 		onToggleAll,
 		headerControl = undefined
 	}: {
@@ -89,7 +89,11 @@
 		getActions: ((item: T) => CardAction[]) | null;
 		caption: string;
 		onToggleSort: (fieldKey: string) => void;
-		onToggleRow: (id: string, selected: boolean) => void;
+		/**
+		 * A click on a row or its checkbox. `extend` (Shift held) selects the block from the last
+		 * clicked row; otherwise the row toggles.
+		 */
+		onClickRow: (id: string, extend: boolean) => void;
 		onToggleAll: () => void;
 		/**
 		 * A column's filter and group control, rendered beside its label. Owned by
@@ -130,6 +134,21 @@
 		isResizingColumn: false,
 		columnSizingStart: []
 	});
+
+	/**
+	 * Whether a click on a row selects it. A click on something inside the row that acts on its own
+	 * (a link, a button, a tag, an input) keeps its own meaning, and finishing a text selection by
+	 * dragging is not a click on the row.
+	 */
+	function isRowSelectClick(event: MouseEvent): boolean {
+		const target = event.target as Element | null;
+		if (
+			target?.closest('a, button, input, select, textarea, label, [role="button"], [role="link"]')
+		) {
+			return false;
+		}
+		return !window.getSelection()?.toString();
+	}
 
 	function resolve<S>(updater: Updater<S>, old: S): S {
 		return typeof updater === 'function' ? (updater as (old: S) => S)(old) : updater;
@@ -261,6 +280,44 @@
 	let byId = $derived(new Map(columns.map((c) => [c.id, c])));
 	let primaryColumn = $derived(columns.find((c) => c.primary) ?? columns[0]);
 
+	// Pinned while the table scrolls sideways: the checkbox and the name on the left, the tags and
+	// the actions on the right (`.pin-left` / `.pin-right` in app.css). A column pins only in its
+	// usual place, the name first and tags last; moved elsewhere, it scrolls like any other.
+	let firstColumnId = $derived(view.headers[0]?.column.id);
+	let lastColumnId = $derived(view.headers.at(-1)?.column.id);
+
+	function pinOf(column: EntityColumn<T>): 'left' | 'right' | null {
+		if (column.primary && column.id === firstColumnId) return 'left';
+		if (column.id === 'tags' && column.id === lastColumnId) return 'right';
+		return null;
+	}
+
+	/** The class and offset for a pinned data column's cells; `relative` for the rest. */
+	function pinAttrs(column: EntityColumn<T>): { class: string; style: string } {
+		const pin = pinOf(column);
+		if (pin === 'left')
+			return { class: 'pin-left pin-edge-right', style: '--pin-left: var(--pin-select-width)' };
+		if (pin === 'right')
+			return { class: 'pin-right pin-edge-left', style: '--pin-right: var(--pin-actions-width)' };
+		return { class: 'relative', style: '' };
+	}
+
+	// The name pins beside the checkbox and tags beside the actions, so each needs its neighbour's
+	// width as its offset.
+	let selectHeader: HTMLTableCellElement | undefined = $state();
+	let actionsHeader: HTMLTableCellElement | undefined = $state();
+	let selectWidth = $state(0);
+	let actionsWidth = $state(0);
+
+	function trackWidth(node: HTMLElement, set: (width: number) => void): () => void {
+		const observer = new ResizeObserver(() => set(node.offsetWidth));
+		observer.observe(node);
+		return () => observer.disconnect();
+	}
+
+	$effect(() => (selectHeader ? trackWidth(selectHeader, (w) => (selectWidth = w)) : undefined));
+	$effect(() => (actionsHeader ? trackWidth(actionsHeader, (w) => (actionsWidth = w)) : undefined));
+
 	function ariaSort(columnId: string): 'ascending' | 'descending' | 'none' {
 		if (sortState.field !== columnId) return 'none';
 		return sortState.direction === 'asc' ? 'ascending' : 'descending';
@@ -300,6 +357,8 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
 	class="entity-table relative overflow-x-auto"
+	style:--pin-select-width="{selectable ? selectWidth : 0}px"
+	style:--pin-actions-width="{getActions ? actionsWidth : 0}px"
 	data-density={displaySettings.current.table_density}
 	tabindex="0"
 	role="region"
@@ -310,7 +369,11 @@
 		<thead>
 			<tr>
 				{#if selectable}
-					<th scope="col" class="w-10 px-[var(--cell-px)] py-[var(--cell-py)]">
+					<th
+						bind:this={selectHeader}
+						scope="col"
+						class="pin-left w-10 px-[var(--cell-px)] py-[var(--cell-py)]"
+					>
 						<input
 							type="checkbox"
 							checked={allSelected}
@@ -326,11 +389,12 @@
 					{@const column = byId.get(header.column.id)}
 					{#if column}
 						{@const width = columnWidth(column, columnSizing)}
+						{@const pin = pinAttrs(column)}
 						<th
 							scope="col"
 							aria-sort={ariaSort(column.id)}
-							style={width ? `width: ${width}px` : ''}
-							class="text-secondary relative whitespace-nowrap px-[var(--cell-px)] py-[var(--cell-py)] text-xs font-medium {column.align ===
+							style="{width ? `width: ${width}px;` : ''} {pin.style}"
+							class="text-secondary {pin.class} whitespace-nowrap px-[var(--cell-px)] py-[var(--cell-py)] text-xs font-medium {column.align ===
 							'right'
 								? 'text-right'
 								: 'text-left'}"
@@ -357,16 +421,15 @@
 
 				{#if getActions}
 					<!--
-						Not sticky. Only the header was pinned while its cells were not, so
-						on a wide table the last column's header scrolled underneath this
-						one's opaque background and read as a missing header, while its
-						cells stayed visible. Pinning the whole column is a bigger change
-						than it looks — every cell needs the same background or content
-						shows through — so both scroll together instead.
+						Pinned with every one of its cells, not just the header: a header
+						pinned alone let the last column's header scroll under it and read as
+						missing. Each pinned cell paints the page background plus its row's
+						tint, so content scrolling underneath never shows through.
 					-->
 					<th
+						bind:this={actionsHeader}
 						scope="col"
-						class="text-secondary px-[var(--cell-px)] py-[var(--cell-py)] text-right text-xs font-medium"
+						class="text-secondary pin-right px-[var(--cell-px)] py-[var(--cell-py)] text-right text-xs font-medium"
 					>
 						{common_actions()}
 					</th>
@@ -503,18 +566,35 @@
 	{@const item = row.original}
 	{@const itemId = getItemId(item)}
 	{@const isSelected = selectedIds.has(itemId)}
+	<!-- The checkbox is the keyboard path; the row click is a larger mouse target for the same. -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<tr
-		class="border-t transition-colors {isSelected
-			? 'bg-black/5 dark:bg-white/5'
-			: 'hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'}"
+		data-keeps-selection
+		class="border-t bg-[var(--row-tint)] transition-colors {selectable
+			? 'cursor-pointer'
+			: ''} {isSelected
+			? '[--row-tint:rgb(0_0_0/0.05)] dark:[--row-tint:rgb(255_255_255/0.05)]'
+			: 'hover:[--row-tint:rgb(0_0_0/0.03)] dark:hover:[--row-tint:rgb(255_255_255/0.03)]'}"
 		style="border-color: var(--color-border)"
+		onmousedown={(e) => {
+			// Shift+click would otherwise select the text between the two rows.
+			if (selectable && e.shiftKey) e.preventDefault();
+		}}
+		onclick={(e) => {
+			if (selectable && isRowSelectClick(e)) onClickRow(itemId, e.shiftKey);
+		}}
 	>
 		{#if selectable}
-			<td class="w-10 px-[var(--cell-px)] py-[var(--cell-py)] align-middle">
+			<td class="pin-left w-10 px-[var(--cell-px)] py-[var(--cell-py)] align-middle">
 				<input
 					type="checkbox"
 					checked={isSelected}
-					onchange={(e) => onToggleRow(itemId, e.currentTarget.checked)}
+					onclick={(e) => {
+						e.stopPropagation();
+						onClickRow(itemId, e.shiftKey);
+						// A Shift+click on a selected row keeps it selected; undo the native toggle.
+						e.currentTarget.checked = selectedIds.has(itemId);
+					}}
 					aria-label={common_selectRow({ name: rowLabel(item) })}
 					class="checkbox-card h-4 w-4"
 				/>
@@ -524,11 +604,13 @@
 		{#each view.headers as header (header.id)}
 			{@const column = byId.get(header.column.id)}
 			{#if column}
+				{@const pin = pinAttrs(column)}
 				{#if column.primary}
 					<!-- Announces the row's identity before each cell when navigating across. -->
 					<th
 						scope="row"
-						class="text-primary relative px-[var(--cell-px)] py-[var(--cell-py)] text-left align-middle font-medium"
+						style={pin.style}
+						class="text-primary {pin.class} px-[var(--cell-px)] py-[var(--cell-py)] text-left align-middle font-medium"
 					>
 						{#if tree}
 							{#if depth > 0}
@@ -549,7 +631,9 @@
 					</th>
 				{:else}
 					<td
-						class="px-[var(--cell-px)] py-[var(--cell-py)] align-middle {column.align === 'right'
+						style={pin.style}
+						class="{pin.class} px-[var(--cell-px)] py-[var(--cell-py)] align-middle {column.align ===
+						'right'
 							? 'text-right'
 							: ''}"
 					>
@@ -563,7 +647,7 @@
 
 		{#if getActions}
 			{@const actions = getActions(item)}
-			<td class="px-[var(--cell-px)] py-[var(--cell-py)] text-right align-middle">
+			<td class="pin-right px-[var(--cell-px)] py-[var(--cell-py)] text-right align-middle">
 				<div class="flex items-center justify-end gap-1">
 					{#each actions as action (action.label)}
 						{@const tip =

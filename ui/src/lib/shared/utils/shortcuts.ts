@@ -23,6 +23,8 @@ export function keyLabel(key: string, platform = currentPlatform): string {
 			return apple ? '⇧' : 'Shift';
 		case 'Escape':
 			return 'Esc';
+		case 'Enter':
+			return apple ? '↵' : 'Enter';
 		default:
 			return key;
 	}
@@ -32,6 +34,26 @@ export function keyLabel(key: string, platform = currentPlatform): string {
 export function shortcutLabel(key: string, platform = currentPlatform): string {
 	const mod = keyLabel('Mod', platform);
 	return isApplePlatform(platform) ? `${mod}${key}` : `${mod} ${key}`;
+}
+
+/** A Shift shortcut as one key chip shows it: `⇧F` on Apple platforms, `Shift F` elsewhere. */
+export function shiftShortcutLabel(key: string, platform = currentPlatform): string {
+	const shift = keyLabel('Shift', platform);
+	return isApplePlatform(platform) ? `${shift}${key}` : `${shift} ${key}`;
+}
+
+/**
+ * Whether a keydown is Shift plus `key` (a letter) and no other modifier. Matches on `code` too:
+ * with Shift held, `key` is the capital, and on some layouts it is a different character.
+ */
+export function isShiftShortcut(event: KeyboardEvent, key: string): boolean {
+	return (
+		event.shiftKey &&
+		!event.metaKey &&
+		!event.ctrlKey &&
+		!event.altKey &&
+		(event.key.toUpperCase() === key || event.code === `Key${key}`)
+	);
 }
 
 /**

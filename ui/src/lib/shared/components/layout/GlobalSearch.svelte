@@ -26,8 +26,8 @@
 		tagIcon,
 		tagTooltip
 	} from '$lib/features/tags/groups';
-	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
-	import { keyLabel } from '$lib/shared/utils/shortcuts';
+	import TagCompletionGhost from '$lib/features/tags/components/TagCompletionGhost.svelte';
+	import { tagCompletion } from '$lib/features/tags/completion';
 	import {
 		acceptCompletion,
 		addChip,
@@ -44,7 +44,6 @@
 		removeSelectedChip,
 		responseGroups,
 		withMorePages,
-		tagCompletion,
 		type GlobalSearchState,
 		type SearchItem,
 		type SearchRow
@@ -329,25 +328,14 @@
 				{#snippet ghost()}
 					{#if completion}
 						{@const tag = completion}
-						<!-- Tab accepts from the keyboard; the click is for the mouse, so it takes no focus. -->
-						<button
-							type="button"
-							tabindex="-1"
-							class="pointer-events-auto ml-1.5 inline-flex items-center gap-1.5 opacity-60 transition-opacity hover:opacity-100"
-							onclick={(event) => {
-								event.stopPropagation();
+						<TagCompletionGhost
+							{tag}
+							{applicationGroup}
+							onAccept={() => {
 								applySearch(acceptCompletion({ text: query, tagIds }, tag));
 								inputEl?.focus();
 							}}
-						>
-							<Tag
-								label={tag.name}
-								color={tag.color}
-								icon={tagIcon(tag, applicationGroup)}
-								isShiny={isApplicationTag(tag, applicationGroup)}
-							/>
-							<KbdKey key={keyLabel('Tab')} size="sm" />
-						</button>
+						/>
 					{/if}
 				{/snippet}
 			</SearchInput>

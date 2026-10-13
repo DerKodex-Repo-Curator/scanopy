@@ -8,6 +8,7 @@
 	import { VERSION } from '$lib/version';
 	import { browser } from '$app/environment';
 	import { captureFirstTouch } from '$lib/shared/utils/first-touch';
+	import { trackPointerFocus } from '$lib/shared/utils/pointer-focus';
 
 	// Snapshot landing URL/UTMs before any auth redirect can rewrite the URL
 	if (browser) {
@@ -18,6 +19,7 @@
 
 	onMount(() => {
 		console.log('🌻 Scanopy v' + VERSION);
+		return trackPointerFocus();
 	});
 </script>
 

@@ -41,7 +41,8 @@
 		onClearFilters = undefined,
 		onClearGrouping = undefined,
 		selectedCount = 0,
-		onClearSelection = undefined
+		onClearSelection = undefined,
+		clearShortcuts = {}
 	}: {
 		totalCount: number;
 		totalPages: number;
@@ -66,10 +67,14 @@
 		/** Rows checked for a bulk action; shown with the other clears. */
 		selectedCount?: number;
 		onClearSelection?: () => void;
+		/** Key chips for the clears, as their shortcuts are shown. The caller handles the keys. */
+		clearShortcuts?: { filters?: string; grouping?: string; selection?: string };
 	} = $props();
 </script>
 
-{#snippet clearButton(onclick: () => void, Icon: IconComponent)}
+{#snippet clearButton(onclick: () => void, Icon: IconComponent, shortcut: string | undefined)}
+	<!-- The key is muted text inside the button, not a key chip: a bordered chip is taller than
+	     this compact button, inside it or beside it. -->
 	<button
 		type="button"
 		class="btn-secondary shrink-0 gap-1 rounded px-1.5 py-0 text-xs font-medium"
@@ -77,6 +82,9 @@
 	>
 		<Icon class="h-3 w-3" />
 		{common_clear()}
+		{#if shortcut}
+			<span class="text-tertiary ml-0.5 font-normal">({shortcut})</span>
+		{/if}
 	</button>
 {/snippet}
 
@@ -115,7 +123,7 @@
 					: common_nFiltersApplied({ count: filterCount })}</span
 			>
 			{#if onClearFilters}
-				{@render clearButton(onClearFilters, FunnelX)}
+				{@render clearButton(onClearFilters, FunnelX, clearShortcuts.filters)}
 			{/if}
 		{/if}
 		{#if groupCount !== null}
@@ -125,7 +133,7 @@
 				{groupCount === 1 ? common_group() : common_groups()}
 			</span>
 			{#if onClearGrouping}
-				{@render clearButton(onClearGrouping, Ungroup)}
+				{@render clearButton(onClearGrouping, Ungroup, clearShortcuts.grouping)}
 			{/if}
 		{/if}
 		{#if selectedCount > 0}
@@ -137,7 +145,7 @@
 				})}</span
 			>
 			{#if onClearSelection}
-				{@render clearButton(onClearSelection, X)}
+				{@render clearButton(onClearSelection, X, clearShortcuts.selection)}
 			{/if}
 		{/if}
 	</div>

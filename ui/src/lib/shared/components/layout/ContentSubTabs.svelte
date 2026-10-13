@@ -52,7 +52,7 @@
 		`overflow: hidden` and add scroll height to `main`.
 	-->
 	{#each tabs as tab (tab.id)}
-		<div class={activeTab !== tab.id ? 'relative h-0 overflow-hidden' : ''}>
+		<div class={activeTab !== tab.id ? 'relative h-0 overflow-hidden [contain:paint]' : ''}>
 			<tab.component {isReadOnly} isActive={activeTab === tab.id} />
 		</div>
 	{/each}

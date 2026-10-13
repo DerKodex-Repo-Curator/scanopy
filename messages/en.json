@@ -2830,6 +2830,8 @@
 	"tags_fromHost": "from host",
 	"tags_groupDescriptionPlaceholder": "What the group is for...",
 	"tags_groupNamePlaceholder": "e.g., Environment, Criticality",
+	"tags_hotkeyAdd": "add tag",
+	"tags_hotkeyRemove": "remove focused tag",
 	"tags_iconApplicationFixed": "Application tags always use the application icon.",
 	"tags_inheritedFromHost": "Inherited from host",
 	"tags_inheritedOverrideHint": "Tagging directly will override the inherited application.",

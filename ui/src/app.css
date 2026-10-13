@@ -217,6 +217,38 @@
 		@apply p-1;
 	}
 
+	/*
+	 * Columns pinned while the table scrolls sideways (EntityTable's `pinAttrs`). A pinned cell is
+	 * opaque, or the cells scrolling under it would show through: it paints the page background
+	 * with its row's tint (`--row-tint`, set on the row for hover and selection) on top. The edge
+	 * classes draw the line between the pinned columns and the ones scrolling past them.
+	 */
+	.entity-table tr {
+		--row-tint: transparent;
+	}
+
+	.entity-table :is(.pin-left, .pin-right) {
+		position: sticky;
+		z-index: 1;
+		background: linear-gradient(var(--row-tint), var(--row-tint)), var(--color-bg-body);
+	}
+
+	.entity-table .pin-left {
+		left: var(--pin-left, 0px);
+	}
+
+	.entity-table .pin-right {
+		right: var(--pin-right, 0px);
+	}
+
+	.entity-table .pin-edge-right {
+		box-shadow: inset -1px 0 var(--color-border);
+	}
+
+	.entity-table .pin-edge-left {
+		box-shadow: inset 1px 0 var(--color-border);
+	}
+
 	/* Card component */
 	.card {
 		border: 1px solid var(--color-border);
@@ -582,4 +614,10 @@
 
 .animate-text-pulse-highlight {
 	animation: text-pulse-highlight 1s ease-in-out 1;
+}
+
+/* Focus a click put there stays ringless until focus moves, even after a key press switches the
+   browser to keyboard mode. Tagged by `trackPointerFocus` (lib/shared/utils/pointer-focus.ts). */
+[data-pointer-focus]:focus-visible {
+	outline: none;
 }

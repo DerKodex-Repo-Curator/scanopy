@@ -44,6 +44,7 @@
 	} from './controls/grouping';
 	import {
 		isAllSelected,
+		rangeSelect,
 		isPartiallySelected,
 		visibleIds,
 		runBulkAction
@@ -86,6 +87,8 @@
 		common_deleteSelected,
 		common_noCommonTags,
 		common_commonTags,
+		tags_hotkeyAdd,
+		tags_hotkeyRemove,
 		common_item,
 		common_items,
 		common_no,
@@ -104,6 +107,13 @@
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import throttle from 'just-throttle';
 	import { isOnVisiblePage, registerEntityList } from '$lib/shared/stores/modal-registry';
+	import {
+		isEditableTarget,
+		isShiftShortcut,
+		keyLabel,
+		shiftShortcutLabel
+	} from '$lib/shared/utils/shortcuts';
+	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
 	import type { components } from '$lib/api/schema';
 
 	type PaginationMeta = components['schemas']['PaginationMeta'];
@@ -737,12 +747,25 @@
 		})
 	);
 
-	function setRowSelected(itemId: string, selected: boolean) {
-		if (selected) {
-			selectedIds.add(itemId);
-		} else {
-			selectedIds.delete(itemId);
+	/** The row the last plain click toggled: one end of a Shift+click block. */
+	let selectionAnchor: string | null = null;
+
+	/**
+	 * A click on a row or its checkbox. A plain click toggles the row and makes it the anchor; a
+	 * Shift+click selects every row from the anchor to it, in the order on screen. With no anchor
+	 * on screen (paged away, filtered out) a Shift+click toggles like a plain one.
+	 */
+	function clickRow(itemId: string, extend: boolean) {
+		if (extend && selectionAnchor) {
+			const block = rangeSelect(orderedItems, selectionAnchor, itemId, getItemId);
+			if (block.length > 0) {
+				block.forEach((id) => selectedIds.add(id));
+				return;
+			}
 		}
+		if (selectedIds.has(itemId)) selectedIds.delete(itemId);
+		else selectedIds.add(itemId);
+		selectionAnchor = itemId;
 	}
 
 	/** Select-all scoped to one rendered block — a group's rows, or the page. */
@@ -873,7 +896,89 @@
 		if (!sentinelRef) return;
 		return observeStuck(sentinelRef, (stuck) => (isStuck = stuck));
 	});
+
+	// The bulk-tag island is fixed to the bottom of the viewport, and centred over this list
+	// rather than the window, so it tracks the list's horizontal extent (sidebar collapse, resize).
+	let rootRef: HTMLDivElement | null = $state(null);
+	let islandFrame = $state({ left: 0, width: 0 });
+
+	$effect(() => {
+		if (!rootRef) return;
+		const root = rootRef;
+		const observer = new ResizeObserver(() => {
+			const rect = root.getBoundingClientRect();
+			islandFrame = { left: rect.left, width: rect.width };
+		});
+		observer.observe(root);
+		return () => observer.disconnect();
+	});
+
+	// T focuses the island's tag input while rows are selected. From there Shift+Tab reaches the
+	// held tags, and Delete or Backspace removes the focused one.
+	const TAG_SHORTCUT = 'T';
+	let bulkTagPicker: { focusInput: () => void } | undefined = $state();
+	let showTagIsland = $derived(hasBulkTagging && selectedIds.size > 0);
+
+	// List shortcuts, each shown on the control it triggers. Single keys and Shift+letter, so they
+	// stand down while typing in a field, when a modal is over the list, or when the list isn't
+	// the tab on screen. ⇧S (clear the search) lives with the search box in ControlsBar.
+	const CLEAR_FILTERS_KEY = 'F';
+	const CLEAR_GROUPING_KEY = 'G';
+	const clearShortcuts = {
+		filters: shiftShortcutLabel(CLEAR_FILTERS_KEY),
+		grouping: shiftShortcutLabel(CLEAR_GROUPING_KEY),
+		selection: keyLabel('Escape')
+	};
+
+	function handleListShortcut(event: KeyboardEvent) {
+		if (
+			isEditableTarget(event.target) ||
+			!isOnVisiblePage(rootRef) ||
+			// A modal over the list owns the keyboard.
+			document.querySelector('[aria-modal="true"]')
+		) {
+			return;
+		}
+		const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+		if (showTagIsland && plain && !event.shiftKey && event.key.toUpperCase() === TAG_SHORTCUT) {
+			event.preventDefault();
+			bulkTagPicker?.focusInput();
+		} else if (showSelection && selectedIds.size > 0 && plain && event.key === 'Escape') {
+			event.preventDefault();
+			selectNone();
+		} else if (activeFilterCount > 0 && isShiftShortcut(event, CLEAR_FILTERS_KEY)) {
+			event.preventDefault();
+			filters.clearAll();
+		} else if (hasActiveGrouping && isShiftShortcut(event, CLEAR_GROUPING_KEY)) {
+			event.preventDefault();
+			ordering = { ...ordering, group: null };
+		}
+	}
+
+	/**
+	 * A click on anything that looks like empty space clears the selection, including the
+	 * toolbar's and the table header's background. Clicks that keep it: a row
+	 * (`data-keeps-selection`), the tag island; any control (a link, button or field, including a
+	 * dropdown portalled out of the page); anything while a modal is open; and anything outside
+	 * the page's scroll area, such as the sidebar.
+	 */
+	function handleClickOutside(event: MouseEvent) {
+		if (selectedIds.size === 0 || !rootRef || !isOnVisiblePage(rootRef)) return;
+		const target = event.target as Element | null;
+		if (!target || !rootRef.closest('main')?.contains(target)) return;
+		if (
+			target.closest(
+				'[data-keeps-selection], a, button, input, select, textarea, label, [role="button"], [role="dialog"]'
+			) ||
+			document.querySelector('[aria-modal="true"]')
+		) {
+			return;
+		}
+		selectNone();
+	}
 </script>
+
+<svelte:window onkeydown={handleListShortcut} onclick={handleClickOutside} />
 
 <!-- With rows selected, Delete leads the toolbar's buttons. -->
 {#snippet bulkDelete()}
@@ -883,7 +988,7 @@
 	</button>
 {/snippet}
 
-<div class="space-y-4">
+<div bind:this={rootRef} class="space-y-4">
 	<!-- Sentinel for sticky detection -->
 	<div bind:this={sentinelRef} class="h-0 w-full"></div>
 
@@ -937,6 +1042,7 @@
 				onClearGrouping={() => (ordering = { ...ordering, group: null })}
 				selectedCount={showSelection ? selectedIds.size : 0}
 				onClearSelection={selectNone}
+				{clearShortcuts}
 				{useServerPagination}
 				processedCount={processedItems.length}
 				itemCount={items.length}
@@ -981,17 +1087,24 @@
 	<!-- Bulk tagging floats at the bottom of the viewport, over the table, so a long tag list never
 	     crowds the toolbar. A heavier shadow and an edge ring lift it off the rows; in dark mode an
 	     opaque surface replaces the card's translucent one, which let the rows show through.
-	     Sticky rather than fixed: a list page on a hidden tab sits in an overflow-hidden wrapper,
-	     which clips a sticky card but not a fixed one. -->
-	{#if hasBulkTagging && selectedIds.size > 0}
-		<div class="pointer-events-none sticky bottom-6 z-20 flex justify-center">
+	     Fixed rather than sticky: sticky only pins once the table outgrows the viewport, so a short
+	     table left it under the last row. A hidden tab's wrapper sets `contain: paint`, which
+	     clips a fixed descendant. -->
+	{#if showTagIsland}
+		<div
+			class="pointer-events-none fixed bottom-6 z-20 flex justify-center"
+			style:left="{islandFrame.left}px"
+			style:width="{islandFrame.width}px"
+		>
 			<div
+				data-keeps-selection
 				class="card card-static pointer-events-auto flex max-w-full items-center gap-2 !px-4 !py-2 !shadow-[0_10px_40px_rgba(0,0,0,0.25)] ring-1 ring-black/5 dark:!border-gray-600 dark:!bg-gray-800 dark:!shadow-[0_10px_40px_rgba(0,0,0,0.7)] dark:ring-white/10"
 			>
 				<span class="text-secondary whitespace-nowrap text-sm"
 					>{selectedIds.size > 1 ? common_commonTags() : common_tags()}</span
 				>
 				<TagPickerInline
+					bind:this={bulkTagPicker}
 					selectedTagIds={commonTags}
 					entityType={entityType ?? undefined}
 					onAdd={handleBulkTagAdd}
@@ -1000,6 +1113,17 @@
 				{#if commonTags.length === 0 && selectedIds.size > 1}
 					<span class="text-tertiary whitespace-nowrap text-xs">{common_noCommonTags()}</span>
 				{/if}
+				<span
+					class="text-tertiary ml-2 flex items-center gap-1.5 whitespace-nowrap border-l border-[var(--color-border)] pl-3 text-xs"
+				>
+					<KbdKey key={TAG_SHORTCUT} size="sm" />
+					{tags_hotkeyAdd()}
+					{#if commonTags.length > 0}
+						<KbdKey key="{keyLabel('Shift')} Tab" size="sm" class="ml-2" />
+						<KbdKey key="⌫" size="sm" />
+						{tags_hotkeyRemove()}
+					{/if}
+				</span>
 			</div>
 		</div>
 	{/if}
@@ -1049,7 +1173,7 @@
 		{getActions}
 		caption={caption ?? tableCaptionText}
 		onToggleSort={toggleSort}
-		onToggleRow={setRowSelected}
+		onClickRow={clickRow}
 		onToggleAll={() => toggleAllIn(flat)}
 		{headerControl}
 	/>

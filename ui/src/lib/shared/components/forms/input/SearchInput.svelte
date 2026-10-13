@@ -12,6 +12,7 @@
 	import type { AnyFieldApi } from '@tanstack/svelte-form';
 	import { Search, X } from 'lucide-svelte';
 	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
+	import InputGhost from './InputGhost.svelte';
 	import { common_clearSearch } from '$lib/paraglide/messages';
 
 	let {
@@ -27,6 +28,7 @@
 		inputEl = $bindable(),
 		onInput,
 		onClear = undefined,
+		clearShortcut = undefined,
 		onkeydown,
 		trailing
 	}: {
@@ -46,6 +48,8 @@
 		onInput?: (value: string) => void;
 		/** Shows a clear button while there is text. */
 		onClear?: () => void;
+		/** The key that clears it, shown beside the clear button. The caller handles the key. */
+		clearShortcut?: string;
 		onkeydown?: (event: KeyboardEvent) => void;
 		trailing?: Snippet;
 		/**
@@ -65,6 +69,10 @@
 
 	let showClear = $derived(!!onClear && value.length > 0);
 	let showShortcut = $derived(!!shortcut && !showClear);
+	/** Room on the right for the key chip and clear button drawn over the end of the box. */
+	let rightPadding = $derived(
+		showClear && clearShortcut ? 'pr-20' : showClear || showShortcut ? 'pr-12' : ''
+	);
 </script>
 
 {#snippet textInput(classes: string)}
@@ -92,28 +100,19 @@
 		{#if chips}
 			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 			<div
-				class="input-field flex flex-wrap items-center gap-1.5 pl-10 text-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 {showClear ||
-				showShortcut
-					? 'pr-12'
-					: ''}"
+				class="input-field flex flex-wrap items-center gap-1.5 pl-10 text-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 {rightPadding}"
 				onclick={() => inputEl?.focus()}
 			>
 				{@render chips()}
 				<div class="relative min-w-32 flex-1">
 					{@render textInput('w-full border-0 bg-transparent p-0 focus:outline-none focus:ring-0')}
 					{#if ghost}
-						<div
-							class="pointer-events-none absolute inset-0 flex items-center overflow-hidden"
-							aria-hidden="true"
-						>
-							<span class="invisible whitespace-pre">{value}</span>
-							{@render ghost()}
-						</div>
+						<InputGhost {value}>{@render ghost()}</InputGhost>
 					{/if}
 				</div>
 			</div>
 		{:else}
-			{@render textInput(`input-field w-full pl-10 ${showClear || showShortcut ? 'pr-12' : ''}`)}
+			{@render textInput(`input-field w-full pl-10 ${rightPadding}`)}
 		{/if}
 		{#if showClear}
 			<button
@@ -122,9 +121,12 @@
 					onClear?.();
 					inputEl?.focus();
 				}}
-				class="text-tertiary hover:text-secondary absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+				class="text-tertiary hover:text-secondary absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1.5 transition-colors"
 				aria-label={common_clearSearch()}
 			>
+				{#if clearShortcut}
+					<KbdKey key={clearShortcut} size="sm" class="pointer-events-none" />
+				{/if}
 				<X class="h-4 w-4" />
 			</button>
 		{:else if showShortcut}

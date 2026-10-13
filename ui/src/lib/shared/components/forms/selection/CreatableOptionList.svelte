@@ -19,6 +19,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Plus } from 'lucide-svelte';
+	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
+	import { keyLabel } from '$lib/shared/utils/shortcuts';
 	import { common_ungrouped } from '$lib/paraglide/messages';
 
 	/**
@@ -32,6 +34,7 @@
 		createLabel = null,
 		onCreate,
 		creating = false,
+		createOnEnter = false,
 		row = undefined
 	}: {
 		options: CreatableOption[];
@@ -40,6 +43,8 @@
 		createLabel?: string | null;
 		onCreate?: () => void;
 		creating?: boolean;
+		/** Enter in the caller's input creates; shows the Enter key on the create row. */
+		createOnEnter?: boolean;
 		/** Draws an option's row content in place of the swatch or icon and label (tags draw the tag). */
 		row?: Snippet<[CreatableOption]>;
 	} = $props();
@@ -65,6 +70,9 @@
 	>
 		<Plus class="h-3 w-3 shrink-0 text-green-400" />
 		<span class="text-primary">{createLabel}</span>
+		{#if createOnEnter}
+			<KbdKey key={keyLabel('Enter')} size="sm" class="ml-auto" />
+		{/if}
 	</button>
 {/if}
 

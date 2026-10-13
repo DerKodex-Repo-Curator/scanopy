@@ -14,9 +14,9 @@ import {
 	removeChip,
 	removeSelectedChip,
 	responseGroups,
-	tagCompletion,
 	withMorePages
 } from '$lib/features/search/results';
+import { tagCompletion } from '$lib/features/tags/completion';
 import type { Tag } from '$lib/features/tags/types/base';
 import { entityUIConfig } from '$lib/shared/entity-ui-config';
 import { FEATURES } from './entity-tabs';

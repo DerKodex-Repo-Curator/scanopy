@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { Plus } from 'lucide-svelte';
 	import Tag from '$lib/shared/components/data/Tag.svelte';
+	import TagCompletionGhost from './TagCompletionGhost.svelte';
+	import InputGhost from '$lib/shared/components/forms/input/InputGhost.svelte';
+	import { tagCompletion } from '$lib/features/tags/completion';
 	import {
 		useTagsQuery,
 		useTagGroupsQuery,
@@ -14,7 +17,8 @@
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { permissions, billingPlans } from '$lib/shared/stores/metadata';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import { onMount } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { common_creating, tags_addTag, tags_createTagQuoted } from '$lib/paraglide/messages';
 	import CreatableOptionList from '$lib/shared/components/forms/selection/CreatableOptionList.svelte';
 	import {
@@ -216,13 +220,25 @@
 		return tags.find((t) => t.id === id) ?? null;
 	}
 
+	// Optimistic: an added tag shows as a chip, and a removed one disappears, as soon as it's
+	// asked for. The caller's list catches up when its refetch lands; until then these sets
+	// bridge the gap, so an accepted ghost tag turns into its chip in place instead of vanishing
+	// and reappearing. A failed change drops out of the sets and the chip reverts.
+	const pendingAdds = new SvelteSet<string>();
+	const pendingRemoves = new SvelteSet<string>();
+
+	let shownTagIds = $derived([
+		...selectedTagIds.filter((id) => !pendingRemoves.has(id)),
+		...[...pendingAdds].filter((id) => !selectedTagIds.includes(id))
+	]);
+
 	// Filter available tags based on input, exclude already selected, and leave out tags whose group
 	// doesn't allow the entity type, in group order
 	let availableTags = $derived(
 		tags
 			.filter(
 				(tag) =>
-					!selectedTagIds.includes(tag.id) &&
+					!shownTagIds.includes(tag.id) &&
 					(!entityType || tagAllowedOn(tag, tagGroups, entityType)) &&
 					tag.name.toLowerCase().includes(inputValue.toLowerCase())
 			)
@@ -230,6 +246,9 @@
 	);
 
 	let showDropdown = $derived(open && (availableTags.length > 0 || showCreateOption));
+
+	// The existing tag the typed text completes to, ghosted in the input; Tab applies it.
+	let completion = $derived(tagCompletion(inputValue, availableTags, shownTagIds));
 
 	function getRandomColor(): Color {
 		return AVAILABLE_COLORS[Math.floor(Math.random() * AVAILABLE_COLORS.length)];
@@ -259,49 +278,114 @@
 		}
 	}
 
-	async function handleAddTag(tagId: string) {
+	// Settle each pending change once the caller's list shows it.
+	$effect(() => {
+		const held = selectedTagIds;
+		untrack(() => {
+			for (const id of pendingAdds) if (held.includes(id)) pendingAdds.delete(id);
+			for (const id of pendingRemoves) if (!held.includes(id)) pendingRemoves.delete(id);
+		});
+	});
+
+	/** Run a change, reverting its optimistic state when it fails (throws, or reports `false`). */
+	async function settle(pending: SvelteSet<string>, tagId: string, run: () => unknown) {
+		pending.add(tagId);
+		try {
+			if ((await run()) === false) pending.delete(tagId);
+		} catch (error) {
+			pending.delete(tagId);
+			throw error;
+		}
+	}
+
+	/** `keepOpen` leaves the input up for the next tag, as Tab on a completion does. */
+	async function handleAddTag(tagId: string, keepOpen = false) {
+		inputValue = '';
+		if (!keepOpen) open = false;
 		if (isEntityMode && entityId && entityType) {
-			await bulkAddTagMutation.mutateAsync({
-				entity_ids: [entityId],
-				entity_type: entityType,
-				tag_id: tagId
-			});
+			await settle(pendingAdds, tagId, () =>
+				bulkAddTagMutation.mutateAsync({
+					entity_ids: [entityId],
+					entity_type: entityType,
+					tag_id: tagId
+				})
+			);
 		} else {
 			// The server replaces a held tag of the same tag group on assignment; in callback
 			// mode the caller holds the list, so drop the displaced tag here to match.
 			const added = getTag(tagId);
-			for (const heldId of selectedTagIds) {
+			for (const heldId of shownTagIds) {
 				if (heldId !== tagId && sameGroup(getTag(heldId), added)) {
-					onRemove?.(heldId);
+					void settle(pendingRemoves, heldId, () => onRemove?.(heldId));
 				}
 			}
-			onAdd?.(tagId);
+			await settle(pendingAdds, tagId, () => onAdd?.(tagId));
 		}
-		inputValue = '';
-		open = false;
 	}
 
 	async function handleRemoveTag(tagId: string) {
 		if (isEntityMode && entityId && entityType) {
-			await bulkRemoveTagMutation.mutateAsync({
-				entity_ids: [entityId],
-				entity_type: entityType,
-				tag_id: tagId
-			});
+			await settle(pendingRemoves, tagId, () =>
+				bulkRemoveTagMutation.mutateAsync({
+					entity_ids: [entityId],
+					entity_type: entityType,
+					tag_id: tagId
+				})
+			);
 		} else {
-			onRemove?.(tagId);
+			await settle(pendingRemoves, tagId, () => onRemove?.(tagId));
 		}
 	}
 
+	/** Open the input and focus it, for a keyboard shortcut. */
+	export function focusInput() {
+		if (!disabled) open = true;
+	}
+
+	let rootElement: HTMLDivElement | undefined = $state();
+	/** Which remove button had focus when its tag was removed, so focus can land on a neighbour. */
+	let refocusIndex: number | null = null;
+
+	function removeButtons(): HTMLElement[] {
+		return Array.from(rootElement?.querySelectorAll<HTMLElement>('[data-tag-remove]') ?? []);
+	}
+
+	function removeTag(tagId: string) {
+		const index = removeButtons().indexOf(document.activeElement as HTMLElement);
+		refocusIndex = index === -1 ? null : index;
+		handleRemoveTag(tagId);
+	}
+
+	// A tag removed from the keyboard unmounts the focused button, dropping focus to the page.
+	// Once the list updates (in callback mode the caller's refetch lands later), put focus on the
+	// tag that took its place, or on the input when none is left.
+	$effect(() => {
+		void shownTagIds;
+		if (refocusIndex === null) return;
+		const index = refocusIndex;
+		tick().then(() => {
+			if (rootElement?.contains(document.activeElement)) return;
+			refocusIndex = null;
+			const remaining = removeButtons();
+			const next = remaining[Math.min(index, remaining.length - 1)];
+			if (next) next.focus();
+			else focusInput();
+		});
+	});
+
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
+		if (e.key === 'Tab' && !e.shiftKey && completion) {
 			e.preventDefault();
-			if (showCreateOption && availableTags.length === 0) {
+			handleAddTag(completion.id, true);
+		} else if (e.key === 'Enter') {
+			// Enter takes the text as typed: it creates that tag, and only Tab takes the ghosted
+			// completion. With nothing to create (the name exists, or creating isn't allowed), it
+			// applies the closest match.
+			e.preventDefault();
+			if (showCreateOption) {
 				handleCreateTag();
 			} else if (availableTags.length > 0) {
-				handleAddTag(availableTags[0].id);
-			} else if (showCreateOption) {
-				handleCreateTag();
+				handleAddTag((completion ?? availableTags[0]).id);
 			}
 		} else if (e.key === 'Escape') {
 			inputValue = '';
@@ -332,9 +416,9 @@
 	});
 </script>
 
-<div class="flex min-w-0 flex-wrap items-center gap-1">
+<div bind:this={rootElement} class="flex min-w-0 flex-wrap items-center gap-1">
 	<!-- Selected tags -->
-	{#each selectedTagIds.filter((id) => getTag(id)) as tagId (tagId)}
+	{#each shownTagIds.filter((id) => getTag(id)) as tagId (tagId)}
 		{@const tag = getTag(tagId)}
 		<Tag
 			label={tag?.name}
@@ -344,27 +428,43 @@
 			isShiny={isApplicationTag(tag, applicationGroup)}
 			pill={!disabled}
 			removable={!disabled && !!(onRemove || isEntityMode)}
-			onRemove={() => handleRemoveTag(tagId)}
+			onRemove={() => removeTag(tagId)}
 		/>
 	{/each}
 
 	<!-- Add button / dropdown (hide when no tags to add and creation disabled).
 	     `hideAddButton` hides only the "+" affordance — the input still renders while `open`. -->
-	{#if (onAdd || isEntityMode) && !disabled && (canCreateTags || tags.some((t) => !selectedTagIds.includes(t.id)))}
-		<div bind:this={triggerElement} class="relative flex h-5 items-center">
+	{#if (onAdd || isEntityMode) && !disabled && (canCreateTags || tags.some((t) => !shownTagIds.includes(t.id)))}
+		<div bind:this={triggerElement} class="relative flex min-h-5 items-center">
 			{#if open}
-				<!-- Input for searching/creating tags -->
-				<input
-					bind:this={inputElement}
-					bind:value={inputValue}
-					type="text"
-					placeholder={tags_addTag()}
-					class="h-5 w-24 rounded-full px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-					style="border: 1px solid var(--color-border-input); background: var(--color-bg-input); color: var(--color-text-primary)"
-					onfocus={() => (open = true)}
-					onblur={handleBlur}
-					onkeydown={handleKeydown}
-				/>
+				<!-- Input for searching/creating tags. It widens while it shows a completion, so the
+				     ghosted tag fits inside it after the typed text, as in global search. -->
+				<div class="relative">
+					<input
+						bind:this={inputElement}
+						bind:value={inputValue}
+						type="text"
+						placeholder={tags_addTag()}
+						class="h-6 rounded-full px-2 text-xs transition-[width] focus:outline-none focus:ring-1 focus:ring-blue-500 {completion
+							? 'w-56'
+							: 'w-24'}"
+						style="border: 1px solid var(--color-border-input); background: var(--color-bg-input); color: var(--color-text-primary)"
+						onfocus={() => (open = true)}
+						onblur={handleBlur}
+						onkeydown={handleKeydown}
+					/>
+					{#if completion}
+						{@const tag = completion}
+						<!-- px-[9px]: the input's px-2 plus its 1px border. -->
+						<InputGhost value={inputValue} class="px-[9px] text-xs">
+							<TagCompletionGhost
+								{tag}
+								{applicationGroup}
+								onAccept={() => handleAddTag(tag.id, true)}
+							/>
+						</InputGhost>
+					{/if}
+				</div>
 			{:else if !hideAddButton}
 				<!-- Add button -->
 				<button
@@ -403,6 +503,7 @@
 					: tags_createTagQuoted({ name: inputValue.trim() })
 				: null}
 			onCreate={handleCreateTag}
+			createOnEnter
 			creating={isCreating}
 		>
 			{#snippet row(option)}
