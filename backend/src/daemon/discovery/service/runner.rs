@@ -7,6 +7,7 @@ use crate::server::discovery::r#impl::types::DiscoveryType;
 use crate::server::hosts::r#impl::base::Host;
 use crate::server::ip_addresses::r#impl::base::IPAddress;
 use crate::server::subnets::r#impl::base::Subnet;
+use crate::server::subnets::r#impl::inference::placeable_subnet;
 use anyhow::{Error, Result};
 use futures::future::join_all;
 use std::net::{IpAddr, Ipv4Addr};
@@ -418,6 +419,21 @@ impl DiscoveryRunner {
         host_data.host.id = self.host_id;
         host_data.check_credential_free_collection();
 
+        // A bridge container's `0.0.0.0` publish is bound at its runtime host's addresses, and
+        // this pass collects the host over loopback. Add the daemon's own addresses that sit in a
+        // subnet this scan created, so the publish is bound where it answers rather than at
+        // 127.0.0.1 alone, and takes its port from Unclaimed Open Ports there (GH #784). An
+        // address outside every created subnet stays out, for the misplacement noted above.
+        let interface_filter = self.service.config_store.get_interfaces().await?;
+        let (own_addresses, _, _) = self
+            .service
+            .utils
+            .get_own_interfaces(subnet.base.site_id, &interface_filter)
+            .await?;
+        host_data
+            .ip_addresses
+            .extend(own_addresses_in_subnets(own_addresses, created_subnets));
+
         // Execute integrations — use localhost_ip since credentials are keyed to 127.0.0.1
         let execute_params = dispatch::ExecuteParams {
             ip: localhost_ip,
@@ -575,5 +591,85 @@ impl DiscoveryRunner {
         }
 
         tracing::info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+}
+
+/// The daemon's own addresses that sit in one of `subnets`, each filed under the most specific
+/// one. Loopback stays out: the localhost pass already carries 127.0.0.1.
+fn own_addresses_in_subnets(own: Vec<IPAddress>, subnets: &[Subnet]) -> Vec<IPAddress> {
+    own.into_iter()
+        .filter(|a| !a.base.ip_address.is_loopback())
+        .filter_map(|mut a| {
+            a.base.subnet_id = placeable_subnet(subnets, a.base.ip_address)?.id;
+            Some(a)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::ip_addresses::r#impl::base::IPAddressBase;
+    use crate::server::shared::attribution::AttributeSource;
+    use crate::server::shared::storage::traits::Storable;
+    use crate::server::shared::types::entities::EntitySource;
+    use crate::server::subnets::r#impl::base::{SubnetBase, SubnetCidr, SubnetCidrValue};
+    use crate::server::subnets::r#impl::types::SubnetType;
+
+    fn subnet(cidr: &str, subnet_type: SubnetType) -> Subnet {
+        Subnet::new(SubnetBase {
+            name: cidr.to_string(),
+            cidr: SubnetCidr::new(
+                SubnetCidrValue(cidr.parse().unwrap()),
+                AttributeSource::DaemonSelfReport,
+            ),
+            subnet_type,
+            source: EntitySource::Discovery,
+            ..Default::default()
+        })
+    }
+
+    fn own(ip: &str) -> IPAddress {
+        IPAddress::new(IPAddressBase {
+            ip_address: ip.parse().unwrap(),
+            subnet_id: Uuid::new_v4(),
+            ..Default::default()
+        })
+    }
+
+    /// The Mac of GH #784: a LAN, a VPN tunnel and loopback were scanned. The LAN and VPN
+    /// addresses join the socket-collected host under the subnets the scan created; loopback is
+    /// already there, and an address no created subnet holds would be misplaced.
+    #[test]
+    fn own_addresses_join_only_under_a_created_subnet() {
+        let lan = subnet("192.168.4.0/22", SubnetType::Lan);
+        let vpn = subnet("10.0.0.0/24", SubnetType::VpnTunnel);
+        let subnets = vec![
+            subnet("127.0.0.0/8", SubnetType::Loopback),
+            lan.clone(),
+            vpn.clone(),
+        ];
+
+        let added = own_addresses_in_subnets(
+            vec![
+                own("127.0.0.1"),
+                own("192.168.4.58"),
+                own("10.0.0.3"),
+                own("172.30.1.2"),
+            ],
+            &subnets,
+        );
+
+        let placed: Vec<(String, Uuid)> = added
+            .iter()
+            .map(|a| (a.base.ip_address.to_string(), a.base.subnet_id))
+            .collect();
+        assert_eq!(
+            placed,
+            vec![
+                ("192.168.4.58".to_string(), lan.id),
+                ("10.0.0.3".to_string(), vpn.id)
+            ]
+        );
     }
 }
