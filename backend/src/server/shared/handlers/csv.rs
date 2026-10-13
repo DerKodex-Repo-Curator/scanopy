@@ -24,7 +24,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use super::traits::{CrudHandlers, base_list_filter};
+use super::traits::CrudHandlers;
 
 /// Export entities to CSV format.
 ///
@@ -47,7 +47,7 @@ where
     let user_id = auth.user_id();
 
     // The list endpoint's filter, without pagination.
-    let filter = base_list_filter::<T>(&site_ids, organization_id, &query);
+    let filter = T::list_filter(&state, &query, &site_ids, organization_id).await?;
 
     let service = T::get_service(&state);
 

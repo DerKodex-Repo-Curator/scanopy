@@ -170,3 +170,56 @@ fn site_filter_cannot_widen_access_beyond_the_callers_sites() {
         "only the accessible site may survive the intersection"
     );
 }
+
+/// Every filter the hosts list documents narrows the rows, through the one filter the list and
+/// both exports build. The CSV export once applied only the access filter, so `search`, tags and
+/// every field filter were accepted and ignored there.
+#[tokio::test]
+async fn every_documented_host_filter_narrows_the_rows() {
+    use crate::server::hosts::handlers::HostFilterQuery;
+    use crate::server::shared::handlers::query::narrowing_check::assert_every_param_narrows;
+    use uuid::Uuid;
+
+    let (site, other_site, org) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let id = Uuid::new_v4().to_string();
+    let site_param = site.to_string();
+    assert_every_param_narrows(
+        |query: &HostFilterQuery| {
+            query
+                .narrow(&[site, other_site], org)
+                .expect("filter builds")
+        },
+        &[
+            ("site_ids", site_param.as_str()),
+            ("ids", id.as_str()),
+            ("virtualization_service_ids", id.as_str()),
+            ("virtualization_service_names", "Proxmox"),
+            ("include_unvirtualized", "true"),
+            ("service_names", "nginx"),
+            ("sources", "Discovery"),
+            ("manufacturers", "Cisco"),
+            ("models", "C2960X"),
+            ("sys_locations", "Lobby"),
+            ("os_families", "Linux"),
+            ("credential_ids", id.as_str()),
+            ("tag_ids", id.as_str()),
+            ("tag_sets", id.as_str()),
+            ("search", "nas"),
+            ("at", "2026-01-01T00:00:00Z"),
+        ],
+        &[
+            // Paging, ordering and response shape.
+            "limit",
+            "offset",
+            "group_by",
+            "order_by",
+            "order_direction",
+            "group_by_tag_group",
+            "order_by_tag_group",
+            "include_children",
+            // Applied after `narrow`, from each site's cutoff.
+            "stale",
+        ],
+    )
+    .await;
+}

@@ -22,7 +22,7 @@ use crate::server::shared::handlers::query::{
     FilterQueryExtractor, OrderDirection, PaginationParams, parse_tag_sets,
 };
 use crate::server::shared::handlers::traits::{
-    BulkDeleteResponse, bulk_delete_handler, delete_handler,
+    BulkDeleteResponse, CrudHandlers, bulk_delete_handler, delete_handler,
 };
 use crate::server::shared::services::{
     entity_fields::{ServiceSource, entities_csv},
@@ -265,6 +265,42 @@ pub struct HostFilterQuery {
 }
 
 impl HostFilterQuery {
+    /// Everything the Hosts list narrows by except staleness, which needs each site's cutoff:
+    /// access, the query's own fields, tags, search and the field filters.
+    pub fn narrow(
+        &self,
+        site_ids: &[Uuid],
+        organization_id: Uuid,
+    ) -> ApiResult<StorableFilter<Host>> {
+        let base_filter = StorableFilter::<Host>::new_from_site_ids(site_ids);
+        let filter = self.apply_to_filter(base_filter, site_ids, organization_id);
+
+        // SCD2 read path: live by default, or as-of the snapshot timestamp when set.
+        // Without this, close-and-clone's closed historical copies leak into the
+        // host list as empty-shell duplicates.
+        let filter = filter.live_or_as_of(self.at);
+
+        let filter = match &self.tag_ids {
+            Some(tag_ids) if !tag_ids.is_empty() => {
+                filter.has_any_tags(tag_ids, EntityDiscriminants::Host)
+            }
+            _ => filter,
+        };
+        let filter = filter.has_tags_from_each(
+            &parse_tag_sets(self.tag_sets.as_deref())?,
+            EntityDiscriminants::Host,
+        );
+
+        // Server-side because the list is paginated: a client-side search would
+        // only ever match the page already loaded.
+        let filter = match self.search.as_deref() {
+            Some(search) if !search.trim().is_empty() => filter.text_search(search),
+            _ => filter,
+        };
+
+        Ok(self.apply_field_filters(filter))
+    }
+
     /// Build the ORDER BY clause and apply any required JOINs to the filter.
     /// Returns: (modified_filter, order_by_sql)
     pub fn apply_ordering(&self, filter: StorableFilter<Host>) -> (StorableFilter<Host>, String) {
@@ -447,44 +483,7 @@ async fn get_all_hosts(
         .organization_id()
         .ok_or_else(ApiError::organization_required)?;
 
-    let base_filter = StorableFilter::<Host>::new_from_site_ids(&site_ids);
-    let filter = query.apply_to_filter(base_filter, &site_ids, organization_id);
-
-    // SCD2 read path: live by default, or as-of the snapshot timestamp when set.
-    // Without this, close-and-clone's closed historical copies leak into the
-    // host list as empty-shell duplicates.
-    let filter = filter.live_or_as_of(query.at);
-
-    // Apply tag filter if specified
-    let filter = match &query.tag_ids {
-        Some(tag_ids) if !tag_ids.is_empty() => {
-            filter.has_any_tags(tag_ids, EntityDiscriminants::Host)
-        }
-        _ => filter,
-    };
-    let filter = filter.has_tags_from_each(
-        &parse_tag_sets(query.tag_sets.as_deref())?,
-        EntityDiscriminants::Host,
-    );
-
-    // Server-side because the list is paginated: a client-side search would
-    // only ever match the page already loaded.
-    let filter = match query.search.as_deref() {
-        Some(search) if !search.trim().is_empty() => filter.text_search(search),
-        _ => filter,
-    };
-
-    let filter = query.apply_field_filters(filter);
-
-    // Staleness is per-site, so resolve each accessible site's cutoff and
-    // let the filter compare every row against its own.
-    let filter = match query.stale {
-        Some(stale) => {
-            let cutoffs = state.services.site_service.stale_cutoffs(&site_ids).await?;
-            filter.stale_by_site(&cutoffs, stale)
-        }
-        None => filter,
-    };
+    let filter = Host::list_filter(&state, &query, &site_ids, organization_id).await?;
 
     // Apply pagination
     let pagination = query.pagination();
@@ -1485,38 +1484,8 @@ async fn export_hosts_zip(
         .organization_id()
         .ok_or_else(ApiError::organization_required)?;
 
-    // Build host filter (same as CSV export)
-    let base_filter = StorableFilter::<Host>::new_from_site_ids(&site_ids);
-    let filter = query.apply_to_filter(base_filter, &site_ids, organization_id);
-
-    // SCD2 read path: live by default, or as-of the snapshot timestamp when set.
-    // Without this, close-and-clone's closed historical copies leak into the
-    // host list as empty-shell duplicates.
-    let filter = filter.live_or_as_of(query.at);
-
-    // Apply tag filter if specified
-    let filter = match &query.tag_ids {
-        Some(tag_ids) if !tag_ids.is_empty() => {
-            filter.has_any_tags(tag_ids, EntityDiscriminants::Host)
-        }
-        _ => filter,
-    };
-    let filter = filter.has_tags_from_each(
-        &parse_tag_sets(query.tag_sets.as_deref())?,
-        EntityDiscriminants::Host,
-    );
-
-    // Honour the same staleness filter as the list view so an export mirrors
-    // exactly what the user was looking at when they triggered it.
-    let filter = match query.stale {
-        Some(stale) => {
-            let cutoffs = state.services.site_service.stale_cutoffs(&site_ids).await?;
-            filter.stale_by_site(&cutoffs, stale)
-        }
-        None => filter,
-    };
-
-    let filter = query.apply_field_filters(filter);
+    // The list's own filter, so the export holds the rows the list showed.
+    let filter = Host::list_filter(&state, &query, &site_ids, organization_id).await?;
 
     // Get all hosts (no pagination for export)
     let hosts = state.services.host_service.get_all(filter).await?;

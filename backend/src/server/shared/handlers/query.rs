@@ -457,3 +457,66 @@ mod tag_sets_tests {
         assert!(parse_tag_sets(Some(&["nope".to_string()])).is_err());
     }
 }
+
+/// A check for list filter queries: every parameter a list endpoint documents must narrow the
+/// rows it returns. The query type is what both the list and its CSV export deserialize, so a
+/// documented parameter nothing applies is a filter the API advertises and silently ignores.
+#[cfg(test)]
+pub(crate) mod narrowing_check {
+    use crate::server::shared::extractors::Query;
+    use crate::server::shared::storage::filter::StorableFilter;
+    use crate::server::shared::storage::traits::Storable;
+    use axum::extract::FromRequestParts;
+    use serde::de::DeserializeOwned;
+    use std::collections::BTreeSet;
+    use utoipa::IntoParams;
+
+    async fn parse<Q: DeserializeOwned + Send + 'static>(query: &str) -> Q {
+        let request = axum::http::Request::builder()
+            .uri(format!("/list?{query}"))
+            .body(())
+            .expect("request builds");
+        let (mut parts, ()) = request.into_parts();
+        let Query(parsed) = Query::<Q>::from_request_parts(&mut parts, &())
+            .await
+            .unwrap_or_else(|_| panic!("`{query}` deserialises"));
+        parsed
+    }
+
+    /// `samples` gives each narrowing parameter a valid value; `not_narrowing` names the ones that
+    /// page, order, shape the response or are applied elsewhere. Together they must cover every
+    /// documented parameter, so a new one fails here until it is applied or explained.
+    pub async fn assert_every_param_narrows<Q, T>(
+        narrow: impl Fn(&Q) -> StorableFilter<T>,
+        samples: &[(&str, &str)],
+        not_narrowing: &[&str],
+    ) where
+        Q: DeserializeOwned + IntoParams + Send + 'static,
+        T: Storable,
+    {
+        let documented: BTreeSet<String> = Q::into_params(|| None)
+            .into_iter()
+            .map(|param| param.name)
+            .collect();
+        let covered: BTreeSet<String> = samples
+            .iter()
+            .map(|(name, _)| name.to_string())
+            .chain(not_narrowing.iter().map(|name| name.to_string()))
+            .collect();
+        assert_eq!(
+            documented, covered,
+            "every documented parameter needs a sample value or a reason it does not narrow"
+        );
+
+        let unfiltered = narrow(&parse::<Q>("").await);
+        let baseline = (unfiltered.to_where_clause(), unfiltered.values().len());
+        for (name, value) in samples {
+            let filter = narrow(&parse::<Q>(&format!("{name}={value}")).await);
+            assert_ne!(
+                (filter.to_where_clause(), filter.values().len()),
+                baseline,
+                "`{name}` is documented but does not narrow the rows"
+            );
+        }
+    }
+}
