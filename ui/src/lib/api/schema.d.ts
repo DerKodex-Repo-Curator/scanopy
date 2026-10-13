@@ -3818,19 +3818,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-13T14:16:35.518275Z",
+             *       "created_at": "2026-10-13T15:58:40.856218Z",
              *       "first_discovery_id": null,
-             *       "id": "fd95676f-3cf6-4449-97fe-411ff59ffe9b",
+             *       "id": "96312228-0297-4c06-8236-fa9840424d23",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-13T14:16:35.518275Z",
+             *       "last_seen_at": "2026-10-13T15:58:40.856218Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-13T14:16:35.518275Z",
-             *       "valid_from": "2026-10-13T14:16:35.518275Z",
+             *       "updated_at": "2026-10-13T15:58:40.856218Z",
+             *       "valid_from": "2026-10-13T15:58:40.856218Z",
              *       "valid_to": null
              *     }
              */
@@ -4228,6 +4228,8 @@ export interface components {
                 recent_discoveries: components["schemas"]["RecentDiscovery"][];
                 /** @description Per-site counts for every site the caller can see. */
                 sites: components["schemas"]["SiteSummary"][];
+                /** @description Integrations found on hosts with no credential of them, most hosts first. */
+                uncovered_integrations: components["schemas"]["UncoveredIntegration"][];
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -4701,19 +4703,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-13T14:16:35.477563Z",
+             *               "created_at": "2026-10-13T15:58:40.825063Z",
              *               "first_discovery_id": null,
-             *               "id": "4186abd7-546a-4fa0-839c-a3944ad7895d",
+             *               "id": "5455ac5c-4262-45bf-aa49-7b1d6ff44e8a",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-13T14:16:35.477563Z",
+             *               "last_seen_at": "2026-10-13T15:58:40.825063Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-13T14:16:35.477563Z",
-             *               "valid_from": "2026-10-13T14:16:35.477563Z",
+             *               "updated_at": "2026-10-13T15:58:40.825063Z",
+             *               "valid_from": "2026-10-13T15:58:40.825063Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4726,7 +4728,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Gatus",
+             *           "service_definition": "BookLore",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5710,19 +5712,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-13T14:16:35.509617Z",
+             *           "created_at": "2026-10-13T15:58:40.851039Z",
              *           "first_discovery_id": null,
-             *           "id": "fdf5e05b-82c3-424f-b79a-028e56d22a53",
+             *           "id": "199327fc-3f5a-44ac-aa1e-d2575d7a9b3e",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-13T14:16:35.509617Z",
+             *           "last_seen_at": "2026-10-13T15:58:40.851039Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-13T14:16:35.509617Z",
-             *           "valid_from": "2026-10-13T14:16:35.509617Z",
+             *           "updated_at": "2026-10-13T15:58:40.851039Z",
+             *           "valid_from": "2026-10-13T15:58:40.851039Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5735,7 +5737,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Gatus",
+             *       "service_definition": "BookLore",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -7087,19 +7089,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-13T14:16:35.478247Z",
+         *       "created_at": "2026-10-13T15:58:40.825812Z",
          *       "first_discovery_id": null,
-         *       "id": "279ee951-0a7f-48d1-a031-b84a828926e2",
+         *       "id": "619ee918-fca8-4b36-b0aa-9991a7a736b7",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-13T14:16:35.478247Z",
+         *       "last_seen_at": "2026-10-13T15:58:40.825812Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-13T14:16:35.478247Z",
-         *       "valid_from": "2026-10-13T14:16:35.478247Z",
+         *       "updated_at": "2026-10-13T15:58:40.825812Z",
+         *       "valid_from": "2026-10-13T15:58:40.825812Z",
          *       "valid_to": null
          *     }
          */
@@ -7445,7 +7447,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Gatus",
+         *           "service_definition": "BookLore",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -8289,6 +8291,8 @@ export interface components {
             recent_discoveries: components["schemas"]["RecentDiscovery"][];
             /** @description Per-site counts for every site the caller can see. */
             sites: components["schemas"]["SiteSummary"][];
+            /** @description Integrations found on hosts with no credential of them, most hosts first. */
+            uncovered_integrations: components["schemas"]["UncoveredIntegration"][];
         };
         /** @enum {string} */
         DateOrder: "browser_default" | "iso" | "day_first" | "month_first";
@@ -9035,6 +9039,16 @@ export interface components {
             /** @enum {string} */
             code: "CredentialTimedOut";
         }) | {
+            /** @enum {string} */
+            code: "IntegrationWithoutCredential";
+            /**
+             * Format: uuid
+             * @description The host running the service. `None` once the host is deleted.
+             */
+            host_id: string | null;
+            /** @description The integration that would read it. */
+            integration: components["schemas"]["CredentialIntegration"];
+        } | {
             /** @description The subnet the addresses are in. */
             cidr: string;
             /** @enum {string} */
@@ -10221,19 +10235,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-13T14:16:35.476878Z",
+         *               "created_at": "2026-10-13T15:58:40.824135Z",
          *               "first_discovery_id": null,
-         *               "id": "567d4aa9-89fa-4e4e-8022-35da7c643070",
+         *               "id": "51490215-91ce-4a01-8ed4-3cf0fd641783",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-13T14:16:35.476878Z",
+         *               "last_seen_at": "2026-10-13T15:58:40.824135Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-13T14:16:35.476878Z",
-         *               "valid_from": "2026-10-13T14:16:35.476878Z",
+         *               "updated_at": "2026-10-13T15:58:40.824135Z",
+         *               "valid_from": "2026-10-13T15:58:40.824135Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10246,7 +10260,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Gatus",
+         *           "service_definition": "BookLore",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -13606,19 +13620,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-13T14:16:35.478024Z",
+         *           "created_at": "2026-10-13T15:58:40.825572Z",
          *           "first_discovery_id": null,
-         *           "id": "7126dd83-54c0-4ac1-a4ef-c091b7563c1a",
+         *           "id": "01645459-43b1-4689-8828-ad3db8836349",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-13T14:16:35.478024Z",
+         *           "last_seen_at": "2026-10-13T15:58:40.825572Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-13T14:16:35.478024Z",
-         *           "valid_from": "2026-10-13T14:16:35.478024Z",
+         *           "updated_at": "2026-10-13T15:58:40.825572Z",
+         *           "valid_from": "2026-10-13T15:58:40.825572Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13631,7 +13645,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Gatus",
+         *       "service_definition": "BookLore",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -14710,7 +14724,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "856b6fc3-6ff9-4e36-a415-89c8cfba6e6b",
+             *           "id": "2b7e2392-8b20-4568-b09c-23029a33a9c9",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14720,23 +14734,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "712db1ff-5f59-41d9-9b96-fac581b28654",
+             *           "id": "30788c1c-d6fb-4dfb-be7c-9717c2bcd57d",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "2674f361-2fc5-4bf5-b313-59f2f26dd21e",
+             *           "id": "b20a3e32-538a-4ea9-80e6-8c1c4d5be8cf",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "eb0a26d2-7c9c-4466-9f9f-86ff62b23cd9",
+             *           "id": "8d8dc216-8e36-44fb-9a33-d7ef45cc042c",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "712db1ff-5f59-41d9-9b96-fac581b28654",
+             *           "id": "30788c1c-d6fb-4dfb-be7c-9717c2bcd57d",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14750,19 +14764,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "f94b1ba2-0f93-4bcc-9560-02a331bc7b4b",
+             *         "id": "e1682fd9-d5b2-45c7-98d2-7daea8586129",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "f3aadfb5-7141-4876-911d-2aa348e6d302",
+             *         "id": "1c2b1f89-581a-4ec0-9dee-cce26bdc21d5",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "0aa90da3-c3b4-4620-a696-9502434da364",
+             *         "id": "2f48d3d6-92ed-453f-bec9-d7a8ab489bf4",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "7938db3b-34e1-4bcd-9ab8-7563a2bcccb2",
+             *         "id": "12531034-952b-455c-87b2-b6ae62d821da",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14783,7 +14797,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "ac1f870a-00e4-40d1-8f9c-a7210b843fec",
+             *         "id": "ece9dc83-969e-4e61-8857-9405e66632ac",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14792,15 +14806,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "8ed6bb99-6db4-4085-9284-49cc04c21266",
+             *         "id": "f7a304c0-5b35-4108-94ec-b170384163c4",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "44c59f96-a1f7-4402-a553-a660503d08b8",
+             *         "id": "dd6eb354-bfff-4eaf-a599-f85dd7c18607",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "07980e36-381e-4c01-954a-4ac3995f24e9",
+             *         "id": "4cd3002a-3fda-4c42-80c8-bf7b87fc4e1e",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -14905,6 +14919,13 @@ export interface components {
         TransportProtocol: "Udp" | "Tcp";
         /** @description No payload. Present only so the envelope keeps its shape. */
         TupleUnit: Record<string, never>;
+        /** @description An integration the latest scans found on hosts with no credential of it, still uncovered now. */
+        UncoveredIntegration: {
+            /** @description The hosts running its service, which the create flow pre-assigns. */
+            host_ids: string[];
+            /** @description The integration a credential would add. */
+            integration: components["schemas"]["CredentialIntegration"];
+        };
         /** @description A neighbour advertised by a local interface whose far end could not be placed on a host. */
         UnmatchedNeighbour: {
             /**

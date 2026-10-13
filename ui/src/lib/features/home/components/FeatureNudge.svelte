@@ -14,7 +14,8 @@
 		onDismiss,
 		iconColor,
 		Icon,
-		dismissable = true
+		dismissable = true,
+		dismissOnAction = true
 	}: {
 		id: string;
 		title: string;
@@ -23,6 +24,9 @@
 		onAction: () => void;
 		onDismiss?: () => void;
 		dismissable?: boolean;
+		/** Whether acting on the nudge also dismisses it. Off for a nudge that clears on its own
+		 *  once the action is done, so backing out of the action leaves it in place. */
+		dismissOnAction?: boolean;
 		Icon: IconComponent;
 		iconColor: string;
 	} = $props();
@@ -43,7 +47,7 @@
 
 	function handleAction() {
 		trackEvent('nudge_action_clicked', { nudge_id: id });
-		dismiss();
+		if (dismissOnAction) dismiss();
 		onAction();
 	}
 </script>

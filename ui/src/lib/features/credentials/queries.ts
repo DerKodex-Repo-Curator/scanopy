@@ -23,6 +23,8 @@ import type { Credential } from './types/base';
 function invalidateAssignmentTargets(queryClient: QueryClient): void {
 	queryClient.invalidateQueries({ queryKey: queryKeys.sites.all });
 	queryClient.invalidateQueries({ queryKey: queryKeys.hosts.all });
+	// Home's integration nudges re-check coverage against current assignments.
+	queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
 }
 
 /**

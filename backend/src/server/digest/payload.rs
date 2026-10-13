@@ -7,6 +7,7 @@ use strum::{AsRefStr, EnumIter};
 use strum_macros::EnumDiscriminants;
 use uuid::Uuid;
 
+use crate::server::credentials::r#impl::types::CredentialIntegration;
 use crate::server::shared::events::traits::{
     EventFilter, EventScope, Operation, ScopeOrganization,
 };
@@ -162,13 +163,25 @@ pub struct WarningCounts {
     pub check_device: u32,
     /// `ClearsOnTheNextScan` and `NothingToDo`.
     pub no_action: u32,
+    /// Integrations found with no credential, counted once per integration however many hosts
+    /// run it, so forty SNMP devices are one thing to fix.
+    #[serde(default)]
+    pub add_credentials: u32,
 }
 
 impl WarningCounts {
     /// Warnings the reader can resolve.
     pub fn actionable(&self) -> u32 {
-        self.fix_credentials + self.fix_other + self.check_device
+        self.fix_credentials + self.fix_other + self.check_device + self.add_credentials
     }
+}
+
+/// An integration the run found on hosts no credential of it covers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IntegrationWithoutCredential {
+    pub integration: CredentialIntegration,
+    /// The hosts it was found on, which the email's link pre-assigns the new credential to.
+    pub host_ids: Vec<Uuid>,
 }
 
 /// A credential the run raised a warning about. Name and type only: never an address, a
@@ -223,6 +236,9 @@ pub struct DiscoveryDigestPayload {
     /// The ones with warnings, in the order the run's Credentials tab lists them.
     #[serde(default)]
     pub credential_problems: Vec<CredentialProblem>,
+    /// Integrations found with no credential, one entry per integration.
+    #[serde(default)]
+    pub integrations_without_credentials: Vec<IntegrationWithoutCredential>,
 }
 
 impl DiscoveryDigestPayload {

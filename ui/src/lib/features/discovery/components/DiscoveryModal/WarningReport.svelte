@@ -39,12 +39,15 @@
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
 	import { closeModal, navigateToEntity, openModal } from '$lib/shared/stores/modal-registry';
-	import { entities } from '$lib/shared/stores/metadata';
+	import { credentialIntegrations, entities } from '$lib/shared/stores/metadata';
+	import { openCredentialCreate } from '$lib/features/credentials/utils/prefill';
+	import type { components } from '$lib/api/schema';
 	import { createColorHelper, createIconComponent } from '$lib/shared/utils/styling';
 	import type { IconComponent } from '$lib/shared/utils/types';
 	import {
 		common_credentials,
 		common_warnings,
+		credentials_addIntegrationCredential,
 		daemons_upgradeDaemon,
 		discovery_noWarnings,
 		discovery_noWarningsBeforeStop,
@@ -68,6 +71,8 @@
 	}
 
 	let { payload }: Props = $props();
+
+	type CredentialIntegration = components['schemas']['CredentialIntegration'];
 
 	// Credential warnings are shown with their credential on the Credentials tab, whose title counts
 	// them; this tab keeps the scan's own.
@@ -171,7 +176,7 @@
 	/**
 	 * Where a row hands off to, when Scanopy owns the fix.
 	 *
-	 * Only four destinations are real, and a row without one renders no button rather than a dead
+	 * Only five destinations are real, and a row without one renders no button rather than a dead
 	 * one. The credential family is recognised by the `integration` field on the payload rather
 	 * than by a list of code names here — those eleven variants are exactly the ones that carry it,
 	 * so the set cannot drift out of step with the backend.
@@ -211,6 +216,28 @@
 					if (subnetIds.length === 1) openModal('provisional-range', { id: subnetIds[0] });
 					else closeModal();
 				}
+			};
+		}
+
+		if (entry.code === 'IntegrationWithoutCredential') {
+			// A row can hold several integrations. The button names and opens the one found on the
+			// most hosts; the others stay on home until each has a credential.
+			const hostsBy = new Map<CredentialIntegration, string[]>();
+			for (const w of entry.warnings) {
+				if (w.code !== 'IntegrationWithoutCredential') continue;
+				const hosts = hostsBy.get(w.integration) ?? [];
+				if (w.host_id) hosts.push(w.host_id);
+				hostsBy.set(w.integration, hosts);
+			}
+			const top = [...hostsBy].sort(([, a], [, b]) => b.length - a.length)[0];
+			if (!top) return null;
+			const [integration, hostIds] = top;
+			return {
+				label: credentials_addIntegrationCredential({
+					integration: credentialIntegrations.getName(integration)
+				}),
+				icon: credentialIntegrations.getIconComponent(integration),
+				run: () => openCredentialCreate(integration, hostIds)
 			};
 		}
 

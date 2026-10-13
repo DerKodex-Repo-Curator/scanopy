@@ -952,6 +952,7 @@ mod tests {
                 fix_other: 1,
                 check_device: 0,
                 no_action: 3,
+                add_credentials: 1,
             },
             credentials_used: 4,
             credential_problems: vec![crate::server::digest::payload::CredentialProblem {
@@ -960,6 +961,13 @@ mod tests {
                 hosts_reached: 0,
                 warnings: 2,
             }],
+            integrations_without_credentials: vec![
+                crate::server::digest::payload::IntegrationWithoutCredential {
+                    integration:
+                        crate::server::credentials::r#impl::types::CredentialIntegration::Proxmox,
+                    host_ids: vec![Uuid::nil(), Uuid::nil()],
+                },
+            ],
         };
         f(
             "discovery_digest",

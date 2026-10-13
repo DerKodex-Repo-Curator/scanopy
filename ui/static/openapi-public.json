@@ -14970,19 +14970,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-13T14:16:35.670437Z",
+              "created_at": "2026-10-13T15:58:40.925646Z",
               "first_discovery_id": null,
-              "id": "08c06ba2-1cc8-481a-9d01-9bb6eeeca3bc",
+              "id": "f371c55f-febc-4a60-8662-66e5285f1bfe",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-13T14:16:35.670437Z",
+              "last_seen_at": "2026-10-13T15:58:40.925646Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-13T14:16:35.670437Z",
-              "valid_from": "2026-10-13T14:16:35.670437Z",
+              "updated_at": "2026-10-13T15:58:40.925646Z",
+              "valid_from": "2026-10-13T15:58:40.925646Z",
               "valid_to": null
             }
           },
@@ -15594,7 +15594,8 @@
               "sites",
               "daemons",
               "recent_discoveries",
-              "plan_usage"
+              "plan_usage",
+              "uncovered_integrations"
             ],
             "properties": {
               "daemons": {
@@ -15621,6 +15622,13 @@
                   "$ref": "#/components/schemas/SiteSummary"
                 },
                 "description": "Per-site counts for every site the caller can see."
+              },
+              "uncovered_integrations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UncoveredIntegration"
+                },
+                "description": "Integrations found on hosts with no credential of them, most hosts first."
               }
             }
           },
@@ -16717,19 +16725,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-13T14:16:35.607075Z",
+                      "created_at": "2026-10-13T15:58:40.903663Z",
                       "first_discovery_id": null,
-                      "id": "6143dc4a-2ae0-4ab9-bcde-c16f8728b4c1",
+                      "id": "27da2980-d4a9-4919-8949-e4dfa3adea6e",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-13T14:16:35.607075Z",
+                      "last_seen_at": "2026-10-13T15:58:40.903663Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-13T14:16:35.607075Z",
-                      "valid_from": "2026-10-13T14:16:35.607075Z",
+                      "updated_at": "2026-10-13T15:58:40.903663Z",
+                      "valid_from": "2026-10-13T15:58:40.903663Z",
                       "valid_to": null
                     }
                   ],
@@ -16742,7 +16750,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Gatus",
+                  "service_definition": "BookLore",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -18209,19 +18217,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-13T14:16:35.658309Z",
+                  "created_at": "2026-10-13T15:58:40.921124Z",
                   "first_discovery_id": null,
-                  "id": "961472ad-7d18-4cd4-a5f1-8d53c125e403",
+                  "id": "ba5c4e9e-9d1c-44d3-abb7-e99338c940cf",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-13T14:16:35.658309Z",
+                  "last_seen_at": "2026-10-13T15:58:40.921124Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-13T14:16:35.658309Z",
-                  "valid_from": "2026-10-13T14:16:35.658309Z",
+                  "updated_at": "2026-10-13T15:58:40.921124Z",
+                  "valid_from": "2026-10-13T15:58:40.921124Z",
                   "valid_to": null
                 }
               ],
@@ -18234,7 +18242,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Gatus",
+              "service_definition": "BookLore",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -21211,19 +21219,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-13T14:16:35.608213Z",
+          "created_at": "2026-10-13T15:58:40.904147Z",
           "first_discovery_id": null,
-          "id": "b836bb3d-1b16-42ce-9589-fd466f4158a5",
+          "id": "84648b05-9ca5-4302-a272-c1778ec9ea6a",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-13T14:16:35.608213Z",
+          "last_seen_at": "2026-10-13T15:58:40.904147Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-13T14:16:35.608213Z",
-          "valid_from": "2026-10-13T14:16:35.608213Z",
+          "updated_at": "2026-10-13T15:58:40.904147Z",
+          "valid_from": "2026-10-13T15:58:40.904147Z",
           "valid_to": null
         }
       },
@@ -21984,7 +21992,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Gatus",
+              "service_definition": "BookLore",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -23753,7 +23761,8 @@
           "sites",
           "daemons",
           "recent_discoveries",
-          "plan_usage"
+          "plan_usage",
+          "uncovered_integrations"
         ],
         "properties": {
           "daemons": {
@@ -23780,6 +23789,13 @@
               "$ref": "#/components/schemas/SiteSummary"
             },
             "description": "Per-site counts for every site the caller can see."
+          },
+          "uncovered_integrations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UncoveredIntegration"
+            },
+            "description": "Integrations found on hosts with no credential of them, most hosts first."
           }
         }
       },
@@ -25743,6 +25759,36 @@
               }
             ],
             "description": "The attempt timed out before anything answered."
+          },
+          {
+            "type": "object",
+            "title": "IntegrationWithoutCredential",
+            "description": "The scan found a service an integration reads, on a host no credential of that integration\nis assigned to. Raised by the server at the end of a run, never a daemon: coverage is a\nfact about stored assignments, which the daemon does not hold. One per host and\nintegration; the UI groups them.",
+            "required": [
+              "host_id",
+              "integration",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "IntegrationWithoutCredential"
+                ]
+              },
+              "host_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid",
+                "description": "The host running the service. `None` once the host is deleted."
+              },
+              "integration": {
+                "$ref": "#/components/schemas/CredentialIntegration",
+                "description": "The integration that would read it."
+              }
+            }
           },
           {
             "type": "object",
@@ -29009,19 +29055,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-13T14:16:35.605502Z",
+                  "created_at": "2026-10-13T15:58:40.903090Z",
                   "first_discovery_id": null,
-                  "id": "e3f50e7c-f7dc-430c-8a95-3528a98ef2e0",
+                  "id": "3769690e-b68d-4fab-bad0-eb0c8bb068fe",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-13T14:16:35.605502Z",
+                  "last_seen_at": "2026-10-13T15:58:40.903090Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-13T14:16:35.605502Z",
-                  "valid_from": "2026-10-13T14:16:35.605502Z",
+                  "updated_at": "2026-10-13T15:58:40.903090Z",
+                  "valid_from": "2026-10-13T15:58:40.903090Z",
                   "valid_to": null
                 }
               ],
@@ -29034,7 +29080,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Gatus",
+              "service_definition": "BookLore",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -33091,19 +33137,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-13T14:16:35.584865Z",
+                        "created_at": "2026-10-13T15:58:40.894939Z",
                         "first_discovery_id": null,
-                        "id": "9efa7b5b-339a-4ab5-984b-93b48da8dade",
+                        "id": "a4fcf9f5-6083-4ccb-8586-6ffd43bd5e47",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-13T14:16:35.584865Z",
+                        "last_seen_at": "2026-10-13T15:58:40.894939Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-13T14:16:35.584865Z",
-                        "valid_from": "2026-10-13T14:16:35.584865Z",
+                        "updated_at": "2026-10-13T15:58:40.894939Z",
+                        "valid_from": "2026-10-13T15:58:40.894939Z",
                         "valid_to": null
                       }
                     ],
@@ -33116,7 +33162,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Gatus",
+                    "service_definition": "BookLore",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -33265,19 +33311,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-13T14:16:35.657367Z",
+                    "created_at": "2026-10-13T15:58:40.920451Z",
                     "first_discovery_id": null,
-                    "id": "c489a9db-2790-4a49-8786-310f820d98c7",
+                    "id": "ccef1878-003d-47ea-8174-8581df979b6f",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-13T14:16:35.657367Z",
+                    "last_seen_at": "2026-10-13T15:58:40.920451Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-13T14:16:35.657367Z",
-                    "valid_from": "2026-10-13T14:16:35.657367Z",
+                    "updated_at": "2026-10-13T15:58:40.920451Z",
+                    "valid_from": "2026-10-13T15:58:40.920451Z",
                     "valid_to": null
                   }
                 ],
@@ -33290,7 +33336,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Gatus",
+                "service_definition": "BookLore",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -35905,19 +35951,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-13T14:16:35.607843Z",
+              "created_at": "2026-10-13T15:58:40.903994Z",
               "first_discovery_id": null,
-              "id": "97d755f0-b760-4eef-a10a-aee6c0ac1935",
+              "id": "d23363c3-a063-49ed-b0f2-b6e6a328ac89",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-13T14:16:35.607843Z",
+              "last_seen_at": "2026-10-13T15:58:40.903994Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-13T14:16:35.607843Z",
-              "valid_from": "2026-10-13T14:16:35.607843Z",
+              "updated_at": "2026-10-13T15:58:40.903994Z",
+              "valid_from": "2026-10-13T15:58:40.903994Z",
               "valid_to": null
             }
           ],
@@ -35930,7 +35976,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Gatus",
+          "service_definition": "BookLore",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -38041,7 +38087,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "6800dd57-1f44-4cdc-8d42-19edeba9522c",
+                  "id": "faf853d6-b9d6-45c9-9505-c43316c050a6",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -38051,23 +38097,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "fe1e15bd-3cea-4aea-8ef2-343c43921f09",
+                  "id": "5fa03d77-3e51-4834-875b-fcd47a358c97",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "ad62cad5-fa0b-410a-a2cc-fff5da08cdc7",
+                  "id": "3c5d2deb-95e2-45e8-8a3a-6a0edeab90f1",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "7980381f-d89f-47e3-a130-161d65c8931d",
+                  "id": "8b22095c-eab8-4d4f-b482-542a154e4e69",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "fe1e15bd-3cea-4aea-8ef2-343c43921f09",
+                  "id": "5fa03d77-3e51-4834-875b-fcd47a358c97",
                   "rule": "ByHost"
                 }
               ]
@@ -38097,19 +38143,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "cf0cbe69-aae3-424a-b527-06eb40526a9b",
+                "id": "10434f36-d312-4912-ac64-4695a93aa23f",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "497032bd-eecc-44f6-a066-f6be0bd99a52",
+                "id": "4759c457-5d0d-48db-813e-c0c5b00d246d",
                 "rule": "ByVLAN"
               },
               {
-                "id": "8519214f-6e05-4ac2-8a91-d10e83f74d72",
+                "id": "1512a771-4a76-499c-9408-077bac859e76",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "330b9cd1-b819-4f5b-89f1-f14f710649e5",
+                "id": "a7520967-15f8-401d-8390-e6b6c39fec58",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -38130,7 +38176,7 @@
                 }
               },
               {
-                "id": "5890e732-1114-492d-9e6a-c68f78ff221a",
+                "id": "2ff83416-f2db-4970-bef9-78666f65b012",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -38139,15 +38185,15 @@
                 }
               },
               {
-                "id": "ed7c7625-552b-41fc-969a-ffc1513e9675",
+                "id": "a860f983-9547-4905-8905-592e0035eec1",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "8418cb72-4c90-4ef9-acac-0b0228b42917",
+                "id": "53c90325-e4b0-457b-a4b4-499d2feb8ad7",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "390ebbeb-50a7-4f99-8cd4-bce3077e772f",
+                "id": "391050d5-61f7-4bce-88e9-14ada5503635",
                 "rule": "ByStack"
               }
             ]
@@ -38390,6 +38436,28 @@
       "TupleUnit": {
         "type": "object",
         "description": "No payload. Present only so the envelope keeps its shape."
+      },
+      "UncoveredIntegration": {
+        "type": "object",
+        "description": "An integration the latest scans found on hosts with no credential of it, still uncovered now.",
+        "required": [
+          "integration",
+          "host_ids"
+        ],
+        "properties": {
+          "host_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The hosts running its service, which the create flow pre-assigns."
+          },
+          "integration": {
+            "$ref": "#/components/schemas/CredentialIntegration",
+            "description": "The integration a credential would add."
+          }
+        }
       },
       "UnmatchedNeighbour": {
         "type": "object",

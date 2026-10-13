@@ -5,8 +5,10 @@ use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscrimin
 use crate::server::credentials::r#impl::run_results::{
     CredentialRunOutcome, CredentialRunResult, WakeOnLanResult,
 };
-use crate::server::credentials::r#impl::types::CredentialTypeDiscriminants;
 use crate::server::credentials::r#impl::types::ssh_script::{SshScriptOutcome, SshScriptRun};
+use crate::server::credentials::r#impl::types::{
+    CredentialIntegration, CredentialTypeDiscriminants,
+};
 
 // ============================================================================
 // Discoveries
@@ -16,7 +18,7 @@ pub(super) fn generate_discoveries(
     sites: &[Site],
     subnets: &[Subnet],
     daemons: &[Daemon],
-    _hosts: &[&Host],
+    hosts: &[&Host],
     credentials: &[Credential],
     now: DateTime<Utc>,
 ) -> Vec<Discovery> {
@@ -281,10 +283,76 @@ pub(super) fn generate_discoveries(
                 site_id: dc.id,
                 tags: vec![],
             },
-            scan_count: 0,
+            // The historical run below completed.
+            scan_count: 1,
             force_full_scan: false,
             next_run_is_full_scan: false,
             integration_targets: snmp_and_docker_targets(),
+        });
+
+        // Historical — the run 3 days ago. It found Proxmox VE on dc-proxmox-hv01, which has no
+        // Proxmox credential (HQ's hypervisors do), so the report and home prompt for one.
+        let three_days_ago = now - Duration::days(3);
+        let dc_unified = unified(daemon, Some(find_subnets_for_site(dc.id)));
+        let find_cred_id =
+            |name: &str| credentials.iter().find(|c| c.base.name == name).unwrap().id;
+        let dc_proxmox_host_id = hosts
+            .iter()
+            .find(|h| h.base.name.value().as_str() == "dc-proxmox-hv01")
+            .map(|h| h.id);
+        discoveries.push(Discovery {
+            id: Uuid::new_v4(),
+            created_at: three_days_ago,
+            updated_at: three_days_ago,
+            base: DiscoveryBase {
+                discovery_type: dc_unified.clone(),
+                run_type: RunType::Historical {
+                    results: Box::new(DiscoveryUpdatePayload {
+                        session_id: Uuid::new_v4(),
+                        daemon_id: daemon.id,
+                        site_id: dc.id,
+                        phase: DiscoveryPhase::Complete,
+                        discovery_type: dc_unified,
+                        progress: 100,
+                        error: None,
+                        warnings: dc_proxmox_host_id
+                            .map(|host_id| DiscoveryWarning::IntegrationWithoutCredential {
+                                host_id: Some(host_id),
+                                integration: CredentialIntegration::Proxmox,
+                            })
+                            .into_iter()
+                            .collect(),
+                        // SNMPv3 read the firewall and the switch, and gNMI the switch.
+                        credential_results: vec![
+                            CredentialRunResult {
+                                credential_id: find_cred_id("Data Center SNMPv3"),
+                                outcome: CredentialRunOutcome::Collected { hosts: 2 },
+                            },
+                            CredentialRunResult {
+                                credential_id: find_cred_id("Arista gNMI"),
+                                outcome: CredentialRunOutcome::Collected { hosts: 1 },
+                            },
+                        ],
+                        started_at: Some(three_days_ago),
+                        finished_at: Some(three_days_ago + Duration::minutes(12)),
+                        hosts_discovered: None,
+                        estimated_remaining_secs: None,
+                        discovery_id: None,
+                        scanned: None,
+                        reason: Some(DiscoveryTerminalReason::Completed),
+                        last_update_at: Some(three_days_ago + Duration::minutes(12)),
+                        daemon_version: daemon.base.version.as_ref().map(|v| v.to_string()),
+                    }),
+                },
+                name: "Discovery".to_string(),
+                daemon_id: daemon.id,
+                site_id: dc.id,
+                tags: vec![],
+            },
+            scan_count: 0,
+            force_full_scan: false,
+            next_run_is_full_scan: false,
+            integration_targets: snmp_network_targets(),
         });
     }
 

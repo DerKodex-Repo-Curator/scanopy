@@ -12,6 +12,7 @@
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { pushError, pushWarning } from '$lib/shared/stores/feedback';
 	import { pruneAssignmentsForTargets } from '../utils/credentialTargets';
+	import { typesForIntegration } from '../utils/prefill';
 	import CredentialForm from './CredentialForm.svelte';
 	import CredentialAssignmentsSection from './CredentialAssignmentsSection.svelte';
 	import { submitForm, validateForm } from '$lib/shared/components/forms/form-context';
@@ -46,7 +47,9 @@
 		onUpdate,
 		onClose,
 		onDelete = null,
-		name = undefined
+		name = undefined,
+		initialIntegration = null,
+		initialHostIds = []
 	}: {
 		credential?: Credential | null;
 		isOpen?: boolean;
@@ -55,7 +58,20 @@
 		onClose: () => void;
 		onDelete?: ((id: string) => Promise<void> | void) | null;
 		name?: string;
+		/** Create mode only: open for this integration, its type picker limited to its transports. */
+		initialIntegration?: string | null;
+		/** Create mode only: hosts the new credential starts assigned to. */
+		initialHostIds?: string[];
 	} = $props();
+
+	// The transports a pre-filled create flow offers, falling back to all of the integration's when
+	// none can be assigned to a host.
+	let typeChoices = $derived.by(() => {
+		if (isEditing || !initialIntegration) return undefined;
+		const types = credentialTypes.getItems() ?? [];
+		const forHosts = typesForIntegration(types, initialIntegration, initialHostIds.length > 0);
+		return forHosts.length ? forHosts : typesForIntegration(types, initialIntegration, false);
+	});
 
 	const organizationQuery = useOrganizationQuery();
 	let organization = $derived(organizationQuery.data);
@@ -207,8 +223,10 @@
 		activeTab = 'details';
 		furthestReached = 0;
 		assignedSiteIds = credential?.assigned_site_ids ?? [];
-		hostAssignments = credential?.host_assignments ?? [];
-		selectedTypeId = credential ? getCredentialTypeId(credential) : 'SnmpV2c';
+		hostAssignments =
+			credential?.host_assignments ??
+			initialHostIds.map((host_id) => ({ host_id, ip_address_ids: null }));
+		selectedTypeId = credential ? getCredentialTypeId(credential) : (typeChoices?.[0] ?? 'SnmpV2c');
 		form.reset(getDefaultValues());
 		credentialFormRef?.reset();
 	}
@@ -272,6 +290,7 @@
 				bind:this={credentialFormRef}
 				{form}
 				{credential}
+				{typeChoices}
 				onTypeChange={handleTypeChange}
 				section={activeTab === 'credential' ? 'fields' : 'identity'}
 				onSubmitRequest={handlePrimary}

@@ -5,15 +5,15 @@ use crate::daemon::discovery::types::warnings::WarningRemedy;
 use crate::server::{
     digest::payload::{
         AffectedHostCard, CredentialProblem, DiscoveryDigestPayload, EntityFreshness,
-        InterfaceSummary, IpAddressSummary, PortSummary, ServiceSummary, SubnetSummary,
-        VlanSummary,
+        IntegrationWithoutCredential, InterfaceSummary, IpAddressSummary, PortSummary,
+        ServiceSummary, SubnetSummary, VlanSummary,
     },
     shared::{
         concepts::Concept,
         entities::EntityDiscriminants,
         types::{
             Color,
-            metadata::{EntityMetadataProvider, TypeMetadataProvider},
+            metadata::{EntityMetadataProvider, HasId, TypeMetadataProvider},
         },
     },
 };
@@ -214,14 +214,20 @@ fn render_attention_section(payload: &DiscoveryDigestPayload, run: &RunLinks) ->
     };
 
     let mut groups = String::new();
-    let fix = counts.fix_credentials + counts.fix_other;
+    let fix = counts.fix_credentials + counts.fix_other + counts.add_credentials;
     if fix > 0 {
+        // First: each is one click from done, and the link opens the create flow pre-filled.
         let mut body: String = payload
+            .integrations_without_credentials
+            .iter()
+            .map(|e| line(&integration_without_credential_line(e, run)))
+            .collect();
+        body += &payload
             .credential_problems
             .iter()
             .take(MAX_CREDENTIAL_PROBLEMS_INLINE)
             .map(|p| line(&credential_problem_line(p)))
-            .collect();
+            .collect::<String>();
         let more = payload
             .credential_problems
             .len()
@@ -250,7 +256,7 @@ fn render_attention_section(payload: &DiscoveryDigestPayload, run: &RunLinks) ->
 
     // Every actionable warning is about a credential: open where the run lists them by
     // credential. Otherwise the scan's own tab.
-    let tab = if counts.fix_other == 0 && counts.check_device == 0 {
+    let tab = if counts.fix_other == 0 && counts.check_device == 0 && counts.add_credentials == 0 {
         "credentials"
     } else {
         "scan"
@@ -265,6 +271,34 @@ fn render_attention_section(payload: &DiscoveryDigestPayload, run: &RunLinks) ->
     format!(
         r#"<div style="margin: 0 0 20px 0; padding: 14px 16px; background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;"><div style="font-size: 15px; font-weight: 600; color: #1a1a1a; margin: 0 0 10px 0;">This scan raised {raised} you can resolve.</div>{groups}{button}</div>"#,
         raised = plural(actionable, "warning", "warnings"),
+    )
+}
+
+/// "Proxmox VE runs on 3 hosts with no credential. Add one", the link opening the credential
+/// create flow with the integration chosen and those hosts assigned. The same URL the app's own
+/// prompts open, so every surface lands in the same flow.
+fn integration_without_credential_line(e: &IntegrationWithoutCredential, run: &RunLinks) -> String {
+    let name = e.integration.name();
+    let text = format!(
+        "<strong>{}</strong> runs on {} with no credential.",
+        html_escape(name),
+        plural(e.host_ids.len() as u32, "host", "hosts"),
+    );
+    let hosts = e
+        .host_ids
+        .iter()
+        .map(Uuid::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let href = run.email.with_utm(&format!(
+        "{}/?modal=credential-editor&integration={}&hosts={hosts}#credentials",
+        run.base,
+        e.integration.id(),
+    ));
+    format!(
+        r#"{text} <a href="{href}" style="color: #2563eb;">Add a {name} credential</a>"#,
+        href = html_escape(&href),
+        name = html_escape(name),
     )
 }
 
@@ -816,6 +850,7 @@ mod tests {
             warnings: WarningCounts::default(),
             credentials_used: 0,
             credential_problems: vec![],
+            integrations_without_credentials: vec![],
         }
     }
 

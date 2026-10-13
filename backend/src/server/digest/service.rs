@@ -152,6 +152,7 @@ impl DiscoveryDigestService {
         digest.warnings = report.warnings;
         digest.credentials_used = report.credentials_used;
         digest.credential_problems = report.credential_problems;
+        digest.integrations_without_credentials = report.integrations_without_credentials;
 
         let scope = DiscoveryDigestScope {
             organization_id: site.base.organization_id,
@@ -393,6 +394,7 @@ impl DiscoveryDigestService {
             warnings: Default::default(),
             credentials_used: 0,
             credential_problems: Vec::new(),
+            integrations_without_credentials: Vec::new(),
         })
     }
 

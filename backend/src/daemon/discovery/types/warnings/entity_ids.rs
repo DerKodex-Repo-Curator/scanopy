@@ -40,6 +40,8 @@ impl DiscoveryWarning {
             | Self::CredentialUnreachable(a)
             | Self::CredentialTimedOut(a) => slots.credential_id = Some(&mut a.credential_id),
 
+            Self::IntegrationWithoutCredential { host_id, .. } => slots.host_id = Some(host_id),
+
             Self::LldpNeighbourNotFound(n) | Self::LldpNeighbourAmbiguous(n) => {
                 slots.host_id = Some(&mut n.host_id);
             }
