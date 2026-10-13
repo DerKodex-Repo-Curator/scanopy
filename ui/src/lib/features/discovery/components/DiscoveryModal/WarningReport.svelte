@@ -365,45 +365,38 @@
 						{@const colors = createColorHelper(entry.color)}
 						{@const action = actionFor(entry)}
 						{@const isOpen = openRows.has(entry.key)}
-						<li>
+						<!--
+							Two columns: everything the row says on the left, its one action on the
+							right. Chips and the explanation wrap inside the left column, so a row
+							naming forty devices or carrying a long sentence never runs under the button.
+						-->
+						<li class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 pb-1">
 							<div class="min-w-0">
-								<div class="flex items-start gap-2">
-									<button
-										type="button"
-										class="hover:bg-tertiary/40 -mx-1 flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-left"
-										aria-expanded={isOpen}
-										onclick={() => toggleRow(entry.key)}
-									>
-										<ChevronRight
-											class="text-secondary mt-0.5 h-4 w-4 shrink-0 transition-transform {isOpen
-												? 'rotate-90'
-												: ''}"
-										/>
-										<EntryIcon class="mt-0.5 h-4 w-4 shrink-0 {colors.icon}" />
-										<span class="text-primary shrink-0 text-sm">{entry.title}</span>
-										{#if entry.subjects.length > 0}
-											<span class="flex flex-wrap items-center gap-1">
-												{#each entry.subjects as subject (subject.label)}
-													{@render entityChip(subject)}
-												{/each}
-											</span>
-										{/if}
-									</button>
-									{#if action}
-										{@const ActionIcon = action.icon}
-										<button
-											type="button"
-											class="btn-secondary flex shrink-0 items-center gap-1 py-1 text-xs"
-											onclick={action.run}
-										>
-											<ActionIcon class="h-3.5 w-3.5" />
-											<span>{action.label}</span>
-										</button>
-									{/if}
-								</div>
+								<button
+									type="button"
+									class="hover:bg-tertiary/40 -mx-1 flex w-full min-w-0 cursor-pointer items-start gap-2 rounded px-1 py-1 text-left"
+									aria-expanded={isOpen}
+									onclick={() => toggleRow(entry.key)}
+								>
+									<ChevronRight
+										class="text-secondary mt-0.5 h-4 w-4 shrink-0 transition-transform {isOpen
+											? 'rotate-90'
+											: ''}"
+									/>
+									<EntryIcon class="mt-0.5 h-4 w-4 shrink-0 {colors.icon}" />
+									<span class="text-primary min-w-0 text-sm">{entry.title}</span>
+								</button>
+
+								{#if entry.subjects.length > 0}
+									<div class="flex flex-wrap items-center gap-1 pb-1 pl-12">
+										{#each entry.subjects as subject (subject.label)}
+											{@render entityChip(subject)}
+										{/each}
+									</div>
+								{/if}
 
 								{#if isOpen}
-									<div class="space-y-2 pb-2 pl-6">
+									<div class="space-y-2 pb-2 pl-12">
 										{#each entry.details as statement, i (i)}
 											<div class="space-y-1">
 												<p class="text-tertiary text-sm">{statement.sentence}</p>
@@ -434,6 +427,19 @@
 									</div>
 								{/if}
 							</div>
+
+							{#if action}
+								{@const ActionIcon = action.icon}
+								<button
+									type="button"
+									class="btn-secondary flex max-w-56 items-center gap-1 py-1 text-xs"
+									title={action.label}
+									onclick={action.run}
+								>
+									<ActionIcon class="h-3.5 w-3.5 shrink-0" />
+									<span class="truncate">{action.label}</span>
+								</button>
+							{/if}
 						</li>
 					{/each}
 				</ul>
