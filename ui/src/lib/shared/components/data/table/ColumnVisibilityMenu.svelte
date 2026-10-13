@@ -159,12 +159,12 @@
 	<button
 		type="button"
 		onclick={() => (open = !open)}
-		class="btn-secondary toolbar-control"
+		class="btn-secondary summary-control"
 		aria-expanded={open}
 		aria-haspopup="true"
-		title={common_fields()}
 	>
-		<Columns3Cog class="h-5 w-5" />
+		<Columns3Cog class="h-3.5 w-3.5" />
+		{common_fields()}
 	</button>
 
 	{#if open}
@@ -177,7 +177,7 @@
 		<div
 			bind:this={panelElement}
 			tabindex="-1"
-			class="card absolute right-0 z-30 mt-1 w-72 overflow-y-auto !rounded-lg !p-3 shadow-lg outline-none"
+			class="card absolute left-0 z-30 mt-1 w-72 overflow-y-auto !rounded-lg !p-3 shadow-lg outline-none"
 			style:max-height={panelMaxHeight === null ? undefined : `${panelMaxHeight}px`}
 		>
 			<div class="mb-2 flex items-center justify-between">

@@ -537,6 +537,13 @@
 	::-webkit-scrollbar-thumb:hover {
 		background-color: var(--color-scrollbar-thumb-hover);
 	}
+
+	/* The compact controls in a table's summary row (clears, fields, export, rows per page, paging):
+	   one height, so the row lines up. Defined after .btn-secondary and .input-field so its size wins
+	   over theirs. */
+	.summary-control {
+		@apply inline-flex h-6 w-auto shrink-0 items-center gap-1 rounded px-1.5 py-0 text-xs font-medium;
+	}
 }
 
 @layer utilities {

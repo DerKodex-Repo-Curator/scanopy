@@ -953,6 +953,19 @@
 	// the tab on screen. ⇧S (clear the search) lives with the search box in ControlsBar.
 	const CLEAR_FILTERS_KEY = 'F';
 	const CLEAR_GROUPING_KEY = 'G';
+	// Left and Right page. Not while a wide table's scroll region has keyboard focus, where the
+	// arrows scroll it sideways; a click's focus there pages, since the mouse scrolls it anyway.
+	const PREV_PAGE_KEY = 'ArrowLeft';
+	const NEXT_PAGE_KEY = 'ArrowRight';
+
+	function arrowsScrollTable(event: KeyboardEvent): boolean {
+		const region = (event.target as Element | null)?.closest?.('.entity-table');
+		return (
+			region instanceof HTMLElement &&
+			region.scrollWidth > region.clientWidth &&
+			!region.hasAttribute('data-pointer-focus')
+		);
+	}
 	const clearShortcuts = {
 		filters: shiftShortcutLabel(CLEAR_FILTERS_KEY),
 		grouping: shiftShortcutLabel(CLEAR_GROUPING_KEY),
@@ -1021,6 +1034,24 @@
 		} else if (hasActiveGrouping && isShiftShortcut(event, CLEAR_GROUPING_KEY)) {
 			event.preventDefault();
 			ordering = { ...ordering, group: null };
+		} else if (
+			plain &&
+			!event.shiftKey &&
+			event.key === PREV_PAGE_KEY &&
+			page.canGoPrev &&
+			!arrowsScrollTable(event)
+		) {
+			event.preventDefault();
+			goToPage(effectiveCurrentPage - 1);
+		} else if (
+			plain &&
+			!event.shiftKey &&
+			event.key === NEXT_PAGE_KEY &&
+			page.canGoNext &&
+			!arrowsScrollTable(event)
+		) {
+			event.preventDefault();
+			goToPage(effectiveCurrentPage + 1);
 		}
 	}
 
@@ -1101,30 +1132,17 @@
 			bind:searchQuery
 			onSearchFocusChange={(focused) => (searchFocused = focused)}
 			onClearSearch={clearSearch}
-			onExport={onExportClick ?? onCsvExport}
 			{entityLabel}
 			actions={toolbarActions}
 			selectionActions={canBulkDelete || singleRowActions.length > 0 ? selectionToolbar : undefined}
 			{title}
 			{subtitle}
-		>
-			{#snippet columnMenu()}
-				<ColumnVisibilityMenu
-					columns={allColumns}
-					order={columnState.order}
-					visibility={columnState.visibility}
-					onToggle={toggleColumn}
-					onReorder={reorderColumns}
-					onReset={resetColumns}
-				/>
-			{/snippet}
-		</ControlsBar>
+		/>
 		<!-- Count, filter and grouping clears, and paging stay in view with the toolbar. -->
 		<div class="mt-4">
 			<PaginationBar
 				{totalCount}
 				{totalPages}
-				currentPage={effectiveCurrentPage}
 				{pageSize}
 				showingStart={page.showingStart}
 				showingEnd={page.showingEnd}
@@ -1144,7 +1162,20 @@
 				onPrevPage={() => page.canGoPrev && goToPage(effectiveCurrentPage - 1)}
 				onNextPage={() => page.canGoNext && goToPage(effectiveCurrentPage + 1)}
 				onPageSizeChange={handlePageSizeChange}
-			/>
+				onExport={onExportClick ?? onCsvExport}
+				pageShortcuts={{ prev: '←', next: '→' }}
+			>
+				{#snippet columnMenu()}
+					<ColumnVisibilityMenu
+						columns={allColumns}
+						order={columnState.order}
+						visibility={columnState.visibility}
+						onToggle={toggleColumn}
+						onReorder={reorderColumns}
+						onReset={resetColumns}
+					/>
+				{/snippet}
+			</PaginationBar>
 		</div>
 	</div>
 

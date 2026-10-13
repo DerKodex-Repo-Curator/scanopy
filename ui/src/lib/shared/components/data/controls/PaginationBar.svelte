@@ -1,5 +1,14 @@
 <script lang="ts">
-	import { ChevronLeft, ChevronRight } from 'lucide-svelte';
+	import type { Snippet } from 'svelte';
+	import {
+		ChevronLeft,
+		ChevronRight,
+		Download,
+		FunnelX,
+		SquareDashed,
+		Ungroup,
+		X
+	} from 'lucide-svelte';
 	import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '../types';
 	import {
 		common_noItems,
@@ -7,23 +16,22 @@
 		common_showingTotal,
 		common_item,
 		common_items,
-		common_group,
-		common_groups,
-		common_show,
 		common_previousPage,
 		common_nextPage,
-		common_pageOf,
-		common_clear,
-		common_filterApplied,
-		common_nFiltersApplied,
+		common_perPage,
+		common_clearFilter,
+		common_clearFilters,
+		common_clearGroup,
+		common_clearSelection,
 		common_itemsSelected,
-		common_shortcutsPausedInSearch
+		common_shortcutsPausedInSearch,
+		common_export,
+		common_exporting
 	} from '$lib/paraglide/messages';
 
 	let {
 		totalCount,
 		totalPages,
-		currentPage,
 		pageSize,
 		showingStart,
 		showingEnd,
@@ -43,11 +51,13 @@
 		selectedCount = 0,
 		onClearSelection = undefined,
 		clearShortcuts = {},
-		shortcutsPaused = false
+		shortcutsPaused = false,
+		pageShortcuts = {},
+		columnMenu = undefined,
+		onExport = null
 	}: {
 		totalCount: number;
 		totalPages: number;
-		currentPage: number;
 		pageSize: PageSizeOption;
 		showingStart: number;
 		showingEnd: number;
@@ -72,29 +82,126 @@
 		clearShortcuts?: { filters?: string; grouping?: string; selection?: string };
 		/** The shortcuts are off (the table search has focus); their keys dim to say so. */
 		shortcutsPaused?: boolean;
+		/** Keys for the previous and next page, named in their tooltips. The caller handles them. */
+		pageShortcuts?: { prev?: string; next?: string };
+		/** The column visibility menu, right-aligned with the export and paging controls. */
+		columnMenu?: Snippet;
+		/** Export handler; the button shows only when there is one. */
+		onExport?: (() => void | Promise<void>) | null;
 	} = $props();
+
+	let isExporting = $state(false);
+
+	async function runExport() {
+		if (!onExport || isExporting) return;
+		isExporting = true;
+		try {
+			await onExport();
+		} finally {
+			isExporting = false;
+		}
+	}
 </script>
 
-{#snippet clearButton(onclick: () => void, shortcut: string | undefined)}
-	<!-- The key is muted text in parentheses: a key chip doesn't fit this compact button. -->
-	<button
-		type="button"
-		class="btn-secondary shrink-0 gap-1 rounded px-1.5 py-0 text-xs font-medium"
-		{onclick}
-	>
-		{common_clear()}
-		{#if shortcut}
-			<span
-				class="text-tertiary font-normal transition-opacity {shortcutsPaused ? 'opacity-40' : ''}"
-				title={shortcutsPaused ? common_shortcutsPausedInSearch() : undefined}>({shortcut})</span
-			>
-		{/if}
+<!-- A key in parentheses after a compact control's label: a key chip doesn't fit these buttons. -->
+{#snippet keyHint(shortcut: string | undefined)}
+	{#if shortcut}
+		<span
+			class="text-tertiary font-normal transition-opacity {shortcutsPaused ? 'opacity-40' : ''}"
+			title={shortcutsPaused ? common_shortcutsPausedInSearch() : undefined}>({shortcut})</span
+		>
+	{/if}
+{/snippet}
+
+<!-- Lucide has no dashed-box X, so Clear Selection draws a small X inside a dashed square. -->
+{#snippet selectionIcon()}
+	<span class="relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+		<SquareDashed class="absolute inset-0 h-3.5 w-3.5" />
+		<X class="h-2 w-2" strokeWidth={3} />
+	</span>
+{/snippet}
+
+{#snippet filterIcon()}
+	<FunnelX class="h-3.5 w-3.5 shrink-0" />
+{/snippet}
+
+{#snippet groupIcon()}
+	<Ungroup class="h-3.5 w-3.5 shrink-0" />
+{/snippet}
+
+{#snippet clearButton(
+	onclick: () => void,
+	label: string,
+	shortcut: string | undefined,
+	icon: Snippet
+)}
+	<button type="button" class="btn-secondary summary-control" {onclick}>
+		{@render icon()}
+		{label}
+		{@render keyHint(shortcut)}
 	</button>
 {/snippet}
 
 <div class="text-tertiary flex items-center justify-between text-sm">
+	<!-- Left: the table's own controls, then the clears for what narrows or shapes the view. -->
 	<div class="flex items-center gap-2">
-		<span>
+		{#if columnMenu}
+			{@render columnMenu()}
+		{/if}
+		{#if onExport}
+			<button
+				type="button"
+				onclick={runExport}
+				disabled={isExporting}
+				class="btn-secondary summary-control disabled:cursor-not-allowed disabled:opacity-50"
+			>
+				<Download class="h-3.5 w-3.5" />
+				{isExporting ? common_exporting() : common_export()}
+			</button>
+		{/if}
+		{#if selectedCount > 0 && onClearSelection}
+			{@render clearButton(
+				onClearSelection,
+				common_clearSelection(),
+				clearShortcuts.selection,
+				selectionIcon
+			)}
+		{/if}
+		{#if filterCount > 0 && onClearFilters}
+			{@render clearButton(
+				onClearFilters,
+				filterCount === 1 ? common_clearFilter() : common_clearFilters(),
+				clearShortcuts.filters,
+				filterIcon
+			)}
+		{/if}
+		{#if groupCount !== null && onClearGrouping}
+			{@render clearButton(
+				onClearGrouping,
+				common_clearGroup(),
+				clearShortcuts.grouping,
+				groupIcon
+			)}
+		{/if}
+	</div>
+	<!--
+		Right: the range on screen between the page arrows, which move it, then rows per page. The
+		range already says where you are, so there is no separate "Page 1 of 4".
+	-->
+	<div class="flex items-center gap-2">
+		{#if totalPages > 1}
+			<button
+				type="button"
+				onclick={onPrevPage}
+				disabled={!canGoPrev}
+				class="btn-secondary summary-control disabled:cursor-not-allowed disabled:opacity-50"
+				aria-label={common_previousPage()}
+				title="{common_previousPage()}{pageShortcuts.prev ? ` (${pageShortcuts.prev})` : ''}"
+			>
+				<ChevronLeft class="h-4 w-4" />
+			</button>
+		{/if}
+		<span class="text-secondary text-xs tabular-nums">
 			{#if totalCount === 0}
 				{common_noItems()}
 			{:else if totalPages > 1}
@@ -117,81 +224,38 @@
 					itemLabel: itemCount === 1 ? common_item() : common_items()
 				})}
 			{/if}
+			{#if selectedCount > 0}
+				<span class="text-tertiary"
+					><span aria-hidden="true">·</span> {common_itemsSelected({ count: selectedCount })}</span
+				>
+			{/if}
 		</span>
-		<!-- What shapes the view, each with its own Clear, in the topology options panel's style. -->
-		{#if filterCount > 0}
-			<span aria-hidden="true">·</span>
-			<span
-				>{filterCount === 1
-					? common_filterApplied()
-					: common_nFiltersApplied({ count: filterCount })}</span
+		{#if totalPages > 1}
+			<button
+				type="button"
+				onclick={onNextPage}
+				disabled={!canGoNext}
+				class="btn-secondary summary-control disabled:cursor-not-allowed disabled:opacity-50"
+				aria-label={common_nextPage()}
+				title="{common_nextPage()}{pageShortcuts.next ? ` (${pageShortcuts.next})` : ''}"
 			>
-			{#if onClearFilters}
-				{@render clearButton(onClearFilters, clearShortcuts.filters)}
-			{/if}
+				<ChevronRight class="h-4 w-4" />
+			</button>
 		{/if}
-		{#if groupCount !== null}
-			<span aria-hidden="true">·</span>
-			<span>
-				{groupCount}
-				{groupCount === 1 ? common_group() : common_groups()}
-			</span>
-			{#if onClearGrouping}
-				{@render clearButton(onClearGrouping, clearShortcuts.grouping)}
-			{/if}
-		{/if}
-		{#if selectedCount > 0}
-			<span aria-hidden="true">·</span>
-			<span
-				>{common_itemsSelected({
-					count: selectedCount,
-					itemLabel: selectedCount === 1 ? common_item() : common_items()
-				})}</span
-			>
-			{#if onClearSelection}
-				{@render clearButton(onClearSelection, clearShortcuts.selection)}
-			{/if}
-		{/if}
-	</div>
-	<!-- Right: paging. Rows per page sits with the page controls it sizes. -->
-	<div class="flex items-center gap-4">
-		<!-- Page size selector (only show when there are more than 20 items) -->
+		<!-- Rows per page, once there are more rows than the smallest page holds. -->
 		{#if totalCount > 20}
-			<div class="flex items-center gap-2">
-				<span class="text-tertiary text-sm">{common_show()}</span>
+			<label class="ml-3 flex items-center gap-1.5 text-xs">
 				<select
 					value={pageSize}
 					onchange={(e) => onPageSizeChange(parseInt(e.currentTarget.value) as PageSizeOption)}
-					class="input-field mx-0 py-1 pr-6"
+					class="input-field summary-control mx-0 !py-0 !pl-2 !pr-6"
 				>
 					{#each PAGE_SIZE_OPTIONS as size (size)}
 						<option value={size}>{size}</option>
 					{/each}
 				</select>
-			</div>
-		{/if}
-		{#if totalPages > 1}
-			<div class="flex items-center gap-2">
-				<button
-					onclick={onPrevPage}
-					disabled={!canGoPrev}
-					class="btn-secondary p-1 disabled:cursor-not-allowed disabled:opacity-50"
-					title={common_previousPage()}
-				>
-					<ChevronLeft class="h-5.5 w-5.5" />
-				</button>
-				<span class="text-secondary min-w-[80px] text-center">
-					{common_pageOf({ current: currentPage, total: totalPages })}
-				</span>
-				<button
-					onclick={onNextPage}
-					disabled={!canGoNext}
-					class="btn-secondary p-1 disabled:cursor-not-allowed disabled:opacity-50"
-					title={common_nextPage()}
-				>
-					<ChevronRight class="h-5.5 w-5.5" />
-				</button>
-			</div>
+				{common_perPage()}
+			</label>
 		{/if}
 	</div>
 </div>

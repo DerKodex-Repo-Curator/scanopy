@@ -412,7 +412,10 @@ async fn run_install(args: InstallArgs) -> Result<()> {
     // old daemon's, and the server rejects it alongside the new key. Re-running install with the
     // same key keeps it.
     if let Some(existing) = installed.iter().find(|i| i.slot == slot)
-        && replaces_daemon(existing.api_key.as_deref(), identity_args.daemon_api_key.as_deref())
+        && replaces_daemon(
+            existing.api_key.as_deref(),
+            identity_args.daemon_api_key.as_deref(),
+        )
     {
         config.forget_server_identity(&identity_args);
     }
