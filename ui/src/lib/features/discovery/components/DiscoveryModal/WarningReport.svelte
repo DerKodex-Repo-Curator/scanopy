@@ -102,10 +102,10 @@
 	/**
 	 * The devices a warning names, fetched by id.
 	 *
-	 * Only the LLDP/CDP resolution warnings carry one — everything else carries an address, which
-	 * this deliberately does not try to resolve back to a host: there is no address index on the
-	 * hosts API, and buying names for those rows means downloading every host on the site with
-	 * its nested children to serve one modal.
+	 * The LLDP/CDP resolution warnings and the integration-without-credential prompt carry one.
+	 * Everything else carries an address, which this deliberately does not try to resolve back to a
+	 * host: there is no address index on the hosts API, and buying names for those rows means
+	 * downloading every host on the site with its nested children to serve one modal.
 	 */
 	let neededHostIds = $derived([
 		...new Set(
@@ -145,6 +145,18 @@
 		const host = hostsData.find((h) => h.id === id);
 		return host ? hostDisplayName(host) : hostsResolved ? null : undefined;
 	});
+
+	/**
+	 * What a chip's hover card renders: the loaded entity, which carries the fields its display
+	 * component reads (a host's `display_name`), or the label alone while it is still loading.
+	 */
+	function entityData(entity: { type: EntityDiscriminants; id: string }, label: string) {
+		const loaded =
+			entity.type === 'Credential'
+				? credentialsData.find((c) => c.id === entity.id)
+				: hostsData.find((h) => h.id === entity.id);
+		return loaded ?? { id: entity.id, name: label };
+	}
 
 	let sections = $derived(buildWarningReport(warnings, nameOfEntity));
 
@@ -296,10 +308,7 @@
 	{#if subject.entity}
 		{@const type = subject.entity.type}
 		<EntityTag
-			entityRef={entityRef(type, subject.entity.id, {
-				id: subject.entity.id,
-				name: subject.label
-			})}
+			entityRef={entityRef(type, subject.entity.id, entityData(subject.entity, subject.label))}
 			label={subject.label}
 			icon={entities.getIconComponent(type)}
 			color={entities.getColorHelper(type).color}

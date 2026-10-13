@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { closeModal, initModalFromUrl, modalState } from '$lib/shared/stores/modal-registry';
-import { openCredentialCreate, typesForIntegration } from '$lib/features/credentials/utils/prefill';
+import {
+	openCredentialCreate,
+	prefillCredentialName,
+	typesForIntegration
+} from '$lib/features/credentials/utils/prefill';
 import type { CredentialTypeMetadata } from '$lib/shared/stores/metadata';
 
 const type = (
@@ -78,5 +82,23 @@ describe('openCredentialCreate', () => {
 			prefill: { integration: 'Proxmox', hosts: 'h1,h2' }
 		});
 		expect(new URL(link).hash).toBe('#credentials');
+	});
+});
+
+describe('prefillCredentialName', () => {
+	it('names a one-host credential after the host, snake_cased', () => {
+		expect(prefillCredentialName([{ display_name: 'DC Proxmox-HV01.lan' }], 'Proxmox VE')).toBe(
+			'dc_proxmox_hv01_lan'
+		);
+	});
+
+	it('names it after the integration when one host would mislabel the rest', () => {
+		expect(
+			prefillCredentialName([{ display_name: 'switch-a' }, { display_name: 'switch-b' }], 'SNMP')
+		).toBe('snmp');
+	});
+
+	it('names it after the integration when the host has no name of its own', () => {
+		expect(prefillCredentialName([{ display_name: null }], 'Proxmox VE')).toBe('proxmox_ve');
 	});
 });

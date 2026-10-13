@@ -7,12 +7,13 @@
 	import type { components } from '$lib/api/schema';
 	import type { Credential } from '../types/base';
 	import { createDefaultCredential, getCredentialTypeId } from '../types/base';
-	import { credentialTypes, entities } from '$lib/shared/stores/metadata';
+	import { credentialIntegrations, credentialTypes, entities } from '$lib/shared/stores/metadata';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { pushError, pushWarning } from '$lib/shared/stores/feedback';
 	import { pruneAssignmentsForTargets } from '../utils/credentialTargets';
-	import { typesForIntegration } from '../utils/prefill';
+	import { prefillCredentialName, typesForIntegration } from '../utils/prefill';
+	import { useHostSummariesQuery } from '$lib/features/hosts/queries';
 	import CredentialForm from './CredentialForm.svelte';
 	import CredentialAssignmentsSection from './CredentialAssignmentsSection.svelte';
 	import { submitForm, validateForm } from '$lib/shared/components/forms/form-context';
@@ -71,6 +72,27 @@
 		const types = credentialTypes.getItems() ?? [];
 		const forHosts = typesForIntegration(types, initialIntegration, initialHostIds.length > 0);
 		return forHosts.length ? forHosts : typesForIntegration(types, initialIntegration, false);
+	});
+
+	// A pre-filled credential starts named after its host, which the host ids alone cannot give.
+	const prefillHostsQuery = useHostSummariesQuery(() => ({
+		ids: initialHostIds,
+		enabled: isOpen && !isEditing && !!initialIntegration && initialHostIds.length > 0
+	}));
+	let prefillName = $derived.by(() => {
+		if (isEditing || !initialIntegration) return null;
+		if (initialHostIds.length && !prefillHostsQuery.data) return null;
+		const integrationName =
+			credentialIntegrations.getName(initialIntegration) ?? initialIntegration;
+		return prefillCredentialName(prefillHostsQuery.data?.items ?? [], integrationName);
+	});
+
+	// Seed the name once it is known, which can be after the modal opened. Never over a name the
+	// user has started typing.
+	$effect(() => {
+		if (isOpen && prefillName && !form.state.values.name) {
+			form.setFieldValue('name', prefillName);
+		}
 	});
 
 	const organizationQuery = useOrganizationQuery();
@@ -229,6 +251,8 @@
 		selectedTypeId = credential ? getCredentialTypeId(credential) : (typeChoices?.[0] ?? 'SnmpV2c');
 		form.reset(getDefaultValues());
 		credentialFormRef?.reset();
+		// After both resets, which each clear the shared form's name.
+		if (prefillName) form.setFieldValue('name', prefillName);
 	}
 
 	async function handleDelete() {

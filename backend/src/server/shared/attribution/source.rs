@@ -785,6 +785,9 @@ impl TypeMetadataProvider for ClientProbe {
             Self::Bacula => "Bacula",
             Self::BeszelAgent => "Beszel agent",
             Self::H323 => "H.323",
+            Self::SnmpEngine => "SNMP",
+            Self::DockerPing => "Docker",
+            Self::PodmanPing => "Podman",
         }
     }
 }
