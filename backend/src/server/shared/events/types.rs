@@ -447,6 +447,13 @@ pub enum BillingOperation {
     LicenseCheckInsResumed {
         silent_days: i64,
     },
+    /// A check-in found the org's online key running on more server instances
+    /// than it covers. Sent once per overrun; every instance keeps its
+    /// entitlement.
+    LicenseInstanceLimitExceeded {
+        active: u32,
+        limit: u32,
+    },
 }
 
 impl BillingOperation {
@@ -567,6 +574,7 @@ impl BillingOperation {
             | Self::LicenseServerUpgraded { .. }
             | Self::LicenseCheckInsStopped { .. }
             | Self::LicenseCheckInsResumed { .. }
+            | Self::LicenseInstanceLimitExceeded { .. }
             | Self::TrialWillEnd { .. }
             | Self::FeatureLimitHit { .. }
             | Self::PaymentSucceeded { .. }

@@ -5,6 +5,7 @@
 	import DocsHint from '$lib/shared/components/feedback/DocsHint.svelte';
 	import ConfirmationDialog from '$lib/shared/components/feedback/ConfirmationDialog.svelte';
 	import SegmentedControl from '$lib/shared/components/forms/SegmentedControl.svelte';
+	import LicenseInstancesCard from './LicenseInstancesCard.svelte';
 	import {
 		useCreateLicenseKeyMutation,
 		useCurrentLicenseKeyQuery,
@@ -468,6 +469,11 @@
 						</div>
 					</div>
 				</InfoCard>
+
+				<!-- Only an online key checks in, so only an online key has servers to list. -->
+				{#if keyType === 'Online'}
+					<LicenseInstancesCard enabled={hasLicensedPlan(org)} />
+				{/if}
 
 				{#if locked}
 					<p class="text-secondary text-sm">

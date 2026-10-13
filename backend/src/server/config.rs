@@ -1,6 +1,7 @@
 use crate::server::auth::r#impl::oidc::OidcProviderMetadata;
 use crate::server::license::key::LicenseKey;
 use crate::server::license::mint::LicenseIssuer;
+use crate::server::license::online::InstanceUsage;
 use crate::server::license::service::{LicenseService, self_hosted_plan};
 use crate::server::license::types::LicenseKeyType;
 use crate::server::license::types::LicenseStatusDiscriminants;
@@ -361,6 +362,10 @@ pub struct PublicConfigResponse {
     /// When Scanopy Cloud last answered this instance's license check-in.
     /// Online keys only.
     pub license_entitlement_at: Option<DateTime<Utc>>,
+    /// How many server instances this instance's online key is running on,
+    /// against how many it covers, as Scanopy Cloud reported at the last
+    /// check-in. Online keys only.
+    pub license_instances: Option<InstanceUsage>,
     /// Hard expiry — the drop-dead date after which the server rejects
     /// the key. Referenced by the grace-period banner.
     #[schema(format = "date")]
@@ -781,6 +786,10 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
         Some(svc) => svc.entitlement_at().await,
         None => None,
     };
+    let license_instances = match license_service {
+        Some(svc) => svc.instance_usage().await,
+        None => None,
+    };
     let license_status = current_license.as_ref().map(|s| s.discriminant());
     let license_expiry = current_license.as_ref().and_then(|s| s.expiry_date());
     let license_intended_expiry = current_license
@@ -843,6 +852,7 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
             license_status,
             license_key_type,
             license_entitlement_at,
+            license_instances,
             license_expiry,
             license_intended_expiry,
             license_valid_through,

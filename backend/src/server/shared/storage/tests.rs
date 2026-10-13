@@ -156,6 +156,22 @@ fn get_entity_deserializers() -> HashMap<&'static str, DeserializeFn> {
     );
 
     map.insert(
+        crate::server::license::instances::ServerInstance::table_name(),
+        Box::new(|row| {
+            crate::server::license::instances::ServerInstance::from_row(row)?;
+            Ok(())
+        }),
+    );
+
+    map.insert(
+        crate::server::license::instances::LicenseInstance::table_name(),
+        Box::new(|row| {
+            crate::server::license::instances::LicenseInstance::from_row(row)?;
+            Ok(())
+        }),
+    );
+
+    map.insert(
         crate::server::release_notes::storage::ReleaseAnnouncement::table_name(),
         Box::new(|row| {
             crate::server::release_notes::storage::ReleaseAnnouncement::from_row(row)?;

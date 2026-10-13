@@ -12,6 +12,7 @@ use axum::http::{HeaderMap, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::routing::{get, put};
 use axum::{Json, Router};
+use axum_client_ip::ClientIp;
 use chrono::{DateTime, Duration, Utc};
 use email_address::EmailAddress;
 use testcontainers::{ContainerAsync, GenericImage};
@@ -32,7 +33,9 @@ use crate::server::license::handlers::{get_current_license_key, get_entitlement}
 use crate::server::license::key::LicenseKey;
 use crate::server::license::mint::tests::{test_decoding_key, test_issuer};
 use crate::server::license::mint::{MintError, PAID_THROUGH_BUFFER_DAYS};
-use crate::server::license::online::{ENTITLEMENT_PATH, EntitlementRequest};
+use crate::server::license::online::{
+    ENTITLEMENT_PATH, EntitlementRequest, EntitlementResponse, InstanceUsage,
+};
 use crate::server::license::types::{LicenseKeyType, LicenseStatus};
 use crate::server::organizations::r#impl::base::Organization;
 use crate::server::organizations::service::SwitchKeyTypeError;
@@ -111,13 +114,24 @@ fn whole_seconds_from_now(days: i64) -> DateTime<Utc> {
 }
 
 async fn request_entitlement(state: &Arc<AppState>, key: String) -> Result<String, StatusCode> {
+    check_in(state, key, None)
+        .await
+        .map(|response| response.entitlement)
+}
+
+async fn check_in(
+    state: &Arc<AppState>,
+    key: String,
+    instance_id: Option<Uuid>,
+) -> Result<EntitlementResponse, StatusCode> {
     get_entitlement(
         State(state.clone()),
+        ClientIp("203.0.113.7".parse().unwrap()),
         HeaderMap::new(),
-        ApiJson(EntitlementRequest { key }),
+        ApiJson(EntitlementRequest { key, instance_id }),
     )
     .await
-    .map(|Json(response)| response.into_data().unwrap().entitlement)
+    .map(|Json(response)| response.into_data().unwrap())
     .map_err(|error| error.status)
 }
 
@@ -162,6 +176,68 @@ async fn online_keys_are_stable_until_rotated() {
             .unwrap(),
         key
     );
+}
+
+/// A second server on the key still gets its entitlement, the response says
+/// the key is over its limit, and the org is marked so the overrun is reported
+/// once. A server with no instance id shares one slot with every other.
+#[tokio::test]
+async fn a_second_instance_is_warned_and_still_entitled() {
+    let (state, _container) = test_state().await;
+    let issuer = state.license_issuer.clone().unwrap();
+    let service = &state.services.organization_service;
+    let org = create_org(
+        &state,
+        get_self_hosted_standard_plan(),
+        Some(whole_seconds_from_now(30)),
+    )
+    .await;
+    let stamp = service.license_key_issued_at(org.id).await.unwrap();
+    let key = issuer
+        .mint_online_key(&reload(&state, org.id).await, stamp)
+        .unwrap();
+
+    let first = check_in(&state, key.clone(), Some(Uuid::new_v4()))
+        .await
+        .unwrap();
+    assert_eq!(
+        first.instances,
+        Some(InstanceUsage {
+            active: 1,
+            limit: 1
+        })
+    );
+    assert!(
+        !reload(&state, org.id)
+            .await
+            .base
+            .notifications
+            .license_over_instance_limit
+    );
+
+    let second = check_in(&state, key.clone(), Some(Uuid::new_v4()))
+        .await
+        .unwrap();
+    assert!(!second.entitlement.is_empty());
+    assert_eq!(
+        second.instances,
+        Some(InstanceUsage {
+            active: 2,
+            limit: 1
+        })
+    );
+    assert!(
+        reload(&state, org.id)
+            .await
+            .base
+            .notifications
+            .license_over_instance_limit
+    );
+
+    let old = check_in(&state, key.clone(), None).await.unwrap();
+    let again = check_in(&state, key, None).await.unwrap();
+    assert_eq!(old.instances.unwrap().active, 3);
+    assert_eq!(again.instances.unwrap().active, 3);
 }
 
 #[tokio::test]

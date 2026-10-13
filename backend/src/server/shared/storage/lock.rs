@@ -76,6 +76,12 @@ pub enum LockKey {
     /// Serialize the once-per-version release announcement across containers
     /// starting at the same time. One server-wide key.
     ReleaseAnnouncement,
+    /// Serialize creating this database's server instance id across containers
+    /// starting at the same time. One server-wide key.
+    ServerInstance,
+    /// Serialize recording license check-ins from an organization's server
+    /// instances, so two first check-ins from one instance can't both insert it.
+    LicenseInstances { organization_id: Uuid },
 }
 
 impl LockKey {
@@ -101,6 +107,10 @@ impl LockKey {
             LockKey::TagGroups { organization_id } => format!("tag-groups:{organization_id}"),
             LockKey::CloudSetup { organization_id } => format!("cloud-setup:{organization_id}"),
             LockKey::ReleaseAnnouncement => "release-announcement".to_string(),
+            LockKey::ServerInstance => "server-instance".to_string(),
+            LockKey::LicenseInstances { organization_id } => {
+                format!("license-instances:{organization_id}")
+            }
         }
     }
 

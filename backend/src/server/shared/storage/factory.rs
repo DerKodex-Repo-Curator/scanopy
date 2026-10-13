@@ -7,6 +7,7 @@ use tower_sessions::{Expiry, SessionManagerLayer};
 use tower_sessions_sqlx_store::PostgresStore;
 
 use crate::server::dependencies::dependency_members::DependencyMemberStorage;
+use crate::server::license::instances::{LicenseInstance, ServerInstance};
 use crate::server::release_notes::storage::ReleaseAnnouncement;
 use crate::server::tags::entity_tags::EntityTagStorage;
 use crate::server::tags::groups::base::TagGroup;
@@ -48,6 +49,8 @@ pub struct StorageFactory {
     pub tags: Arc<GenericPostgresStorage<Tag>>,
     pub tag_groups: Arc<GenericPostgresStorage<TagGroup>>,
     pub release_announcements: Arc<GenericPostgresStorage<ReleaseAnnouncement>>,
+    pub server_instance: Arc<GenericPostgresStorage<ServerInstance>>,
+    pub license_instances: Arc<GenericPostgresStorage<LicenseInstance>>,
     pub ports: Arc<GenericPostgresStorage<Port>>,
     pub bindings: Arc<GenericPostgresStorage<Binding>>,
     pub credentials: Arc<GenericPostgresStorage<Credential>>,
@@ -108,6 +111,8 @@ impl StorageFactory {
             tags: Arc::new(GenericPostgresStorage::new(pool.clone())),
             tag_groups: Arc::new(GenericPostgresStorage::new(pool.clone())),
             release_announcements: Arc::new(GenericPostgresStorage::new(pool.clone())),
+            server_instance: Arc::new(GenericPostgresStorage::new(pool.clone())),
+            license_instances: Arc::new(GenericPostgresStorage::new(pool.clone())),
             ports: Arc::new(GenericPostgresStorage::new(pool.clone())),
             bindings: Arc::new(GenericPostgresStorage::new(pool.clone())),
             credentials: Arc::new(GenericPostgresStorage::new(pool.clone())),

@@ -10,6 +10,7 @@ use validator::Validate;
 
 use crate::server::{
     billing::types::base::{BillingPlan, PlanStatus},
+    license::online::InstanceUsage,
     shared::{
         entities::ChangeTriggersTopologyStaleness,
         events::types::{BillingOperation, OnboardingOperationDiscriminants},
@@ -93,6 +94,12 @@ pub struct OrgNotifications {
     /// as resumed. `None` until the first silence.
     #[serde(default)]
     pub license_silence_reported_for: Option<DateTime<Utc>>,
+    /// Whether the org's online key is reported as running on more server
+    /// instances than it covers. Set when a check-in first finds it over the
+    /// limit and cleared once it is back within, so the report goes out once
+    /// per overrun.
+    #[serde(default)]
+    pub license_over_instance_limit: bool,
 }
 
 #[derive(
@@ -223,6 +230,11 @@ pub struct OrganizationBase {
     /// its version checks in.
     #[serde(default, skip_serializing)]
     pub license_server_version: Option<Version>,
+    /// How many server instances this org's online key covers - internal, not
+    /// exposed to API. `None` reads as [`DEFAULT_LICENSE_INSTANCE_LIMIT`]; set
+    /// by hand for Enterprise deals. See [`Organization::license_instance_limit`].
+    #[serde(default, skip_serializing)]
+    pub license_instance_limit: Option<i64>,
     /// The date this org's air-gapped key stays current until, or `None` when
     /// it holds an online key or that date has passed.
     ///
@@ -395,6 +407,35 @@ impl Organization {
         })
     }
 }
+
+impl Organization {
+    /// How many server instances the org's online key covers.
+    pub fn license_instance_limit(&self) -> u32 {
+        self.base
+            .license_instance_limit
+            .and_then(|limit| u32::try_from(limit).ok())
+            .unwrap_or(DEFAULT_LICENSE_INSTANCE_LIMIT)
+    }
+
+    /// Record the instance count a check-in found, returning
+    /// `LicenseInstanceLimitExceeded` when it is the first check-in of an
+    /// overrun. Back within the limit re-arms the report.
+    pub fn record_license_instance_usage(
+        &mut self,
+        usage: InstanceUsage,
+    ) -> Option<BillingOperation> {
+        let was_over = self.base.notifications.license_over_instance_limit;
+        let over = usage.is_over();
+        self.base.notifications.license_over_instance_limit = over;
+        (over && !was_over).then_some(BillingOperation::LicenseInstanceLimitExceeded {
+            active: usage.active,
+            limit: usage.limit,
+        })
+    }
+}
+
+/// Server instances an online key covers unless the org row says otherwise.
+pub const DEFAULT_LICENSE_INSTANCE_LIMIT: u32 = 1;
 
 /// Days an online key goes without checking in before it counts as stopped.
 /// Servers check in every 6 hours, so this is about 28 missed check-ins: long
@@ -638,5 +679,32 @@ mod tests {
         never_checked_in.base.plan = checking_in().base.plan;
         never_checked_in.base.license_paid_through = Some(at(365));
         assert_eq!(never_checked_in.report_license_silence(silent_day), None);
+    }
+
+    /// Every check-in reports the count, so the overrun has to be reported on
+    /// the first one only, and again only after the key was back within.
+    #[test]
+    fn an_instance_overrun_is_reported_once_until_back_within_the_limit() {
+        let over = InstanceUsage {
+            active: 2,
+            limit: 1,
+        };
+        let within = InstanceUsage {
+            active: 1,
+            limit: 1,
+        };
+        let mut org = Organization::default();
+
+        assert_eq!(org.record_license_instance_usage(within), None);
+        assert_eq!(
+            org.record_license_instance_usage(over),
+            Some(BillingOperation::LicenseInstanceLimitExceeded {
+                active: 2,
+                limit: 1
+            })
+        );
+        assert_eq!(org.record_license_instance_usage(over), None);
+        assert_eq!(org.record_license_instance_usage(within), None);
+        assert!(org.record_license_instance_usage(over).is_some());
     }
 }
