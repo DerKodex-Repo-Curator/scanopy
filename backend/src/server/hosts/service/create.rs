@@ -1198,21 +1198,30 @@ impl HostService {
                     .iter()
                     .any(|e| e.id == reassigned.id);
 
-                // Specific services a generic container could be reconciled onto: non-generic,
-                // not virtualized, claiming a conflicting port. Never the container's own
-                // runtime: a container publishing the port its runtime is reached on (an API
-                // proxy) would otherwise become the runtime's identity, and the runtime its own
-                // container. Cloned because later branches mutate existing_services_for_match.
+                // Services a generic container could be reconciled onto: claiming a conflicting
+                // port, and either not virtualized or already carrying this container (a rescan).
+                // Port-only matches such as PostgreSQL count; Unclaimed Open Ports does not, its
+                // ports are reclaimed instead. Never the container's own runtime: a container
+                // publishing the port its runtime is reached on (an API proxy) would otherwise
+                // become the runtime's identity, and the runtime its own container. Cloned
+                // because later branches mutate existing_services_for_match.
                 let conflicting_port_ids: Vec<Uuid> = conflicting_bindings
                     .iter()
                     .filter_map(|b| b.port_id())
                     .collect();
+                let container_id = reassigned
+                    .base
+                    .virtualization_metadata
+                    .as_ref()
+                    .and_then(|v| v.container_id());
                 let enrichable_services: Vec<Service> = existing_services_for_match
                     .iter()
                     .filter(|s| {
                         Some(s.id) != reassigned.base.virtualization_service_id
-                            && !ServiceDefinitionExt::is_generic(&s.base.service_definition)
-                            && s.base.virtualization_metadata.is_none()
+                            && !ServiceDefinitionExt::is_open_ports(&s.base.service_definition)
+                            && s.base.virtualization_metadata.as_ref().is_none_or(|v| {
+                                container_id.is_some() && v.container_id() == container_id
+                            })
                             && s.base.bindings.iter().any(|b| {
                                 b.port_id()
                                     .is_some_and(|pid| conflicting_port_ids.contains(&pid))
@@ -1271,23 +1280,39 @@ impl HostService {
                     // metadata (container name, container ID, Docker daemon linkage), we set
                     // the Docker virtualization on the specific service directly. The network
                     // scan already identified the service; we're just adding the container
-                    // metadata. A container with no such service falls through, so one whose
-                    // ports sit only in Unclaimed Open Ports reclaims them below (GH #784).
+                    // metadata. When one service takes the container, it also takes the
+                    // container's other bindings (its loopback and bridge addresses), which would
+                    // otherwise be lost with the container. A container with no such service
+                    // falls through, so one whose ports sit only in Unclaimed Open Ports reclaims
+                    // them below (GH #784).
+                    let takes_other_bindings = enrichable_services.len() == 1;
                     for mut updated in enrichable_services {
                         tracing::info!(
                             service_name = %updated.base.name,
                             service_definition = %updated.base.service_definition.name(),
                             container_service = %reassigned.base.name,
+                            moved_binding_count =
+                                if takes_other_bindings { valid_bindings.len() } else { 0 },
                             "Setting Docker virtualization on existing service from conflicting Docker Container"
                         );
                         updated.base.virtualization_metadata =
                             reassigned.base.virtualization_metadata.clone();
                         updated.base.virtualization_service_id =
                             reassigned.base.virtualization_service_id;
-                        let _ = self
+                        if takes_other_bindings {
+                            updated.base.bindings.extend(valid_bindings.iter().cloned());
+                        }
+                        // Mirror the stored result so later services in the payload see it.
+                        if let Ok(saved) = self
                             .service_service
                             .update(&mut updated, authentication.clone())
-                            .await;
+                            .await
+                            && let Some(stored) = existing_services_for_match
+                                .iter_mut()
+                                .find(|s| s.id == saved.id)
+                        {
+                            *stored = saved;
+                        }
                     }
 
                     tracing::debug!(
@@ -1404,7 +1429,11 @@ impl HostService {
                             "Discovery found service with conflicting port bindings - dropping service"
                         );
 
-                        orphaned_bindings.extend(valid_bindings);
+                        // A dropped container's other bindings are its own (its bridge address,
+                        // its loopback publish), not ports nobody claimed.
+                        if reassigned.base.virtualization_metadata.is_none() {
+                            orphaned_bindings.extend(valid_bindings);
+                        }
                         continue;
                     }
                 }
