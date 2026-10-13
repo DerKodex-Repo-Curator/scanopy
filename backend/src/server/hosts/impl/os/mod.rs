@@ -602,4 +602,39 @@ mod tests {
             )
         ));
     }
+
+    /// A native macOS daemon whose Docker socket reaches Docker Desktop: the engine described its
+    /// Linux VM, and the daemon's own read of the Mac replaces it on the next scan.
+    #[test]
+    fn the_daemons_own_read_replaces_a_container_engines_vm() {
+        use crate::server::hosts::r#impl::attributes::{HostOsAttributed, HostOsValue};
+        use crate::server::shared::attribution::{AttributeSource, Attributed};
+        let at =
+            |os: HostOs, source| -> HostOsAttributed { Attributed::new(HostOsValue(os), source) };
+
+        let mut slot = Some(at(
+            linux("Docker Desktop", None),
+            AttributeSource::ContainerRuntimeInfo,
+        ));
+        let mac = HostOs {
+            family: HostOsFamily::MacOs,
+            name: None,
+            version: Some("15.5".into()),
+            edition: None,
+            codename: None,
+            kernel_version: Some("24.5.0".into()),
+        };
+        assert!(Attributed::apply(
+            &mut slot,
+            at(mac.clone(), AttributeSource::DaemonSelfReport)
+        ));
+        assert!(!Attributed::apply(
+            &mut slot,
+            at(
+                linux("Docker Desktop", None),
+                AttributeSource::ContainerRuntimeInfo
+            )
+        ));
+        assert_eq!(slot.unwrap().value().0, mac);
+    }
 }
