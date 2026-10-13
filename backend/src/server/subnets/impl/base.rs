@@ -360,9 +360,9 @@ impl Subnet {
     /// Equal rank from the same source wins, which is what makes a re-scan idempotent in the useful
     /// direction: a device that re-reports its own `ipAdEntNetMask` refreshes that observation,
     /// while an inference never displaces a reading and nothing displaces a range a person
-    /// confirmed. Equal rank from a *different* source does not win — the rungs the old `Observed`
-    /// collapsed into are now distinct, so a daemon's own interface and a device's `ipAdEntNetMask`
-    /// no longer flap the value depending on which finished first.
+    /// confirmed. Equal rank from a *different* source does not win, so two readings at one rung
+    /// do not flap the value depending on which finished first. A daemon's own interface outranks
+    /// a device's `ipAdEntNetMask`: the daemon reads its own NIC first-hand.
     pub fn apply_cidr(&mut self, cidr: IpCidr, source: AttributeSource) -> bool {
         self.base
             .cidr
@@ -695,7 +695,7 @@ mod tests {
     #[test]
     fn an_equal_rung_from_a_different_source_does_not_displace() {
         let mut subnet = ranged("10.20.30.0/24", READING);
-        let other_source_same_rung = AttributeSource::Probe(ClientProbe::Snmp);
+        let other_source_same_rung = AttributeSource::HypervisorConfig;
         assert_eq!(
             other_source_same_rung.rank(),
             READING.rank(),
@@ -708,9 +708,10 @@ mod tests {
 
     /// The CIDR dedup in `SubnetService::create` merges a re-read of the same range through
     /// `apply_cidr`. A device's SNMP reading of a range a daemon reads from its own NIC leaves the
-    /// daemon's row as it was, and a daemon later reading a range SNMP created leaves that row too.
+    /// daemon's row as it was, and a daemon later reading a range SNMP created files it under the
+    /// daemon's first-hand reading.
     #[test]
-    fn an_snmp_reading_and_a_daemon_reading_of_one_range_keep_whichever_came_first() {
+    fn a_daemons_reading_of_one_range_outranks_snmps() {
         let snmp = AttributeSource::Probe(ClientProbe::Snmp);
 
         let mut daemon_row = ranged("10.20.30.0/24", READING);
@@ -718,8 +719,8 @@ mod tests {
         assert_eq!(daemon_row.base.cidr.source(), READING);
 
         let mut snmp_row = ranged("10.20.30.0/24", snmp);
-        assert!(!snmp_row.apply_cidr("10.20.30.0/24".parse().unwrap(), READING));
-        assert_eq!(snmp_row.base.cidr.source(), snmp);
+        assert!(snmp_row.apply_cidr("10.20.30.0/24".parse().unwrap(), READING));
+        assert_eq!(snmp_row.base.cidr.source(), READING);
     }
 
     /// Nothing a scan reads displaces a range a person confirmed.
