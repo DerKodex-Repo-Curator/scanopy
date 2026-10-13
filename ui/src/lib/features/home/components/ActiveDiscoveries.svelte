@@ -3,6 +3,7 @@
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import type { DiscoveryUpdatePayload } from '$lib/features/discovery/types/api';
 	import DiscoveryEstimation from '$lib/features/discovery/components/DiscoveryEstimation.svelte';
+	import { isFullScan } from '$lib/features/discovery/utils/fullScan';
 	import EntityTag from '$lib/shared/components/data/EntityTag.svelte';
 	import { entities } from '$lib/shared/stores/metadata';
 
@@ -54,6 +55,7 @@
 						phase={session.phase}
 						hosts_discovered={session.hosts_discovered}
 						estimated_remaining_secs={session.estimated_remaining_secs}
+						is_full_scan={isFullScan(session.discovery_type)}
 						class="mb-1"
 					/>
 					<SessionProgress

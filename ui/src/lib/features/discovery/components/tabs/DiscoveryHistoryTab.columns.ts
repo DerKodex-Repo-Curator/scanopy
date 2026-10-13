@@ -11,6 +11,7 @@ import { siteItems } from '$lib/features/sites/columns';
 import { tagItems, tagNames } from '$lib/features/tags/columns';
 import { toColor } from '$lib/shared/utils/styling';
 import type { OutcomeTag } from '../../utils/outcome';
+import { isFullScan } from '../../utils/fullScan';
 import type { Daemon } from '$lib/features/daemons/types/base';
 import type { Site } from '$lib/features/sites/types';
 import type { Tag, TagGroup } from '$lib/features/tags/types/base';
@@ -18,6 +19,8 @@ import {
 	common_created,
 	common_daemon,
 	common_duration,
+	common_full,
+	common_light,
 	common_status,
 	common_tags,
 	common_warnings,
@@ -28,6 +31,7 @@ import {
 	common_unknownSite,
 	common_updated,
 	discovery_finishedAt,
+	discovery_scanMode,
 	discovery_startedAt
 } from '$lib/paraglide/messages';
 
@@ -79,7 +83,7 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 				getValue: (item) =>
 					ctx.daemons().find((d) => d.id === item.daemon_id)?.name ??
 					common_unknownEntity({ entity: common_daemon() }),
-				display: { order: 7, getItems: (item) => daemonItems(item.daemon_id, ctx.daemons()) }
+				display: { order: 8, getItems: (item) => daemonItems(item.daemon_id, ctx.daemons()) }
 			},
 			site_id: {
 				label: common_site(),
@@ -96,7 +100,7 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 				getGroupValue: (item) => item.site_id,
 				getValue: (item) =>
 					ctx.sites().find((n) => n.id === item.site_id)?.name ?? common_unknownSite(),
-				display: { order: 6, getItems: (item) => siteItems(item.site_id, ctx.sites()) }
+				display: { order: 7, getItems: (item) => siteItems(item.site_id, ctx.sites()) }
 			},
 			discovery_type: {
 				label: common_type(),
@@ -199,6 +203,21 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 			}
 		},
 		[
+			{
+				// Light or full, next to Duration: a full scan is why a run took much longer. Read
+				// from the run's own scan settings, so it neither sorts nor groups on the server.
+				key: 'scan_mode',
+				label: discovery_scanMode(),
+				type: 'string',
+				groupable: false,
+				getValue: (item) =>
+					item.discovery_type.type === 'Unified'
+						? isFullScan(item.discovery_type)
+							? common_full()
+							: common_light()
+						: null,
+				display: { order: 6 }
+			},
 			{
 				// The server writes runs with no tags, but a tag can be added to one through the API.
 				key: 'tags',

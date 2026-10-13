@@ -99,12 +99,14 @@ pub(super) fn generate_discoveries(
                 site_id: hq.id,
                 tags: vec![],
             },
-            scan_count: 0,
+            // Both historical runs below completed, so the next run is a light scan.
+            scan_count: 2,
             force_full_scan: false,
+            next_run_is_full_scan: false,
             integration_targets: snmp_and_docker_targets(),
         });
 
-        // Historical — completed 3 weeks ago
+        // Historical — the first run, a light scan, completed 3 weeks ago
         let three_weeks_ago = now - Duration::weeks(3);
         let hq_unified = unified(daemon, Some(hq_subnet_ids.clone()));
         discoveries.push(Discovery {
@@ -125,13 +127,13 @@ pub(super) fn generate_discoveries(
                         warnings: Vec::new(),
                         credential_results: Vec::new(),
                         started_at: Some(three_weeks_ago),
-                        finished_at: Some(three_weeks_ago + Duration::minutes(12)),
+                        finished_at: Some(three_weeks_ago + Duration::minutes(6)),
                         hosts_discovered: None,
                         estimated_remaining_secs: None,
                         discovery_id: None,
                         scanned: None,
                         reason: Some(DiscoveryTerminalReason::Completed),
-                        last_update_at: Some(three_weeks_ago + Duration::minutes(12)),
+                        last_update_at: Some(three_weeks_ago + Duration::minutes(6)),
                         daemon_version: daemon.base.version.as_ref().map(|v| v.to_string()),
                     }),
                 },
@@ -142,24 +144,29 @@ pub(super) fn generate_discoveries(
             },
             scan_count: 0,
             force_full_scan: false,
+            next_run_is_full_scan: false,
             integration_targets: snmp_network_targets(),
         });
 
-        // Historical — completed 1 week ago
+        // Historical — the second run, a full scan of all ports, completed 1 week ago
         let one_week_ago = now - Duration::weeks(1);
+        let mut hq_unified_full = hq_unified;
+        if let DiscoveryType::Unified { scan_settings, .. } = &mut hq_unified_full {
+            scan_settings.is_full_scan = true;
+        }
         discoveries.push(Discovery {
             id: Uuid::new_v4(),
             created_at: one_week_ago,
             updated_at: one_week_ago,
             base: DiscoveryBase {
-                discovery_type: hq_unified.clone(),
+                discovery_type: hq_unified_full.clone(),
                 run_type: RunType::Historical {
                     results: Box::new(DiscoveryUpdatePayload {
                         session_id: Uuid::new_v4(),
                         daemon_id: daemon.id,
                         site_id: hq.id,
                         phase: DiscoveryPhase::Complete,
-                        discovery_type: hq_unified,
+                        discovery_type: hq_unified_full,
                         progress: 100,
                         error: None,
                         // One warning per WarningRemedy group, so the report's four sections
@@ -234,13 +241,13 @@ pub(super) fn generate_discoveries(
                             },
                         ],
                         started_at: Some(one_week_ago),
-                        finished_at: Some(one_week_ago + Duration::minutes(8)),
+                        finished_at: Some(one_week_ago + Duration::minutes(35)),
                         hosts_discovered: None,
                         estimated_remaining_secs: None,
                         discovery_id: None,
                         scanned: None,
                         reason: Some(DiscoveryTerminalReason::Completed),
-                        last_update_at: Some(one_week_ago + Duration::minutes(8)),
+                        last_update_at: Some(one_week_ago + Duration::minutes(35)),
                         daemon_version: daemon.base.version.as_ref().map(|v| v.to_string()),
                     }),
                 },
@@ -251,6 +258,7 @@ pub(super) fn generate_discoveries(
             },
             scan_count: 0,
             force_full_scan: false,
+            next_run_is_full_scan: false,
             integration_targets: snmp_network_targets(),
         });
     }
@@ -275,6 +283,7 @@ pub(super) fn generate_discoveries(
             },
             scan_count: 0,
             force_full_scan: false,
+            next_run_is_full_scan: false,
             integration_targets: snmp_and_docker_targets(),
         });
     }

@@ -6,6 +6,7 @@
 		discovery_cancellationWait,
 		discovery_foundHostsEstimating,
 		discovery_foundHostsRemaining,
+		discovery_fullScanRunning,
 		discovery_scanningForHosts,
 		home_docsDiscoveryTakesLong,
 		home_docsDiscoveryTakesLongLinkText
@@ -15,6 +16,8 @@
 		phase: string;
 		hosts_discovered?: number | null;
 		estimated_remaining_secs?: number | null;
+		/** The running session scans all 65,535 ports, which explains a long estimate. */
+		is_full_scan?: boolean;
 		class?: string;
 	}
 
@@ -22,6 +25,7 @@
 		phase,
 		hosts_discovered,
 		estimated_remaining_secs,
+		is_full_scan = false,
 		class: className = ''
 	}: Props = $props();
 
@@ -46,6 +50,9 @@
 {#if text}
 	<div class={className}>
 		<p class="text-secondary text-xs">{text}</p>
+		{#if is_full_scan && phase === 'Scanning'}
+			<p class="text-tertiary text-xs">{discovery_fullScanRunning()}</p>
+		{/if}
 		{#if phase === 'Scanning' && estimated_remaining_secs != null && estimated_remaining_secs > 3600}
 			<DocsHint
 				text={home_docsDiscoveryTakesLong()}

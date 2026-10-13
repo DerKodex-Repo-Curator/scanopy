@@ -396,6 +396,7 @@ async fn test_discovery_crud(ctx: &TestContext) -> Result<(), String> {
         },
         scan_count: 0,
         force_full_scan: false,
+        next_run_is_full_scan: false,
         integration_targets: vec![],
     };
 

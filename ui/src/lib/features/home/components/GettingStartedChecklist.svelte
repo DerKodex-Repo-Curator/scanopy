@@ -12,6 +12,7 @@
 	import DaemonTroubleshootingModal from '$lib/shared/components/layout/DaemonTroubleshootingModal.svelte';
 	import { useConfigQuery } from '$lib/shared/stores/config-query';
 	import DiscoveryEstimation from '$lib/features/discovery/components/DiscoveryEstimation.svelte';
+	import { isFullScan } from '$lib/features/discovery/utils/fullScan';
 	import StallTag from '$lib/features/discovery/components/StallTag.svelte';
 	import {
 		CHECKLIST_STEPS,
@@ -356,6 +357,7 @@
 										phase={activeScanSession.phase}
 										hosts_discovered={activeScanSession.hosts_discovered}
 										estimated_remaining_secs={activeScanSession.estimated_remaining_secs}
+										is_full_scan={isFullScan(activeScanSession.discovery_type)}
 									/>
 									<StallTag
 										session_id={activeScanSession.session_id}

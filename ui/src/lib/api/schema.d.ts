@@ -4349,6 +4349,11 @@ export interface components {
                  */
                 integration_targets: components["schemas"]["IntegrationTarget"][];
                 /**
+                 * @description Whether the next run of this discovery will be a full scan of all 65,535 ports rather than
+                 *     a light scan of common ports. Computed by the server on read and never stored.
+                 */
+                readonly next_run_is_full_scan?: boolean;
+                /**
                  * Format: int32
                  * @description Number of completed scans (incremented by server on session completion)
                  */
@@ -8412,6 +8417,11 @@ export interface components {
              */
             integration_targets: components["schemas"]["IntegrationTarget"][];
             /**
+             * @description Whether the next run of this discovery will be a full scan of all 65,535 ports rather than
+             *     a light scan of common ports. Computed by the server on read and never stored.
+             */
+            readonly next_run_is_full_scan?: boolean;
+            /**
              * Format: int32
              * @description Number of completed scans (incremented by server on session completion)
              */
@@ -11947,6 +11957,11 @@ export interface components {
                  *     [`Discovery::take_site_scope_credential_ids`]).
                  */
                 integration_targets: components["schemas"]["IntegrationTarget"][];
+                /**
+                 * @description Whether the next run of this discovery will be a full scan of all 65,535 ports rather than
+                 *     a light scan of common ports. Computed by the server on read and never stored.
+                 */
+                readonly next_run_is_full_scan?: boolean;
                 /**
                  * Format: int32
                  * @description Number of completed scans (incremented by server on session completion)

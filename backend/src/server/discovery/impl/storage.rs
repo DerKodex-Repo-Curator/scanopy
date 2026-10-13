@@ -44,6 +44,7 @@ impl Storable for Discovery {
             base,
             scan_count: 0,
             force_full_scan: false,
+            next_run_is_full_scan: false,
             integration_targets: vec![],
         }
     }
@@ -68,6 +69,7 @@ impl Storable for Discovery {
                 },
             scan_count,
             force_full_scan,
+            next_run_is_full_scan: _, // Computed on read, never stored
             integration_targets,
         } = self.clone();
 
@@ -120,7 +122,7 @@ impl Storable for Discovery {
             serde_json::from_value(row.get::<serde_json::Value, _>("integration_targets"))
                 .map_err(|e| anyhow::anyhow!("Failed to deserialize integration_targets: {}", e))?;
 
-        Ok(Discovery {
+        let mut discovery = Discovery {
             id: row.get("id"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -134,8 +136,11 @@ impl Storable for Discovery {
             },
             scan_count: row.get::<i32, _>("scan_count") as u32,
             force_full_scan: row.get("force_full_scan"),
+            next_run_is_full_scan: false,
             integration_targets,
-        })
+        };
+        discovery.next_run_is_full_scan = discovery.full_scan_is_due();
+        Ok(discovery)
     }
 }
 
