@@ -28,12 +28,16 @@ Cloud emails notice of it to every verified user who signed up before that day, 
 release that ships the file sends it, and a daily sweep retries anyone the relay refused.
 Self-hosted servers never send it.
 
+Run `make new-terms-update` to create the file. It asks for the effective date and the documents,
+prefilling each, and checks the date against the rules below. Set `EFFECTIVE` or `DOCUMENTS` to
+skip a question. Replace each `<describe the change>` it leaves in the body; a file that still
+holds one fails CI.
+
 ```markdown
 ---
 effective: 2026-12-01
 date: 2026-10-20
 documents: terms, privacy
-notify_from: 2026-10-25
 ---
 
 - Terms of Service, section 4: we now email you at least 30 days before a significant change takes
@@ -43,11 +47,13 @@ notify_from: 2026-10-25
 - `effective`: the day the update takes effect. It must match the file name.
 - `date`: the day you wrote it. It can't be in the future.
 - `documents`: any of `terms`, `privacy`, `refund`, `security`. The email links each one.
-- `notify_from`: optional, the first day the notice may go out. It defaults to `date`.
 - The body says what changed, in plain terms. It goes into the email as written.
 
-CI fails when an update gives less than 30 days' notice, takes effect more than 180 days after
-`date`, or is dated before an update that takes effect sooner. A notice the server hasn't sent by
-`effective` still goes out for 30 more days, with an error logged.
+The notice goes out when the release carrying the file deploys. The prefilled effective date leaves
+30 days of notice plus 15 days for the release to ship; a notice sent with less than 30 days to go
+logs an error. One the server hasn't sent by `effective` still goes out for 30 more days.
+
+CI fails when an update takes effect less than 30 days or more than 180 days after `date`, or is
+dated before an update that takes effect sooner.
 
 Set each changed page's effective date on the website to `effective`.
