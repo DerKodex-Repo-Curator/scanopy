@@ -130,6 +130,8 @@ impl DiscoveryService {
         }
 
         let session_id = Uuid::new_v4();
+        // Read before `discovery_type` is moved out below.
+        let is_full_scan = discovery.full_scan_is_due();
 
         // Hydrate SNMP credentials
         let discovery_type = if let DiscoveryType::Network {
@@ -159,22 +161,13 @@ impl DiscoveryService {
             Some(discovery.id),
         );
 
-        // Compute whether this scan should be a full port scan and set on scan_settings
+        // Tell the daemon whether this run is a full port scan
         if let DiscoveryType::Unified {
             ref mut scan_settings,
             ..
         } = session_payload.discovery_type
         {
-            let full_scan_interval = scan_settings.full_scan_interval.unwrap_or(
-                crate::server::discovery::r#impl::scan_settings::defaults::full_scan_interval(),
-            );
-            // 0 = never full scan (all light), 1 = every scan is full
-            scan_settings.is_full_scan = discovery.force_full_scan
-                || (full_scan_interval != 0
-                    && (full_scan_interval == 1
-                        || discovery.scan_count == 1
-                        || (discovery.scan_count > 1
-                            && discovery.scan_count.is_multiple_of(full_scan_interval))));
+            scan_settings.is_full_scan = is_full_scan;
         }
 
         // Hold running_snapshots.read across the session insertion. This
@@ -615,6 +608,7 @@ impl DiscoveryService {
                 },
                 scan_count: 0,
                 force_full_scan: false,
+                next_run_is_full_scan: false,
                 integration_targets: vec![],
             };
 

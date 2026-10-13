@@ -4,6 +4,8 @@
 	import type { Daemon } from '$lib/features/daemons/types/base';
 	import type { components } from '$lib/api/schema';
 	import type { RecentRun } from '../utils/recentScans';
+	import { isFullScan } from '$lib/features/discovery/utils/fullScan';
+	import { discovery_fullScan } from '$lib/paraglide/messages';
 
 	type SiteSummary = components['schemas']['SiteSummary'];
 
@@ -25,7 +27,10 @@
 		getDescription: ({ discovery }, context) => {
 			const daemon = context.daemons.find((d) => d.id === discovery.daemon_id);
 			const daemonName = daemon?.name ?? 'Unknown Daemon';
-			return `${daemonName} · ${formatTimestamp(discovery.created_at)}`;
+			const parts = [daemonName, formatTimestamp(discovery.created_at)];
+			// A full scan explains why a run took much longer than the ones around it.
+			if (isFullScan(discovery.discovery_type)) parts.push(discovery_fullScan());
+			return parts.join(' · ');
 		},
 		getIcon: () => entities.getIconComponent('Discovery'),
 		getIconColor: () => entities.getColorHelper('Discovery').icon,

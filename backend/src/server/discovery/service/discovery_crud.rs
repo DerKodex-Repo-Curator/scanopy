@@ -29,6 +29,8 @@ impl DiscoveryService {
         } else {
             self.discovery_storage.create(&discovery).await?
         };
+        // Storage returns the entity as given, so the computed field is set here.
+        created_discovery.next_run_is_full_scan = created_discovery.full_scan_is_due();
 
         // Save tags to junction table
         if let Some(entity_tag_service) = self.entity_tag_service()

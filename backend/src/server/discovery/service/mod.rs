@@ -195,6 +195,8 @@ impl CrudService<Discovery> for DiscoveryService {
         // Preserve server-managed fields from current DB state
         // (the API client may send stale values for these read-only fields)
         entity.scan_count = current.scan_count;
+        // Storage returns this entity as given, so the computed field is set here.
+        entity.next_run_is_full_scan = entity.full_scan_is_due();
 
         // Scoped so the borrows on `entity`/`current` end before the update below.
         let (schedule_changed, enabled_changed, entity_is_scheduled) = {

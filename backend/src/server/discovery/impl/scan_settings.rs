@@ -367,7 +367,7 @@ impl ScanSettings {
                 secret: false,
                 optional: true,
                 help_text: Some(
-                    "Run a full 65k port scan every N scans. Other scans use a lighter port set for faster results. Set to 0 for light scans only, 1 for every scan to be full.",
+                    "Run a full scan of all 65,535 ports every N runs. Other runs are light scans of common ports, which finish faster. Set to 0 for light scans only, or 1 to make every run a full scan.",
                 ),
                 options: None,
                 default_value: Some("3"),

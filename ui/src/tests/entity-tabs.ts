@@ -172,7 +172,10 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				force_full_scan: 'force_full_scan',
 				run_type: 'run_type',
 				scan_count: 'scan_count',
-				tags: 'tags'
+				tags: 'tags',
+				next_run_is_full_scan: excluded(
+					"Shown in the scan editor's Scan Info, and a running full scan says so in the progress cell"
+				)
 			})
 		]
 	},
@@ -190,7 +193,9 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				scan_count: excluded('Always 0 on run records; the count lives on the scheduled scan'),
 				force_full_scan: excluded(
 					'Always false on run records; the flag lives on the scheduled scan'
-				)
+				),
+				// Whether the run itself was full is the Scan Mode column.
+				next_run_is_full_scan: excluded('Always false on run records; a run has no next run')
 			})
 		]
 	},

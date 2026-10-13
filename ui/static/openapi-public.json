@@ -15891,6 +15891,11 @@
                     },
                     "description": "Per-daemon integration targeting: which integrations run on this daemon, and on which\nIPs. Delivered via the init command at registration and editable via the discovery\nmodal. This is the single home for cred↔IP targeting; it replaces the global\n`credential.target_ips` (race-prone, consumed once).\n\nOne-shot: a target is offered to the daemon until a scan completes successfully, then\ndropped by [`Discovery::apply_successful_scan`]. Credentials that earned a durable home\nduring the scan keep being retried from there — `host_credentials` for one that probed\nsuccessfully, `site_credentials` for a broadcast one (see\n[`Discovery::take_site_scope_credential_ids`])."
                   },
+                  "next_run_is_full_scan": {
+                    "type": "boolean",
+                    "description": "Whether the next run of this discovery will be a full scan of all 65,535 ports rather than\na light scan of common ports. Computed by the server on read and never stored.",
+                    "readOnly": true
+                  },
                   "scan_count": {
                     "type": "integer",
                     "format": "int32",
@@ -24115,6 +24120,11 @@
                 },
                 "description": "Per-daemon integration targeting: which integrations run on this daemon, and on which\nIPs. Delivered via the init command at registration and editable via the discovery\nmodal. This is the single home for cred↔IP targeting; it replaces the global\n`credential.target_ips` (race-prone, consumed once).\n\nOne-shot: a target is offered to the daemon until a scan completes successfully, then\ndropped by [`Discovery::apply_successful_scan`]. Credentials that earned a durable home\nduring the scan keep being retried from there — `host_credentials` for one that probed\nsuccessfully, `site_credentials` for a broadcast one (see\n[`Discovery::take_site_scope_credential_ids`])."
               },
+              "next_run_is_full_scan": {
+                "type": "boolean",
+                "description": "Whether the next run of this discovery will be a full scan of all 65,535 ports rather than\na light scan of common ports. Computed by the server on read and never stored.",
+                "readOnly": true
+              },
               "scan_count": {
                 "type": "integer",
                 "format": "int32",
@@ -32286,6 +32296,11 @@
                         "$ref": "#/components/schemas/IntegrationTarget"
                       },
                       "description": "Per-daemon integration targeting: which integrations run on this daemon, and on which\nIPs. Delivered via the init command at registration and editable via the discovery\nmodal. This is the single home for cred↔IP targeting; it replaces the global\n`credential.target_ips` (race-prone, consumed once).\n\nOne-shot: a target is offered to the daemon until a scan completes successfully, then\ndropped by [`Discovery::apply_successful_scan`]. Credentials that earned a durable home\nduring the scan keep being retried from there — `host_credentials` for one that probed\nsuccessfully, `site_credentials` for a broadcast one (see\n[`Discovery::take_site_scope_credential_ids`])."
+                    },
+                    "next_run_is_full_scan": {
+                      "type": "boolean",
+                      "description": "Whether the next run of this discovery will be a full scan of all 65,535 ports rather than\na light scan of common ports. Computed by the server on read and never stored.",
+                      "readOnly": true
                     },
                     "scan_count": {
                       "type": "integer",

@@ -8,6 +8,7 @@
 	import { cancellingSessions, type DiscoveryConfigOrderField } from '../../queries';
 	import SessionProgress from '../cards/SessionProgress.svelte';
 	import DiscoveryEstimation from '../DiscoveryEstimation.svelte';
+	import { isFullScan } from '../../utils/fullScan';
 	import DiscoveryEditModal from '../DiscoveryModal/DiscoveryEditModal.svelte';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import { discoveryScheduledColumns } from './DiscoveryScheduledTab.columns';
@@ -330,6 +331,7 @@
 				{phase}
 				hosts_discovered={session.hosts_discovered}
 				estimated_remaining_secs={session.estimated_remaining_secs}
+				is_full_scan={isFullScan(session.discovery_type)}
 			/>
 
 			<SessionProgress
