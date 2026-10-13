@@ -10,6 +10,7 @@ import {
 	type ListQueryState,
 	type ServerQuery
 } from '$lib/shared/components/data/controls/listQuery';
+import { SEARCH_MAX_LENGTH } from '$lib/shared/components/forms/input/SearchInput.svelte';
 import { resolveOrdering } from '$lib/shared/components/data/controls/dataControlsStorage';
 import {
 	blankFilterState,
@@ -169,11 +170,8 @@ describe('listParams round trip', () => {
 		);
 	});
 
-	it('reads the page and the selection', () => {
-		const url = new URLSearchParams('page=3&selected=a&selected=b');
-		const view = decodeListParams(url, FIELDS);
-		expect(view.page).toBe(3);
-		expect(view.selected).toEqual(['a', 'b']);
+	it('reads the page', () => {
+		expect(decodeListParams(new URLSearchParams('page=3'), FIELDS).page).toBe(3);
 	});
 });
 
@@ -231,6 +229,12 @@ describe('decodeListParams with malformed or stale params', () => {
 		const again = listParams(reopened(url), FIELDS, DEFAULTS, CLIENT_QUERY).url;
 		expect(again.has('removed_field')).toBe(false);
 		expect(again.getAll('site_ids')).toEqual(['site-a']);
+	});
+
+	it('cuts a linked search to the length the box takes', () => {
+		const long = 'x'.repeat(SEARCH_MAX_LENGTH + 50);
+		const view = decodeListParams(new URLSearchParams({ search: long }), FIELDS);
+		expect(view.search).toHaveLength(SEARCH_MAX_LENGTH);
 	});
 
 	it('treats a URL with no list params as no link', () => {

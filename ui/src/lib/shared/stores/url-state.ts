@@ -35,7 +35,7 @@ export const URL_SCOPES: Record<UrlScope, ScopeRule> = {
 	// (`tag_ids`), so the list steps out while the palette is open and comes back on close. `q` is
 	// always written while it's open, even empty, so a loaded URL says which of the two it carries.
 	search: { keys: ['q', 'tag_ids'], hides: ['list'], marker: 'q' },
-	list: { keys: ['page', 'selected'] }
+	list: { keys: ['page'] }
 };
 
 /**
