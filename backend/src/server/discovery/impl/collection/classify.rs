@@ -147,7 +147,10 @@ impl ClientProbe {
             | Self::Zmtp
             | Self::Bacula
             | Self::BeszelAgent
-            | Self::H323 => C::CredentialFree(&[PortsAndServices]),
+            | Self::H323
+            | Self::SnmpEngine
+            | Self::DockerPing
+            | Self::PodmanPing => C::CredentialFree(&[PortsAndServices]),
         }
     }
 }

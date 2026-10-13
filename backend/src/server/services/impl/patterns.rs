@@ -275,6 +275,15 @@ pub enum ClientProbe {
     BeszelAgent,
     /// A Q.931 `SETUP` was answered with a Q.931 message carrying our call reference.
     H323,
+    /// An SNMP agent answered SNMPv3 engine discovery with a Report naming its engine, which it
+    /// sends before any credential is involved. Not [`Self::Snmp`], which means a credential worked.
+    SnmpEngine,
+    /// A Docker Engine API answered `GET /_ping` with its `Server: Docker/` token, before any auth.
+    /// Not [`Self::Docker`], which means a credential reached the daemon.
+    DockerPing,
+    /// Podman's API service answered `GET /_ping` with its `Server: Libpod/` token, before any
+    /// auth. Not [`Self::Podman`], which means a credential reached it.
+    PodmanPing,
 }
 
 impl ClientProbe {
@@ -333,7 +342,10 @@ impl ClientProbe {
             | Self::Zmtp
             | Self::Bacula
             | Self::BeszelAgent
-            | Self::H323 => M::Native,
+            | Self::H323
+            | Self::SnmpEngine
+            | Self::DockerPing
+            | Self::PodmanPing => M::Native,
         }
     }
 }

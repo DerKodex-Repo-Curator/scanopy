@@ -121,12 +121,12 @@ export function hasSunsetWarning(daemon: Daemon): boolean {
 /// label where an OS identifier was expected.
 export type DaemonOS = components['schemas']['DaemonOs'];
 
-export function slugifySiteName(name: string): string {
+/** Lowercase alphanumerics, every other run of characters collapsed to one `separator`. */
+export function slugifySiteName(name: string, separator: '-' | '_' = '-'): string {
 	return name
 		.toLowerCase()
-		.replace(/[^a-z0-9-]/g, '-')
-		.replace(/-+/g, '-')
-		.replace(/^-|-$/g, '');
+		.replace(/[^a-z0-9]+/g, separator)
+		.replace(new RegExp(`^\\${separator}+|\\${separator}+$`, 'g'), '');
 }
 
 export function detectOS(): DaemonOS {
