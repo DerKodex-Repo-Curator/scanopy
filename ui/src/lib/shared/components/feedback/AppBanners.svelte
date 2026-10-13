@@ -19,6 +19,7 @@
 	import LicensePendingBanner from './LicensePendingBanner.svelte';
 	import LicenseGraceBanner from './LicenseGraceBanner.svelte';
 	import LicenseExpiringBanner from './LicenseExpiringBanner.svelte';
+	import LicenseInstanceLimitBanner from './LicenseInstanceLimitBanner.svelte';
 	import { useEmailVerificationPending } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { useConfigQuery, isLicenseApproachingExpiry } from '$lib/shared/stores/config-query';
@@ -57,5 +58,13 @@
 	<LicenseExpiringBanner
 		validThrough={configQuery.data.license_valid_through}
 		hardExpiry={configQuery.data.license_expiry}
+	/>
+{/if}
+<!-- Outside the chain above: running on more servers than the key covers is a
+     warning only, so it shows alongside any of the licence banners. -->
+{#if configQuery.data?.license_instances && configQuery.data.license_instances.active > configQuery.data.license_instances.limit}
+	<LicenseInstanceLimitBanner
+		active={configQuery.data.license_instances.active}
+		limit={configQuery.data.license_instances.limit}
 	/>
 {/if}

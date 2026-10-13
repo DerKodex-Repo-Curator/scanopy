@@ -1,5 +1,6 @@
 pub mod crypto;
 pub mod handlers;
+pub mod instances;
 pub mod key;
 pub mod middleware;
 pub mod mint;

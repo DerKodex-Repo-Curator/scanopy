@@ -338,6 +338,7 @@ impl AuthService {
                             license_key_issued_at: None,
                             license_key_type: None,
                             license_server_version: None,
+                            license_instance_limit: None,
                             air_gapped_key_current_until: None,
                         }),
                         AuthenticatedEntity::System,

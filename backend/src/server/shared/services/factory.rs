@@ -1,4 +1,5 @@
 use crate::server::auth::email_validation::SesEmailValidator;
+use crate::server::license::instances::service::LicenseInstanceService;
 use crate::server::license::service::LicenseService;
 use crate::server::release_notes::service::ReleaseNotesService;
 use crate::server::{
@@ -100,6 +101,9 @@ pub struct ServiceFactory {
     /// keyless deployment (community or cloud) has no license service —
     /// licensing is "not required".
     pub license_service: Option<Arc<LicenseService>>,
+    /// Server instances per license key: this database's instance id on a
+    /// self-hosted server, and the instances checking in on the cloud.
+    pub license_instance_service: Arc<LicenseInstanceService>,
     /// Extra CA certificates from `SCANOPY_TRUSTED_CA_BUNDLE`, loaded once here and shared by
     /// every outbound client that reaches an operator-controlled host.
     pub trusted_ca: Option<Arc<TrustedCaBundle>>,
@@ -181,6 +185,11 @@ impl ServiceFactory {
             event_bus.clone(),
         ));
 
+        let license_instance_service = Arc::new(LicenseInstanceService::new(
+            storage.license_instances.clone(),
+            storage.server_instance.clone(),
+        ));
+
         // Commercial mode is driven by the presence of a license key at
         // runtime — no separate build. No key => free community edition, and no
         // license service at all. `effective_license_key` returns None on cloud,
@@ -193,6 +202,7 @@ impl ServiceFactory {
                     organization_service.clone(),
                     config.license_server_url.clone(),
                     trusted_ca.as_deref(),
+                    Some(&license_instance_service),
                 )
                 .await,
             )),
@@ -594,6 +604,7 @@ impl ServiceFactory {
             discovery_digest_service,
             release_notes_service,
             license_service,
+            license_instance_service,
             trusted_ca,
         };
 
@@ -654,6 +665,7 @@ impl ServiceFactory {
             discovery_digest_service,
             release_notes_service: _, // not a Subscriber: run at boot and by its handlers
             license_service: _,       // not a Subscriber: bespoke service, no EventBusService impl
+            license_instance_service: _, // not a Subscriber: called by the license handlers
             trusted_ca: _,            // not a service; shared TLS roots
         } = self;
 

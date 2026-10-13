@@ -16112,6 +16112,17 @@
               "entitlement": {
                 "type": "string",
                 "description": "An offline-format license key (claims: [`super::types::LicenseClaims`])\nwith `org_id` and `plan` set from the organization's current state."
+              },
+              "instances": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/InstanceUsage",
+                    "description": "How many server instances the key is running on, against how many it\ncovers. Absent from clouds older than instance counting."
+                  }
+                ]
               }
             }
           },
@@ -17272,6 +17283,52 @@
           }
         }
       },
+      "ApiResponse_LicenseInstancesResponse": {
+        "type": "object",
+        "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
+        "required": [
+          "success",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "The server instances an organization's online key is running on.",
+            "required": [
+              "instances",
+              "usage"
+            ],
+            "properties": {
+              "instances": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LicenseInstanceSummary"
+                },
+                "description": "Every instance that has checked in, most recent first, including ones\nsilent long enough to no longer count."
+              },
+              "usage": {
+                "$ref": "#/components/schemas/InstanceUsage",
+                "description": "Instances counting against the limit now, and the limit."
+              }
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Not sent on a successful response. Failure messages arrive in an\n`ApiErrorResponse`."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "description": "API and server version metadata."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Always `true` on a successful response."
+          }
+        }
+      },
       "ApiResponse_LicenseKeyResponse": {
         "type": "object",
         "description": "Envelope for a successful response. Failures are sent with a non-2xx status\nand an `ApiErrorResponse` body instead.",
@@ -17764,6 +17821,17 @@
               "license_in_grace_period": {
                 "type": "boolean",
                 "description": "True when the license is past `intended_exp` but not yet past\nthe hard `exp` — the silent grace window."
+              },
+              "license_instances": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/InstanceUsage",
+                    "description": "How many server instances this instance's online key is running on,\nagainst how many it covers, as Scanopy Cloud reported at the last\ncheck-in. Online keys only."
+                  }
+                ]
               },
               "license_intended_expiry": {
                 "type": [
@@ -26857,6 +26925,14 @@
           "key"
         ],
         "properties": {
+          "instance_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The random id this server's database holds (`server_instance`), shared\nby every container on that database. Absent from servers older than\ninstance counting; those share one instance slot."
+          },
           "key": {
             "type": "string",
             "description": "The online key configured via `SCANOPY_LICENSE_KEY`."
@@ -26873,6 +26949,17 @@
           "entitlement": {
             "type": "string",
             "description": "An offline-format license key (claims: [`super::types::LicenseClaims`])\nwith `org_id` and `plan` set from the organization's current state."
+          },
+          "instances": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstanceUsage",
+                "description": "How many server instances the key is running on, against how many it\ncovers. Absent from clouds older than instance counting."
+              }
+            ]
           }
         }
       },
@@ -29748,6 +29835,26 @@
           "reconfigure"
         ]
       },
+      "InstanceUsage": {
+        "type": "object",
+        "description": "Server instances an online key has checked in from within the last\n`LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence\ncovers. Over the limit, every instance keeps its entitlement and shows a\nwarning.",
+        "required": [
+          "active",
+          "limit"
+        ],
+        "properties": {
+          "active": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "IntegrationTarget": {
         "oneOf": [
           {
@@ -30708,6 +30815,121 @@
               "format": "uuid"
             },
             "description": "Subnets the daemon has an interface on, as reported by older daemons."
+          }
+        }
+      },
+      "LicenseInstance": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LicenseInstanceBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "readOnly": true
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "readOnly": true
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "readOnly": true
+              }
+            }
+          }
+        ],
+        "description": "A server instance that has checked in with an organization's online key,\nas the cloud records it."
+      },
+      "LicenseInstanceBase": {
+        "type": "object",
+        "required": [
+          "organization_id",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "properties": {
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "instance_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The id the server's database holds. `None` on the one row shared by\nservers too old to send it."
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_ip": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source address the cloud observed on the latest check-in. The server\nnever sends an address; behind NAT several servers share one.",
+            "example": "203.0.113.7"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "server_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Version the latest check-in reported, as semver text."
+          }
+        }
+      },
+      "LicenseInstanceSummary": {
+        "type": "object",
+        "required": [
+          "instance",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "Whether the instance counts against the limit: it checked in within\nthe last week."
+          },
+          "instance": {
+            "$ref": "#/components/schemas/LicenseInstance"
+          }
+        }
+      },
+      "LicenseInstancesResponse": {
+        "type": "object",
+        "description": "The server instances an organization's online key is running on.",
+        "required": [
+          "instances",
+          "usage"
+        ],
+        "properties": {
+          "instances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LicenseInstanceSummary"
+            },
+            "description": "Every instance that has checked in, most recent first, including ones\nsilent long enough to no longer count."
+          },
+          "usage": {
+            "$ref": "#/components/schemas/InstanceUsage",
+            "description": "Instances counting against the limit now, and the limit."
           }
         }
       },
@@ -34325,6 +34547,17 @@
           "license_in_grace_period": {
             "type": "boolean",
             "description": "True when the license is past `intended_exp` but not yet past\nthe hard `exp` — the silent grace window."
+          },
+          "license_instances": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstanceUsage",
+                "description": "How many server instances this instance's online key is running on,\nagainst how many it covers, as Scanopy Cloud reported at the last\ncheck-in. Online keys only."
+              }
+            ]
           },
           "license_intended_expiry": {
             "type": [

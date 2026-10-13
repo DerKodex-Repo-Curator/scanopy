@@ -2287,6 +2287,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/licenses/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the server instances running this organization's license key
+         * @description An instance counts against the limit while it has checked in within the
+         *     last week.
+         */
+        get: operations["list_license_instances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/licenses/instances/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a server instance from this organization's license key
+         * @description Frees its slot. A server that is still running is listed again at its next
+         *     check-in; rotating the key is what stops one.
+         */
+        delete: operations["delete_license_instance"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/licenses/keys": {
         parameters: {
             query?: never;
@@ -4459,6 +4501,7 @@ export interface components {
                  *     with `org_id` and `plan` set from the organization's current state.
                  */
                 entitlement: string;
+                instances?: null | components["schemas"]["InstanceUsage"];
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -5160,6 +5203,31 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_LicenseInstancesResponse: {
+            /** @description The server instances an organization's online key is running on. */
+            data?: {
+                /**
+                 * @description Every instance that has checked in, most recent first, including ones
+                 *     silent long enough to no longer count.
+                 */
+                instances: components["schemas"]["LicenseInstanceSummary"][];
+                /** @description Instances counting against the limit now, and the limit. */
+                usage: components["schemas"]["InstanceUsage"];
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_LicenseKeyResponse: {
             /** @description The result payload. Omitted on failure. */
             data?: {
@@ -5432,6 +5500,7 @@ export interface components {
                  *     the hard `exp` — the silent grace window.
                  */
                 license_in_grace_period: boolean;
+                license_instances?: null | components["schemas"]["InstanceUsage"];
                 /**
                  * Format: date
                  * @description User-visible expiry — the date displayed to end users under
@@ -9407,6 +9476,13 @@ export interface components {
         };
         /** @description Body the instance POSTs to [`ENTITLEMENT_PATH`]. */
         EntitlementRequest: {
+            /**
+             * Format: uuid
+             * @description The random id this server's database holds (`server_instance`), shared
+             *     by every container on that database. Absent from servers older than
+             *     instance counting; those share one instance slot.
+             */
+            instance_id?: string | null;
             /** @description The online key configured via `SCANOPY_LICENSE_KEY`. */
             key: string;
         };
@@ -9417,6 +9493,7 @@ export interface components {
              *     with `org_id` and `plan` set from the organization's current state.
              */
             entitlement: string;
+            instances?: null | components["schemas"]["InstanceUsage"];
         };
         /** @enum {string} */
         EntityDiscriminants: "Site" | "Vlan" | "Subnet" | "Host" | "Service" | "IPAddress" | "Interface" | "Port" | "Binding" | "Discovery" | "Daemon" | "DaemonApiKey" | "Tag" | "TagGroup" | "User" | "UserApiKey" | "Credential" | "Organization" | "Invite" | "Topology" | "Snapshot" | "Share" | "Dependency";
@@ -10700,6 +10777,18 @@ export interface components {
          */
         InstallCommandType: "install" | "rekey" | "reconfigure";
         /**
+         * @description Server instances an online key has checked in from within the last
+         *     `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
+         *     covers. Over the limit, every instance keeps its entitlement and shows a
+         *     warning.
+         */
+        InstanceUsage: {
+            /** Format: int32 */
+            active: number;
+            /** Format: int32 */
+            limit: number;
+        };
+        /**
          * @description Per-daemon integration targeting, stored on the `Discovery` entity and delivered via the
          *     init command at registration. Each entry references exactly one stored credential and says
          *     where it applies on this daemon. This is the single home for cred↔IP targeting — it replaces
@@ -11220,6 +11309,58 @@ export interface components {
         LegacyCapabilities: {
             /** @description Subnets the daemon has an interface on, as reported by older daemons. */
             interfaced_subnet_ids: string[];
+        };
+        /**
+         * @description A server instance that has checked in with an organization's online key,
+         *     as the cloud records it.
+         */
+        LicenseInstance: components["schemas"]["LicenseInstanceBase"] & {
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        LicenseInstanceBase: {
+            /** Format: date-time */
+            first_seen_at: string;
+            /**
+             * Format: uuid
+             * @description The id the server's database holds. `None` on the one row shared by
+             *     servers too old to send it.
+             */
+            instance_id?: string | null;
+            /** Format: date-time */
+            last_seen_at: string;
+            /**
+             * @description Source address the cloud observed on the latest check-in. The server
+             *     never sends an address; behind NAT several servers share one.
+             * @example 203.0.113.7
+             */
+            last_seen_ip?: string | null;
+            /** Format: uuid */
+            organization_id: string;
+            /** @description Version the latest check-in reported, as semver text. */
+            server_version?: string | null;
+        };
+        LicenseInstanceSummary: {
+            /**
+             * @description Whether the instance counts against the limit: it checked in within
+             *     the last week.
+             */
+            active: boolean;
+            instance: components["schemas"]["LicenseInstance"];
+        };
+        /** @description The server instances an organization's online key is running on. */
+        LicenseInstancesResponse: {
+            /**
+             * @description Every instance that has checked in, most recent first, including ones
+             *     silent long enough to no longer count.
+             */
+            instances: components["schemas"]["LicenseInstanceSummary"][];
+            /** @description Instances counting against the limit now, and the limit. */
+            usage: components["schemas"]["InstanceUsage"];
         };
         LicenseKeyResponse: {
             /** @description Signed key to set as `SCANOPY_LICENSE_KEY` on a self-hosted server. */
@@ -12837,6 +12978,7 @@ export interface components {
              *     the hard `exp` — the silent grace window.
              */
             license_in_grace_period: boolean;
+            license_instances?: null | components["schemas"]["InstanceUsage"];
             /**
              * Format: date
              * @description User-visible expiry — the date displayed to end users under
@@ -20664,6 +20806,76 @@ export interface operations {
             };
             /** @description Too many requests for this organization */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    list_license_instances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organization's server instances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_LicenseInstancesResponse"];
+                };
+            };
+            /** @description Not an owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_license_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description License instance ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Instance deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse"];
+                };
+            };
+            /** @description Not an owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description No such instance in this organization */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

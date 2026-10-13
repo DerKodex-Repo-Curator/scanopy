@@ -2,6 +2,7 @@ use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::billing::types::base::BillingPlan;
 use crate::server::credentials::service::CredentialService;
 use crate::server::license::mint::MintError;
+use crate::server::license::online::InstanceUsage;
 use crate::server::license::types::LicenseKeyType;
 use crate::server::organizations::demo_status::DemoPopulateStatus;
 use crate::server::organizations::r#impl::base::LICENSE_SILENCE_THRESHOLD_DAYS;
@@ -236,6 +237,31 @@ impl OrganizationService {
         }
 
         for operation in events {
+            self.publish_license_event(organization_id, operation).await;
+        }
+        Ok(())
+    }
+
+    /// Record the server instance count a check-in found, publishing
+    /// `LicenseInstanceLimitExceeded` when it starts an overrun. See
+    /// [`Organization::record_license_instance_usage`].
+    pub async fn record_license_instance_usage(
+        &self,
+        organization_id: Uuid,
+        usage: InstanceUsage,
+    ) -> Result<(), Error> {
+        let mut event = None;
+        if let Some(mut locked) = self.lock_for_update(organization_id).await? {
+            let was_over = locked.org.base.notifications.license_over_instance_limit;
+            event = locked.org.record_license_instance_usage(usage);
+            if was_over != usage.is_over() {
+                locked.save_quietly().await?;
+            } else {
+                locked.release().await?;
+            }
+        }
+
+        if let Some(operation) = event {
             self.publish_license_event(organization_id, operation).await;
         }
         Ok(())
