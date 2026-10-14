@@ -120,6 +120,28 @@ pub fn active_count(instances: &[LicenseInstance], now: DateTime<Utc>) -> u32 {
     u32::try_from(active).unwrap_or(u32::MAX)
 }
 
+/// Whether the instance whose row id is `id` holds one of the key's `limit`
+/// slots at `now`. Active instances take the slots in the order they first
+/// checked in, so a server that arrives past the limit is the one refused.
+/// `None` is no cap.
+pub fn holds_slot(
+    instances: &[LicenseInstance],
+    id: Uuid,
+    limit: Option<u32>,
+    now: DateTime<Utc>,
+) -> bool {
+    let Some(limit) = limit else {
+        return true;
+    };
+    let mut active: Vec<&LicenseInstance> =
+        instances.iter().filter(|i| i.is_active_at(now)).collect();
+    active.sort_by_key(|i| (i.base.first_seen_at, i.id));
+    active
+        .iter()
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
+        .any(|i| i.id == id)
+}
+
 impl Display for LicenseInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "license instance {}", self.id)

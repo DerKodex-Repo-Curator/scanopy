@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::server::shared::types::api::ApiJson;
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum_client_ip::ClientIp;
 use chrono::Utc;
 use governor::{Quota, RateLimiter, clock::DefaultClock, state::keyed::DashMapStateStore};
@@ -35,6 +35,7 @@ use crate::server::shared::services::traits::CrudService;
 use crate::server::shared::types::api::{
     ApiError, ApiErrorResponse, ApiResponse, ApiResult, EmptyApiResponse,
 };
+use crate::server::shared::types::error_codes::ErrorCode;
 
 pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
     OpenApiRouter::new()
@@ -147,7 +148,7 @@ fn mint_error(error: MintError) -> ApiError {
     responses(
         (status = 200, description = "Entitlement for the key's organization", body = ApiResponse<EntitlementResponse>),
         (status = 400, description = "Malformed key, bad signature, or not an online key", body = ApiErrorResponse),
-        (status = 403, description = "Key was regenerated, or the organization is not on a self-hosted plan", body = ApiErrorResponse),
+        (status = 403, description = "Key was regenerated, the organization is not on a self-hosted plan, or the key already runs on as many servers as the plan covers", body = ApiErrorResponse),
         (status = 429, description = "Too many requests for this organization", body = ApiErrorResponse),
     )
 )]
@@ -183,9 +184,6 @@ pub async fn get_entitlement(
     }
 
     let now = Utc::now();
-    let entitlement = issuer
-        .mint_entitlement(&organization, now)
-        .map_err(mint_error)?;
     // The key has passed every check, so the caller is the key's holder.
     let server_version = reported_server_version(
         headers
@@ -195,7 +193,7 @@ pub async fn get_entitlement(
     service
         .record_license_check_in(organization_id, now, server_version.clone())
         .await?;
-    let instances = state
+    let recorded = state
         .services
         .license_instance_service
         .record_check_in(
@@ -210,12 +208,27 @@ pub async fn get_entitlement(
         )
         .await?;
     service
-        .record_license_instance_usage(organization_id, instances)
+        .record_license_instance_usage(organization_id, recorded.usage)
         .await?;
 
+    // A server past the plan's limit gets no entitlement and goes read-only.
+    // The servers holding a slot keep theirs.
+    if let (false, Some(limit)) = (recorded.holds_slot, recorded.usage.limit) {
+        return Err(ApiError::coded(
+            StatusCode::FORBIDDEN,
+            ErrorCode::LicenseInstanceLimitReached {
+                active: recorded.usage.active,
+                limit,
+            },
+        ));
+    }
+
+    let entitlement = issuer
+        .mint_entitlement(&organization, now)
+        .map_err(mint_error)?;
     Ok(Json(ApiResponse::success(EntitlementResponse {
         entitlement,
-        instances: Some(instances),
+        instances: Some(recorded.usage),
     })))
 }
 
@@ -419,6 +432,9 @@ pub struct LicenseInstanceSummary {
     /// Whether the instance counts against the limit: it checked in within
     /// the last week.
     pub active: bool,
+    /// Whether the instance holds one of the plan's slots. An instance
+    /// without one is refused its entitlement and is read-only.
+    pub holds_slot: bool,
 }
 
 /// List the server instances running this organization's license key
@@ -451,16 +467,17 @@ pub async fn list_license_instances(
         active: super::instances::active_count(&instances, now),
         limit: organization.license_instance_limit(),
     };
-    let instances = instances
-        .into_iter()
+    let summaries = instances
+        .iter()
         .map(|instance| LicenseInstanceSummary {
             active: instance.is_active_at(now),
-            instance,
+            holds_slot: super::instances::holds_slot(&instances, instance.id, usage.limit, now),
+            instance: instance.clone(),
         })
         .collect();
 
     Ok(Json(ApiResponse::success(LicenseInstancesResponse {
-        instances,
+        instances: summaries,
         usage,
     })))
 }

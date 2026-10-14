@@ -102,6 +102,8 @@ pub enum ErrorCode {
     // === License ===
     /// Server is in read-only mode due to license issue
     LicenseLocked,
+    /// The online key already runs on as many servers as the plan covers
+    LicenseInstanceLimitReached { active: u32, limit: u32 },
 
     // === Generic Entity Operations ===
     /// Entity was not found
@@ -305,6 +307,9 @@ impl ErrorCode {
             }
             Self::AuthDemoMode => "This action is disabled in demo mode",
             Self::LicenseLocked => "Your license is not active. The server is in read-only mode.",
+            Self::LicenseInstanceLimitReached { .. } => {
+                "This license key is in use on {active} servers and your plan covers {limit}, so this server is in read-only mode. Delete a server you no longer run under License in Scanopy Cloud, then restart this one."
+            }
             Self::AuthPasswordLoginDisabled => "Password login is disabled",
             Self::AuthRegistrationDisabled => "User registration is disabled",
             Self::AuthOrgLimitReached => {
@@ -568,6 +573,9 @@ impl ErrorCode {
                 Some(json_map! { "resource" => resource, "limit" => limit })
             }
             Self::BillingHostLimitReached { limit } => Some(json_map! { "limit" => limit }),
+            Self::LicenseInstanceLimitReached { active, limit } => {
+                Some(json_map! { "active" => active, "limit" => limit })
+            }
             Self::BillingFeatureNotAvailable { feature } => {
                 Some(json_map! { "feature" => feature })
             }

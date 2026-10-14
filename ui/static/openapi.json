@@ -10326,7 +10326,7 @@
             }
           },
           "403": {
-            "description": "Key was regenerated, or the organization is not on a self-hosted plan",
+            "description": "Key was regenerated, the organization is not on a self-hosted plan, or the key already runs on as many servers as the plan covers",
             "content": {
               "application/json": {
                 "schema": {
@@ -34094,12 +34094,17 @@
         "type": "object",
         "required": [
           "instance",
-          "active"
+          "active",
+          "holds_slot"
         ],
         "properties": {
           "active": {
             "type": "boolean",
             "description": "Whether the instance counts against the limit: it checked in within\nthe last week."
+          },
+          "holds_slot": {
+            "type": "boolean",
+            "description": "Whether the instance holds one of the plan's slots. An instance\nwithout one is refused its entitlement and is read-only."
           },
           "instance": {
             "$ref": "#/components/schemas/LicenseInstance"

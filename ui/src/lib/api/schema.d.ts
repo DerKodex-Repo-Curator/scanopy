@@ -11350,6 +11350,11 @@ export interface components {
              *     the last week.
              */
             active: boolean;
+            /**
+             * @description Whether the instance holds one of the plan's slots. An instance
+             *     without one is refused its entitlement and is read-only.
+             */
+            holds_slot: boolean;
             instance: components["schemas"]["LicenseInstance"];
         };
         /** @description The server instances an organization's online key is running on. */
@@ -20795,7 +20800,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description Key was regenerated, or the organization is not on a self-hosted plan */
+            /** @description Key was regenerated, the organization is not on a self-hosted plan, or the key already runs on as many servers as the plan covers */
             403: {
                 headers: {
                     [name: string]: unknown;

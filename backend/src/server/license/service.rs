@@ -352,10 +352,38 @@ impl LicenseService {
                     ));
                 }
 
+                // Refused because the key already runs on as many servers as
+                // the plan covers: keep the counts so the UI can say so.
+                let instances = body
+                    .as_ref()
+                    .filter(|body| {
+                        body.code.as_deref()
+                            == Some(
+                                ErrorCode::LicenseInstanceLimitReached {
+                                    active: 0,
+                                    limit: 0,
+                                }
+                                .code(),
+                            )
+                    })
+                    .and_then(|body| body.params.as_ref())
+                    .and_then(|params| {
+                        let count = |key: &str| {
+                            params
+                                .get(key)
+                                .and_then(serde_json::Value::as_u64)
+                                .and_then(|n| u32::try_from(n).ok())
+                        };
+                        Some(InstanceUsage {
+                            active: count("active")?,
+                            limit: Some(count("limit")?),
+                        })
+                    });
+
                 let reason = body.and_then(|body| body.error).unwrap_or_else(|| {
                     format!("License key rejected by Scanopy Cloud ({http_status})")
                 });
-                self.reject(reason).await;
+                self.reject(reason, instances).await;
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("check-in returned {http_status}")),
@@ -392,8 +420,10 @@ impl LicenseService {
     }
 
     /// Record that the cloud rejected the key, and drop the cached entitlement
-    /// so a restart can't bring the rejected key's tier back.
-    async fn reject(&self, reason: String) {
+    /// so a restart can't bring the rejected key's tier back. `instances` is
+    /// set when the refusal was for running on more servers than the plan
+    /// covers.
+    async fn reject(&self, reason: String, instances: Option<InstanceUsage>) {
         tracing::warn!(%reason, "Scanopy Cloud rejected the license key");
         let checked_at = Utc::now();
         {
@@ -401,7 +431,7 @@ impl LicenseService {
             state.entitlement = None;
             state.entitlement_at = Some(checked_at);
             state.rejection = Some(reason.clone());
-            state.instances = None;
+            state.instances = instances;
             Self::set_status(&mut state, LicenseStatus::Invalid(reason));
         }
 
@@ -717,6 +747,35 @@ mod tests {
         assert!(matches!(after, LicenseStatus::Valid(_)));
         assert_eq!(after.expiry_date(), valid.expiry_date());
         assert_eq!(service.entitlement_at().await, checked);
+    }
+
+    /// A server refused for running past the plan's limit is read-only and
+    /// keeps the counts the cloud sent, for the banner that says why.
+    #[tokio::test]
+    async fn a_server_refused_for_the_instance_limit_is_locked_with_the_counts() {
+        let base_url = cloud(|| {
+            ApiError::coded(
+                StatusCode::FORBIDDEN,
+                ErrorCode::LicenseInstanceLimitReached {
+                    active: 2,
+                    limit: 1,
+                },
+            )
+            .into_response()
+        })
+        .await;
+
+        let license = service(online_key(ORG_ID)).await;
+        license.check_in(&base_url).await;
+
+        assert!(license.current_status().await.is_locked());
+        assert_eq!(
+            license.instance_usage().await,
+            Some(InstanceUsage {
+                active: 2,
+                limit: Some(1)
+            })
+        );
     }
 
     #[tokio::test]

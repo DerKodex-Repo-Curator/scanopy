@@ -12,6 +12,7 @@
 		common_delete,
 		common_inactive,
 		common_ipAddress,
+		common_readOnly,
 		common_servers,
 		settings_billing_license_lastCheckIn,
 		settings_billing_license_noServers,
@@ -54,7 +55,7 @@
 		{#if instancesQuery.isSuccess && instances.length === 0}
 			<p class="text-secondary text-sm">{settings_billing_license_noServers()}</p>
 		{/if}
-		{#each instances as { instance, active } (instance.id)}
+		{#each instances as { instance, active, holds_slot } (instance.id)}
 			<InfoCard variant="compact">
 				<div class="flex items-center justify-between gap-4">
 					<div class="min-w-0 {active ? '' : 'opacity-60'}">
@@ -66,6 +67,8 @@
 							{/if}
 							{#if !active}
 								<span class="text-secondary ml-2 text-xs font-normal">{common_inactive()}</span>
+							{:else if !holds_slot}
+								<span class="text-danger ml-2 text-xs font-normal">{common_readOnly()}</span>
 							{/if}
 						</p>
 						<p class="text-secondary text-xs">
