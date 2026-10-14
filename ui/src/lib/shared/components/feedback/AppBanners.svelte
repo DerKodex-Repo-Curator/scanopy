@@ -53,7 +53,7 @@
 <!-- One chain, mutually exclusive by construction: a licence that is locked must
      not also announce a grace period or an approaching expiry. -->
 {#if configQuery.data?.license_status === 'expired' || configQuery.data?.license_status === 'invalid'}
-	<LicenseLockedBanner status={configQuery.data.license_status} />
+	<LicenseLockedBanner status={configQuery.data.license_status} refusedFor={instanceOverrun} />
 {:else if configQuery.data?.license_status === 'pending'}
 	<LicensePendingBanner />
 {:else if configQuery.data?.license_in_grace_period && configQuery.data?.license_valid_through && configQuery.data?.license_expiry}
@@ -67,8 +67,9 @@
 		hardExpiry={configQuery.data.license_expiry}
 	/>
 {/if}
-<!-- Outside the chain above: running on more servers than the key covers is a
-     warning only, so it shows alongside any of the licence banners. -->
-{#if instanceOverrun}
+<!-- Outside the chain above: a server that holds a slot on a key running past
+     its limit keeps working and warns. The refused server is read-only and
+     says so in the locked banner instead. -->
+{#if instanceOverrun && configQuery.data?.license_status !== 'invalid'}
 	<LicenseInstanceLimitBanner active={instanceOverrun.active} limit={instanceOverrun.limit} />
 {/if}

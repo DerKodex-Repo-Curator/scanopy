@@ -178,11 +178,11 @@ async fn online_keys_are_stable_until_rotated() {
     );
 }
 
-/// A second server on the key still gets its entitlement, the response says
-/// the key is over its limit, and the org is marked so the overrun is reported
-/// once. A server with no instance id shares one slot with every other.
+/// On Standard, a second server on the key is refused its entitlement while
+/// the first keeps getting its own, told the key is over its limit; the org is
+/// marked so the overrun is reported once. Moving to Plus lets the second in.
 #[tokio::test]
-async fn a_second_instance_is_warned_and_still_entitled() {
+async fn a_second_instance_is_refused_on_standard_and_admitted_on_plus() {
     let (state, _container) = test_state().await;
     let issuer = state.license_issuer.clone().unwrap();
     let service = &state.services.organization_service;
@@ -196,35 +196,21 @@ async fn a_second_instance_is_warned_and_still_entitled() {
     let key = issuer
         .mint_online_key(&reload(&state, org.id).await, stamp)
         .unwrap();
+    let first = Some(Uuid::new_v4());
+    let second = Some(Uuid::new_v4());
 
-    let first = check_in(&state, key.clone(), Some(Uuid::new_v4()))
-        .await
-        .unwrap();
+    let admitted = check_in(&state, key.clone(), first).await.unwrap();
     assert_eq!(
-        first.instances,
+        admitted.instances,
         Some(InstanceUsage {
             active: 1,
             limit: Some(1)
         })
     );
-    assert!(
-        !reload(&state, org.id)
-            .await
-            .base
-            .notifications
-            .license_over_instance_limit
-    );
 
-    let second = check_in(&state, key.clone(), Some(Uuid::new_v4()))
-        .await
-        .unwrap();
-    assert!(!second.entitlement.is_empty());
     assert_eq!(
-        second.instances,
-        Some(InstanceUsage {
-            active: 2,
-            limit: Some(1)
-        })
+        check_in(&state, key.clone(), second).await.unwrap_err(),
+        StatusCode::FORBIDDEN
     );
     assert!(
         reload(&state, org.id)
@@ -234,10 +220,31 @@ async fn a_second_instance_is_warned_and_still_entitled() {
             .license_over_instance_limit
     );
 
-    let old = check_in(&state, key.clone(), None).await.unwrap();
-    let again = check_in(&state, key, None).await.unwrap();
-    assert_eq!(old.instances.unwrap().active, 3);
-    assert_eq!(again.instances.unwrap().active, 3);
+    let still_admitted = check_in(&state, key.clone(), first).await.unwrap();
+    assert!(!still_admitted.entitlement.is_empty());
+    assert_eq!(
+        still_admitted.instances,
+        Some(InstanceUsage {
+            active: 2,
+            limit: Some(1)
+        })
+    );
+
+    let mut plus = reload(&state, org.id).await;
+    plus.base.plan = Some(get_self_hosted_plus_plan());
+    service
+        .update(&mut plus, AuthenticatedEntity::System)
+        .await
+        .unwrap();
+    let on_plus = check_in(&state, key, second).await.unwrap();
+    assert!(!on_plus.entitlement.is_empty());
+    assert_eq!(
+        on_plus.instances,
+        Some(InstanceUsage {
+            active: 2,
+            limit: None
+        })
+    );
 }
 
 #[tokio::test]

@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use semver::Version;
 use uuid::Uuid;
 
-use super::{LicenseInstance, LicenseInstanceBase, ServerInstance, active_count};
+use super::{LicenseInstance, LicenseInstanceBase, ServerInstance, active_count, holds_slot};
 use crate::server::license::online::InstanceUsage;
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::generic::GenericPostgresStorage;
@@ -21,6 +21,14 @@ pub struct CheckIn {
     pub server_version: Option<Version>,
     pub ip: Option<IpAddr>,
     pub at: DateTime<Utc>,
+}
+
+/// What a recorded check-in found: the organization's instance count, and
+/// whether the instance that checked in holds a slot under the limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordedCheckIn {
+    pub usage: InstanceUsage,
+    pub holds_slot: bool,
 }
 
 pub struct LicenseInstanceService {
@@ -69,12 +77,14 @@ impl LicenseInstanceService {
 
     /// Record a check-in against the instance it came from, creating the row
     /// on its first check-in, and return the organization's instance count
-    /// against `limit`. Check-ins with no instance id share one row.
+    /// against `limit` and whether this instance holds a slot. Check-ins with
+    /// no instance id share one row, and the first check-in that sends an id
+    /// takes that row over, so upgrading an old server keeps its slot.
     pub async fn record_check_in(
         &self,
         check_in: CheckIn,
         limit: Option<u32>,
-    ) -> Result<InstanceUsage> {
+    ) -> Result<RecordedCheckIn> {
         let guard = self
             .instances
             .session_lock(
@@ -93,21 +103,28 @@ impl LicenseInstanceService {
         &self,
         check_in: CheckIn,
         limit: Option<u32>,
-    ) -> Result<InstanceUsage> {
+    ) -> Result<RecordedCheckIn> {
         let mut instances = self.list(check_in.organization_id).await?;
         let server_version = check_in.server_version.map(|v| v.to_string());
 
-        match instances
-            .iter_mut()
-            .find(|i| i.base.instance_id == check_in.instance_id)
-        {
+        let matching = instances
+            .iter()
+            .position(|i| i.base.instance_id == check_in.instance_id)
+            .or_else(|| {
+                check_in
+                    .instance_id
+                    .and_then(|_| instances.iter().position(|i| i.base.instance_id.is_none()))
+            });
+        let id = match matching.map(|index| &mut instances[index]) {
             Some(instance) => {
+                instance.base.instance_id = check_in.instance_id;
                 instance.base.last_seen_at = check_in.at;
                 instance.base.last_seen_ip = check_in.ip.or(instance.base.last_seen_ip);
                 instance.base.server_version =
                     server_version.or(instance.base.server_version.take());
                 instance.updated_at = check_in.at;
                 self.instances.update(instance).await?;
+                instance.id
             }
             None => {
                 let created = self
@@ -121,13 +138,18 @@ impl LicenseInstanceService {
                         last_seen_at: check_in.at,
                     }))
                     .await?;
+                let id = created.id;
                 instances.push(created);
+                id
             }
-        }
+        };
 
-        Ok(InstanceUsage {
-            active: active_count(&instances, check_in.at),
-            limit,
+        Ok(RecordedCheckIn {
+            usage: InstanceUsage {
+                active: active_count(&instances, check_in.at),
+                limit,
+            },
+            holds_slot: holds_slot(&instances, id, limit, check_in.at),
         })
     }
 
@@ -204,35 +226,101 @@ mod tests {
     async fn one_instance_is_within_a_limit_of_one() {
         let (storage, _container) = test_storage().await;
         let org = org_id(&storage).await;
-        let usage = service(&storage)
+        let recorded = service(&storage)
             .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), Some(1))
             .await
             .unwrap();
         assert_eq!(
-            usage,
+            recorded.usage,
             InstanceUsage {
                 active: 1,
                 limit: Some(1)
             }
         );
-        assert!(!usage.is_over());
+        assert!(recorded.holds_slot);
     }
 
+    /// The server that arrives past the limit is refused, however often the
+    /// two check in after that; the first keeps its slot.
     #[tokio::test]
-    async fn a_second_instance_goes_over_a_limit_of_one() {
+    async fn a_second_instance_is_refused_and_the_first_keeps_its_slot() {
         let (storage, _container) = test_storage().await;
         let org = org_id(&storage).await;
         let service = service(&storage);
+        let first = Some(Uuid::new_v4());
+        let second = Some(Uuid::new_v4());
+        let start = Utc::now();
         service
-            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), Some(1))
+            .record_check_in(check_in(org, first, start), Some(1))
             .await
             .unwrap();
-        let usage = service
-            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), Some(1))
+
+        for minutes in 1..3 {
+            let at = start + chrono::Duration::minutes(minutes);
+            let refused = service
+                .record_check_in(check_in(org, second, at), Some(1))
+                .await
+                .unwrap();
+            assert!(refused.usage.is_over());
+            assert!(!refused.holds_slot);
+
+            let kept = service
+                .record_check_in(check_in(org, first, at), Some(1))
+                .await
+                .unwrap();
+            assert!(kept.holds_slot);
+        }
+    }
+
+    #[tokio::test]
+    async fn no_cap_gives_every_instance_a_slot() {
+        let (storage, _container) = test_storage().await;
+        let org = org_id(&storage).await;
+        let service = service(&storage);
+        for _ in 0..3 {
+            let recorded = service
+                .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), None)
+                .await
+                .unwrap();
+            assert!(recorded.holds_slot);
+            assert!(!recorded.usage.is_over());
+        }
+    }
+
+    /// The one old server on a key upgrades and keeps its slot. A second old
+    /// server still running beside it is then the one past the limit.
+    #[tokio::test]
+    async fn an_upgraded_server_takes_over_the_old_servers_slot() {
+        let (storage, _container) = test_storage().await;
+        let org = org_id(&storage).await;
+        let service = service(&storage);
+        let start = Utc::now();
+        service
+            .record_check_in(check_in(org, None, start), Some(1))
             .await
             .unwrap();
-        assert!(usage.is_over());
-        assert_eq!(usage.active, 2);
+
+        let upgraded = Some(Uuid::new_v4());
+        let recorded = service
+            .record_check_in(
+                check_in(org, upgraded, start + chrono::Duration::minutes(1)),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        assert!(recorded.holds_slot);
+        let instances = service.list(org).await.unwrap();
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].base.instance_id, upgraded);
+
+        let still_old = service
+            .record_check_in(
+                check_in(org, None, start + chrono::Duration::minutes(2)),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        assert!(!still_old.holds_slot);
     }
 
     /// A restart, and a rolling deploy with old and new containers checking in
@@ -249,15 +337,15 @@ mod tests {
             c.server_version = Some(Version::new(0, 17, 30 + minor));
             service.record_check_in(c, Some(1))
         });
-        for usage in futures::future::join_all(concurrent).await {
-            assert!(!usage.unwrap().is_over());
+        for recorded in futures::future::join_all(concurrent).await {
+            assert!(!recorded.unwrap().usage.is_over());
         }
 
-        let usage = service
+        let recorded = service
             .record_check_in(check_in(org, instance_id, Utc::now()), Some(1))
             .await
             .unwrap();
-        assert_eq!(usage.active, 1);
+        assert_eq!(recorded.usage.active, 1);
         assert_eq!(service.list(org).await.unwrap().len(), 1);
     }
 
@@ -301,11 +389,11 @@ mod tests {
             .unwrap();
         assert!(service.delete(org, row.id).await.unwrap());
 
-        let usage = service
+        let recorded = service
             .record_check_in(check_in(org, current, Utc::now()), Some(1))
             .await
             .unwrap();
-        assert!(!usage.is_over());
+        assert!(recorded.holds_slot);
     }
 
     #[tokio::test]
@@ -321,11 +409,12 @@ mod tests {
             )
             .await
             .unwrap();
-        let usage = service
+        let recorded = service
             .record_check_in(check_in(org, Some(Uuid::new_v4()), now), Some(1))
             .await
             .unwrap();
-        assert_eq!(usage.active, 1);
+        assert_eq!(recorded.usage.active, 1);
+        assert!(recorded.holds_slot);
     }
 
     #[tokio::test]
