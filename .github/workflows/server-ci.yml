@@ -3,7 +3,7 @@ name: Server CI
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'backend/src/server.rs'
       - 'backend/src/server/**'

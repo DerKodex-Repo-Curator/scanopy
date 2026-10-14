@@ -82,10 +82,13 @@ impl Storable for ServerInstance {
 /// as the cloud records it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct LicenseInstance {
+    /// Id of the cloud's record for this instance.
     #[schema(read_only, required)]
     pub id: Uuid,
+    /// When the cloud created the record.
     #[schema(read_only, required)]
     pub created_at: DateTime<Utc>,
+    /// When the cloud last changed the record.
     #[schema(read_only, required)]
     pub updated_at: DateTime<Utc>,
     #[serde(flatten)]
@@ -94,6 +97,7 @@ pub struct LicenseInstance {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct LicenseInstanceBase {
+    /// Organization whose online key the instance checks in with.
     pub organization_id: Uuid,
     /// The id the server's database holds. `None` on the one row shared by
     /// servers too old to send it.
@@ -110,7 +114,9 @@ pub struct LicenseInstanceBase {
     /// server older than the setting: it counts as production and is never
     /// refused.
     pub non_production: Option<bool>,
+    /// First check-in.
     pub first_seen_at: DateTime<Utc>,
+    /// Latest check-in.
     pub last_seen_at: DateTime<Utc>,
     /// When the instance last started counting in its class: its first
     /// check-in, its first after a silence, or a change of class. Slots go

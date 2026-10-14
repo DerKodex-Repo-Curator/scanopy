@@ -96,12 +96,14 @@ pub struct EntitlementResponse {
 pub struct InstanceUsage {
     /// Production servers.
     pub active: u32,
+    /// Production servers the key covers. `None` is no cap.
     pub limit: Option<u32>,
     /// Servers started with `SCANOPY_NON_PRODUCTION`. Absent from clouds
     /// older than the setting.
     #[serde(default)]
     #[schema(required)]
     pub non_production_active: u32,
+    /// Non-production servers the key covers. `None` is no cap.
     #[serde(default)]
     #[schema(required)]
     pub non_production_limit: Option<u32>,

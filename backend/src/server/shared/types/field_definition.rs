@@ -164,6 +164,7 @@ pub enum FieldSetRole {
     /// This dropdown picks the set.
     Sets,
     /// Shown only while the dropdown holds one of these values.
+    #[schema(title = "Requires")]
     Requires(Vec<String>),
 }
 

@@ -211,8 +211,10 @@ impl FieldSetValue for SnmpV3SecurityLevel {
 #[serde(tag = "security_level")]
 pub enum SnmpV3Security<S> {
     /// User name only.
+    #[schema(title = "NoAuthNoPriv")]
     NoAuthNoPriv,
     /// Authenticated, not encrypted.
+    #[schema(title = "AuthNoPriv")]
     AuthNoPriv {
         /// Hash algorithm used for authentication.
         auth_protocol: SnmpV3AuthProtocol,
@@ -220,6 +222,7 @@ pub enum SnmpV3Security<S> {
         auth_password: S,
     },
     /// Authenticated and encrypted.
+    #[schema(title = "AuthPriv")]
     AuthPriv {
         /// Hash algorithm used for authentication.
         auth_protocol: SnmpV3AuthProtocol,

@@ -7,9 +7,12 @@
 //! union variants with no label, response bodies with no schema, and free-form
 //! strings that have a real enum sitting next to them.
 //!
-//! Run with: `cargo test openapi_lint -- --nocapture`
+//! A unit test rather than an integration test so it runs in `cargo test --lib`, on every
+//! push, instead of only in the release integration run.
+//!
+//! Run with: `cargo test --lib openapi::lint`
 
-use scanopy::server::openapi::public_spec;
+use super::public_spec;
 use serde_json::Value;
 use std::collections::BTreeSet;
 

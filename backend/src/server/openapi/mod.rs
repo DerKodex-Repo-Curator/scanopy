@@ -615,6 +615,9 @@ pub fn write_spec(spec: &OpenApi, path: &std::path::Path) -> std::io::Result<()>
 }
 
 #[cfg(test)]
+mod lint;
+
+#[cfg(test)]
 mod tests {
     use serde_json::Value;
 
