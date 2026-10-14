@@ -19,8 +19,12 @@ use crate::server::credentials::r#impl::mapping::IntegrationTarget;
 
 /// The `install.sh` one-liner that fetches + runs the Unix installer bootstrap.
 const UNIX_INSTALL_SCRIPT: &str = "bash -c \"$(curl -fsSL https://raw.githubusercontent.com/scanopy/scanopy/refs/heads/main/install.sh)\"";
-/// Windows daemon exe (matches the UI's hardcoded release URL).
-const WINDOWS_EXE_URL: &str =
+/// Windows daemon exe through the Scarf gateway, which counts the download and redirects to the
+/// GitHub release asset.
+const WINDOWS_EXE_SCARF_URL: &str =
+    "https://get.scanopy.net/latest/scanopy-daemon-windows-amd64.exe";
+/// The same exe straight from GitHub, for when Scarf is down or blocked.
+const WINDOWS_EXE_GITHUB_URL: &str =
     "https://github.com/scanopy/scanopy/releases/latest/download/scanopy-daemon-windows-amd64.exe";
 /// The signed Windows MSI release asset. A static GitHub asset URL — the UI hardcodes it as a
 /// const rather than the server sending it per-provision (it's the same for every tenant). Kept
@@ -28,6 +32,25 @@ const WINDOWS_EXE_URL: &str =
 /// name is tenant-specific and travels in the provision response.
 pub const WINDOWS_MSI_URL: &str =
     "https://github.com/scanopy/scanopy/releases/latest/download/scanopy-daemon-windows-amd64.msi";
+/// The MSI through the Scarf gateway. Requested only to count a download; the bytes come from
+/// [`WINDOWS_MSI_URL`].
+pub const WINDOWS_MSI_SCARF_URL: &str =
+    "https://get.scanopy.net/latest/scanopy-daemon-windows-amd64.msi";
+/// The daemon image, pulled through the Scarf gateway in front of GHCR.
+const DAEMON_IMAGE_REPO: &str = "docker.scanopy.net/scanopy/scanopy/daemon";
+/// Compose comment above the image line, for when Scarf is down or blocked.
+const DOCKER_PULL_HELP: &str = "# Pull fails? https://scanopy.net/docs/setting-up-daemons/troubleshooting-setup/#docker-pull-or-download-fails";
+
+/// PowerShell that downloads the Windows exe to `out_file` through Scarf, falling back to GitHub.
+/// Both requests stop on error, so a caller running under `$ErrorActionPreference = 'Stop'`
+/// halts when neither source answers.
+fn windows_exe_download(out_file: &str) -> String {
+    format!(
+        "try {{ Invoke-WebRequest -Uri \"{WINDOWS_EXE_SCARF_URL}\" -OutFile \"{out_file}\" -ErrorAction Stop }} \
+         catch {{ Write-Host \"get.scanopy.net unreachable, downloading from GitHub\"; \
+         Invoke-WebRequest -Uri \"{WINDOWS_EXE_GITHUB_URL}\" -OutFile \"{out_file}\" -ErrorAction Stop }}"
+    )
+}
 
 /// The docker install method.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -334,9 +357,6 @@ fn install_flags(args: &DaemonArgs, quote: fn(&str) -> String) -> String {
         .join(" ")
 }
 
-/// Container image the compose file runs.
-const DOCKER_IMAGE: &str = "docker.scanopy.net/scanopy/scanopy/daemon:latest";
-
 /// Quote a compose env value if YAML would otherwise mis-read it. Values sit in a
 /// `- KEY=value` list item, where most characters are fine bare; leading/trailing whitespace
 /// and a ` #` (which starts a comment) are the cases that need quoting.
@@ -404,7 +424,8 @@ fn docker_compose(env_lines: &[String], daemon: &Daemon) -> String {
     let mut lines = vec![
         "services:".to_string(),
         "  daemon:".to_string(),
-        format!("    image: {DOCKER_IMAGE}"),
+        format!("    {DOCKER_PULL_HELP}"),
+        format!("    image: {DAEMON_IMAGE_REPO}:latest"),
         "    container_name: scanopy-daemon".to_string(),
         "    network_mode: host".to_string(),
         "    privileged: true".to_string(),
@@ -456,8 +477,10 @@ pub fn build_install_artifacts(
                 "{UNIX_INSTALL_SCRIPT} && sudo scanopy-daemon install {}",
                 install_flags(&args, quote_posix)
             ),
+            // `Stop` halts before `install` when neither download source answers.
             format!(
-                "Invoke-WebRequest -Uri \"{WINDOWS_EXE_URL}\" -OutFile \"scanopy-daemon-windows-amd64.exe\"; .\\scanopy-daemon-windows-amd64.exe install {}",
+                "$ErrorActionPreference = 'Stop'; {}; .\\scanopy-daemon-windows-amd64.exe install {}",
+                windows_exe_download("scanopy-daemon-windows-amd64.exe"),
                 install_flags(&args, quote_powershell)
             ),
         ),
@@ -584,9 +607,7 @@ pub fn build_upgrade_artifacts(daemon: &Daemon) -> UpgradeArtifacts {
                 UpgradeStep::new(Stop, format!("sc.exe stop {windows_service}")),
                 UpgradeStep::new(
                     Download,
-                    format!(
-                        "Invoke-WebRequest -Uri \"{WINDOWS_EXE_URL}\" -OutFile \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\""
-                    ),
+                    windows_exe_download(&format!("{WINDOWS_BIN_DIR}\\scanopy-daemon.exe")),
                 ),
                 UpgradeStep::new(Start, format!("sc.exe start {windows_service}")),
             ],
@@ -611,9 +632,10 @@ pub fn build_upgrade_artifacts(daemon: &Daemon) -> UpgradeArtifacts {
                 Download,
                 format!(
                     "$ErrorActionPreference = 'Stop'; \
-                     Invoke-WebRequest -Uri \"{WINDOWS_EXE_URL}\" -OutFile \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\"; \
+                     {}; \
                      Move-Item \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.$(Get-Date -Format yyyyMMddHHmmss).old\"; \
-                     Move-Item \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\""
+                     Move-Item \"{WINDOWS_BIN_DIR}\\scanopy-daemon.new\" \"{WINDOWS_BIN_DIR}\\scanopy-daemon.exe\"",
+                    windows_exe_download(&format!("{WINDOWS_BIN_DIR}\\scanopy-daemon.new"))
                 ),
             ),
             UpgradeStep::new(
@@ -639,7 +661,12 @@ pub fn build_upgrade_artifacts(daemon: &Daemon) -> UpgradeArtifacts {
                 )
             }),
             pull: "docker compose pull\ndocker compose up -d".to_string(),
-            pinned_image: format!("image: docker.scanopy.net/scanopy/scanopy/daemon:v{}", own_version()),
+            // The swap-in moves a daemon still on `ghcr.io` onto Scarf, so it carries the help
+            // comment for a pull that fails there.
+            pinned_image: format!(
+                "{DOCKER_PULL_HELP}\nimage: {DAEMON_IMAGE_REPO}:v{}",
+                own_version()
+            ),
         },
         legacy_service_name,
     }
