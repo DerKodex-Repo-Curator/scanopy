@@ -39,13 +39,11 @@
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
 	import { closeModal, navigateToEntity, openModal } from '$lib/shared/stores/modal-registry';
-	import { credentialIntegrations, credentialTypes, entities } from '$lib/shared/stores/metadata';
+	import { credentialIntegrations, entities } from '$lib/shared/stores/metadata';
 	import {
-		addIntegrationCredentialLabel,
-		openCredentialCreate,
-		prefillsSites
+		createIntegrationCredentialLabel,
+		openCredentialCreate
 	} from '$lib/features/credentials/utils/prefill';
-	import { useSitesQuery } from '$lib/features/sites/queries';
 	import type { components } from '$lib/api/schema';
 	import { createColorHelper, createIconComponent } from '$lib/shared/utils/styling';
 	import type { IconComponent } from '$lib/shared/utils/types';
@@ -66,6 +64,7 @@
 		buildWarningReport,
 		credentialIdsOf,
 		isCredentialWarning,
+		subjectKey,
 		type WarningEntry,
 		type WarningSubject
 	} from '../../utils/warnings';
@@ -130,9 +129,6 @@
 	 * both from one cache entry. A viewer who cannot read them resolves nothing, which the lookup
 	 * already treats as a normal outcome.
 	 */
-	// For the site an SNMP-style credential is created on, which its button names.
-	const sitesQuery = useSitesQuery();
-
 	const credentialsQuery = useCredentialsQuery();
 	let credentialsData = $derived(credentialsQuery.data ?? []);
 
@@ -247,11 +243,8 @@
 			const integration: CredentialIntegration = found[0].integration;
 			const hostIds = found.flatMap((w) => (w.host_id ? [w.host_id] : []));
 			const siteIds = [payload.site_id];
-			const site = prefillsSites(credentialTypes.getItems() ?? [], integration)
-				? (sitesQuery.data?.find((s) => s.id === payload.site_id)?.name ?? null)
-				: null;
 			return {
-				label: addIntegrationCredentialLabel(integration, site),
+				label: createIntegrationCredentialLabel(integration),
 				icon: credentialIntegrations.getIconComponent(integration),
 				run: () => openCredentialCreate(integration, { hostIds, siteIds })
 			};
@@ -359,86 +352,95 @@
 					<Tag label={String(section.entries.length)} color="Amber" pill />
 				{/snippet}
 
-				<ul>
+				<!--
+					One line per row: what it is, who it concerns, and its action, so the action sits
+					beside the thing it fixes. Opening a row shows the explanation, then every device
+					it names.
+				-->
+				<ul class="divide-y divide-gray-200 dark:divide-gray-700">
 					{#each section.entries as entry (entry.key)}
 						{@const EntryIcon = createIconComponent(entry.icon)}
 						{@const colors = createColorHelper(entry.color)}
 						{@const action = actionFor(entry)}
 						{@const isOpen = openRows.has(entry.key)}
-						<!--
-							Two columns: everything the row says on the left, its one action on the
-							right. Chips and the explanation wrap inside the left column, so a row
-							naming forty devices or carrying a long sentence never runs under the button.
-						-->
-						<li class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 pb-1">
-							<div class="min-w-0">
+						<li class="py-1.5">
+							<div class="flex min-w-0 items-center gap-2">
 								<button
 									type="button"
-									class="hover:bg-tertiary/40 -mx-1 flex w-full min-w-0 cursor-pointer items-start gap-2 rounded px-1 py-1 text-left"
+									class="hover:bg-tertiary/40 -mx-1 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1 text-left"
 									aria-expanded={isOpen}
 									onclick={() => toggleRow(entry.key)}
 								>
 									<ChevronRight
-										class="text-secondary mt-0.5 h-4 w-4 shrink-0 transition-transform {isOpen
+										class="text-secondary h-4 w-4 shrink-0 transition-transform {isOpen
 											? 'rotate-90'
 											: ''}"
 									/>
-									<EntryIcon class="mt-0.5 h-4 w-4 shrink-0 {colors.icon}" />
-									<span class="text-primary min-w-0 text-sm">{entry.title}</span>
+									<EntryIcon class="h-4 w-4 shrink-0 {colors.icon}" />
+									<span class="text-primary min-w-0 truncate text-sm">{entry.title}</span>
 								</button>
 
-								{#if entry.subjects.length > 0}
-									<div class="flex flex-wrap items-center gap-1 pb-1 pl-12">
-										{#each entry.subjects as subject (subject.label)}
+								<!-- The first few subjects, on the header line; the rest are counted. Hidden
+								     while the row is open, which lists them all. -->
+								<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+									{#if !isOpen}
+										{#each entry.preview as subject (subjectKey(subject))}
 											{@render entityChip(subject)}
 										{/each}
-									</div>
-								{/if}
+									{/if}
+								</div>
 
-								{#if isOpen}
-									<div class="space-y-2 pb-2 pl-12">
-										{#each entry.details as statement, i (i)}
-											<div class="space-y-1">
-												<p class="text-tertiary text-sm">{statement.sentence}</p>
-												{#if statement.examples.length > 0}
-													<ul class="space-y-0.5">
-														{#each statement.examples as example, j (j)}
-															<li class="text-tertiary flex flex-wrap items-center gap-1 text-xs">
-																{#if example.near}
-																	{@render entityChip(example.near)}
-																{/if}
-																{#if example.nearText}<span>{example.nearText}</span>{/if}
-																<!-- The arrow is only drawn with something on both sides: a
-																     far end nothing matched, or a host deleted since the scan,
-																     would otherwise leave it pointing at nothing. -->
-																{#if (example.near || example.nearText) && (example.far || example.farText)}
-																	<span class="text-tertiary/60" aria-hidden="true">→</span>
-																{/if}
-																{#if example.far}
-																	{@render entityChip(example.far)}
-																{/if}
-																{#if example.farText}<span>{example.farText}</span>{/if}
-															</li>
-														{/each}
-													</ul>
-												{/if}
-											</div>
-										{/each}
-									</div>
+								{#if action}
+									{@const ActionIcon = action.icon}
+									<button
+										type="button"
+										class="btn-secondary flex max-w-56 shrink-0 items-center gap-1 py-1 text-xs"
+										title={action.label}
+										onclick={action.run}
+									>
+										<ActionIcon class="h-3.5 w-3.5 shrink-0" />
+										<span class="truncate">{action.label}</span>
+									</button>
 								{/if}
 							</div>
 
-							{#if action}
-								{@const ActionIcon = action.icon}
-								<button
-									type="button"
-									class="btn-secondary flex max-w-56 items-center gap-1 py-1 text-xs"
-									title={action.label}
-									onclick={action.run}
-								>
-									<ActionIcon class="h-3.5 w-3.5 shrink-0" />
-									<span class="truncate">{action.label}</span>
-								</button>
+							{#if isOpen}
+								<div class="space-y-2 pb-1 pl-12 pt-1">
+									{#each entry.details as statement, i (i)}
+										<div class="space-y-1">
+											<p class="text-tertiary text-sm">{statement.sentence}</p>
+											{#if statement.examples.length > 0}
+												<ul class="space-y-0.5">
+													{#each statement.examples as example, j (j)}
+														<li class="text-tertiary flex flex-wrap items-center gap-1 text-xs">
+															{#if example.near}
+																{@render entityChip(example.near)}
+															{/if}
+															{#if example.nearText}<span>{example.nearText}</span>{/if}
+															<!-- The arrow is only drawn with something on both sides: a
+															     far end nothing matched, or a host deleted since the scan,
+															     would otherwise leave it pointing at nothing. -->
+															{#if (example.near || example.nearText) && (example.far || example.farText)}
+																<span class="text-tertiary/60" aria-hidden="true">→</span>
+															{/if}
+															{#if example.far}
+																{@render entityChip(example.far)}
+															{/if}
+															{#if example.farText}<span>{example.farText}</span>{/if}
+														</li>
+													{/each}
+												</ul>
+											{/if}
+										</div>
+									{/each}
+									{#if entry.subjects.length > 0}
+										<div class="flex flex-wrap items-center gap-1">
+											{#each entry.subjects as subject (subjectKey(subject))}
+												{@render entityChip(subject)}
+											{/each}
+										</div>
+									{/if}
+								</div>
 							{/if}
 						</li>
 					{/each}

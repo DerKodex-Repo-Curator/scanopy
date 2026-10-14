@@ -7,10 +7,7 @@ import {
 } from '$lib/shared/stores/metadata';
 import { openModal, type ModalState } from '$lib/shared/stores/modal-registry';
 import { slugifySiteName } from '$lib/features/daemons/utils';
-import {
-	credentials_addIntegrationCredential,
-	credentials_addIntegrationCredentialToSite
-} from '$lib/paraglide/messages';
+import { credentials_createIntegrationCredential } from '$lib/paraglide/messages';
 
 type CredentialIntegration = components['schemas']['CredentialIntegration'];
 type TypeItem = Pick<TypedTypeMetadata<CredentialTypeMetadata>, 'id' | 'metadata'>;
@@ -82,16 +79,9 @@ export function prefillCredentialName(
 	return slugifySiteName(hostName || integrationName, '_');
 }
 
-/**
- * The button that opens the create flow: "Add SNMP Credential to HQ" when the credential starts
- * on a named site, "Add Proxmox VE Credential" otherwise.
- */
-export function addIntegrationCredentialLabel(
-	integration: CredentialIntegration,
-	site: string | null
-): string {
-	const name = credentialIntegrations.getName(integration);
-	return site
-		? credentials_addIntegrationCredentialToSite({ integration: name, site })
-		: credentials_addIntegrationCredential({ integration: name });
+/** The button that opens the create flow: "Create Proxmox VE Credential". */
+export function createIntegrationCredentialLabel(integration: CredentialIntegration): string {
+	return credentials_createIntegrationCredential({
+		integration: credentialIntegrations.getName(integration)
+	});
 }
