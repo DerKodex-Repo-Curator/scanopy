@@ -643,6 +643,9 @@ async fn main() -> anyhow::Result<()> {
                         );
                     }
                 }
+                if let Some(instance_id) = license_service.instance_id() {
+                    tracing::info!(target: LOG_TARGET, "  Instance ID:     {}", instance_id);
+                }
             }
         }
     }

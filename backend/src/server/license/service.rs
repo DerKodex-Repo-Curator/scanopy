@@ -188,6 +188,12 @@ impl LicenseService {
         matches!(self.key_type, ConfiguredKey::Online(_))
     }
 
+    /// The id this server sends with each check-in. `None` for offline keys,
+    /// or when it could not be read at startup.
+    pub fn instance_id(&self) -> Option<uuid::Uuid> {
+        self.instance_id
+    }
+
     /// How many server instances the key is running on, against how many it
     /// covers, as of the last check-in. Always `None` for offline keys.
     pub async fn instance_usage(&self) -> Option<InstanceUsage> {
