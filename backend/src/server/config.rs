@@ -220,11 +220,6 @@ pub struct ServerConfig {
     /// `SCANOPY_DISABLE_UPDATE_CHECK`: no GitHub release check, no upgrade banner.
     #[serde(default)]
     pub disable_update_check: bool,
-    /// Where the release check asks for the latest release, from
-    /// `SCANOPY_UPDATE_CHECK_URL`. Defaults to GitHub (`LATEST_RELEASE_URL`);
-    /// set it to a local stub to test the upgrade banner.
-    #[serde(default)]
-    pub update_check_url: Option<String>,
     pub client_ip_source: Option<String>,
     pub smtp_username: Option<String>,
     pub smtp_password: Option<String>,
@@ -455,7 +450,6 @@ impl Default for ServerConfig {
             disable_registration: false,
             disable_password_login: false,
             disable_update_check: false,
-            update_check_url: None,
             stripe_key: None,
             stripe_secret: None,
             stripe_webhook_secret: None,
@@ -938,8 +932,6 @@ mod tests {
         "license_signing_key",
         // Points license check-ins at a local server for testing.
         "license_server_url",
-        // Points the release check at a local stub for testing.
-        "update_check_url",
         // A family of `SCANOPY_EXTERNAL_SERVICE_<NAME>_ALLOWED_IPS` variables, not one field.
         "external_service_allowed_ips",
     ];
