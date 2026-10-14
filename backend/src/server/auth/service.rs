@@ -393,7 +393,6 @@ impl AuthService {
         }) = provision_org
         {
             let authentication: AuthenticatedEntity = user.clone().into();
-            let plan = new_org_plan.unwrap_or_default();
 
             // Every new org gets the system tag groups, cloud or self-hosted. A requested site
             // means a cloud signup: registration provisions the integrated daemon on it next, so
@@ -413,7 +412,7 @@ impl AuthService {
                     OrgScope { organization_id },
                     OnboardingOperation::OrgCreated {
                         org_name,
-                        plan,
+                        plan: new_org_plan,
                         use_case,
                         site,
                     },
