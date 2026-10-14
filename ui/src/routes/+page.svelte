@@ -16,6 +16,7 @@
 	import BillingPlanModal from '$lib/features/billing/BillingPlanModal.svelte';
 	import DaemonPromptModal from '$lib/features/daemons/components/DaemonPromptModal.svelte';
 	import ReleaseNotesModal from '$lib/features/release-notes/ReleaseNotesModal.svelte';
+	import TermsAcceptanceModal from '$lib/features/auth/components/TermsAcceptanceModal.svelte';
 	import {
 		useUnseenReleaseNotesQuery,
 		useMarkReleaseNotesSeenMutation
@@ -51,6 +52,9 @@
 	const currentUserQuery = useCurrentUserQuery();
 	let isAuthenticated = $derived(currentUserQuery.data != null);
 	let isCheckingAuth = $derived(currentUserQuery.isPending);
+	// The server refuses this user's main-app requests until they accept the
+	// current terms, so the app stays unmounted behind the acceptance screen.
+	let termsGated = $derived(currentUserQuery.data?.terms_acceptance_required === true);
 
 	// Billing modal: show when billing is enabled but user has no active plan
 	const configQuery = useConfigQuery();
@@ -82,7 +86,7 @@
 	});
 	// Main-app data (SSE streams, daemons) waits until the lock state is known.
 	let mainAppAvailable = $derived(
-		configQuery.data != null && organization != null && !isSelfHostedPlanLocked
+		configQuery.data != null && organization != null && !isSelfHostedPlanLocked && !termsGated
 	);
 
 	// TanStack Query for daemons - used to determine default tab
@@ -269,12 +273,15 @@
 
 	// Release notes: the releases since the user last dismissed them. Last in
 	// the order, so it waits until the daemon prompt's inputs have loaded.
+	// Never in the demo.
 	const unseenReleaseNotesQuery = useUnseenReleaseNotesQuery({
-		enabled: () => isAuthenticated && mainAppAvailable
+		enabled: () => isAuthenticated && mainAppAvailable && !isDemoOrg
 	});
 	const markReleaseNotesSeenMutation = useMarkReleaseNotesSeenMutation();
 	let hasUnseenReleaseNotes = $derived((unseenReleaseNotesQuery.data?.releases.length ?? 0) > 0);
-	let showReleaseNotes = $derived($modalState.name === 'release-notes' && hasUnseenReleaseNotes);
+	let showReleaseNotes = $derived(
+		$modalState.name === 'release-notes' && hasUnseenReleaseNotes && !isDemoOrg
+	);
 	let releaseNotesShown = $state(false);
 	$effect(() => {
 		if (
@@ -294,12 +301,11 @@
 			openModal('release-notes');
 		}
 	});
-	// A `?modal=release-notes` link with nothing unseen has nothing to show.
+	// A `?modal=release-notes` link with nothing unseen, or in the demo, has nothing to show.
 	$effect(() => {
 		if (
 			$modalState.name === 'release-notes' &&
-			unseenReleaseNotesQuery.isSuccess &&
-			!hasUnseenReleaseNotes
+			(isDemoOrg || (unseenReleaseNotesQuery.isSuccess && !hasUnseenReleaseNotes))
 		) {
 			closeModal();
 		}
@@ -358,7 +364,9 @@
 	});
 </script>
 
-{#if appInitialized}
+{#if appInitialized && termsGated}
+	<TermsAcceptanceModal isOpen={true} />
+{:else if appInitialized}
 	<div class="flex h-screen">
 		<!-- Sidebar -->
 		<div class="flex-shrink-0">

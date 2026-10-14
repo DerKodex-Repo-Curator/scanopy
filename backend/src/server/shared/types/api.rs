@@ -489,6 +489,15 @@ impl ApiError {
         )
     }
 
+    /// Forbidden (403) - the user has to accept the current terms before the
+    /// API serves their session
+    pub fn terms_acceptance_required() -> Self {
+        Self::coded(
+            StatusCode::FORBIDDEN,
+            ErrorCode::AuthTermsAcceptanceRequired,
+        )
+    }
+
     /// Payment required (402) - the org's subscription ended and it has not
     /// chosen a paid plan since, so mutating requests are refused while
     /// reads keep working.

@@ -478,6 +478,7 @@ async fn billing_middleware_makes_a_lapsed_cloud_org_read_only() {
         site_ids: vec![],
         email: EmailAddress::new_unchecked("owner@example.com"),
         email_verified: true,
+        terms_accepted_at: None,
     };
     let org_path = format!("/api/v1/organizations/{}", org.id);
 
@@ -535,6 +536,7 @@ async fn billing_middleware_locks_main_app_routes_for_self_hosted_plans() {
         site_ids: vec![],
         email: EmailAddress::new_unchecked("owner@example.com"),
         email_verified: true,
+        terms_accepted_at: None,
     };
 
     // A main-app route and a Settings route behind the billing middleware,
@@ -789,6 +791,7 @@ async fn a_stranded_air_gapped_organization_heals_on_read() {
         site_ids: vec![],
         email: EmailAddress::new_unchecked("owner@example.com"),
         email_verified: true,
+        terms_accepted_at: None,
     };
     // The extractor takes the entity cached in request extensions, so the
     // route can be served without a session.

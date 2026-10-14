@@ -24,7 +24,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use axum_client_ip::ClientIp;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use email_address::EmailAddress;
 use serde::Deserialize;
 use serde::Serialize;
@@ -124,6 +124,9 @@ pub enum AuthenticatedEntity {
         site_ids: Vec<Uuid>,
         email: EmailAddress,
         email_verified: bool,
+        /// When the user last accepted the terms; read by the terms gate.
+        #[serde(default)]
+        terms_accepted_at: Option<DateTime<Utc>>,
     },
     Daemon {
         site_id: Uuid,
@@ -361,6 +364,7 @@ impl From<User> for AuthenticatedEntity {
             site_ids: vec![],
             email: value.base.email,
             email_verified: value.base.email_verified,
+            terms_accepted_at: value.base.terms_accepted_at,
         }
     }
 }
@@ -842,6 +846,7 @@ impl AuthenticatedEntity {
             site_ids,
             email: user.base.email,
             email_verified: user.base.email_verified,
+            terms_accepted_at: user.base.terms_accepted_at,
         })
     }
 }

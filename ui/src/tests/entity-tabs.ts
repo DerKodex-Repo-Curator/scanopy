@@ -288,7 +288,10 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				organization_id: ORGANIZATION,
 				// Decided with Maya, 2026-10-04.
 				display_settings: excluded("The user's own display preferences, not an account fact"),
-				email_settings: excluded("The user's own email preferences, not an account fact")
+				email_settings: excluded("The user's own email preferences, not an account fact"),
+				terms_acceptance_required: excluded(
+					"Set only on the signed-in user's own record, false in every list"
+				)
 			}),
 			decide('Invite', {
 				created_at: 'created_at',

@@ -58,6 +58,12 @@ pub struct UserBase {
     #[serde(default)]
     #[schema(read_only)]
     pub terms_accepted_at: Option<DateTime<Utc>>,
+    /// Whether the user must accept the current terms before the API serves
+    /// their session. Computed, never stored: set only on the signed-in user's
+    /// own record (`/api/auth/me`, login, accept), false everywhere else.
+    #[serde(default)]
+    #[schema(read_only)]
+    pub terms_acceptance_required: bool,
     /// Whether the user has verified their email address
     #[serde(default)]
     pub email_verified: bool,
@@ -111,6 +117,7 @@ impl Default for UserBase {
             organization_id: Uuid::new_v4(),
             password_hash: None,
             has_password: false,
+            terms_acceptance_required: false,
             oidc_linked_at: None,
             oidc_provider: None,
             oidc_subject: None,
@@ -148,6 +155,7 @@ impl UserBase {
             email,
             password_hash: None,
             has_password: false,
+            terms_acceptance_required: false,
             oidc_linked_at: Some(Utc::now()),
             permissions,
             organization_id,
@@ -183,6 +191,7 @@ impl UserBase {
             email,
             password_hash: Some(password_hash),
             has_password: true,
+            terms_acceptance_required: false,
             organization_id,
             permissions,
             oidc_linked_at: None,
@@ -393,6 +402,7 @@ impl Storable for User {
                 email,
                 password_hash,
                 has_password,
+                terms_acceptance_required: false,
                 permissions,
                 organization_id: row.get("organization_id"),
                 oidc_linked_at: row.get("oidc_linked_at"),
@@ -483,6 +493,7 @@ impl Entity for User {
         base.email = stored.email.clone();
         base.password_hash = stored.password_hash.clone();
         base.has_password = stored.has_password;
+        base.terms_acceptance_required = stored.terms_acceptance_required;
         base.oidc_provider = stored.oidc_provider.clone();
         base.oidc_subject = stored.oidc_subject.clone();
         base.oidc_linked_at = stored.oidc_linked_at;

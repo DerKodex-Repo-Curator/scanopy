@@ -39,6 +39,7 @@ export const ERROR_CODES = {
 	auth_org_limit_reached:
 		'This server has reached its maximum number of organizations. Ask an admin to invite you to an existing organization.',
 	auth_email_verification_required: 'Please verify your email to access this feature',
+	auth_terms_acceptance_required: 'Please accept the updated terms of service to continue',
 	auth_verification_token_invalid:
 		'This verification link is invalid or has expired. Request a new one.',
 	auth_verification_email_cooldown:
@@ -147,6 +148,7 @@ export interface ErrorParams {
 	auth_registration_disabled: Record<string, never>;
 	auth_org_limit_reached: Record<string, never>;
 	auth_email_verification_required: Record<string, never>;
+	auth_terms_acceptance_required: Record<string, never>;
 	auth_verification_token_invalid: Record<string, never>;
 	auth_verification_email_cooldown: { seconds: string | number };
 	license_locked: Record<string, never>;

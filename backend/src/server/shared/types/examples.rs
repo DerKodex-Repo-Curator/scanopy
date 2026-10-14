@@ -404,6 +404,7 @@ pub fn user() -> User {
             oidc_linked_at: None,
             site_ids: vec![ids::SITE],
             terms_accepted_at: Some(example_timestamp()),
+            terms_acceptance_required: false,
             email_verified: true,
             email_verification_token: None,
             email_verification_expires: None,

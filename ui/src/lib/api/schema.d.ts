@@ -1,4 +1,20 @@
 export interface paths {
+    "/api/auth/accept-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["accept_terms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/check-email": {
         parameters: {
             query?: never;
@@ -15292,6 +15308,12 @@ export interface components {
             /** @description The sites this entity applies to. */
             site_ids: string[];
             /**
+             * @description Whether the user must accept the current terms before the API serves
+             *     their session. Computed, never stored: set only on the signed-in user's
+             *     own record (`/api/auth/me`, login, accept), false everywhere else.
+             */
+            readonly terms_acceptance_required?: boolean;
+            /**
              * Format: date-time
              * @description When the user accepted the terms of service.
              */
@@ -15625,6 +15647,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    accept_terms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Terms accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_User"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     check_email: {
         parameters: {
             query?: never;

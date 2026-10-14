@@ -32,6 +32,37 @@
     }
   ],
   "paths": {
+    "/api/auth/accept-terms": {
+      "post": {
+        "tags": [
+          "auth",
+          "internal"
+        ],
+        "operationId": "accept_terms",
+        "responses": {
+          "200": {
+            "description": "Terms accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/check-email": {
       "post": {
         "tags": [
@@ -42384,6 +42415,11 @@
               "format": "uuid"
             },
             "description": "The sites this entity applies to."
+          },
+          "terms_acceptance_required": {
+            "type": "boolean",
+            "description": "Whether the user must accept the current terms before the API serves\ntheir session. Computed, never stored: set only on the signed-in user's\nown record (`/api/auth/me`, login, accept), false everywhere else.",
+            "readOnly": true
           },
           "terms_accepted_at": {
             "type": [
