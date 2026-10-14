@@ -119,7 +119,10 @@
     "Bacula",
     "BeszelAgent",
     "H323",
-    "Proxmox"
+    "Proxmox",
+    "SnmpEngine",
+    "DockerPing",
+    "PodmanPing"
   ],
   "ContainerNetworkType": [
     "MacVlan",
@@ -226,7 +229,9 @@
     "DcpSweepTimedOut",
     "IcmpSweepTimedOut",
     "ReverseDnsTimedOut",
-    "CredentialDaemonOsMismatch"
+    "CredentialDaemonOsMismatch",
+    "CredentialDaemonTooOld",
+    "IntegrationWithoutCredential"
   ],
   "EdgeStyle": [
     "Straight",
