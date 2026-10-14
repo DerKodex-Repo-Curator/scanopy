@@ -154,6 +154,23 @@ export function useLogoutMutation() {
 }
 
 /**
+ * Mutation hook for accepting the current terms. The returned user no longer
+ * needs to accept, which lifts the terms gate.
+ */
+export function useAcceptTermsMutation() {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async () => {
+			return unwrapData(await apiClient.POST('/api/auth/accept-terms', {}));
+		},
+		onSuccess: (user: User) => {
+			queryClient.setQueryData(queryKeys.auth.currentUser(), user);
+		}
+	}));
+}
+
+/**
  * Mutation hook for forgot password
  */
 export function useForgotPasswordMutation() {

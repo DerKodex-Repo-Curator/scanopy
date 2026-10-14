@@ -483,6 +483,12 @@ impl Default for ServerConfig {
 }
 
 impl ServerConfig {
+    /// Whether billing is enforced: a Stripe secret is configured (the cloud),
+    /// or a test turned it on.
+    pub fn billing_enabled(&self) -> bool {
+        self.stripe_secret.is_some() || self.enforce_billing_for_testing
+    }
+
     pub fn load(cli_args: ServerCli) -> anyhow::Result<Self> {
         apply_file_env_vars::<ServerConfig>()?;
 

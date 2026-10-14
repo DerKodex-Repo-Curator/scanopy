@@ -17,6 +17,7 @@
 	"errors_auth_permission_denied": "You don't have permission to perform this action",
 	"errors_auth_registration_disabled": "User registration is disabled",
 	"errors_auth_session_expired": "Your session has expired. Please log in again.",
+	"errors_auth_terms_acceptance_required": "Please accept the updated terms of service to continue",
 	"errors_auth_user_context_required": "User context required",
 	"errors_auth_user_not_found": "User with ID '{id}' not found",
 	"errors_auth_verification_email_cooldown": "A link was just sent to this address. Try again in {seconds} seconds.",

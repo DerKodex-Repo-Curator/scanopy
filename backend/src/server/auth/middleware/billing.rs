@@ -45,9 +45,7 @@ pub async fn require_billing_for_users(
     // Check if billing is enabled:
     // - Production: enabled when stripe_secret is configured
     // - Testing: enabled when enforce_billing_for_testing is true
-    let billing_enabled =
-        state.config.stripe_secret.is_some() || state.config.enforce_billing_for_testing;
-    if !billing_enabled {
+    if !state.config.billing_enabled() {
         return next.run(request).await;
     }
 

@@ -94,6 +94,9 @@ pub enum ErrorCode {
     AuthOrgLimitReached,
     /// Email verification required for this feature
     AuthEmailVerificationRequired,
+    /// The user accepted an earlier version of the terms, or none, and must
+    /// accept the current terms before using the app
+    AuthTermsAcceptanceRequired,
     /// Email verification link is unknown, already used, or expired
     AuthVerificationTokenInvalid,
     /// A verification link went to this address too recently to send another
@@ -318,6 +321,9 @@ impl ErrorCode {
             Self::AuthEmailVerificationRequired => {
                 "Please verify your email to access this feature"
             }
+            Self::AuthTermsAcceptanceRequired => {
+                "Please accept the updated terms of service to continue"
+            }
             Self::AuthVerificationTokenInvalid => {
                 "This verification link is invalid or has expired. Request a new one."
             }
@@ -477,6 +483,7 @@ impl ErrorCode {
             | Self::AuthRegistrationDisabled
             | Self::AuthOrgLimitReached
             | Self::AuthEmailVerificationRequired
+            | Self::AuthTermsAcceptanceRequired
             | Self::AuthVerificationTokenInvalid
             | Self::AuthOidcNotConfigured
             | Self::SharePasswordRequired

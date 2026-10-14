@@ -114,6 +114,7 @@ fn session_entity(user: &User, site_ids: Vec<Uuid>) -> AuthenticatedEntity {
         site_ids,
         email: user.base.email.clone(),
         email_verified: user.base.email_verified,
+        terms_accepted_at: user.base.terms_accepted_at,
     }
 }
 

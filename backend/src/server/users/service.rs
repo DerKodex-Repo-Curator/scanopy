@@ -20,7 +20,7 @@ use crate::server::{
 use anyhow::Error;
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use email_address::EmailAddress;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -191,6 +191,13 @@ impl UserService {
         user.base.release_notes_seen_version = Some(version.to_string());
         self.update(&mut user, AuthenticatedEntity::System).await?;
         Ok(())
+    }
+
+    /// Record that `user` accepted the terms now.
+    pub async fn accept_terms(&self, mut user: User) -> Result<User> {
+        user.base.terms_accepted_at = Some(Utc::now());
+        let actor = AuthenticatedEntity::from(user.clone());
+        self.update(&mut user, actor).await
     }
 
     /// Record that the user `user_id` has been emailed notice of the terms

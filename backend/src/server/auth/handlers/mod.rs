@@ -82,6 +82,7 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
         .routes(routes!(login))
         .routes(routes!(logout))
         .routes(routes!(get_current_user))
+        .routes(routes!(accept_terms))
         // Note: /keys routes are handled separately via OpenApiRouter in factory.rs
         .routes(routes!(update_password_auth))
         .routes(routes!(setup))
