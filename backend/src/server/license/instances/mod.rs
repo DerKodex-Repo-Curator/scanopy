@@ -4,7 +4,9 @@
 //! start creates one [`ServerInstance`] row, and every container and replica
 //! on that database sends its id with each check-in. The cloud records one
 //! [`LicenseInstance`] per id it hears from, and counts the ones heard from
-//! within `LICENSE_SILENCE_THRESHOLD_DAYS` against the organization's limit.
+//! within `LICENSE_SILENCE_THRESHOLD_DAYS` against the organization's limits:
+//! one for production servers and one for servers started with
+//! `SCANOPY_NON_PRODUCTION`.
 
 pub mod service;
 
@@ -18,6 +20,7 @@ use sqlx::postgres::PgRow;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::server::license::online::InstanceUsage;
 use crate::server::organizations::r#impl::base::LICENSE_SILENCE_THRESHOLD_DAYS;
 use crate::server::shared::storage::traits::{SqlValue, Storable};
 
@@ -101,8 +104,38 @@ pub struct LicenseInstanceBase {
     /// never sends an address; behind NAT several servers share one.
     #[schema(value_type = Option<String>, example = "203.0.113.7")]
     pub last_seen_ip: Option<IpAddr>,
+    /// Whether the latest check-in came from a server started with
+    /// `SCANOPY_NON_PRODUCTION`. Production and non-production servers take
+    /// slots from separate limits. `None` when that check-in came from a
+    /// server older than the setting: it counts as production and is never
+    /// refused.
+    pub non_production: Option<bool>,
     pub first_seen_at: DateTime<Utc>,
     pub last_seen_at: DateTime<Utc>,
+    /// When the instance last started counting in its class: its first
+    /// check-in, its first after a silence, or a change of class. Slots go
+    /// to active instances in this order, so a server coming back never
+    /// displaces one that held the slot meanwhile.
+    pub active_since: DateTime<Utc>,
+}
+
+/// How many production and non-production servers one online key covers.
+/// `None` is no cap.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct InstanceLimits {
+    pub production: Option<u32>,
+    pub non_production: Option<u32>,
+}
+
+impl InstanceLimits {
+    /// The limit for one class of server.
+    pub fn for_class(&self, non_production: bool) -> Option<u32> {
+        if non_production {
+            self.non_production
+        } else {
+            self.production
+        }
+    }
 }
 
 impl LicenseInstance {
@@ -112,34 +145,73 @@ impl LicenseInstance {
     pub fn is_active_at(&self, now: DateTime<Utc>) -> bool {
         now - self.base.last_seen_at < chrono::Duration::days(LICENSE_SILENCE_THRESHOLD_DAYS)
     }
+
+    /// The class whose slots the instance takes. Servers that don't say are
+    /// production.
+    pub fn is_non_production(&self) -> bool {
+        self.base.non_production.unwrap_or(false)
+    }
 }
 
-/// How many of `instances` count against the limit at `now`.
-pub fn active_count(instances: &[LicenseInstance], now: DateTime<Utc>) -> u32 {
-    let active = instances.iter().filter(|i| i.is_active_at(now)).count();
-    u32::try_from(active).unwrap_or(u32::MAX)
+/// The active instances of one class at `now`, in the order they take slots.
+fn active_in_class(
+    instances: &[LicenseInstance],
+    non_production: bool,
+    now: DateTime<Utc>,
+) -> Vec<&LicenseInstance> {
+    let mut active: Vec<&LicenseInstance> = instances
+        .iter()
+        .filter(|i| i.is_non_production() == non_production && i.is_active_at(now))
+        .collect();
+    active.sort_by_key(|i| (i.base.active_since, i.id));
+    active
 }
 
-/// Whether the instance whose row id is `id` holds one of the key's `limit`
-/// slots at `now`. Active instances take the slots in the order they first
-/// checked in, so a server that arrives past the limit is the one refused.
-/// `None` is no cap.
+/// How many of `instances` count against each limit at `now`.
+pub fn usage(
+    instances: &[LicenseInstance],
+    limits: InstanceLimits,
+    now: DateTime<Utc>,
+) -> InstanceUsage {
+    let count = |non_production| {
+        u32::try_from(active_in_class(instances, non_production, now).len()).unwrap_or(u32::MAX)
+    };
+    InstanceUsage {
+        active: count(false),
+        limit: limits.production,
+        non_production_active: count(true),
+        non_production_limit: limits.non_production,
+    }
+}
+
+/// Whether `instance` holds one of its class's slots at `now`. Active
+/// instances take a class's slots in `active_since` order, so a server that
+/// arrives past the limit is the one refused. `None` is no cap.
 pub fn holds_slot(
     instances: &[LicenseInstance],
-    id: Uuid,
-    limit: Option<u32>,
+    instance: &LicenseInstance,
+    limits: InstanceLimits,
     now: DateTime<Utc>,
 ) -> bool {
-    let Some(limit) = limit else {
+    let Some(limit) = limits.for_class(instance.is_non_production()) else {
         return true;
     };
-    let mut active: Vec<&LicenseInstance> =
-        instances.iter().filter(|i| i.is_active_at(now)).collect();
-    active.sort_by_key(|i| (i.base.first_seen_at, i.id));
-    active
+    active_in_class(instances, instance.is_non_production(), now)
         .iter()
         .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .any(|i| i.id == id)
+        .any(|i| i.id == instance.id)
+}
+
+/// Whether `instance` is refused an entitlement at `now`: it is past its
+/// class's limit and its latest check-in said which class it is. A server
+/// too old to say is counted but never refused.
+pub fn is_refused(
+    instances: &[LicenseInstance],
+    instance: &LicenseInstance,
+    limits: InstanceLimits,
+    now: DateTime<Utc>,
+) -> bool {
+    instance.base.non_production.is_some() && !holds_slot(instances, instance, limits, now)
 }
 
 impl Display for LicenseInstance {
@@ -181,8 +253,10 @@ impl Storable for LicenseInstance {
                     instance_id,
                     server_version,
                     last_seen_ip,
+                    non_production,
                     first_seen_at,
                     last_seen_at,
+                    active_since,
                 },
         } = self.clone();
 
@@ -193,8 +267,10 @@ impl Storable for LicenseInstance {
                 "instance_id",
                 "server_version",
                 "last_seen_ip",
+                "non_production",
                 "first_seen_at",
                 "last_seen_at",
+                "active_since",
                 "created_at",
                 "updated_at",
             ],
@@ -204,8 +280,10 @@ impl Storable for LicenseInstance {
                 SqlValue::OptionalUuid(instance_id),
                 SqlValue::OptionalString(server_version),
                 SqlValue::OptionalIpAddr(last_seen_ip),
+                SqlValue::OptionalBool(non_production),
                 SqlValue::Timestamp(first_seen_at),
                 SqlValue::Timestamp(last_seen_at),
+                SqlValue::Timestamp(active_since),
                 SqlValue::Timestamp(created_at),
                 SqlValue::Timestamp(updated_at),
             ],
@@ -224,8 +302,10 @@ impl Storable for LicenseInstance {
                 last_seen_ip: row
                     .get::<Option<ipnetwork::IpNetwork>, _>("last_seen_ip")
                     .map(|network| network.ip()),
+                non_production: row.get("non_production"),
                 first_seen_at: row.get("first_seen_at"),
                 last_seen_at: row.get("last_seen_at"),
+                active_since: row.get("active_since"),
             },
         })
     }

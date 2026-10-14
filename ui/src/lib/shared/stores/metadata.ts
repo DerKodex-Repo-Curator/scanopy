@@ -169,6 +169,10 @@ export interface BillingPlanMetadata {
 	purchase_flow: string;
 	/** License tier minted for this plan; non-null only for licensed self-hosted plans. */
 	license_plan: string | null;
+	/** Production servers one online key covers; null is no cap. */
+	included_instances: number | null;
+	/** Servers started with SCANOPY_NON_PRODUCTION one online key covers; null is no cap. */
+	included_non_production_instances: number | null;
 }
 
 export interface HostVirtualizationMetadata {

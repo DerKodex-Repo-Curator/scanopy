@@ -204,6 +204,7 @@ impl ServiceFactory {
                     config.license_server_url.clone(),
                     trusted_ca.as_deref(),
                     Some(&license_instance_service),
+                    config.non_production,
                 )
                 .await,
             )),

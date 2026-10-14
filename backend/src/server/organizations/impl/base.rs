@@ -10,7 +10,7 @@ use validator::Validate;
 
 use crate::server::{
     billing::types::base::{BillingPlan, PlanStatus},
-    license::online::InstanceUsage,
+    license::{instances::InstanceLimits, online::InstanceUsage},
     shared::{
         entities::ChangeTriggersTopologyStaleness,
         events::types::{BillingOperation, OnboardingOperationDiscriminants},
@@ -404,17 +404,18 @@ impl Organization {
 }
 
 impl Organization {
-    /// How many server instances the org's online key covers, from its plan.
-    /// `None` is no cap.
-    pub fn license_instance_limit(&self) -> Option<u32> {
+    /// How many production and non-production servers the org's online key
+    /// covers, from its plan. No plan is no cap.
+    pub fn license_instance_limits(&self) -> InstanceLimits {
         self.base
             .plan
-            .and_then(|plan| plan.license_instance_limit())
+            .map(|plan| plan.license_instance_limits())
+            .unwrap_or_default()
     }
 
-    /// Record the instance count a check-in found, returning
+    /// Record the instance counts a check-in found, returning
     /// `LicenseInstanceLimitExceeded` when it is the first check-in of an
-    /// overrun. Back within the limit re-arms the report.
+    /// overrun. Back within the limits re-arms the report.
     pub fn record_license_instance_usage(
         &mut self,
         usage: InstanceUsage,
@@ -422,12 +423,15 @@ impl Organization {
         let was_over = self.base.notifications.license_over_instance_limit;
         let over = usage.is_over();
         self.base.notifications.license_over_instance_limit = over;
-        // Over implies a limit; a plan with no cap is never over.
-        let limit = usage.limit.filter(|_| over && !was_over)?;
-        Some(BillingOperation::LicenseInstanceLimitExceeded {
-            active: usage.active,
-            limit,
-        })
+        if !over || was_over {
+            return None;
+        }
+        // Report the class that is over; over implies it has a limit.
+        let (active, limit) = match usage.limit {
+            Some(limit) if usage.active > limit => (usage.active, limit),
+            _ => (usage.non_production_active, usage.non_production_limit?),
+        };
+        Some(BillingOperation::LicenseInstanceLimitExceeded { active, limit })
     }
 }
 
@@ -682,11 +686,10 @@ mod tests {
         let over = InstanceUsage {
             active: 2,
             limit: Some(1),
+            non_production_active: 0,
+            non_production_limit: Some(2),
         };
-        let within = InstanceUsage {
-            active: 1,
-            limit: Some(1),
-        };
+        let within = InstanceUsage { active: 1, ..over };
         let mut org = Organization::default();
 
         assert_eq!(org.record_license_instance_usage(within), None);
@@ -702,28 +705,37 @@ mod tests {
         assert!(org.record_license_instance_usage(over).is_some());
     }
 
-    /// Standard caps an online key at one server; Plus runs on any number,
-    /// and moving to Plus clears an overrun at the next check-in.
+    /// A third non-production server is over on a paid self-hosted tier and
+    /// the report names that class; a custom plan has no cap, so moving to
+    /// one clears the overrun at the next check-in.
     #[test]
-    fn three_servers_are_over_on_standard_and_within_on_plus() {
+    fn non_production_servers_past_the_limit_are_an_overrun_on_paid_tiers() {
         use crate::server::billing::plans::{
-            get_self_hosted_plus_plan, get_self_hosted_standard_plan,
+            get_commercial_self_hosted_plan, get_self_hosted_plus_plan,
+        };
+
+        let usage_on = |org: &Organization| {
+            let limits = org.license_instance_limits();
+            InstanceUsage {
+                active: 1,
+                limit: limits.production,
+                non_production_active: 3,
+                non_production_limit: limits.non_production,
+            }
         };
 
         let mut org = Organization::default();
-        org.base.plan = Some(get_self_hosted_standard_plan());
-        let usage = InstanceUsage {
-            active: 3,
-            limit: org.license_instance_limit(),
-        };
-        assert!(org.record_license_instance_usage(usage).is_some());
-
         org.base.plan = Some(get_self_hosted_plus_plan());
-        let usage = InstanceUsage {
-            active: 3,
-            limit: org.license_instance_limit(),
-        };
-        assert_eq!(org.record_license_instance_usage(usage), None);
+        assert_eq!(
+            org.record_license_instance_usage(usage_on(&org)),
+            Some(BillingOperation::LicenseInstanceLimitExceeded {
+                active: 3,
+                limit: 2
+            })
+        );
+
+        org.base.plan = Some(get_commercial_self_hosted_plan());
+        assert_eq!(org.record_license_instance_usage(usage_on(&org)), None);
         assert!(!org.base.notifications.license_over_instance_limit);
     }
 }

@@ -8,7 +8,12 @@
 -- `license_instances` lives on Scanopy Cloud: one row per instance id that has checked in with an
 -- organization's online key. `instance_id` is NULL on the single row shared by servers too old to
 -- send one. `last_seen_ip` is the source address the cloud observed on the latest check-in; the
--- server never sends an address. An owner deleting a row frees its slot.
+-- server never sends an address. An owner deleting a row frees its slot. `non_production` is set
+-- by servers started with SCANOPY_NON_PRODUCTION, which take slots from a separate limit; it is
+-- NULL when the latest check-in came from a server too old to say, which counts as production and
+-- is never refused.
+-- `active_since` orders slots within a class: first check-in, first after a silence, or a change
+-- of class.
 --
 -- Expand only: two new tables, nothing dropped or rewritten.
 
@@ -27,8 +32,10 @@ CREATE TABLE IF NOT EXISTS license_instances (
     instance_id UUID,
     server_version TEXT,
     last_seen_ip INET,
+    non_production BOOLEAN,
     first_seen_at TIMESTAMPTZ NOT NULL,
     last_seen_at TIMESTAMPTZ NOT NULL,
+    active_since TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
