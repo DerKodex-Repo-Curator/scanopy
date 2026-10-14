@@ -37,8 +37,8 @@ use crate::server::{
         },
         base::{Daemon, DaemonMode},
         install_artifacts::{
-            API_KEY_PLACEHOLDER, InstallCommandType, UpgradeArtifacts, WINDOWS_MSI_SCARF_URL,
-            WINDOWS_MSI_URL, build_upgrade_artifacts,
+            API_KEY_PLACEHOLDER, DownloadSource, InstallCommandType, UpgradeArtifacts,
+            WINDOWS_MSI_SCARF_URL, WINDOWS_MSI_URL, build_upgrade_artifacts,
         },
         version::DaemonVersionPolicy,
     },
@@ -331,6 +331,7 @@ async fn get_install_command(
         Some(&install_config),
         &query.credential_refs(),
         query.purpose,
+        DownloadSource::for_server(&state).await,
     );
 
     Ok(Json(ApiResponse::success(artifacts)))
@@ -369,7 +370,10 @@ async fn get_upgrade_command(
         "get upgrade command",
     )?;
 
-    Ok(Json(ApiResponse::success(build_upgrade_artifacts(&daemon))))
+    Ok(Json(ApiResponse::success(build_upgrade_artifacts(
+        &daemon,
+        DownloadSource::for_server(&state).await,
+    ))))
 }
 
 /// Cache key for the proxied Windows MSI bytes (see [`get_windows_msi`]).
@@ -400,7 +404,9 @@ pub async fn get_windows_msi(
     Extension(cache): Extension<Arc<AppCache>>,
     ClientIp(client_ip): ClientIp,
 ) -> ApiResult<impl IntoResponse> {
-    count_msi_download(&state, client_ip);
+    if DownloadSource::for_server(&state).await == DownloadSource::Scarf {
+        count_msi_download(&state, client_ip);
+    }
 
     let bytes = match cache.get::<bytes::Bytes>(WINDOWS_MSI_CACHE_KEY).await {
         Some(cached) => cached,
@@ -446,7 +452,8 @@ pub async fn get_windows_msi(
 /// which is not followed. `X-Scarf-IP` attributes the download to the browser's IP rather than
 /// the server's; a private client IP (a self-host on its LAN) is left out, so Scarf falls back
 /// to the server's own public IP. Runs in the background and ignores failures, so Scarf being
-/// down or blocked never delays or fails the download.
+/// down or blocked never delays or fails the download. Called only when the server's
+/// [`DownloadSource`] is Scarf.
 fn count_msi_download(state: &AppState, client_ip: std::net::IpAddr) {
     // No default-client fallback: it follows redirects and would fetch the whole MSI.
     let Ok(client) = TrustedCaBundle::apply(
@@ -614,6 +621,7 @@ async fn email_install_command(
         Some(&request.query.install_config()),
         &request.query.credential_refs(),
         request.query.purpose,
+        DownloadSource::for_server(&state).await,
     );
     let command = artifacts
         .command(request.os, request.docker)

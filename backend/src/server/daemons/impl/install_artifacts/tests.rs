@@ -90,6 +90,7 @@ fn install_command_carries_the_key_placeholder() {
         None,
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     ));
     assert_eq!(args.daemon_api_key.as_deref(), Some(API_KEY_PLACEHOLDER));
 }
@@ -105,6 +106,7 @@ fn reconfigure_command_reasserts_connectivity_without_a_credential() {
         None,
         &[],
         InstallCommandType::Reconfigure,
+        DownloadSource::Scarf,
     ));
     assert_eq!(sp.daemon_api_key, None);
     assert_eq!(sp.name, None);
@@ -116,6 +118,7 @@ fn reconfigure_command_reasserts_connectivity_without_a_credential() {
         None,
         &[],
         InstallCommandType::Reconfigure,
+        DownloadSource::Scarf,
     ));
     assert_eq!(dp.daemon_api_key, None);
     assert_eq!(dp.server_url.as_deref(), Some("https://app.scanopy.net"));
@@ -140,6 +143,7 @@ fn commands_targeting_an_existing_install_carry_a_selector_for_it() {
             None,
             &[],
             command_type,
+            DownloadSource::Scarf,
         ))
         .instance
     };
@@ -186,6 +190,9 @@ fn allowed_install_settings(mode: DaemonMode) -> Vec<&'static str> {
 
 /// The `--flag` tokens and `SCANOPY_*` keys a command or compose file sets.
 fn settings_in(text: &str) -> Vec<String> {
+    // Only what follows the `install` subcommand configures the daemon; the bootstrap before it
+    // passes its own arguments to install.sh.
+    let text = text.rsplit(" install ").next().unwrap_or(text);
     text.split(|c: char| c.is_whitespace() || c == '"')
         .filter_map(|token| {
             if token.starts_with("--") {
@@ -241,6 +248,7 @@ fn install_artifacts_carry_only_allowed_settings() {
                 config,
                 &[],
                 InstallCommandType::Install,
+                DownloadSource::Scarf,
             );
             let allowed = allowed_install_settings(d.base.mode);
             for (method, text) in [
@@ -281,6 +289,7 @@ fn install_command_is_unchanged_once_the_daemon_connects() {
                 None,
                 &[],
                 InstallCommandType::Install,
+                DownloadSource::Scarf,
             )
         };
         let (before, after) = (build(fresh), build(connected));
@@ -299,6 +308,7 @@ fn reconfigure_command_does_not_refetch_the_binary() {
         None,
         &[],
         InstallCommandType::Reconfigure,
+        DownloadSource::Scarf,
     );
     for (platform, command) in [
         ("linux", &artifacts.linux),
@@ -330,6 +340,7 @@ fn docker_install_yields_a_compose_carrying_config_but_never_identity() {
         Some(&config),
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     );
     let compose = artifacts
         .docker
@@ -376,6 +387,7 @@ fn docker_reconfigure_yields_env_vars_not_a_compose() {
         None,
         &[],
         InstallCommandType::Reconfigure,
+        DownloadSource::Scarf,
     );
 
     assert!(
@@ -422,6 +434,7 @@ fn emitted_command_parses_back_into_the_same_config() {
         Some(&config),
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     );
     // Take the `scanopy-daemon install ...` half of the `bootstrap && install` one-liner.
     let install = artifacts.linux.split("&& sudo ").nth(1).unwrap();
@@ -471,6 +484,7 @@ fn client_supplied_config_cannot_override_server_controlled_fields() {
         Some(&config),
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     );
     assert!(
         artifacts
@@ -574,6 +588,7 @@ fn daemon_poll_command_dials_the_server_serverpoll_does_not() {
         None,
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     );
     assert!(dp.linux.contains("--server-url https://app.scanopy.net"));
     assert!(dp.linux.contains("--daemon-api-key"));
@@ -584,6 +599,7 @@ fn daemon_poll_command_dials_the_server_serverpoll_does_not() {
         None,
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     );
     assert!(!sp.linux.contains("--server-url"));
     assert!(sp.linux.contains("--daemon-api-key"));
@@ -649,6 +665,7 @@ fn msi_filename_is_encoded_for_rename_prefill() {
         None,
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     );
     // Filename carries the encoded values for a rename-to-prefill; the static MSI URL
     // is a UI-side const, not part of the per-tenant provision response.
@@ -664,6 +681,7 @@ fn install_command_omits_name() {
         None,
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     );
     assert!(!a.linux.contains("--name"));
 }
@@ -693,6 +711,7 @@ fn docker_config_dir_matches_every_compose_and_dockerfile() {
         None,
         &[],
         InstallCommandType::Install,
+        DownloadSource::Scarf,
     )
     .docker
     .compose
@@ -814,7 +833,7 @@ fn upgrade_restart_resolves_to_the_installed_slots_service() {
     {
         let mut daemon = daemon_at(Some("0.17.5"), "renamed in the UI since");
         daemon.id = entry.daemon_id.unwrap();
-        let artifacts = build_upgrade_artifacts(&daemon);
+        let artifacts = build_upgrade_artifacts(&daemon, DownloadSource::Scarf);
         assert!(!artifacts.legacy_service_name);
 
         for steps in [&artifacts.linux, &artifacts.macos, &artifacts.freebsd] {
@@ -835,7 +854,10 @@ fn upgrade_restart_resolves_to_the_installed_slots_service() {
 /// registered then. A name with a space must reach `systemctl` as one argument.
 #[test]
 fn legacy_upgrade_restart_passes_the_service_name_as_one_argument() {
-    let artifacts = build_upgrade_artifacts(&daemon_at(Some("0.17.4"), "DC Daemon"));
+    let artifacts = build_upgrade_artifacts(
+        &daemon_at(Some("0.17.4"), "DC Daemon"),
+        DownloadSource::Scarf,
+    );
     assert!(artifacts.legacy_service_name);
 
     let restart = shell_split(step(&artifacts.linux, UpgradeStepType::Restart));
@@ -853,7 +875,7 @@ fn upgrade_names_the_service_only_for_daemons_older_than_the_install_engine() {
         (Some("0.17.5"), false),
     ] {
         let daemon = daemon_at(version, "edge-01");
-        let artifacts = build_upgrade_artifacts(&daemon);
+        let artifacts = build_upgrade_artifacts(&daemon, DownloadSource::Scarf);
         assert_eq!(artifacts.legacy_service_name, legacy, "{version:?}");
         let names_instance = |steps: &[UpgradeStep]| {
             step(steps, UpgradeStepType::Restart).contains(&daemon.id.to_string())
@@ -868,5 +890,91 @@ fn upgrade_names_the_service_only_for_daemons_older_than_the_install_engine() {
             !legacy,
             "{version:?}"
         );
+    }
+}
+
+/// Every download the server hands out for one plan's server: each OS's install command, the
+/// docker compose, and the upgrade steps for a current and a pre-install-engine daemon.
+fn generated_downloads(plan: &BillingPlan) -> Vec<String> {
+    let source = DownloadSource::from(plan);
+    let install = build_install_artifacts(
+        "https://scanopy.example.com",
+        &daemon(DaemonMode::DaemonPoll, ""),
+        None,
+        &[],
+        InstallCommandType::Install,
+        source,
+    );
+    let mut downloads = vec![
+        install.linux,
+        install.macos,
+        install.freebsd,
+        install.windows,
+        install
+            .docker
+            .compose
+            .expect("an install yields a docker compose"),
+    ];
+    for version in [Some("0.17.4"), Some("0.17.5")] {
+        let upgrade = build_upgrade_artifacts(&daemon_at(version, "edge-01"), source);
+        for steps in [
+            upgrade.linux,
+            upgrade.macos,
+            upgrade.freebsd,
+            upgrade.windows,
+        ] {
+            downloads.extend(
+                steps
+                    .into_iter()
+                    .filter(|s| s.r#type == UpgradeStepType::Download)
+                    .map(|s| s.command),
+            );
+        }
+        downloads.push(upgrade.docker.pinned_image);
+    }
+    downloads
+}
+
+/// A Community Edition server downloads straight from GitHub and GHCR. Cloud and commercial
+/// self-hosted servers download through Scarf: every download names a Scarf host, or passes
+/// `--gateway` to install.sh, which then fetches from get.scanopy.net.
+#[test]
+fn only_community_servers_download_outside_scarf() {
+    use crate::server::billing::types::base::PlanConfig;
+
+    let cfg = PlanConfig::default();
+    let plans = [
+        BillingPlan::Community(cfg),
+        BillingPlan::Free(cfg),
+        BillingPlan::Starter(cfg),
+        BillingPlan::Pro(cfg),
+        BillingPlan::Team(cfg),
+        BillingPlan::Business(cfg),
+        BillingPlan::Enterprise(cfg),
+        BillingPlan::Demo(cfg),
+        BillingPlan::CommercialSelfHosted(cfg),
+        BillingPlan::SelfHostedStandard(cfg),
+        BillingPlan::SelfHostedPlus(cfg),
+    ];
+    let scarf = [
+        "get.scanopy.net",
+        "docker.scanopy.net",
+        "install.sh --gateway",
+    ];
+
+    for plan in plans {
+        let community = matches!(plan, BillingPlan::Community(_));
+        for download in generated_downloads(&plan) {
+            let through_scarf = scarf.iter().any(|host| download.contains(host));
+            assert_eq!(through_scarf, !community, "{plan:?}: {download}");
+            if community {
+                assert!(
+                    download.contains("github.com/scanopy/scanopy")
+                        || download.contains("githubusercontent.com/scanopy/scanopy")
+                        || download.contains("ghcr.io/scanopy/scanopy"),
+                    "{plan:?}: {download}"
+                );
+            }
+        }
     }
 }

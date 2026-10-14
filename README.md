@@ -9,7 +9,7 @@
 ![Scanopy topology view](./media/hero.png)
 
 ```bash
-curl -O https://get.scanopy.net/docker-compose.yml
+curl -O https://raw.githubusercontent.com/scanopy/scanopy/refs/heads/main/docker-compose.yml
 docker compose up -d
 ```
 
@@ -82,7 +82,7 @@ Prefer not to run it yourself? [Scanopy Cloud](https://scanopy.net/pricing?utm_s
 **Docker Compose**
 
 ```bash
-curl -O https://get.scanopy.net/docker-compose.yml
+curl -O https://raw.githubusercontent.com/scanopy/scanopy/refs/heads/main/docker-compose.yml
 docker compose up -d
 ```
 

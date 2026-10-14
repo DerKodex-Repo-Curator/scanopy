@@ -2,6 +2,17 @@
 set -e
 
 REPO="scanopy/scanopy"
+
+# --gateway: download through get.scanopy.net (Scarf), falling back to GitHub. Scanopy Cloud and
+# commercial servers pass it in the commands they generate. Without it the binary comes straight
+# from GitHub. Other arguments are ignored.
+USE_GATEWAY=false
+for arg in "$@"; do
+    case "$arg" in
+        --gateway) USE_GATEWAY=true ;;
+    esac
+done
+
 PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
 
 case "$PLATFORM" in
@@ -41,14 +52,23 @@ echo "Architecture: $ARCH"
 echo "Binary: $BINARY_NAME"
 echo ""
 
-# Download latest binary through Scarf, which counts the download and redirects to the GitHub
-# release asset. Fall back to GitHub directly when Scarf is down or blocked.
+# With --gateway, download the latest binary through Scarf, which counts the download and redirects
+# to the GitHub release asset, and fall back to GitHub directly when Scarf is down or blocked.
 SCARF_URL="https://get.scanopy.net/latest/${BINARY_NAME}"
 GITHUB_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}"
-echo "Downloading from: $SCARF_URL"
 
-if ! curl -fL --connect-timeout 10 "$SCARF_URL" -o scanopy-daemon; then
-    echo "get.scanopy.net unreachable, downloading from GitHub: $GITHUB_URL"
+DOWNLOADED=false
+if [ "$USE_GATEWAY" = true ]; then
+    echo "Downloading from: $SCARF_URL"
+    if curl -fL --connect-timeout 10 "$SCARF_URL" -o scanopy-daemon; then
+        DOWNLOADED=true
+    else
+        echo "get.scanopy.net unreachable, downloading from GitHub instead"
+    fi
+fi
+
+if [ "$DOWNLOADED" = false ]; then
+    echo "Downloading from: $GITHUB_URL"
     if ! curl -fL "$GITHUB_URL" -o scanopy-daemon; then
         echo "Error: Failed to download binary from $GITHUB_URL"
         echo "Please check:"
