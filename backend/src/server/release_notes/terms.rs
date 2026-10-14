@@ -171,6 +171,14 @@ impl TermsCatalog {
         Self { updates }
     }
 
+    /// Every update's version (effective date) in this build, oldest first.
+    pub fn versions(&self) -> Vec<NaiveDate> {
+        self.updates
+            .iter()
+            .map(|(_, update)| update.effective)
+            .collect()
+    }
+
     /// The updates whose notice may go out on `today`, oldest first.
     pub fn sending_on(&self, today: NaiveDate) -> Vec<&TermsUpdate> {
         self.updates
