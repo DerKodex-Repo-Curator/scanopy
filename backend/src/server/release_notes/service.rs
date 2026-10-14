@@ -61,6 +61,13 @@ impl<'a> Shown<'a> {
     }
 }
 
+/// A user's unseen releases, and whether they open the modal on their own.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Unseen<'a> {
+    pub shown: Shown<'a>,
+    pub auto_open: bool,
+}
+
 /// What starting on the running version calls for.
 #[derive(Debug, PartialEq, Eq)]
 enum Plan<'a> {
@@ -119,6 +126,20 @@ fn plan<'a>(
     Plan::Record(Some(Shown::capped(notes)))
 }
 
+/// The releases after `seen` up to `running`, or `running` alone when nothing
+/// is seen yet. They open the modal when any of them asks for it, even one
+/// past the cap.
+fn unseen<'a>(catalog: &'a Catalog, seen: Option<&Version>, running: &Version) -> Unseen<'a> {
+    let notes = match seen {
+        Some(seen) => catalog.between(seen, running),
+        None => catalog.get(running).into_iter().collect(),
+    };
+    Unseen {
+        auto_open: notes.iter().any(|note| note.modal),
+        shown: Shown::capped(notes),
+    }
+}
+
 impl ReleaseNotesService {
     pub fn new(
         storage: Arc<GenericPostgresStorage<ReleaseAnnouncement>>,
@@ -164,16 +185,17 @@ impl ReleaseNotesService {
 
     /// The releases `user` hasn't dismissed, up to the running version. A user
     /// from before release notes existed sees the running release only.
-    pub fn unseen(&self, user: &User) -> Shown<'static> {
+    ///
+    /// The modal opens on its own when any unseen release asks for it, and then
+    /// lists every unseen release. Releases that don't ask for it stay unseen
+    /// until it opens.
+    pub fn unseen(&self, user: &User) -> Unseen<'static> {
         let seen = user
             .base
             .release_notes_seen_version
             .as_deref()
             .and_then(|v| Version::parse(v).ok());
-        Shown::capped(match seen {
-            Some(seen) => self.catalog.between(&seen, &self.running),
-            None => self.catalog.get(&self.running).into_iter().collect(),
-        })
+        unseen(self.catalog, seen.as_ref(), &self.running)
     }
 
     /// Record that `user` has seen every release up to the running one.
@@ -323,7 +345,7 @@ impl ReleaseNotesService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::release_notes::catalog::tests::note_file;
+    use crate::server::release_notes::catalog::tests::{note_file, note_file_with};
     use crate::server::shared::storage::factory::StorageFactory;
     use crate::server::users::r#impl::base::UserBase;
     use crate::tests::test_storage;
@@ -511,8 +533,13 @@ mod tests {
         let (storage, _container) = test_storage().await;
         let service = service(&storage, "0.18.6");
         let versions = |user: &User| -> Vec<String> {
-            let shown = service.unseen(user);
-            shown.notes.iter().map(|n| n.version.to_string()).collect()
+            let unseen = service.unseen(user);
+            unseen
+                .shown
+                .notes
+                .iter()
+                .map(|n| n.version.to_string())
+                .collect()
         };
 
         let mut user = User::new(UserBase::default());
@@ -539,6 +566,58 @@ mod tests {
         service.mark_seen(user.clone()).await.unwrap();
         let reloaded = storage.users.get_by_id(&user.id).await.unwrap().unwrap();
         assert!(versions(&reloaded).is_empty());
+    }
+
+    /// `auto_open` and the versions listed for a user who last saw `seen`
+    /// (`None`: from before release notes), over releases 0.18.0 through
+    /// 0.18.8 running 0.18.8, with `modal` on only for `with_modal`.
+    fn unseen_from(with_modal: &[&str], seen: Option<&str>) -> (bool, Vec<String>) {
+        let files = (0..=8).map(|p| {
+            let version = format!("0.18.{p}");
+            let modal = with_modal.contains(&version.as_str());
+            note_file_with(&version, &format!("email: false\nmodal: {modal}"))
+        });
+        let catalog = Catalog::from_files(files);
+        let unseen = unseen(&catalog, seen.map(v).as_ref(), &v("0.18.8"));
+        let versions = unseen
+            .shown
+            .notes
+            .iter()
+            .map(|n| n.version.to_string())
+            .collect();
+        (unseen.auto_open, versions)
+    }
+
+    #[test]
+    fn a_single_release_opens_the_modal_only_when_it_asks_to() {
+        for seen in [Some("0.18.7"), None] {
+            let (auto_open, versions) = unseen_from(&["0.18.8"], seen);
+            assert!(auto_open);
+            assert_eq!(versions, ["0.18.8"]);
+
+            let (auto_open, versions) = unseen_from(&[], seen);
+            assert!(!auto_open);
+            assert_eq!(versions, ["0.18.8"], "the notes are still there to open");
+        }
+    }
+
+    /// Across missed releases the modal opens when any of them asks for it,
+    /// even one past the cap, and lists the ones that didn't ask too.
+    #[test]
+    fn missed_releases_open_the_modal_when_any_asks_to() {
+        let (auto_open, versions) = unseen_from(&[], Some("0.18.5"));
+        assert!(!auto_open);
+        assert_eq!(versions, ["0.18.8", "0.18.7", "0.18.6"]);
+
+        let (auto_open, versions) = unseen_from(&["0.18.6"], Some("0.18.5"));
+        assert!(auto_open);
+        assert_eq!(versions, ["0.18.8", "0.18.7", "0.18.6"]);
+
+        let (auto_open, _) = unseen_from(&["0.18.1"], Some("0.18.0"));
+        assert!(
+            auto_open,
+            "0.18.1 is past the cap but still asks for the modal"
+        );
     }
 
     /// A user created now starts at the running release, so the release it

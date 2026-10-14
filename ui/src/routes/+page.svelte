@@ -267,8 +267,9 @@
 		}
 	});
 
-	// Release notes: the releases since the user last dismissed them. Last in
-	// the order, so it waits until the daemon prompt's inputs have loaded.
+	// Release notes: the releases since the user last dismissed them, opened
+	// when one of them asks to be. Last in the order, so it waits until the
+	// daemon prompt's inputs have loaded.
 	const unseenReleaseNotesQuery = useUnseenReleaseNotesQuery({
 		enabled: () => isAuthenticated && mainAppAvailable
 	});
@@ -288,7 +289,8 @@
 			sitesQuery.isSuccess &&
 			daemonsQuery.isSuccess &&
 			!daemonPromptWanted &&
-			hasUnseenReleaseNotes
+			hasUnseenReleaseNotes &&
+			unseenReleaseNotesQuery.data?.auto_open
 		) {
 			releaseNotesShown = true;
 			openModal('release-notes');

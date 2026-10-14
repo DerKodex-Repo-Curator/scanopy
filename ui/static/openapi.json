@@ -22647,9 +22647,14 @@
             "type": "object",
             "description": "The releases the caller hasn't dismissed.",
             "required": [
-              "releases"
+              "releases",
+              "auto_open"
             ],
             "properties": {
+              "auto_open": {
+                "type": "boolean",
+                "description": "Whether the modal opens on its own: true when any unseen release asks\nfor it, including ones left out for the changelog."
+              },
               "changelog_url": {
                 "type": [
                   "string",
@@ -41884,9 +41889,14 @@
         "type": "object",
         "description": "The releases the caller hasn't dismissed.",
         "required": [
-          "releases"
+          "releases",
+          "auto_open"
         ],
         "properties": {
+          "auto_open": {
+            "type": "boolean",
+            "description": "Whether the modal opens on its own: true when any unseen release asks\nfor it, including ones left out for the changelog."
+          },
           "changelog_url": {
             "type": [
               "string",
