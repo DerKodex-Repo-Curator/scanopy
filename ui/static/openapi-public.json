@@ -14970,19 +14970,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-14T00:49:44.906089Z",
+              "created_at": "2026-10-14T01:11:08.873756Z",
               "first_discovery_id": null,
-              "id": "6b9e38f9-0bc5-4bc2-abe5-962577c4fc29",
+              "id": "5d74d337-d3f1-4052-b7f5-4f46d8158d12",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T00:49:44.906089Z",
+              "last_seen_at": "2026-10-14T01:11:08.873756Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-14T00:49:44.906089Z",
-              "valid_from": "2026-10-14T00:49:44.906089Z",
+              "updated_at": "2026-10-14T01:11:08.873756Z",
+              "valid_from": "2026-10-14T01:11:08.873756Z",
               "valid_to": null
             }
           },
@@ -16725,19 +16725,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-14T00:49:44.883942Z",
+                      "created_at": "2026-10-14T01:11:08.851190Z",
                       "first_discovery_id": null,
-                      "id": "846e456b-c2b2-4db6-a0d0-186b6d1fcf74",
+                      "id": "45600667-c078-4bd5-8007-bb2b0fdc736a",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-14T00:49:44.883942Z",
+                      "last_seen_at": "2026-10-14T01:11:08.851190Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-14T00:49:44.883942Z",
-                      "valid_from": "2026-10-14T00:49:44.883942Z",
+                      "updated_at": "2026-10-14T01:11:08.851190Z",
+                      "valid_from": "2026-10-14T01:11:08.851190Z",
                       "valid_to": null
                     }
                   ],
@@ -16750,7 +16750,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "TeamCity",
+                  "service_definition": "PowerDNS",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -18217,19 +18217,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-14T00:49:44.901628Z",
+                  "created_at": "2026-10-14T01:11:08.869286Z",
                   "first_discovery_id": null,
-                  "id": "c8a0d3cf-072a-485a-a0fa-7a2ceb380786",
+                  "id": "268a67ef-10a1-4b18-b1a2-4e73b5c22989",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T00:49:44.901628Z",
+                  "last_seen_at": "2026-10-14T01:11:08.869286Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-14T00:49:44.901628Z",
-                  "valid_from": "2026-10-14T00:49:44.901628Z",
+                  "updated_at": "2026-10-14T01:11:08.869286Z",
+                  "valid_from": "2026-10-14T01:11:08.869286Z",
                   "valid_to": null
                 }
               ],
@@ -18242,7 +18242,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "TeamCity",
+              "service_definition": "PowerDNS",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -21219,19 +21219,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-14T00:49:44.884442Z",
+          "created_at": "2026-10-14T01:11:08.851706Z",
           "first_discovery_id": null,
-          "id": "a2525589-892b-44a0-9de2-804ac9cfcdd8",
+          "id": "1745af7b-2d21-43b9-bbbc-d321a7ba97ee",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-14T00:49:44.884442Z",
+          "last_seen_at": "2026-10-14T01:11:08.851706Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-14T00:49:44.884442Z",
-          "valid_from": "2026-10-14T00:49:44.884442Z",
+          "updated_at": "2026-10-14T01:11:08.851706Z",
+          "valid_from": "2026-10-14T01:11:08.851706Z",
           "valid_to": null
         }
       },
@@ -21995,7 +21995,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "TeamCity",
+              "service_definition": "PowerDNS",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -29058,19 +29058,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-14T00:49:44.883333Z",
+                  "created_at": "2026-10-14T01:11:08.850586Z",
                   "first_discovery_id": null,
-                  "id": "f902a16e-e27b-48f3-86c9-b133c64c92f3",
+                  "id": "e2cd5fe1-7050-4b2b-87a7-fc632915c9cd",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T00:49:44.883333Z",
+                  "last_seen_at": "2026-10-14T01:11:08.850586Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-14T00:49:44.883333Z",
-                  "valid_from": "2026-10-14T00:49:44.883333Z",
+                  "updated_at": "2026-10-14T01:11:08.850586Z",
+                  "valid_from": "2026-10-14T01:11:08.850586Z",
                   "valid_to": null
                 }
               ],
@@ -29083,7 +29083,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "TeamCity",
+              "service_definition": "PowerDNS",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -31011,12 +31011,17 @@
         "type": "object",
         "required": [
           "instance",
-          "active"
+          "active",
+          "holds_slot"
         ],
         "properties": {
           "active": {
             "type": "boolean",
             "description": "Whether the instance counts against the limit: it checked in within\nthe last week."
+          },
+          "holds_slot": {
+            "type": "boolean",
+            "description": "Whether the instance holds one of the plan's slots. An instance\nwithout one is refused its entitlement and is read-only."
           },
           "instance": {
             "$ref": "#/components/schemas/LicenseInstance"
@@ -33142,19 +33147,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-14T00:49:44.874585Z",
+                        "created_at": "2026-10-14T01:11:08.842030Z",
                         "first_discovery_id": null,
-                        "id": "04dd10e0-cfeb-4b94-b441-30ddc3d7d760",
+                        "id": "30410044-6856-4e6d-b0ca-ad0b5cd86639",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-14T00:49:44.874585Z",
+                        "last_seen_at": "2026-10-14T01:11:08.842030Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-14T00:49:44.874585Z",
-                        "valid_from": "2026-10-14T00:49:44.874585Z",
+                        "updated_at": "2026-10-14T01:11:08.842030Z",
+                        "valid_from": "2026-10-14T01:11:08.842030Z",
                         "valid_to": null
                       }
                     ],
@@ -33167,7 +33172,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "TeamCity",
+                    "service_definition": "PowerDNS",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -33316,19 +33321,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-14T00:49:44.900973Z",
+                    "created_at": "2026-10-14T01:11:08.868609Z",
                     "first_discovery_id": null,
-                    "id": "b7e7fa29-53e8-4206-9427-5efc173a3fbb",
+                    "id": "7ab0b3aa-e615-40c1-ab63-3ebfb1ec6ed4",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-14T00:49:44.900973Z",
+                    "last_seen_at": "2026-10-14T01:11:08.868609Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-14T00:49:44.900973Z",
-                    "valid_from": "2026-10-14T00:49:44.900973Z",
+                    "updated_at": "2026-10-14T01:11:08.868609Z",
+                    "valid_from": "2026-10-14T01:11:08.868609Z",
                     "valid_to": null
                   }
                 ],
@@ -33341,7 +33346,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "TeamCity",
+                "service_definition": "PowerDNS",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -35956,19 +35961,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-14T00:49:44.884283Z",
+              "created_at": "2026-10-14T01:11:08.851532Z",
               "first_discovery_id": null,
-              "id": "3cd5d51d-8bad-4e2d-a54a-a9b0726b1b32",
+              "id": "0187c2a0-384a-4ef6-98fa-0a20113dd346",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T00:49:44.884283Z",
+              "last_seen_at": "2026-10-14T01:11:08.851532Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-14T00:49:44.884283Z",
-              "valid_from": "2026-10-14T00:49:44.884283Z",
+              "updated_at": "2026-10-14T01:11:08.851532Z",
+              "valid_from": "2026-10-14T01:11:08.851532Z",
               "valid_to": null
             }
           ],
@@ -35981,7 +35986,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "TeamCity",
+          "service_definition": "PowerDNS",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -38092,7 +38097,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "6271207f-baee-482d-97f3-010224971be9",
+                  "id": "e2c6b103-ab9b-417d-9ff1-28fb937bc868",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -38102,23 +38107,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "5795b656-9c8d-49eb-8a86-1869966630f3",
+                  "id": "8a9510ed-2b6e-42fc-94e6-d3b0306038cb",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "b6330444-48b1-41b4-ade7-20f2f351ca2c",
+                  "id": "a11afe4a-1bee-4276-b970-3485f4b53110",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "c9087c1d-bcd3-42ff-953e-6e5e6350d27f",
+                  "id": "a5664a9a-2288-4f71-9c33-840d8cd1e7d4",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "5795b656-9c8d-49eb-8a86-1869966630f3",
+                  "id": "8a9510ed-2b6e-42fc-94e6-d3b0306038cb",
                   "rule": "ByHost"
                 }
               ]
@@ -38148,19 +38153,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "0c9067d8-0e29-4a1c-98e7-cbb10ead3419",
+                "id": "4ec221fd-ce20-496a-9c4f-bd66f70dd45b",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "8029ec20-0593-4fea-8e54-8553baaf47f9",
+                "id": "b44fbe9a-7ffe-4b30-9f30-76bff779bb24",
                 "rule": "ByVLAN"
               },
               {
-                "id": "c9ca3517-200d-4a1c-b170-1296fe77740e",
+                "id": "43de7c1e-2ee4-45be-9970-34def3265cde",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "f9a482ef-f7b0-49bd-a939-33f6a2edd04c",
+                "id": "348f4271-5880-43ee-822b-d8f0f1195f62",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -38181,7 +38186,7 @@
                 }
               },
               {
-                "id": "0caec10b-88e7-472e-85bb-c89f692caa6e",
+                "id": "586954f3-8a33-4c64-b30d-2841d04b76fc",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -38190,15 +38195,15 @@
                 }
               },
               {
-                "id": "1d3f3cae-74b6-4d02-bf6b-1416297f2dd4",
+                "id": "bbdc46ea-4abe-44be-b11a-1a5a2ad6aafd",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "6142eac5-1062-49b2-b1a3-f7f6732e76d2",
+                "id": "6ade39c9-1c99-4131-8825-f6901edfcd86",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "e2c5ab5b-ddcf-4a22-a9c8-5a44ef5de2ae",
+                "id": "1940d9dc-3bbd-4396-8ff5-baea4627b086",
                 "rule": "ByStack"
               }
             ]

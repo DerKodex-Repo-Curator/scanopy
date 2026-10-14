@@ -65,7 +65,7 @@
 	"errors_invite_email_mismatch": "Invite email doesn't match your account",
 	"errors_ip_address_out_of_range": "IP address '{ip}' is not within subnet '{subnet}' range",
 	"errors_license_instance_limit_reached": "This license key is in use on {active} servers and your plan covers {limit}, so this server is in read-only mode. Delete a server you no longer run under License in Scanopy Cloud, then restart this one.",
-	"errors_license_locked":"Your license is not active. The server is in read-only mode.",
+	"errors_license_locked": "Your license is not active. The server is in read-only mode.",
 	"errors_organization_has_active_subscription": "Cancel your subscription before deleting your organization",
 	"errors_rate_limit_exceeded": "Too many requests, please try again later",
 	"errors_share_password_incorrect": "Incorrect password",
