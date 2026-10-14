@@ -16,7 +16,7 @@ use super::catalog::{EmbeddedNotes, render_markdown, split_frontmatter};
 /// after `date`. The notice goes out when the release carrying the file
 /// deploys, so a release cut late eats into it; the sweep logs an error when
 /// it sends with less.
-pub const MIN_NOTICE_DAYS: u64 = 7;
+pub const MIN_NOTICE_DAYS: u64 = 30;
 
 /// The most an update is written ahead of taking effect. A larger gap is
 /// almost always a mistyped year.
@@ -312,9 +312,9 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn less_than_a_weeks_notice_is_caught() {
+    fn less_than_thirty_days_notice_is_caught() {
         assert_eq!(
-            problems(vec![terms_file("2026-10-26", "2026-10-20")], "2026-10-20").len(),
+            problems(vec![terms_file("2026-11-18", "2026-10-20")], "2026-10-20").len(),
             1
         );
     }

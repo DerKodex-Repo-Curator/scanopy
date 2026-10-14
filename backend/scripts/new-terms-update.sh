@@ -11,7 +11,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERMS_DIR="$SCRIPT_DIR/../release-notes/terms"
 
-MIN_NOTICE_DAYS=7
+MIN_NOTICE_DAYS=30
 MAX_LEAD_DAYS=180
 DOCUMENT_IDS="terms privacy refund security"
 # Keep in sync with PLACEHOLDER in src/server/release_notes/terms.rs: a body
