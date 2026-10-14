@@ -35,6 +35,8 @@ pub enum Dependency {
     /// Scanopy Cloud's entitlement endpoint, called by self-hosted servers with an online key.
     LicenseServer,
     Github,
+    /// The Scarf gateway in front of release downloads, called to count an MSI download.
+    Scarf,
     /// The Amazon SES v2 API, which validates email addresses at signup.
     Ses,
 }

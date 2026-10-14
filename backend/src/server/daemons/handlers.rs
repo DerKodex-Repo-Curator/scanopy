@@ -37,8 +37,8 @@ use crate::server::{
         },
         base::{Daemon, DaemonMode},
         install_artifacts::{
-            API_KEY_PLACEHOLDER, InstallCommandType, UpgradeArtifacts, WINDOWS_MSI_URL,
-            build_upgrade_artifacts,
+            API_KEY_PLACEHOLDER, InstallCommandType, UpgradeArtifacts, WINDOWS_MSI_SCARF_URL,
+            WINDOWS_MSI_URL, build_upgrade_artifacts,
         },
         version::DaemonVersionPolicy,
     },
@@ -55,6 +55,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Json},
 };
+use axum_client_ip::ClientIp;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::IntoParams;
@@ -395,8 +396,12 @@ const WINDOWS_MSI_CACHE_KEY: &str = "windows_msi_bytes";
     )
 )]
 pub async fn get_windows_msi(
+    State(state): State<Arc<AppState>>,
     Extension(cache): Extension<Arc<AppCache>>,
+    ClientIp(client_ip): ClientIp,
 ) -> ApiResult<impl IntoResponse> {
+    count_msi_download(&state, client_ip);
+
     let bytes = match cache.get::<bytes::Bytes>(WINDOWS_MSI_CACHE_KEY).await {
         Some(cached) => cached,
         None => {
@@ -434,6 +439,34 @@ pub async fn get_windows_msi(
     );
 
     Ok((headers, Body::from(bytes)))
+}
+
+/// Count one MSI download in Scarf without serving through it. The bytes above come from the
+/// cache or GitHub, so this request only records the download: Scarf answers with a redirect,
+/// which is not followed. `X-Scarf-IP` attributes the download to the browser's IP rather than
+/// the server's; a private client IP (a self-host on its LAN) is left out, so Scarf falls back
+/// to the server's own public IP. Runs in the background and ignores failures, so Scarf being
+/// down or blocked never delays or fails the download.
+fn count_msi_download(state: &AppState, client_ip: std::net::IpAddr) {
+    // No default-client fallback: it follows redirects and would fetch the whole MSI.
+    let Ok(client) = TrustedCaBundle::apply(
+        state.services.trusted_ca.as_deref(),
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::none()),
+    )
+    .build() else {
+        return;
+    };
+
+    let mut request = client.get(WINDOWS_MSI_SCARF_URL);
+    if !crate::server::daemons::ssrf::is_private_ip(&client_ip) {
+        request = request.header("X-Scarf-IP", client_ip.to_string());
+    }
+
+    tokio::spawn(async move {
+        let _ = observe_http(Dependency::Scarf, request.send()).await;
+    });
 }
 
 /// Delete daemon — blocks if daemon has active discovery sessions.

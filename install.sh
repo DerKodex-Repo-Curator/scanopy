@@ -41,17 +41,23 @@ echo "Architecture: $ARCH"
 echo "Binary: $BINARY_NAME"
 echo ""
 
-# Download latest binary
-BINARY_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}"
-echo "Downloading from: $BINARY_URL"
+# Download latest binary through Scarf, which counts the download and redirects to the GitHub
+# release asset. Fall back to GitHub directly when Scarf is down or blocked.
+SCARF_URL="https://get.scanopy.net/latest/${BINARY_NAME}"
+GITHUB_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}"
+echo "Downloading from: $SCARF_URL"
 
-if ! curl -fL "$BINARY_URL" -o scanopy-daemon; then
-    echo "Error: Failed to download binary from $BINARY_URL"
-    echo "Please check:"
-    echo "  1. Your internet connection"
-    echo "  2. That a release exists for your platform"
-    echo "  3. GitHub releases: https://github.com/${REPO}/releases/latest"
-    exit 1
+if ! curl -fL --connect-timeout 10 "$SCARF_URL" -o scanopy-daemon; then
+    echo "get.scanopy.net unreachable, downloading from GitHub: $GITHUB_URL"
+    if ! curl -fL "$GITHUB_URL" -o scanopy-daemon; then
+        echo "Error: Failed to download binary from $GITHUB_URL"
+        echo "Please check:"
+        echo "  1. Your internet connection"
+        echo "  2. That a release exists for your platform"
+        echo "  3. GitHub releases: https://github.com/${REPO}/releases/latest"
+        echo "  4. Troubleshooting: https://scanopy.net/docs/setting-up-daemons/troubleshooting-setup/"
+        exit 1
+    fi
 fi
 
 chmod +x scanopy-daemon

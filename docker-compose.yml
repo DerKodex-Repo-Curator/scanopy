@@ -2,6 +2,7 @@ name: scanopy
 
 services:
   daemon:
+    # Pull fails? https://scanopy.net/docs/setting-up-daemons/troubleshooting-setup/#docker-pull-or-download-fails
     image: docker.scanopy.net/scanopy/scanopy/daemon:latest
     container_name: scanopy-daemon
     network_mode: host
@@ -43,6 +44,7 @@ services:
       - scanopy
 
   server:
+    # Pull fails? https://scanopy.net/docs/setting-up-daemons/troubleshooting-setup/#docker-pull-or-download-fails
     image: docker.scanopy.net/scanopy/scanopy/server:latest
     ports:
       - "60072:60072"
