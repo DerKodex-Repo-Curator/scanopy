@@ -8,7 +8,7 @@ use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::{self, Next};
 use axum::routing::{get, post};
-use chrono::{Duration, NaiveTime, Utc};
+use chrono::{Duration, Utc};
 use uuid::Uuid;
 
 use super::self_hosted_licensing::{cloud_test_state, create_org, test_state_with_email_dir};
@@ -46,10 +46,7 @@ async fn status(addr: std::net::SocketAddr, method: reqwest::Method, path: &str)
 
 /// A user whose last acceptance predates the current terms.
 async fn stale_user(state: &AppState, organization_id: &Uuid) -> User {
-    let before_effective = TERMS_ACCEPTANCE_EFFECTIVE
-        .and_time(NaiveTime::MIN)
-        .and_utc()
-        - Duration::days(1);
+    let before_effective = TERMS_ACCEPTANCE_EFFECTIVE - Duration::days(1);
     let mut stale = user(organization_id);
     stale.base.terms_accepted_at = Some(before_effective);
     state

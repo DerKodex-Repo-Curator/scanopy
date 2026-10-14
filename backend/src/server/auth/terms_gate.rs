@@ -3,7 +3,8 @@
 //! A user whose `terms_accepted_at` is before [`TERMS_ACCEPTANCE_EFFECTIVE`],
 //! or who has none on record, must accept the terms again before the API
 //! serves their session (`middleware::terms::terms_gate_middleware`). To gate
-//! everyone again after the terms change, move the date forward.
+//! everyone again after the terms change, move it to the new terms'
+//! publication time.
 //!
 //! The gate applies only where acceptance is collected: Scanopy Cloud
 //! ([`DeploymentType::requires_terms_acceptance`]). Registration and OIDC
@@ -11,31 +12,31 @@
 //! on, and this is a constant rather than server config. Demo orgs are exempt:
 //! their one shared account would accept on behalf of every visitor.
 
-use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 use crate::server::{billing::types::base::BillingPlan, config::DeploymentType};
 
-/// The effective date of the terms every user must have accepted.
-pub const TERMS_ACCEPTANCE_EFFECTIVE: NaiveDate = match NaiveDate::from_ymd_opt(2026, 10, 14) {
-    Some(date) => date,
-    None => panic!("invalid terms effective date"),
+/// When the terms every user must have accepted were published: 10:00 EDT on 2026-10-14. An
+/// acceptance before this moment was of the earlier terms, even on the same day.
+pub const TERMS_ACCEPTANCE_EFFECTIVE: DateTime<Utc> = {
+    let Some(date) = NaiveDate::from_ymd_opt(2026, 10, 14) else {
+        panic!("invalid terms effective date");
+    };
+    let Some(time) = NaiveTime::from_hms_opt(14, 0, 0) else {
+        panic!("invalid terms effective time");
+    };
+    NaiveDateTime::new(date, time).and_utc()
 };
-
-/// Whether an acceptance at `accepted_at` covers the terms effective on
-/// `effective` (from midnight UTC that day).
-fn accepted_since(accepted_at: Option<DateTime<Utc>>, effective: NaiveDate) -> bool {
-    accepted_at.is_some_and(|at| at >= effective.and_time(NaiveTime::MIN).and_utc())
-}
 
 fn acceptance_required_since(
     deployment_type: DeploymentType,
     plan: Option<&BillingPlan>,
     accepted_at: Option<DateTime<Utc>>,
-    effective: NaiveDate,
+    effective: DateTime<Utc>,
 ) -> bool {
     deployment_type.requires_terms_acceptance()
         && !plan.is_some_and(BillingPlan::is_demo)
-        && !accepted_since(accepted_at, effective)
+        && !accepted_at.is_some_and(|at| at >= effective)
 }
 
 /// Whether a user in an org on `plan` must accept the current terms before
@@ -57,13 +58,9 @@ pub fn acceptance_required(
 mod tests {
     use super::*;
     use crate::server::billing::plans::get_free_plan;
-    use chrono::Days;
+    use chrono::Duration;
 
     const CLOUD: DeploymentType = DeploymentType::Cloud;
-
-    fn midnight(date: NaiveDate) -> DateTime<Utc> {
-        date.and_time(NaiveTime::MIN).and_utc()
-    }
 
     #[test]
     fn missing_or_earlier_acceptance_is_gated_and_current_acceptance_is_not() {
@@ -72,20 +69,29 @@ mod tests {
         let required = |at| acceptance_required_since(CLOUD, Some(&plan), at, effective);
 
         assert!(required(None));
-        assert!(required(Some(
-            midnight(effective) - chrono::Duration::seconds(1)
-        )));
-        assert!(!required(Some(midnight(effective))));
-        assert!(!required(Some(midnight(effective + Days::new(3)))));
+        assert!(required(Some(effective - Duration::seconds(1))));
+        assert!(!required(Some(effective)));
+        assert!(!required(Some(effective + Duration::days(3))));
+    }
+
+    #[test]
+    fn an_acceptance_earlier_on_the_publication_day_is_gated() {
+        let plan = get_free_plan();
+        let same_day_before = TERMS_ACCEPTANCE_EFFECTIVE.date_naive().and_time(NaiveTime::MIN);
+        assert!(acceptance_required(
+            CLOUD,
+            Some(&plan),
+            Some(same_day_before.and_utc())
+        ));
     }
 
     #[test]
     fn moving_the_effective_date_later_gates_a_user_who_accepted_the_earlier_terms() {
         let plan = get_free_plan();
-        let accepted = Some(midnight(TERMS_ACCEPTANCE_EFFECTIVE));
+        let accepted = Some(TERMS_ACCEPTANCE_EFFECTIVE);
 
         assert!(!acceptance_required(CLOUD, Some(&plan), accepted));
-        let later = TERMS_ACCEPTANCE_EFFECTIVE + Days::new(90);
+        let later = TERMS_ACCEPTANCE_EFFECTIVE + Duration::days(90);
         assert!(acceptance_required_since(
             CLOUD,
             Some(&plan),
