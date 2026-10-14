@@ -1600,6 +1600,26 @@
     "name": "Podman Container"
   },
   {
+    "category": "Container",
+    "color": "Blue",
+    "description": "A container that serves the Podman API on a TCP port in front of the runtime's socket",
+    "discovery_pattern": "No match pattern provided",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
+    "name": "Podman API Proxy"
+  },
+  {
+    "category": "ContainerRuntime",
+    "color": "Blue",
+    "description": "Daemonless container runtime",
+    "discovery_pattern": "Any of: (Client probe Podman succeeded, All of: (8888/tcp is open, Client probe PodmanPing succeeded))",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
+    "name": "Podman"
+  },
+  {
     "category": "Orchestrator",
     "color": "Purple",
     "description": "Enterprise Kubernetes",
@@ -1660,6 +1680,16 @@
     "name": "Docker Swarm"
   },
   {
+    "category": "ContainerRuntime",
+    "color": "Blue",
+    "description": "Docker",
+    "discovery_pattern": "Any of: (Client probe Docker succeeded, All of: (2375/tcp is open, Client probe DockerPing succeeded))",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
+    "name": "Docker"
+  },
+  {
     "category": "Container",
     "color": "Blue",
     "description": "A generic docker container",
@@ -1668,6 +1698,16 @@
     "logo_needs_white_background": false,
     "logo_url": "",
     "name": "Docker Container"
+  },
+  {
+    "category": "Container",
+    "color": "Blue",
+    "description": "A container that serves the Docker API on a TCP port in front of the runtime's socket",
+    "discovery_pattern": "No match pattern provided",
+    "icon": "box",
+    "logo_needs_white_background": false,
+    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
+    "name": "Docker API Proxy"
   },
   {
     "category": "HomeAutomation",
@@ -2593,7 +2633,7 @@
     "category": "NetworkCore",
     "color": "Yellow",
     "description": "Simple Network Management Protocol",
-    "discovery_pattern": "Client probe Snmp succeeded",
+    "discovery_pattern": "Any of: (Client probe Snmp succeeded, All of: (161/udp is open, Client probe SnmpEngine succeeded))",
     "icon": "network",
     "logo_needs_white_background": false,
     "logo_url": "",
@@ -2708,45 +2748,5 @@
     "logo_needs_white_background": false,
     "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/cockpit.svg",
     "name": "Cockpit"
-  },
-  {
-    "category": "Container",
-    "color": "Blue",
-    "description": "A container that serves the Podman API on a TCP port in front of the runtime's socket",
-    "discovery_pattern": "No match pattern provided",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
-    "name": "Podman API Proxy"
-  },
-  {
-    "category": "ContainerRuntime",
-    "color": "Blue",
-    "description": "Daemonless container runtime",
-    "discovery_pattern": "Client probe Podman succeeded",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/podman.svg",
-    "name": "Podman"
-  },
-  {
-    "category": "ContainerRuntime",
-    "color": "Blue",
-    "description": "Docker",
-    "discovery_pattern": "Client probe Docker succeeded",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
-    "name": "Docker"
-  },
-  {
-    "category": "Container",
-    "color": "Blue",
-    "description": "A container that serves the Docker API on a TCP port in front of the runtime's socket",
-    "discovery_pattern": "No match pattern provided",
-    "icon": "box",
-    "logo_needs_white_background": false,
-    "logo_url": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/docker.svg",
-    "name": "Docker API Proxy"
   }
 ]

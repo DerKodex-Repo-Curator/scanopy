@@ -102,6 +102,13 @@ erDiagram
 "public.interface_neighbor_hosts" }o--|| "public.interfaces" : "FOREIGN KEY (interface_id) REFERENCES interfaces(id) ON DELETE CASCADE"
 "public.interface_neighbor_hosts" }o--o| "public.snapshots" : "FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE"
 "public.tag_groups" }o--|| "public.organizations" : "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+"public.discovery_warnings" }o--|| "public.sites" : "FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE"
+"public.discovery_warnings" }o--o| "public.hosts" : "FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE SET NULL"
+"public.discovery_warnings" }o--o| "public.hosts" : "FOREIGN KEY (remote_host_id) REFERENCES hosts(id) ON DELETE SET NULL"
+"public.discovery_warnings" }o--o| "public.subnets" : "FOREIGN KEY (subnet_id) REFERENCES subnets(id) ON DELETE SET NULL"
+"public.discovery_warnings" }o--|| "public.discovery" : "FOREIGN KEY (discovery_id) REFERENCES discovery(id) ON DELETE CASCADE"
+"public.discovery_warnings" }o--o| "public.credentials" : "FOREIGN KEY (credential_id) REFERENCES credentials(id) ON DELETE SET NULL"
+"public.license_instances" }o--|| "public.organizations" : "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
 
 "public._sqlx_migrations" {
   bigint version
@@ -135,6 +142,7 @@ erDiagram
   jsonb display_settings
   uuid email_unsubscribe_token
   text release_notes_seen_version
+  date terms_notice_version
 }
 "public.sites" {
   uuid id
@@ -635,6 +643,36 @@ erDiagram
   uuid id
   text version
   timestamp_with_time_zone email_sent_at
+  timestamp_with_time_zone created_at
+  timestamp_with_time_zone updated_at
+}
+"public.discovery_warnings" {
+  uuid id
+  uuid discovery_id FK
+  uuid site_id FK
+  text code
+  uuid credential_id FK
+  uuid host_id FK
+  uuid remote_host_id FK
+  uuid subnet_id FK
+  jsonb details
+  timestamp_with_time_zone created_at
+}
+"public.server_instance" {
+  uuid id
+  timestamp_with_time_zone created_at
+  timestamp_with_time_zone updated_at
+}
+"public.license_instances" {
+  uuid id
+  uuid organization_id FK
+  uuid instance_id
+  text server_version
+  inet last_seen_ip
+  boolean non_production
+  timestamp_with_time_zone first_seen_at
+  timestamp_with_time_zone last_seen_at
+  timestamp_with_time_zone active_since
   timestamp_with_time_zone created_at
   timestamp_with_time_zone updated_at
 }
