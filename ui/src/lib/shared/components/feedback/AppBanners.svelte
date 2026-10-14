@@ -7,7 +7,7 @@
 	// Exactly one instance should be mounted at a time: AppBanner keeps its
 	// dismissed state locally, so a second copy would not follow a dismissal.
 	//
-	// No props. Every condition reads one of the three global query hooks, which
+	// No props. Every condition reads one of the global query hooks, which
 	// work anywhere under the provider in +layout.svelte.
 	import EmailVerificationBanner from './EmailVerificationBanner.svelte';
 	import TrialEndingBanner from './TrialEndingBanner.svelte';
@@ -21,15 +21,21 @@
 	import LicenseExpiringBanner from './LicenseExpiringBanner.svelte';
 	import LicenseInstanceLimitBanner from './LicenseInstanceLimitBanner.svelte';
 	import NonProductionBanner from './NonProductionBanner.svelte';
-	import { useEmailVerificationPending } from '$lib/features/auth/queries';
+	import UpgradeAvailableBanner from './UpgradeAvailableBanner.svelte';
+	import { useCurrentUserQuery, useEmailVerificationPending } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { useConfigQuery, isLicenseApproachingExpiry } from '$lib/shared/stores/config-query';
 
 	const emailVerification = useEmailVerificationPending();
 	const organizationQuery = useOrganizationQuery();
 	const configQuery = useConfigQuery();
+	const currentUserQuery = useCurrentUserQuery();
 
 	let organization = $derived(organizationQuery.data);
+	// Admins and owners run the upgrade; nobody else can act on the banner.
+	let canUpgrade = $derived(
+		currentUserQuery.data?.permissions === 'Admin' || currentUserQuery.data?.permissions === 'Owner'
+	);
 	// The production or non-production count that is over its limit. A null
 	// limit is a plan with no cap.
 	let instanceOverrun = $derived.by(() => {
@@ -83,4 +89,8 @@
 {/if}
 {#if configQuery.data?.non_production}
 	<NonProductionBanner />
+{/if}
+<!-- Self-hosted only: the server leaves available_upgrade unset on the cloud. -->
+{#if canUpgrade && configQuery.data?.available_upgrade}
+	<UpgradeAvailableBanner upgrade={configQuery.data.available_upgrade} />
 {/if}

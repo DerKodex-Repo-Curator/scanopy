@@ -2,6 +2,7 @@ use crate::server::auth::middleware::billing::require_billing_for_users;
 use crate::server::auth::middleware::fixture_capture::capture_fixtures_middleware;
 use crate::server::config::{__path_get_public_config, get_public_config};
 use crate::server::daemons::handlers::{__path_get_windows_msi, get_windows_msi};
+#[allow(deprecated)]
 use crate::server::github::handlers::{__path_get_stars, get_stars};
 use crate::server::openapi::tags as api_tags;
 use crate::server::shared::legacy::network_wire_middleware;
@@ -145,6 +146,8 @@ pub fn create_public_share_routes() -> OpenApiRouter<Arc<AppState>> {
 }
 
 /// Creates the OpenApiRouter with cacheable routes.
+/// `get_stars` is deprecated (no UI caller) and still served.
+#[allow(deprecated)]
 fn create_cacheable_openapi_routes() -> OpenApiRouter<Arc<AppState>> {
     OpenApiRouter::new()
         .routes(utoipa_axum::routes!(get_public_config))
