@@ -280,8 +280,9 @@ fn render_attention_section(payload: &DiscoveryDigestPayload, run: &RunLinks) ->
     )
 }
 
-/// "Proxmox VE answers on 3 hosts that no credential works on. Add one", the link opening the
-/// credential create flow with the integration chosen and where it applies already assigned: the
+/// "Proxmox VE answers on 3 hosts that no credential works on. Create a Proxmox VE credential",
+/// the link opening the credential create flow with the integration chosen and where it applies
+/// already assigned: the
 /// run's site for an integration whose credentials can cover a site, the hosts otherwise. The same
 /// URL the app's own prompts open, so every surface lands in the same flow.
 fn integration_without_credential_line(
@@ -312,7 +313,7 @@ fn integration_without_credential_line(
         e.integration.id(),
     ));
     format!(
-        r#"{text} <a href="{href}" style="color: #2563eb;">Add a {name} credential</a>"#,
+        r#"{text} <a href="{href}" style="color: #2563eb;">Create a {name} credential</a>"#,
         href = html_escape(&href),
         name = html_escape(name),
     )

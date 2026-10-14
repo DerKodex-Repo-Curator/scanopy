@@ -104,8 +104,10 @@ export interface WarningEntry {
 	/** Severity, as the fixture already publishes it. */
 	color: Color;
 	icon: string;
-	/** The devices, ranges or addresses this row concerns. */
+	/** The devices, ranges or addresses this row concerns, shown when the row is open. */
 	subjects: WarningSubject[];
+	/** The first few of them and a count of the rest, for the row's one-line header. */
+	preview: WarningSubject[];
 	/** What the row says, shown on disclosure. Usually one statement; more when they differ. */
 	details: WarningStatement[];
 	/** Every occurrence behind the row, so an action can read ids off the payload. */
@@ -703,6 +705,17 @@ function renderStatements(
 }
 
 /**
+ * What makes two subjects the same: the entity when there is one, the text otherwise. Not the
+ * label alone, which two hosts both named "Docker" share.
+ */
+export function subjectKey(subject: WarningSubject): string {
+	return subject.entity ? `${subject.entity.type}:${subject.entity.id}` : subject.label;
+}
+
+/** How many subjects a row's header names before counting the rest, so it stays one line. */
+const PREVIEW_SUBJECTS = 2;
+
+/**
  * What a warning is *about*, as the chips on its row.
  *
  * Read off the wire payload rather than out of the sentence: every variant carries a host id, a
@@ -721,7 +734,8 @@ function renderStatements(
  */
 function subjectsOf(
 	warnings: DiscoveryWarning[],
-	nameOfEntity: EntityNameLookup
+	nameOfEntity: EntityNameLookup,
+	limit: number = MAX_LISTED
 ): WarningSubject[] {
 	const subjects = warnings.flatMap((w): WarningSubject[] => {
 		if ('host_id' in w) {
@@ -742,8 +756,8 @@ function subjectsOf(
 		return chips;
 	});
 
-	const unique = [...new Map(subjects.map((s) => [s.label, s])).values()];
-	const listed = unique.slice(0, MAX_LISTED);
+	const unique = [...new Map(subjects.map((s) => [subjectKey(s), s])).values()];
+	const listed = unique.slice(0, limit);
 	const elided = unique.length - listed.length;
 	// Capped like the sentences are, and for the same reason: a row that wraps to five lines of
 	// chips is a wall of text with rounded corners.
@@ -890,6 +904,7 @@ export function buildWarningReport(
 				color: toColor(meta.color),
 				icon: meta.icon,
 				subjects: subjectsOf(row, nameOfEntity),
+				preview: subjectsOf(row, nameOfEntity, PREVIEW_SUBJECTS),
 				details: renderStatements(code, row, hostName, context),
 				warnings: row
 			});

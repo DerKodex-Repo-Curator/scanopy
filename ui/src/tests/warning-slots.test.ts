@@ -438,4 +438,25 @@ describe('discovery warning rendering', () => {
 		expect(proxmox.details[0].sentence).not.toContain('40');
 		expect(new Set(rows.map((r) => r.key)).size).toBe(2);
 	});
+
+	// Hosts are told apart by id, not name: two hosts both named "Docker" are two chips.
+	it('gives same-named hosts a chip each', () => {
+		const onHost = (host_id: string) =>
+			({
+				code: 'IntegrationWithoutCredential',
+				integration: 'Docker',
+				host_id
+			}) as unknown as DiscoveryWarning;
+		const sameName: EntityNameLookup = () => 'Docker';
+
+		const [row] = buildWarningReport(
+			[
+				onHost('00000000-0000-0000-0000-000000000001'),
+				onHost('00000000-0000-0000-0000-000000000002')
+			],
+			sameName
+		).flatMap((section) => section.entries);
+
+		expect(row.subjects.map((s) => s.label)).toEqual(['Docker', 'Docker']);
+	});
 });

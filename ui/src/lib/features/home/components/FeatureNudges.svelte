@@ -11,13 +11,11 @@
 		entities,
 		billingPlans,
 		credentialIntegrations,
-		credentialTypes,
 		interfaceIntegrationsList
 	} from '$lib/shared/stores/metadata';
 	import {
-		addIntegrationCredentialLabel,
-		openCredentialCreate,
-		prefillsSites
+		createIntegrationCredentialLabel,
+		openCredentialCreate
 	} from '$lib/features/credentials/utils/prefill';
 	import {
 		integrationWithoutCredentialSentence,
@@ -132,12 +130,7 @@
 				id: `integration-${integration}`,
 				title: integrationWithoutCredentialTitle(integration),
 				description: integrationWithoutCredentialSentence(integration, host_ids.length),
-				actionLabel: addIntegrationCredentialLabel(
-					integration,
-					prefillsSites(credentialTypes.getItems() ?? [], integration) && site_ids.length === 1
-						? (dashboard.sites.find((s) => s.id === site_ids[0])?.name ?? null)
-						: null
-				),
+				actionLabel: createIntegrationCredentialLabel(integration),
 				action: () => openCredentialCreate(integration, { hostIds: host_ids, siteIds: site_ids }),
 				visible: has('FirstDiscoveryCompleted'),
 				icon: credentialIntegrations.getIconComponent(integration),
