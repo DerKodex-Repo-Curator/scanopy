@@ -6,7 +6,7 @@
 	import {
 		upgradeBanner_body,
 		upgradeBanner_howToUpgrade,
-		upgradeBanner_releaseNotes
+		common_releaseNotes
 	} from '$lib/paraglide/messages';
 	import type { PublicServerConfig } from '$lib/shared/stores/config-query';
 
@@ -38,7 +38,7 @@
 			rel="noopener noreferrer"
 			class="ml-2 rounded px-2 py-0.5 text-xs font-medium underline hover:no-underline"
 		>
-			{upgradeBanner_releaseNotes()}
+			{common_releaseNotes()}
 		</a>
 		<a
 			href={withUtm(docsUrl('/docs/self-hosted-server/upgrading/'), 'upgrade_docs')}
