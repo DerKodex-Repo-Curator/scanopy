@@ -59,7 +59,22 @@ impl EmailService {
         today: NaiveDate,
         bulk: &DefaultDirectRateLimiter,
     ) -> Result<()> {
-        if self.deployment_type.is_self_hosted() || catalog.sending_on(today).is_empty() {
+        if self.deployment_type.is_self_hosted() {
+            return Ok(());
+        }
+        let sending: Vec<NaiveDate> = catalog
+            .sending_on(today)
+            .iter()
+            .map(|update| update.effective)
+            .collect();
+        // Names the updates this build carries, so a file that never reached
+        // the binary shows here instead of as silence.
+        tracing::info!(
+            versions = ?catalog.versions(),
+            ?sending,
+            "Terms notice sweep"
+        );
+        if sending.is_empty() {
             return Ok(());
         }
         let guard = match self
@@ -108,6 +123,7 @@ impl EmailService {
                     "Sending a terms notice with less than {MIN_NOTICE_DAYS} days' notice"
                 );
             }
+            tracing::info!(%version, recipients = due.len(), "Sending a terms notice");
             let email = TermsUpdate { update };
             let (mut sent, mut failed) = (0usize, 0usize);
             for user in &due {
@@ -135,7 +151,13 @@ impl EmailService {
                     }
                 }
             }
-            tracing::info!(%version, sent, failed, "Terms notice done");
+            tracing::info!(
+                %version,
+                sent,
+                failed,
+                recipients = due.len(),
+                "Terms notice done"
+            );
         }
         Ok(())
     }
