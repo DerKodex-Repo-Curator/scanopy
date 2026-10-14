@@ -1,4 +1,5 @@
 use crate::server::auth::r#impl::oidc::OidcProviderMetadata;
+use crate::server::github::latest_release::{self, AvailableUpgrade};
 use crate::server::license::key::LicenseKey;
 use crate::server::license::mint::LicenseIssuer;
 use crate::server::license::online::InstanceUsage;
@@ -6,15 +7,16 @@ use crate::server::license::service::{LicenseService, self_hosted_plan};
 use crate::server::license::types::LicenseKeyType;
 use crate::server::license::types::LicenseStatusDiscriminants;
 use crate::server::openapi::tags as api_tags;
+use crate::server::shared::handlers::cache::AppCache;
 use crate::server::shared::types::api::ApiResponse;
 use crate::server::{
     auth::r#impl::oidc::OidcProviderConfig, shared::services::factory::ServiceFactory,
 };
 use anyhow::{Error, Result};
-use axum::Json;
 use axum::extract::State;
 use axum::http::header::CACHE_CONTROL;
 use axum::response::IntoResponse;
+use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use clap::{CommandFactory, Parser};
 use email_address::EmailAddress;
@@ -86,6 +88,11 @@ pub struct ServerCli {
     /// Turn off email and password login, leaving OIDC as the only way to sign in.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     disable_password_login: Option<bool>,
+
+    /// Stop checking GitHub for new Scanopy releases. The check is an anonymous request to
+    /// api.github.com twice a day; with it off, admins see no banner when an upgrade is out.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    disable_update_check: Option<bool>,
 
     /// Stripe publishable key (exposed to the frontend for Stripe Elements)
     #[arg(long, hide = true)]
@@ -205,6 +212,14 @@ pub struct ServerConfig {
     pub use_secure_session_cookies: bool,
     pub disable_registration: bool,
     pub disable_password_login: bool,
+    /// `SCANOPY_DISABLE_UPDATE_CHECK`: no GitHub release check, no upgrade banner.
+    #[serde(default)]
+    pub disable_update_check: bool,
+    /// Where the release check asks for the latest release, from
+    /// `SCANOPY_UPDATE_CHECK_URL`. Defaults to GitHub (`LATEST_RELEASE_URL`);
+    /// set it to a local stub to test the upgrade banner.
+    #[serde(default)]
+    pub update_check_url: Option<String>,
     pub client_ip_source: Option<String>,
     pub smtp_username: Option<String>,
     pub smtp_password: Option<String>,
@@ -407,6 +422,10 @@ pub struct PublicConfigResponse {
     pub license_key_buffer_days: u32,
     /// Further days past the user-visible expiry before a key stops working.
     pub license_key_grace_days: u32,
+    /// The newest promoted release, when it is newer than this server. `None`
+    /// on cloud, with `SCANOPY_DISABLE_UPDATE_CHECK` set, before the first
+    /// check answers, or when this server is current.
+    pub available_upgrade: Option<AvailableUpgrade>,
 }
 
 impl Default for ServerConfig {
@@ -422,6 +441,8 @@ impl Default for ServerConfig {
             integrated_daemon_url: None,
             disable_registration: false,
             disable_password_login: false,
+            disable_update_check: false,
+            update_check_url: None,
             stripe_key: None,
             stripe_secret: None,
             stripe_webhook_secret: None,
@@ -540,6 +561,9 @@ impl ServerConfig {
         }
         if let Some(disable_password_login) = cli_args.disable_password_login {
             figment = figment.merge(("disable_password_login", disable_password_login));
+        }
+        if let Some(disable_update_check) = cli_args.disable_update_check {
+            figment = figment.merge(("disable_update_check", disable_update_check));
         }
         if let Some(metrics_token) = cli_args.metrics_token {
             figment = figment.merge(("metrics_token", metrics_token));
@@ -767,7 +791,10 @@ pub fn get_deployment_type(config: &ServerConfig) -> DeploymentType {
         (status = 200, description = "Public server configuration", body = ApiResponse<PublicConfigResponse>)
     )
 )]
-pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn get_public_config(
+    State(state): State<Arc<AppState>>,
+    Extension(cache): Extension<Arc<AppCache>>,
+) -> impl IntoResponse {
     let oidc_providers = state
         .services
         .oidc_service
@@ -827,6 +854,12 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
         }
     };
 
+    let available_upgrade = if deployment_type.is_self_hosted() {
+        latest_release::available_upgrade(&cache).await
+    } else {
+        None
+    };
+
     (
         [(CACHE_CONTROL, "no-store, no-cache, must-revalidate")],
         Json(ApiResponse::success(PublicConfigResponse {
@@ -866,6 +899,7 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
             license_signing_available: state.license_issuer.is_some(),
             license_key_buffer_days: crate::server::license::mint::PAID_THROUGH_BUFFER_DAYS as u32,
             license_key_grace_days: crate::server::license::mint::GRACE_PERIOD_DAYS as u32,
+            available_upgrade,
         })),
     )
 }
@@ -886,6 +920,8 @@ mod tests {
         "license_signing_key",
         // Points license check-ins at a local server for testing.
         "license_server_url",
+        // Points the release check at a local stub for testing.
+        "update_check_url",
         // A family of `SCANOPY_EXTERNAL_SERVICE_<NAME>_ALLOWED_IPS` variables, not one field.
         "external_service_allowed_ips",
     ];

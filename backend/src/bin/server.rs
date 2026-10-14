@@ -16,6 +16,7 @@ use scanopy::server::{
     billing::plans::get_purchasable_plans,
     config::{AppState, DeploymentType, ServerCli, ServerConfig, get_deployment_type},
     email,
+    github::latest_release::{LATEST_RELEASE_URL, run_latest_release_checks},
     license::middleware::license_guard_middleware,
     shared::handlers::{
         cache::AppCache,
@@ -314,6 +315,19 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(license_check_in.run_check_ins());
     }
 
+    let app_cache = Arc::new(AppCache::new());
+
+    // Self-hosted servers ask GitHub for the latest release at startup and
+    // twice a day after, for the upgrade banner. `/config` reads the cache.
+    if deployment_type.is_self_hosted() && !state.config.disable_update_check {
+        let url = state
+            .config
+            .update_check_url
+            .clone()
+            .unwrap_or_else(|| LATEST_RELEASE_URL.to_string());
+        tokio::spawn(run_latest_release_checks(app_cache.clone(), url));
+    }
+
     tracing::info!(target: LOG_TARGET, "  Background tasks started");
 
     let (base_router, _openapi) = create_router(state.clone());
@@ -427,8 +441,6 @@ async fn main() -> anyhow::Result<()> {
         HeaderName::from_static("content-security-policy"),
         HeaderValue::from_str(&csp_value).expect("OIDC values will not change during runtime"),
     );
-
-    let app_cache = Arc::new(AppCache::new());
 
     // Create main app with all middleware
     let protected_app = Router::new().merge(api_router).layer(

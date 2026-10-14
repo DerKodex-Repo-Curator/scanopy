@@ -14970,19 +14970,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-14T01:11:08.873756Z",
+              "created_at": "2026-10-14T02:02:45.675302Z",
               "first_discovery_id": null,
-              "id": "5d74d337-d3f1-4052-b7f5-4f46d8158d12",
+              "id": "7ae9d9ae-1efa-41bb-bb65-c004b96a8aa5",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T01:11:08.873756Z",
+              "last_seen_at": "2026-10-14T02:02:45.675302Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-14T01:11:08.873756Z",
-              "valid_from": "2026-10-14T01:11:08.873756Z",
+              "updated_at": "2026-10-14T02:02:45.675302Z",
+              "valid_from": "2026-10-14T02:02:45.675302Z",
               "valid_to": null
             }
           },
@@ -16725,19 +16725,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-14T01:11:08.851190Z",
+                      "created_at": "2026-10-14T02:02:45.652280Z",
                       "first_discovery_id": null,
-                      "id": "45600667-c078-4bd5-8007-bb2b0fdc736a",
+                      "id": "e59f0cb6-ec70-4ae6-b902-6193b59328c8",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-14T01:11:08.851190Z",
+                      "last_seen_at": "2026-10-14T02:02:45.652280Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-14T01:11:08.851190Z",
-                      "valid_from": "2026-10-14T01:11:08.851190Z",
+                      "updated_at": "2026-10-14T02:02:45.652280Z",
+                      "valid_from": "2026-10-14T02:02:45.652280Z",
                       "valid_to": null
                     }
                   ],
@@ -16750,7 +16750,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "PowerDNS",
+                  "service_definition": "Elastic APM",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -17825,6 +17825,17 @@
               "license_key_grace_days"
             ],
             "properties": {
+              "available_upgrade": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AvailableUpgrade",
+                    "description": "The newest promoted release, when it is newer than this server. `None`\non cloud, with `SCANOPY_DISABLE_UPDATE_CHECK` set, before the first\ncheck answers, or when this server is current."
+                  }
+                ]
+              },
               "billing_enabled": {
                 "type": "boolean",
                 "description": "Whether this deployment has billing configured."
@@ -18217,19 +18228,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-14T01:11:08.869286Z",
+                  "created_at": "2026-10-14T02:02:45.670733Z",
                   "first_discovery_id": null,
-                  "id": "268a67ef-10a1-4b18-b1a2-4e73b5c22989",
+                  "id": "3b21299c-c5de-4dd1-a4f7-625774a55151",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T01:11:08.869286Z",
+                  "last_seen_at": "2026-10-14T02:02:45.670733Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-14T01:11:08.869286Z",
-                  "valid_from": "2026-10-14T01:11:08.869286Z",
+                  "updated_at": "2026-10-14T02:02:45.670733Z",
+                  "valid_from": "2026-10-14T02:02:45.670733Z",
                   "valid_to": null
                 }
               ],
@@ -18242,7 +18253,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "PowerDNS",
+              "service_definition": "Elastic APM",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -20882,6 +20893,25 @@
         ],
         "description": "How a discovered value reached us.\n\nEvery variant here has something that writes it. Sources with no producer are deliberately\nabsent: a rung the applier can never see is a rung nothing can be tested against, and the tier\ndecision is better made by whoever writes the reader than guessed in advance.\n\n**Do not derive `Ord`.** A derive compares the variant and then the payload, which would make\n`Probe(Docker) < Probe(Snmp)` on declaration order alone. Ordering is only ever [`Self::rank`].\n\n**Externally tagged**, which is serde's default and is left unstated for that reason. Thirty-three\nof these variants carry nothing, and a tag on a variant with no content is a key that distinguishes\nnothing — `\"Unspecified\"`, not `{\"type\":\"Unspecified\"}`, in every row of every column. The two\nthat do carry a [`ClientProbe`] keep it under their own name, `{\"Probe\":\"Snmp\"}`, which tells them\napart from each other and from every bare name."
       },
+      "AvailableUpgrade": {
+        "type": "object",
+        "description": "A newer release than the one this server runs.",
+        "required": [
+          "version",
+          "release_notes_url"
+        ],
+        "properties": {
+          "release_notes_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "That release's page on the public changelog."
+          },
+          "version": {
+            "type": "string",
+            "description": "Semver of the newest promoted release, without a leading `v`."
+          }
+        }
+      },
       "BillingPlan": {
         "oneOf": [
           {
@@ -21219,19 +21249,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-14T01:11:08.851706Z",
+          "created_at": "2026-10-14T02:02:45.652843Z",
           "first_discovery_id": null,
-          "id": "1745af7b-2d21-43b9-bbbc-d321a7ba97ee",
+          "id": "f63c32ed-55da-4ee7-baa8-9f06be5e11b0",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-14T01:11:08.851706Z",
+          "last_seen_at": "2026-10-14T02:02:45.652843Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-14T01:11:08.851706Z",
-          "valid_from": "2026-10-14T01:11:08.851706Z",
+          "updated_at": "2026-10-14T02:02:45.652843Z",
+          "valid_from": "2026-10-14T02:02:45.652843Z",
           "valid_to": null
         }
       },
@@ -21995,7 +22025,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "PowerDNS",
+              "service_definition": "Elastic APM",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -29058,19 +29088,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-14T01:11:08.850586Z",
+                  "created_at": "2026-10-14T02:02:45.651597Z",
                   "first_discovery_id": null,
-                  "id": "e2cd5fe1-7050-4b2b-87a7-fc632915c9cd",
+                  "id": "2b7c4f5a-fb5a-4d44-bf77-ba57c76af0c8",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T01:11:08.850586Z",
+                  "last_seen_at": "2026-10-14T02:02:45.651597Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-14T01:11:08.850586Z",
-                  "valid_from": "2026-10-14T01:11:08.850586Z",
+                  "updated_at": "2026-10-14T02:02:45.651597Z",
+                  "valid_from": "2026-10-14T02:02:45.651597Z",
                   "valid_to": null
                 }
               ],
@@ -29083,7 +29113,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "PowerDNS",
+              "service_definition": "Elastic APM",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -33147,19 +33177,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-14T01:11:08.842030Z",
+                        "created_at": "2026-10-14T02:02:45.642898Z",
                         "first_discovery_id": null,
-                        "id": "30410044-6856-4e6d-b0ca-ad0b5cd86639",
+                        "id": "ef5d6cf0-967f-4e8c-9796-81ae85025967",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-14T01:11:08.842030Z",
+                        "last_seen_at": "2026-10-14T02:02:45.642898Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-14T01:11:08.842030Z",
-                        "valid_from": "2026-10-14T01:11:08.842030Z",
+                        "updated_at": "2026-10-14T02:02:45.642898Z",
+                        "valid_from": "2026-10-14T02:02:45.642898Z",
                         "valid_to": null
                       }
                     ],
@@ -33172,7 +33202,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "PowerDNS",
+                    "service_definition": "Elastic APM",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -33321,19 +33351,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-14T01:11:08.868609Z",
+                    "created_at": "2026-10-14T02:02:45.670043Z",
                     "first_discovery_id": null,
-                    "id": "7ab0b3aa-e615-40c1-ab63-3ebfb1ec6ed4",
+                    "id": "0e89d012-210e-4982-bc2d-9b57f4a61715",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-14T01:11:08.868609Z",
+                    "last_seen_at": "2026-10-14T02:02:45.670043Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-14T01:11:08.868609Z",
-                    "valid_from": "2026-10-14T01:11:08.868609Z",
+                    "updated_at": "2026-10-14T02:02:45.670043Z",
+                    "valid_from": "2026-10-14T02:02:45.670043Z",
                     "valid_to": null
                   }
                 ],
@@ -33346,7 +33376,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "PowerDNS",
+                "service_definition": "Elastic APM",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -34649,6 +34679,17 @@
           "license_key_grace_days"
         ],
         "properties": {
+          "available_upgrade": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AvailableUpgrade",
+                "description": "The newest promoted release, when it is newer than this server. `None`\non cloud, with `SCANOPY_DISABLE_UPDATE_CHECK` set, before the first\ncheck answers, or when this server is current."
+              }
+            ]
+          },
           "billing_enabled": {
             "type": "boolean",
             "description": "Whether this deployment has billing configured."
@@ -35961,19 +36002,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-14T01:11:08.851532Z",
+              "created_at": "2026-10-14T02:02:45.652661Z",
               "first_discovery_id": null,
-              "id": "0187c2a0-384a-4ef6-98fa-0a20113dd346",
+              "id": "b73f33f3-d042-450d-ad83-e4023271b56f",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T01:11:08.851532Z",
+              "last_seen_at": "2026-10-14T02:02:45.652661Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-14T01:11:08.851532Z",
-              "valid_from": "2026-10-14T01:11:08.851532Z",
+              "updated_at": "2026-10-14T02:02:45.652661Z",
+              "valid_from": "2026-10-14T02:02:45.652661Z",
               "valid_to": null
             }
           ],
@@ -35986,7 +36027,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "PowerDNS",
+          "service_definition": "Elastic APM",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -38097,7 +38138,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "e2c6b103-ab9b-417d-9ff1-28fb937bc868",
+                  "id": "5506dba4-14d5-4ad4-b259-47a32861b86a",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -38107,23 +38148,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "8a9510ed-2b6e-42fc-94e6-d3b0306038cb",
+                  "id": "adbbac1e-f554-41b0-8001-fb98b6e36d6e",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "a11afe4a-1bee-4276-b970-3485f4b53110",
+                  "id": "54b963da-7617-4b58-9917-f945493cea6c",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "a5664a9a-2288-4f71-9c33-840d8cd1e7d4",
+                  "id": "16df398d-39ea-446d-8fc0-319be8fc56e2",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "8a9510ed-2b6e-42fc-94e6-d3b0306038cb",
+                  "id": "adbbac1e-f554-41b0-8001-fb98b6e36d6e",
                   "rule": "ByHost"
                 }
               ]
@@ -38153,19 +38194,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "4ec221fd-ce20-496a-9c4f-bd66f70dd45b",
+                "id": "a771eb18-20b6-40ba-8591-c0e80accee70",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "b44fbe9a-7ffe-4b30-9f30-76bff779bb24",
+                "id": "443529a7-0e5f-46c6-ac01-3e7dc8b96c90",
                 "rule": "ByVLAN"
               },
               {
-                "id": "43de7c1e-2ee4-45be-9970-34def3265cde",
+                "id": "bffda5ad-69b2-490f-8e12-6d3134aebf3c",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "348f4271-5880-43ee-822b-d8f0f1195f62",
+                "id": "0c29729c-67d4-4e00-8da3-d5e41686ab4a",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -38186,7 +38227,7 @@
                 }
               },
               {
-                "id": "586954f3-8a33-4c64-b30d-2841d04b76fc",
+                "id": "29087ebf-5c18-4af4-93da-b611485be26d",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -38195,15 +38236,15 @@
                 }
               },
               {
-                "id": "bbdc46ea-4abe-44be-b11a-1a5a2ad6aafd",
+                "id": "dec0ce85-01ba-4ae9-b46a-83934cb721c4",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "6ade39c9-1c99-4131-8825-f6901edfcd86",
+                "id": "26b8f3f6-aa0b-405d-adbb-7ebc9086c9e8",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "1940d9dc-3bbd-4396-8ff5-baea4627b086",
+                "id": "fa26b059-c083-4ab7-b809-dfad691f6e22",
                 "rule": "ByStack"
               }
             ]

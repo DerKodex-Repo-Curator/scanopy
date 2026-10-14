@@ -848,7 +848,10 @@ export interface paths {
         };
         /**
          * Get GitHub star count
+         * @deprecated
          * @description Returns the current star count for the Scanopy GitHub repository.
+         *     Deprecated: nothing in the UI calls it. Both `GithubStars` mounts are
+         *     commented out, and the route stays so they can come back.
          */
         get: operations["get_stars"];
         put?: never;
@@ -3818,19 +3821,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-14T01:11:08.804134Z",
+             *       "created_at": "2026-10-14T02:02:45.600568Z",
              *       "first_discovery_id": null,
-             *       "id": "1c7eeb25-ce9b-4e5d-97b2-a767646e453c",
+             *       "id": "4d92e9c2-73ff-4a52-bed6-51f1166518ce",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-14T01:11:08.804134Z",
+             *       "last_seen_at": "2026-10-14T02:02:45.600568Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-14T01:11:08.804134Z",
-             *       "valid_from": "2026-10-14T01:11:08.804134Z",
+             *       "updated_at": "2026-10-14T02:02:45.600568Z",
+             *       "valid_from": "2026-10-14T02:02:45.600568Z",
              *       "valid_to": null
              *     }
              */
@@ -4703,19 +4706,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-14T01:11:08.773247Z",
+             *               "created_at": "2026-10-14T02:02:45.570028Z",
              *               "first_discovery_id": null,
-             *               "id": "b798c5d1-7588-47d6-a9cd-a30aa1b71638",
+             *               "id": "963f14c4-317a-469d-8094-449d8c851ca8",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-14T01:11:08.773247Z",
+             *               "last_seen_at": "2026-10-14T02:02:45.570028Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-14T01:11:08.773247Z",
-             *               "valid_from": "2026-10-14T01:11:08.773247Z",
+             *               "updated_at": "2026-10-14T02:02:45.570028Z",
+             *               "valid_from": "2026-10-14T02:02:45.570028Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4728,7 +4731,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "PowerDNS",
+             *           "service_definition": "Elastic APM",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5517,6 +5520,7 @@ export interface components {
         ApiResponse_PublicConfigResponse: {
             /** @description The result payload. Omitted on failure. */
             data?: {
+                available_upgrade?: null | components["schemas"]["AvailableUpgrade"];
                 /** @description Whether this deployment has billing configured. */
                 billing_enabled: boolean;
                 /** @description How this instance is run: cloud, commercial self-hosted, or community. */
@@ -5712,19 +5716,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-14T01:11:08.798715Z",
+             *           "created_at": "2026-10-14T02:02:45.595266Z",
              *           "first_discovery_id": null,
-             *           "id": "e360b1f1-2d26-42db-a868-acf90697d33c",
+             *           "id": "7de8f8f8-f4ed-4f97-944f-b75b5126b2d9",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-14T01:11:08.798715Z",
+             *           "last_seen_at": "2026-10-14T02:02:45.595266Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-14T01:11:08.798715Z",
-             *           "valid_from": "2026-10-14T01:11:08.798715Z",
+             *           "updated_at": "2026-10-14T02:02:45.595266Z",
+             *           "valid_from": "2026-10-14T02:02:45.595266Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5737,7 +5741,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "PowerDNS",
+             *       "service_definition": "Elastic APM",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -7050,6 +7054,16 @@ export interface components {
              */
             Authored: components["schemas"]["ClientProbe"];
         } | "Manual";
+        /** @description A newer release than the one this server runs. */
+        AvailableUpgrade: {
+            /**
+             * Format: uri
+             * @description That release's page on the public changelog.
+             */
+            release_notes_url: string;
+            /** @description Semver of the newest promoted release, without a leading `v`. */
+            version: string;
+        };
         BillingPlan: (components["schemas"]["PlanConfig"] & {
             /** @enum {string} */
             type: "Community";
@@ -7089,19 +7103,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-14T01:11:08.773946Z",
+         *       "created_at": "2026-10-14T02:02:45.570726Z",
          *       "first_discovery_id": null,
-         *       "id": "2a767c38-2b22-4b43-b238-f076909f485b",
+         *       "id": "52e65bd2-17b9-4308-83fe-88eed1c339f6",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-14T01:11:08.773946Z",
+         *       "last_seen_at": "2026-10-14T02:02:45.570726Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-14T01:11:08.773946Z",
-         *       "valid_from": "2026-10-14T01:11:08.773946Z",
+         *       "updated_at": "2026-10-14T02:02:45.570726Z",
+         *       "valid_from": "2026-10-14T02:02:45.570726Z",
          *       "valid_to": null
          *     }
          */
@@ -7447,7 +7461,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "PowerDNS",
+         *           "service_definition": "Elastic APM",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -10235,19 +10249,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-14T01:11:08.772457Z",
+         *               "created_at": "2026-10-14T02:02:45.569199Z",
          *               "first_discovery_id": null,
-         *               "id": "42b0412d-50a5-4f3f-8372-137f683ef5a3",
+         *               "id": "1fae3556-8309-42b0-85be-d7b096c5f00a",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-14T01:11:08.772457Z",
+         *               "last_seen_at": "2026-10-14T02:02:45.569199Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-14T01:11:08.772457Z",
-         *               "valid_from": "2026-10-14T01:11:08.772457Z",
+         *               "updated_at": "2026-10-14T02:02:45.569199Z",
+         *               "valid_from": "2026-10-14T02:02:45.569199Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10260,7 +10274,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "PowerDNS",
+         *           "service_definition": "Elastic APM",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -13033,6 +13047,7 @@ export interface components {
             vm_name?: string | null;
         };
         PublicConfigResponse: {
+            available_upgrade?: null | components["schemas"]["AvailableUpgrade"];
             /** @description Whether this deployment has billing configured. */
             billing_enabled: boolean;
             /** @description How this instance is run: cloud, commercial self-hosted, or community. */
@@ -13625,19 +13640,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-14T01:11:08.773713Z",
+         *           "created_at": "2026-10-14T02:02:45.570500Z",
          *           "first_discovery_id": null,
-         *           "id": "25d9adea-ed17-4162-8968-13251ed3b9dc",
+         *           "id": "cbc0bd70-79f5-43f1-8416-e07a3383c6ea",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-14T01:11:08.773713Z",
+         *           "last_seen_at": "2026-10-14T02:02:45.570500Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-14T01:11:08.773713Z",
-         *           "valid_from": "2026-10-14T01:11:08.773713Z",
+         *           "updated_at": "2026-10-14T02:02:45.570500Z",
+         *           "valid_from": "2026-10-14T02:02:45.570500Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13650,7 +13665,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "PowerDNS",
+         *       "service_definition": "Elastic APM",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -14729,7 +14744,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "92f2e80f-ef30-46aa-a375-726a2132523a",
+             *           "id": "3057c52f-e404-46c3-88d9-b278d9db78b0",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14739,23 +14754,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "01d0262a-6b65-4784-bcdf-ca4ff88339b0",
+             *           "id": "ca21eec0-cc82-486c-b40a-3cff5114489b",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "b82c7ff3-1424-444e-b353-24094a2dcc66",
+             *           "id": "acae2497-5c7a-4356-9d0b-93cd23981dbc",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "277f7d95-fae9-499d-80c4-93fa31ddb31a",
+             *           "id": "73902ca1-c22f-4735-ac98-781f3965f45b",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "01d0262a-6b65-4784-bcdf-ca4ff88339b0",
+             *           "id": "ca21eec0-cc82-486c-b40a-3cff5114489b",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14769,19 +14784,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "bb32ace6-273a-4e60-802a-fc3eac8c008e",
+             *         "id": "3ac3eba9-2fc8-414d-8c5b-5b508c3e901b",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "aa551a6e-9cf3-46e6-83be-fa3ba40987ce",
+             *         "id": "c0106a62-d97a-47ef-8b90-87d5e6e04188",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "faf564ca-c93c-4d03-9206-d848a6017d57",
+             *         "id": "2bff56db-8ca0-4ae9-9c9b-935d2bb016b8",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "8344b08d-635a-4351-b692-134e1c685a35",
+             *         "id": "8ac04e85-5419-4568-91b3-c532a0fad8e5",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14802,7 +14817,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "d067dfaa-bb53-472f-8694-e5e449c3c016",
+             *         "id": "7bfc0e07-20eb-4364-b17b-55cebb7cb06f",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14811,15 +14826,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "6d00804d-5997-474b-a8e3-180e8f3866e7",
+             *         "id": "9a954889-3b33-45a0-913a-3597b3cdc39b",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "d9e5336a-32aa-4391-93f2-af6c08304bb7",
+             *         "id": "b69f4ffe-b0c2-423d-8e1b-5f8845e81201",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "5752cad9-40fe-4a55-8a62-49aa9521d533",
+             *         "id": "a290e43e-ba99-48ce-9594-1c22e62a4e00",
              *         "rule": "ByStack"
              *       }
              *     ]
