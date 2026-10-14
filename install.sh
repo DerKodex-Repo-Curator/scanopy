@@ -1,4 +1,6 @@
 #!/bin/bash
+# Installs the Scanopy daemon. Run the command your Scanopy server shows on its install page.
+# Daemon docs: https://scanopy.net/docs/setting-up-daemons/managing-daemons/
 set -e
 
 REPO="scanopy/scanopy"
