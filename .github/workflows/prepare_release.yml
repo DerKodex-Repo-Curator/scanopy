@@ -63,6 +63,13 @@ jobs:
           exit 1
         fi
 
+    # A terms notice links to scanopy.net/<page>/<effective>. Stop here, in either
+    # phase, until those pages are on the website's main branch.
+    - name: Check terms pages are on the website
+      env:
+        GH_TOKEN: ${{ secrets.SYNC_FIXTURES_TO_WEBSITE_TOKEN }}
+      run: .github/scripts/check-terms-pages.sh
+
     - name: Choose phase
       id: phase
       run: |

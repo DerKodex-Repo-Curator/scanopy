@@ -30,8 +30,12 @@ Self-hosted servers never send it.
 
 Run `make new-terms-update` to create the file. It asks for the effective date and the documents,
 prefilling each, and checks the date against the rules below. Set `EFFECTIVE` or `DOCUMENTS` to
-skip a question. Replace each `<describe the change>` it leaves in the body; a file that still
-holds one fails CI.
+skip a question. It also drafts each changed page in the website checkout
+(`src/lib/legal/<page>/<effective>.svelte`, copied from the version in force) and opens an issue in
+`scanopy/website`, assigned to you, to publish them. It needs the website checkout at `../website`
+beside this repo (or `WEBSITE_DIR`) and a logged-in `gh`, and stops before writing anything without
+them. Replace each `<describe the change>` it leaves in the terms file; a file that still holds one
+fails CI.
 
 ```markdown
 ---
@@ -55,7 +59,8 @@ to go logs an error. One the server hasn't sent by `effective` still goes out fo
 CI fails when an update takes effect less than 30 days or more than 180 days after `date`, or is
 dated before an update that takes effect sooner.
 
-Before the release deploys, publish each changed document's new text at
-`scanopy.net/<page>/<effective>` (for example `scanopy.net/terms/2026-12-01`). The email links
-there, and the page stays as the archived copy. Add a line to the live page linking to it until
-`effective`, then put the new text on the live page.
+The email links each changed document to `scanopy.net/<page>/<effective>`, which the website builds
+from that draft. Edit the drafts and push them to website `main` before cutting the release:
+Prepare Release fails while any terms file's pages are missing there. Until `effective`, the live
+page links to the new version; on that day the website's `legal-effective-rebuild.yml` rebuilds the
+site, and the live page switches to it.
