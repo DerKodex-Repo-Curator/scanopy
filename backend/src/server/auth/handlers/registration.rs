@@ -105,9 +105,11 @@ pub(crate) async fn register(
         return Ok(Json(ApiResponse::success(fake_user)));
     }
 
-    let billing_enabled = state.config.billing_enabled();
+    // Org provisioning below follows whether this is the Stripe-backed cloud. Terms follow
+    // billing_enabled(), as the terms gate does, so a billing-enforced test server asks for them.
+    let billing_enabled = state.config.stripe_secret.is_some();
 
-    if billing_enabled && !request.terms_accepted {
+    if state.config.billing_enabled() && !request.terms_accepted {
         return Err(ApiError::bad_request(
             "Please accept terms and conditions to proceed",
         ));

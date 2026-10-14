@@ -565,7 +565,7 @@ async fn handle_register_flow(
         )));
     };
 
-    let billing_enabled = state.config.billing_enabled();
+    let billing_enabled = state.config.stripe_secret.is_some();
 
     // Register user
     match oidc_service
