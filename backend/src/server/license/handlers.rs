@@ -202,23 +202,33 @@ pub async fn get_entitlement(
                 instance_id: request.instance_id,
                 server_version,
                 ip: Some(ip),
+                non_production: request.non_production,
                 at: now,
             },
-            organization.license_instance_limit(),
+            organization.license_instance_limits(),
         )
         .await?;
     service
         .record_license_instance_usage(organization_id, recorded.usage)
         .await?;
 
-    // A server past the plan's limit gets no entitlement and goes read-only.
-    // The servers holding a slot keep theirs.
-    if let (false, Some(limit)) = (recorded.holds_slot, recorded.usage.limit) {
+    // A server past its class's limit gets no entitlement and goes read-only.
+    // The servers holding a slot keep theirs, and servers too old to say
+    // which class they are are counted but never refused.
+    if recorded.refused {
+        let (active, limit) = if request.non_production.unwrap_or(false) {
+            (
+                recorded.usage.non_production_active,
+                recorded.usage.non_production_limit,
+            )
+        } else {
+            (recorded.usage.active, recorded.usage.limit)
+        };
         return Err(ApiError::coded(
             StatusCode::FORBIDDEN,
             ErrorCode::LicenseInstanceLimitReached {
-                active: recorded.usage.active,
-                limit,
+                active,
+                limit: limit.unwrap_or_default(),
             },
         ));
     }
@@ -432,9 +442,9 @@ pub struct LicenseInstanceSummary {
     /// Whether the instance counts against the limit: it checked in within
     /// the last week.
     pub active: bool,
-    /// Whether the instance holds one of the plan's slots. An instance
-    /// without one is refused its entitlement and is read-only.
-    pub holds_slot: bool,
+    /// Whether the instance is past its class's limit and refused its
+    /// entitlement, so it is read-only.
+    pub refused: bool,
 }
 
 /// List the server instances running this organization's license key
@@ -463,15 +473,13 @@ pub async fn list_license_instances(
         .list(organization_id)
         .await?;
     let now = Utc::now();
-    let usage = InstanceUsage {
-        active: super::instances::active_count(&instances, now),
-        limit: organization.license_instance_limit(),
-    };
+    let limits = organization.license_instance_limits();
+    let usage = super::instances::usage(&instances, limits, now);
     let summaries = instances
         .iter()
         .map(|instance| LicenseInstanceSummary {
             active: instance.is_active_at(now),
-            holds_slot: super::instances::holds_slot(&instances, instance.id, usage.limit, now),
+            refused: super::instances::is_refused(&instances, instance, limits, now),
             instance: instance.clone(),
         })
         .collect();

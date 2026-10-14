@@ -68,6 +68,11 @@ pub struct EntitlementRequest {
     /// instance counting; those share one instance slot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<Uuid>,
+    /// Whether the server was started with `SCANOPY_NON_PRODUCTION`. Absent
+    /// from servers older than the setting: they count as production, and
+    /// the cloud never refuses them a slot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub non_production: Option<bool>,
 }
 
 /// Data returned inside `ApiResponse` by [`ENTITLEMENT_PATH`].
@@ -84,17 +89,28 @@ pub struct EntitlementResponse {
 
 /// Server instances an online key has checked in from within the last
 /// `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
-/// covers (`None` when the plan has no cap). Over the limit, every instance
-/// keeps its entitlement and shows a warning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+/// covers (`None` when the plan has no cap), for production and
+/// non-production servers. A server past its class's limit is refused an
+/// entitlement.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct InstanceUsage {
+    /// Production servers.
     pub active: u32,
     pub limit: Option<u32>,
+    /// Servers started with `SCANOPY_NON_PRODUCTION`. Absent from clouds
+    /// older than the setting.
+    #[serde(default)]
+    #[schema(required)]
+    pub non_production_active: u32,
+    #[serde(default)]
+    #[schema(required)]
+    pub non_production_limit: Option<u32>,
 }
 
 impl InstanceUsage {
     pub fn is_over(&self) -> bool {
-        self.limit.is_some_and(|limit| self.active > limit)
+        let over = |active: u32, limit: Option<u32>| limit.is_some_and(|limit| active > limit);
+        over(self.active, self.limit) || over(self.non_production_active, self.non_production_limit)
     }
 }
 

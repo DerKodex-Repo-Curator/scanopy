@@ -20,6 +20,7 @@
 	import LicenseGraceBanner from './LicenseGraceBanner.svelte';
 	import LicenseExpiringBanner from './LicenseExpiringBanner.svelte';
 	import LicenseInstanceLimitBanner from './LicenseInstanceLimitBanner.svelte';
+	import NonProductionBanner from './NonProductionBanner.svelte';
 	import { useEmailVerificationPending } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { useConfigQuery, isLicenseApproachingExpiry } from '$lib/shared/stores/config-query';
@@ -29,12 +30,19 @@
 	const configQuery = useConfigQuery();
 
 	let organization = $derived(organizationQuery.data);
-	// A null limit is a plan with no cap.
+	// The production or non-production count that is over its limit. A null
+	// limit is a plan with no cap.
 	let instanceOverrun = $derived.by(() => {
 		const usage = configQuery.data?.license_instances;
-		return usage && usage.limit != null && usage.active > usage.limit
-			? { active: usage.active, limit: usage.limit }
-			: null;
+		if (!usage) return null;
+		if (usage.limit != null && usage.active > usage.limit) {
+			return { active: usage.active, limit: usage.limit };
+		}
+		const nonProductionLimit = usage.non_production_limit;
+		if (nonProductionLimit != null && usage.non_production_active > nonProductionLimit) {
+			return { active: usage.non_production_active, limit: nonProductionLimit };
+		}
+		return null;
 	});
 </script>
 
@@ -72,4 +80,7 @@
      says so in the locked banner instead. -->
 {#if instanceOverrun && configQuery.data?.license_status !== 'invalid'}
 	<LicenseInstanceLimitBanner active={instanceOverrun.active} limit={instanceOverrun.limit} />
+{/if}
+{#if configQuery.data?.non_production}
+	<NonProductionBanner />
 {/if}

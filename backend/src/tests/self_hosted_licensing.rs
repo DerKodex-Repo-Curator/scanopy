@@ -114,7 +114,7 @@ fn whole_seconds_from_now(days: i64) -> DateTime<Utc> {
 }
 
 async fn request_entitlement(state: &Arc<AppState>, key: String) -> Result<String, StatusCode> {
-    check_in(state, key, None)
+    check_in(state, key, None, None)
         .await
         .map(|response| response.entitlement)
 }
@@ -123,12 +123,17 @@ async fn check_in(
     state: &Arc<AppState>,
     key: String,
     instance_id: Option<Uuid>,
+    non_production: Option<bool>,
 ) -> Result<EntitlementResponse, StatusCode> {
     get_entitlement(
         State(state.clone()),
         ClientIp("203.0.113.7".parse().unwrap()),
         HeaderMap::new(),
-        ApiJson(EntitlementRequest { key, instance_id }),
+        ApiJson(EntitlementRequest {
+            key,
+            instance_id,
+            non_production,
+        }),
     )
     .await
     .map(|Json(response)| response.into_data().unwrap())
@@ -178,11 +183,12 @@ async fn online_keys_are_stable_until_rotated() {
     );
 }
 
-/// On Standard, a second server on the key is refused its entitlement while
-/// the first keeps getting its own, told the key is over its limit; the org is
-/// marked so the overrun is reported once. Moving to Plus lets the second in.
+/// A second production server on the key is refused its entitlement while the
+/// first keeps getting its own, told the key is over its limit; the org is
+/// marked so the overrun is reported once. A non-production server takes its
+/// own slot, and a server too old to say which it is is counted but admitted.
 #[tokio::test]
-async fn a_second_instance_is_refused_on_standard_and_admitted_on_plus() {
+async fn a_second_production_server_is_refused_and_a_non_production_one_admitted() {
     let (state, _container) = test_state().await;
     let issuer = state.license_issuer.clone().unwrap();
     let service = &state.services.organization_service;
@@ -199,17 +205,23 @@ async fn a_second_instance_is_refused_on_standard_and_admitted_on_plus() {
     let first = Some(Uuid::new_v4());
     let second = Some(Uuid::new_v4());
 
-    let admitted = check_in(&state, key.clone(), first).await.unwrap();
+    let admitted = check_in(&state, key.clone(), first, Some(false))
+        .await
+        .unwrap();
     assert_eq!(
         admitted.instances,
         Some(InstanceUsage {
             active: 1,
-            limit: Some(1)
+            limit: Some(1),
+            non_production_active: 0,
+            non_production_limit: Some(2),
         })
     );
 
     assert_eq!(
-        check_in(&state, key.clone(), second).await.unwrap_err(),
+        check_in(&state, key.clone(), second, Some(false))
+            .await
+            .unwrap_err(),
         StatusCode::FORBIDDEN
     );
     assert!(
@@ -220,31 +232,23 @@ async fn a_second_instance_is_refused_on_standard_and_admitted_on_plus() {
             .license_over_instance_limit
     );
 
-    let still_admitted = check_in(&state, key.clone(), first).await.unwrap();
-    assert!(!still_admitted.entitlement.is_empty());
-    assert_eq!(
-        still_admitted.instances,
-        Some(InstanceUsage {
-            active: 2,
-            limit: Some(1)
-        })
-    );
-
-    let mut plus = reload(&state, org.id).await;
-    plus.base.plan = Some(get_self_hosted_plus_plan());
-    service
-        .update(&mut plus, AuthenticatedEntity::System)
+    let still_admitted = check_in(&state, key.clone(), first, Some(false))
         .await
         .unwrap();
-    let on_plus = check_in(&state, key, second).await.unwrap();
-    assert!(!on_plus.entitlement.is_empty());
-    assert_eq!(
-        on_plus.instances,
-        Some(InstanceUsage {
-            active: 2,
-            limit: None
-        })
-    );
+    assert!(!still_admitted.entitlement.is_empty());
+    assert_eq!(still_admitted.instances.unwrap().active, 2);
+
+    let staging = check_in(&state, key.clone(), Some(Uuid::new_v4()), Some(true))
+        .await
+        .unwrap();
+    assert!(!staging.entitlement.is_empty());
+    assert_eq!(staging.instances.unwrap().non_production_active, 1);
+
+    let old_build = check_in(&state, key, Some(Uuid::new_v4()), None)
+        .await
+        .unwrap();
+    assert!(!old_build.entitlement.is_empty());
+    assert_eq!(old_build.instances.unwrap().active, 3);
 }
 
 #[tokio::test]

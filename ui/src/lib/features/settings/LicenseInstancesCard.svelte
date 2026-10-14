@@ -12,10 +12,12 @@
 		common_delete,
 		common_inactive,
 		common_ipAddress,
+		common_nonProduction,
 		common_readOnly,
 		common_servers,
 		settings_billing_license_lastCheckIn,
 		settings_billing_license_noServers,
+		settings_billing_license_nonProductionOverLimit,
 		settings_billing_license_olderServers,
 		settings_billing_license_overLimit,
 		settings_billing_license_serverDeleteConfirm,
@@ -52,10 +54,18 @@
 				title={settings_billing_license_overLimit({ active: usage.active, limit: usage.limit })}
 			/>
 		{/if}
+		{#if usage && usage.non_production_limit != null && usage.non_production_active > usage.non_production_limit}
+			<InlineWarning
+				title={settings_billing_license_nonProductionOverLimit({
+					active: usage.non_production_active,
+					limit: usage.non_production_limit
+				})}
+			/>
+		{/if}
 		{#if instancesQuery.isSuccess && instances.length === 0}
 			<p class="text-secondary text-sm">{settings_billing_license_noServers()}</p>
 		{/if}
-		{#each instances as { instance, active, holds_slot } (instance.id)}
+		{#each instances as { instance, active, refused } (instance.id)}
 			<InfoCard variant="compact">
 				<div class="flex items-center justify-between gap-4">
 					<div class="min-w-0 {active ? '' : 'opacity-60'}">
@@ -65,9 +75,14 @@
 							{:else}
 								{settings_billing_license_olderServers()}
 							{/if}
+							{#if instance.non_production}
+								<span class="text-secondary ml-2 text-xs font-normal"
+									>{common_nonProduction()}</span
+								>
+							{/if}
 							{#if !active}
 								<span class="text-secondary ml-2 text-xs font-normal">{common_inactive()}</span>
-							{:else if !holds_slot}
+							{:else if refused}
 								<span class="text-danger ml-2 text-xs font-normal">{common_readOnly()}</span>
 							{/if}
 						</p>

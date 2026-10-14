@@ -364,6 +364,7 @@ pub enum SqlValue {
     OptionalI64(Option<i64>),
     U16(u16),
     Bool(bool),
+    OptionalBool(Option<bool>),
     Email(EmailAddress),
     Timestamp(DateTime<Utc>),
     OptionTimestamp(Option<DateTime<Utc>>),
@@ -772,7 +773,9 @@ impl SqlValue {
             SqlValueDiscriminants::U16 | SqlValueDiscriminants::OptionVecU16 => {
                 u16::contribute(out)
             }
-            SqlValueDiscriminants::Bool => bool::contribute(out),
+            SqlValueDiscriminants::Bool | SqlValueDiscriminants::OptionalBool => {
+                bool::contribute(out)
+            }
             SqlValueDiscriminants::Email => EmailAddress::contribute(out),
             SqlValueDiscriminants::Timestamp | SqlValueDiscriminants::OptionTimestamp => {
                 <DateTime<Utc>>::contribute(out)

@@ -270,7 +270,7 @@ impl AuthService {
                 use_case, org_name, ..
             }) => {
                 // Self-hosted org count is capped by the licensed plan's
-                // `included_orgs` (Community/Standard = 1, Plus = 5,
+                // `included_orgs` (Community/Standard/Plus = 1,
                 // Commercial/Enterprise = unlimited). `None` = unlimited = no
                 // cap. Cloud (billing_enabled) stays multi-tenant regardless.
                 // Gates creation only — instances already above the cap keep

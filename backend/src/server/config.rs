@@ -182,6 +182,11 @@ pub struct ServerCli {
     #[arg(long)]
     pub license_key: Option<String>,
 
+    /// Mark this server as non-production (staging, testing or disaster recovery). It takes a
+    /// non-production slot on the license key and shows a banner saying so.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    pub non_production: Option<bool>,
+
     /// Email address shown to users who can't create an organization because the server has
     /// reached its organization limit.
     #[arg(long)]
@@ -268,6 +273,12 @@ pub struct ServerConfig {
 
     // License key for commercial self-hosted deployments
     pub license_key: Option<String>,
+
+    /// Whether this server is non-production, from `SCANOPY_NON_PRODUCTION`.
+    /// Sent with each license check-in, so the server takes a non-production
+    /// slot on the key.
+    #[serde(default)]
+    pub non_production: bool,
 
     /// Ed25519 PEM private key the cloud signs license keys and entitlements
     /// with, from `SCANOPY_LICENSE_SIGNING_KEY`. Cloud only; never set on
@@ -366,6 +377,8 @@ pub struct PublicConfigResponse {
     /// against how many it covers, as Scanopy Cloud reported at the last
     /// check-in. Online keys only.
     pub license_instances: Option<InstanceUsage>,
+    /// Whether this server was started with `SCANOPY_NON_PRODUCTION`.
+    pub non_production: bool,
     /// Hard expiry — the drop-dead date after which the server rejects
     /// the key. Referenced by the grace-period banner.
     #[schema(format = "date")]
@@ -444,6 +457,7 @@ impl Default for ServerConfig {
             metrics_token: None,
             external_service_allowed_ips: HashMap::new(),
             license_key: None,
+            non_production: false,
             license_signing_key: None,
             license_server_url: None,
             server_admin_contact_email: None,
@@ -552,6 +566,9 @@ impl ServerConfig {
         }
         if let Some(license_key) = cli_args.license_key {
             figment = figment.merge(("license_key", license_key));
+        }
+        if let Some(non_production) = cli_args.non_production {
+            figment = figment.merge(("non_production", non_production));
         }
         if let Some(server_admin_contact_email) = cli_args.server_admin_contact_email {
             figment = figment.merge(("server_admin_contact_email", server_admin_contact_email));
@@ -853,6 +870,7 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
             license_key_type,
             license_entitlement_at,
             license_instances,
+            non_production: state.config.non_production,
             license_expiry,
             license_intended_expiry,
             license_valid_through,

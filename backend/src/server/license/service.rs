@@ -48,6 +48,9 @@ pub struct LicenseService {
     /// offline keys, and when it could not be read, in which case the cloud
     /// counts this server with the ones too old to send one.
     instance_id: Option<uuid::Uuid>,
+    /// `SCANOPY_NON_PRODUCTION`, sent with each check-in so the server takes
+    /// a non-production slot.
+    non_production: bool,
     state: RwLock<LicenseState>,
     organization_service: Arc<OrganizationService>,
     http: reqwest::Client,
@@ -106,6 +109,7 @@ impl LicenseService {
         base_url: Option<String>,
         trusted_ca: Option<&TrustedCaBundle>,
         instance_service: Option<&LicenseInstanceService>,
+        non_production: bool,
     ) -> Self {
         let key_type = license_key.key_type();
 
@@ -164,6 +168,7 @@ impl LicenseService {
             key_type,
             base_url,
             instance_id,
+            non_production,
             state: RwLock::new(state),
             organization_service,
             http: TrustedCaBundle::apply(
@@ -313,6 +318,7 @@ impl LicenseService {
         let request = EntitlementRequest {
             key: self.license_key.as_str().to_string(),
             instance_id: self.instance_id,
+            non_production: Some(self.non_production),
         };
         let send = self
             .http
@@ -352,8 +358,9 @@ impl LicenseService {
                     ));
                 }
 
-                // Refused because the key already runs on as many servers as
-                // the plan covers: keep the counts so the UI can say so.
+                // Refused because the key already runs on as many servers of
+                // this server's class as the plan covers: keep the counts so
+                // the UI can say so.
                 let instances = body
                     .as_ref()
                     .filter(|body| {
@@ -374,9 +381,19 @@ impl LicenseService {
                                 .and_then(serde_json::Value::as_u64)
                                 .and_then(|n| u32::try_from(n).ok())
                         };
-                        Some(InstanceUsage {
-                            active: count("active")?,
-                            limit: Some(count("limit")?),
+                        let (active, limit) = (count("active")?, Some(count("limit")?));
+                        Some(if self.non_production {
+                            InstanceUsage {
+                                non_production_active: active,
+                                non_production_limit: limit,
+                                ..InstanceUsage::default()
+                            }
+                        } else {
+                            InstanceUsage {
+                                active,
+                                limit,
+                                ..InstanceUsage::default()
+                            }
                         })
                     });
 
@@ -490,7 +507,7 @@ mod tests {
     }
 
     async fn service(key: LicenseKey) -> LicenseService {
-        LicenseService::new(key, unreachable_org_service(), None, None, None).await
+        LicenseService::new(key, unreachable_org_service(), None, None, None, false).await
     }
 
     /// A stand-in for the cloud entitlement endpoint that answers every
@@ -581,6 +598,7 @@ mod tests {
                 Some(base_url),
                 None,
                 None,
+                false,
             )
             .await,
         );
@@ -615,6 +633,7 @@ mod tests {
         let over = InstanceUsage {
             active: 2,
             limit: Some(1),
+            ..InstanceUsage::default()
         };
         let entitlement = license_token(Some(ORG_ID), Some(LicensePlan::Plus), 30);
         let base_url = cloud(move || {
@@ -773,7 +792,8 @@ mod tests {
             license.instance_usage().await,
             Some(InstanceUsage {
                 active: 2,
-                limit: Some(1)
+                limit: Some(1),
+                ..InstanceUsage::default()
             })
         );
     }
@@ -856,7 +876,8 @@ mod tests {
             .await
             .unwrap();
 
-        let license = LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None, None).await;
+        let license =
+            LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None, None, false).await;
         assert!(matches!(
             license.current_status().await,
             LicenseStatus::Pending
@@ -872,7 +893,7 @@ mod tests {
 
         // Restart with the cloud unreachable: the persisted entitlement applies.
         let restarted =
-            LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None, None).await;
+            LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None, None, false).await;
         assert!(matches!(
             restarted.current_status().await,
             LicenseStatus::Valid(_)
