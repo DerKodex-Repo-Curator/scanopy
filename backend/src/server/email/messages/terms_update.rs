@@ -76,7 +76,7 @@ impl Email for TermsUpdate<'_> {
                     ))
                     .paragraph(&format!("Read the full text: {}.", links.join(", ")))
                     .paragraph(&format!(
-                        "If you keep using Scanopy after {effective}, the new versions apply to you. If you don't agree, cancel your subscription before that date. Send questions to <a href=\"mailto:legal@scanopy.net\">legal@scanopy.net</a>."
+                        "If you keep using Scanopy after {effective}, the new versions apply to you. If you don't agree, cancel your subscription before that date."
                     )),
             )
             .render()

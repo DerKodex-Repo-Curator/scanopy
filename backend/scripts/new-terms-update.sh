@@ -11,12 +11,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERMS_DIR="$SCRIPT_DIR/../release-notes/terms"
 
-MIN_NOTICE_DAYS=30
+MIN_NOTICE_DAYS=7
 MAX_LEAD_DAYS=180
-# The notice goes out when the release carrying the file deploys, so the
-# prefilled effective date adds this many days to the minimum notice for that
-# release to be cut and rolled out.
-SHIP_DAYS=15
 DOCUMENT_IDS="terms privacy refund security"
 # Keep in sync with PLACEHOLDER in src/server/release_notes/terms.rs: a body
 # still holding it doesn't parse, so an unedited file fails CI.
@@ -59,11 +55,11 @@ mkdir -p "$TERMS_DIR"
 latest="$(find "$TERMS_DIR" -maxdepth 1 -name '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md' -exec basename {} .md \; | sort | tail -1)"
 
 earliest="$(add_days "$today" "$MIN_NOTICE_DAYS")"
-suggested="$(add_days "$earliest" "$SHIP_DAYS")"
+suggested="$earliest"
 latest_allowed="$(add_days "$today" "$MAX_LEAD_DAYS")"
 if [ -z "${EFFECTIVE:-}" ] && $INTERACTIVE; then
-    echo "The notice goes out when the release deploys. The effective date must be $earliest or later"
-    echo "($MIN_NOTICE_DAYS days' notice). $suggested also leaves $SHIP_DAYS days for the release to ship."
+    echo "The notice goes out when the release deploys. Cut the release today: the effective date"
+    echo "must be $earliest or later ($MIN_NOTICE_DAYS days' notice)."
 fi
 effective="${EFFECTIVE:-$(ask "Effective date (YYYY-MM-DD)" "$suggested")}"
 is_date "$effective" || die "\`$effective\` is not a YYYY-MM-DD date"

@@ -40,8 +40,7 @@ date: 2026-10-20
 documents: terms, privacy
 ---
 
-- Terms of Service, section 4: we now email you at least 30 days before a significant change takes
-  effect.
+- Terms of Service, section 4: we now email you before a significant change takes effect.
 ```
 
 - `effective`: the day the update takes effect. It must match the file name.
@@ -49,11 +48,11 @@ documents: terms, privacy
 - `documents`: any of `terms`, `privacy`, `refund`, `security`. The email links each one.
 - The body says what changed, in plain terms. It goes into the email as written.
 
-The notice goes out when the release carrying the file deploys. The prefilled effective date leaves
-30 days of notice plus 15 days for the release to ship; a notice sent with less than 30 days to go
-logs an error. One the server hasn't sent by `effective` still goes out for 30 more days.
+The notice goes out when the release carrying the file deploys, so cut the release the day you
+create the file. The prefilled effective date is 7 days out; a notice sent with less than 7 days to
+go logs an error. One the server hasn't sent by `effective` still goes out for 30 more days.
 
-CI fails when an update takes effect less than 30 days or more than 180 days after `date`, or is
+CI fails when an update takes effect less than 7 days or more than 180 days after `date`, or is
 dated before an update that takes effect sooner.
 
 Set each changed page's effective date on the website to `effective`.
