@@ -11,13 +11,14 @@ use axum::routing::{get, post};
 use chrono::{Duration, NaiveTime, Utc};
 use uuid::Uuid;
 
-use super::self_hosted_licensing::{create_org, test_state_with_email_dir};
+use super::self_hosted_licensing::{cloud_test_state, create_org, test_state_with_email_dir};
 use super::user;
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::auth::middleware::terms::terms_gate_middleware;
 use crate::server::auth::terms_gate::{TERMS_ACCEPTANCE_EFFECTIVE, acceptance_required};
 use crate::server::billing::plans::get_enterprise_plan;
 use crate::server::billing::types::base::{BillingPlan, PlanConfig};
+use crate::server::config::{AppState, DeploymentType};
 use crate::server::shared::services::traits::CrudService;
 use crate::server::users::r#impl::base::User;
 use crate::server::users::r#impl::permissions::UserOrgPermissions;
@@ -43,28 +44,29 @@ async fn status(addr: std::net::SocketAddr, method: reqwest::Method, path: &str)
     (response.status().as_u16(), response.text().await.unwrap())
 }
 
-#[tokio::test]
-async fn a_user_who_accepted_earlier_terms_is_refused_until_they_accept_again() {
-    let (state, _container) = test_state_with_email_dir(None).await;
-    let org = create_org(&state, get_enterprise_plan(), None).await;
-    let demo_org = create_org(&state, BillingPlan::Demo(PlanConfig::default()), None).await;
-
+/// A user whose last acceptance predates the current terms.
+async fn stale_user(state: &AppState, organization_id: &Uuid) -> User {
     let before_effective = TERMS_ACCEPTANCE_EFFECTIVE
         .and_time(NaiveTime::MIN)
         .and_utc()
         - Duration::days(1);
-    let mut stale = user(&org.id);
+    let mut stale = user(organization_id);
     stale.base.terms_accepted_at = Some(before_effective);
-    let stale = state
+    state
         .services
         .user_service
         .create(stale, AuthenticatedEntity::System)
         .await
-        .unwrap();
+        .unwrap()
+}
 
-    // Whoever `current` holds is the authenticated caller of every request.
-    let current = Arc::new(Mutex::new(session(&stale)));
-    let caller = current.clone();
+/// Serve a few routes behind the terms gate. Whoever `current` holds is the
+/// authenticated caller of every request.
+async fn serve_gated(
+    state: &Arc<AppState>,
+    current: Arc<Mutex<AuthenticatedEntity>>,
+) -> std::net::SocketAddr {
+    let caller = current;
     let app = Router::new()
         .route("/api/v1/hosts", get(|| async { "ok" }))
         .route("/api/v1/organizations", get(|| async { "ok" }))
@@ -87,6 +89,18 @@ async fn a_user_who_accepted_earlier_terms_is_refused_until_they_accept_again() 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    addr
+}
+
+#[tokio::test]
+async fn a_user_who_accepted_earlier_terms_is_refused_until_they_accept_again() {
+    let (state, _container) = cloud_test_state().await;
+    let org = create_org(&state, get_enterprise_plan(), None).await;
+    let demo_org = create_org(&state, BillingPlan::Demo(PlanConfig::default()), None).await;
+    let stale = stale_user(&state, &org.id).await;
+
+    let current = Arc::new(Mutex::new(session(&stale)));
+    let addr = serve_gated(&state, current.clone()).await;
 
     // Refused everywhere except what the gate itself needs.
     let (code, body) = status(addr, reqwest::Method::GET, "/api/v1/hosts").await;
@@ -141,11 +155,27 @@ async fn a_user_who_accepted_earlier_terms_is_refused_until_they_accept_again() 
     let accepted_at = accepted.base.terms_accepted_at.unwrap();
     assert!(Utc::now() - accepted_at < Duration::minutes(1));
     assert!(!acceptance_required(
-        &state.config,
+        DeploymentType::Cloud,
         org.base.plan.as_ref(),
         accepted.base.terms_accepted_at
     ));
     *current.lock().unwrap() = session(&accepted);
+    assert_eq!(
+        status(addr, reqwest::Method::GET, "/api/v1/hosts").await.0,
+        200
+    );
+}
+
+/// The integration stack's shape: self-hosted with plan limits enforced. It
+/// never collects acceptance, so it never gates.
+#[tokio::test]
+async fn a_self_hosted_server_enforcing_plan_limits_never_gates() {
+    let (state, _container) = test_state_with_email_dir(None).await;
+    assert!(state.config.enforces_plan_limits());
+    let org = create_org(&state, get_enterprise_plan(), None).await;
+    let stale = stale_user(&state, &org.id).await;
+
+    let addr = serve_gated(&state, Arc::new(Mutex::new(session(&stale)))).await;
     assert_eq!(
         status(addr, reqwest::Method::GET, "/api/v1/hosts").await.0,
         200
