@@ -364,6 +364,24 @@ impl BillingPlan {
         }
     }
 
+    /// How many server instances one online key covers. `None` is no cap.
+    /// Exhaustive on purpose: a new plan has to choose.
+    pub fn license_instance_limit(&self) -> Option<u32> {
+        match self {
+            BillingPlan::SelfHostedStandard(_) => Some(1),
+            BillingPlan::SelfHostedPlus(_)
+            | BillingPlan::Free(_)
+            | BillingPlan::Starter(_)
+            | BillingPlan::Pro(_)
+            | BillingPlan::Team(_)
+            | BillingPlan::Business(_)
+            | BillingPlan::Enterprise(_)
+            | BillingPlan::Community(_)
+            | BillingPlan::Demo(_)
+            | BillingPlan::CommercialSelfHosted(_) => None,
+        }
+    }
+
     /// Plans whose lifecycle is driven by a Stripe subscription. Drives the
     /// frontend hard-gate (no Stripe = no required modal), the post-Stripe
     /// poll predicate, the "needs a card" banner, and retention-offer

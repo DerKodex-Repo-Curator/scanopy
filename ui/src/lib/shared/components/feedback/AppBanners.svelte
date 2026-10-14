@@ -29,6 +29,13 @@
 	const configQuery = useConfigQuery();
 
 	let organization = $derived(organizationQuery.data);
+	// A null limit is a plan with no cap.
+	let instanceOverrun = $derived.by(() => {
+		const usage = configQuery.data?.license_instances;
+		return usage && usage.limit != null && usage.active > usage.limit
+			? { active: usage.active, limit: usage.limit }
+			: null;
+	});
 </script>
 
 {#if emailVerification.pending && emailVerification.email}
@@ -62,9 +69,6 @@
 {/if}
 <!-- Outside the chain above: running on more servers than the key covers is a
      warning only, so it shows alongside any of the licence banners. -->
-{#if configQuery.data?.license_instances && configQuery.data.license_instances.active > configQuery.data.license_instances.limit}
-	<LicenseInstanceLimitBanner
-		active={configQuery.data.license_instances.active}
-		limit={configQuery.data.license_instances.limit}
-	/>
+{#if instanceOverrun}
+	<LicenseInstanceLimitBanner active={instanceOverrun.active} limit={instanceOverrun.limit} />
 {/if}

@@ -84,17 +84,17 @@ pub struct EntitlementResponse {
 
 /// Server instances an online key has checked in from within the last
 /// `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
-/// covers. Over the limit, every instance keeps its entitlement and shows a
-/// warning.
+/// covers (`None` when the plan has no cap). Over the limit, every instance
+/// keeps its entitlement and shows a warning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct InstanceUsage {
     pub active: u32,
-    pub limit: u32,
+    pub limit: Option<u32>,
 }
 
 impl InstanceUsage {
     pub fn is_over(&self) -> bool {
-        self.active > self.limit
+        self.limit.is_some_and(|limit| self.active > limit)
     }
 }
 

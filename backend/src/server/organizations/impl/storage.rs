@@ -72,7 +72,6 @@ impl Storable for Organization {
                     license_key_issued_at,
                     license_key_type,
                     license_server_version,
-                    license_instance_limit,
                     // Computed on read from the two fields above, so it has no
                     // column and nothing to write. Named rather than swallowed
                     // by a `..` rest pattern: this destructuring is what forces
@@ -113,7 +112,6 @@ impl Storable for Organization {
                 "license_key_issued_at",
                 "license_key_type",
                 "license_server_version",
-                "license_instance_limit",
             ],
             vec![
                 SqlValue::Uuid(id),
@@ -150,7 +148,6 @@ impl Storable for Organization {
                 SqlValue::OptionTimestamp(license_key_issued_at),
                 SqlValue::OptionalString(license_key_type.map(|t| t.to_string())),
                 SqlValue::OptionalString(license_server_version.map(|v| v.to_string())),
-                SqlValue::OptionalI64(license_instance_limit),
             ],
         ))
     }
@@ -232,7 +229,6 @@ impl Storable for Organization {
                     .ok()
                     .flatten()
                     .and_then(|s| Version::parse(&s).ok()),
-                license_instance_limit: row.try_get("license_instance_limit").unwrap_or(None),
                 // Derived from the two fields above, never read from a column:
                 // `to_params` does not write it. Filled in below, because the
                 // rule lives on `Organization` rather than being copied here.
@@ -310,7 +306,6 @@ impl Entity for Organization {
         self.base.license_key_issued_at = existing.base.license_key_issued_at;
         self.base.license_key_type = existing.base.license_key_type;
         self.base.license_server_version = existing.base.license_server_version.clone();
-        self.base.license_instance_limit = existing.base.license_instance_limit;
     }
 }
 
