@@ -4,6 +4,7 @@
 		type FieldConfig,
 		getFieldKey,
 		groupPageSlice,
+		type GroupPosition,
 		type GroupSlice,
 		type PageSizeOption,
 		type CardAction,
@@ -519,22 +520,37 @@
 	// Per-group totals across every page, when the server supplied them.
 	let serverGroupCounts = $derived(serverPagination?.group_counts ?? null);
 
-	// Group items by selected field
-	let groupedItems = $derived.by(() => {
+	const groupLabels = () => ({
+		ungrouped: common_ungrouped(),
+		yes: common_yes(),
+		no: common_no()
+	});
+
+	// Every loaded row by the selected field. A server-paginated page arrives in the server's group
+	// order, which the cumulative offsets from `serverGroupCounts` are indexed by, so its buckets
+	// keep that order.
+	let allGroups = $derived.by(() => {
 		if (!activeGroupField) {
 			return new SvelteMap([[common_all(), processedItems]]);
 		}
-
-		// A server-paginated page arrives in the server's group order, which the
-		// cumulative offsets from `serverGroupCounts` are indexed by, so its
-		// buckets keep that order.
 		return groupItemsBy(
 			processedItems,
 			fields,
 			activeGroupField,
-			{ ungrouped: common_ungrouped(), yes: common_yes(), no: common_no() },
+			groupLabels(),
 			serverGroupCounts !== null || useServerPagination
 		);
+	});
+
+	/** The rows in the order pages are cut from: group by group while grouped, as a server page is. */
+	let rowsInPageOrder = $derived(
+		activeGroupField ? [...allGroups.values()].flat() : processedItems
+	);
+
+	// The current page's rows by the selected field, in the order `allGroups` put them.
+	let groupedItems = $derived.by(() => {
+		if (!activeGroupField || useServerPagination) return allGroups;
+		return groupItemsBy(paginatedItems, fields, activeGroupField, groupLabels(), true);
 	});
 
 	/**
@@ -573,22 +589,34 @@
 
 	let groupOffsets = $derived(computeGroupOffsets(serverGroupCounts));
 
+	/** Where each group sits among every loaded row, for a list this component paginates. */
+	let clientGroupOffsets = $derived.by(() => {
+		const offsets = new SvelteMap<string, GroupPosition>();
+		let cursor = 0;
+		for (const [name, rows] of allGroups) {
+			offsets.set(name, { start: cursor, count: rows.length });
+			cursor += rows.length;
+		}
+		return offsets;
+	});
+
 	function serverGroupKey(rows: T[]): string {
 		return serverGroupKeyOf(rows, fields, activeGroupField);
 	}
 
 	/**
-	 * How much of a group this page is showing, and how big the group really
-	 * is. Null when the server didn't supply totals — on an unpaginated list
-	 * the rendered count is already the whole group.
+	 * How much of a group this page is showing, and how big the group really is. Null when a
+	 * server-paginated list came without totals, or when the page shows the whole group.
 	 */
-	function groupRange(groupItems: T[]): GroupSlice | null {
-		if (!serverPagination) return null;
+	function groupRange(name: string, groupItems: T[]): GroupSlice | null {
+		if (useServerPagination && serverPagination) {
+			const group = groupOffsets.get(serverGroupKey(groupItems));
+			return group ? groupPageSlice(group, serverPagination.offset, items.length) : null;
+		}
 
-		const group = groupOffsets.get(serverGroupKey(groupItems));
-		if (!group) return null;
-
-		return groupPageSlice(group, serverPagination.offset, items.length);
+		const group = clientGroupOffsets.get(name);
+		const pageOffset = (effectiveCurrentPage - 1) * pageSize;
+		return group ? groupPageSlice(group, pageOffset, paginatedItems.length) : null;
 	}
 
 	/** The groups as the table renders them. */
@@ -599,7 +627,7 @@
 				key: name,
 				name,
 				items: entries ? flattenTreeEntries(entries) : groupItems,
-				range: groupRange(groupItems),
+				range: groupRange(name, groupItems),
 				entries,
 				rootRanges: null
 			};
@@ -761,7 +789,7 @@
 	let matchesNothing = $derived(totalCount === 0 && (hasActiveFilters || hasActiveSearch));
 
 	let paginatedItems = $derived(
-		pageSlice(processedItems, effectiveCurrentPage, pageSize, useServerPagination)
+		pageSlice(rowsInPageOrder, effectiveCurrentPage, pageSize, useServerPagination)
 	);
 
 	/** Every row in the order the table renders it: the current page, or each group's rows in turn. */
@@ -1212,7 +1240,7 @@
 				showingEnd={page.showingEnd}
 				canGoPrev={page.canGoPrev}
 				canGoNext={page.canGoNext}
-				groupCount={hasActiveGrouping ? groupedItems.size : null}
+				groupCount={hasActiveGrouping ? allGroups.size : null}
 				filterCount={activeFilterCount}
 				onClearFilters={filters.clearAll}
 				onClearGrouping={() => (ordering = { ...ordering, group: null })}
