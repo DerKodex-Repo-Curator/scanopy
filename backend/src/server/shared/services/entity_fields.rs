@@ -263,6 +263,7 @@ pub fn csv_text(format: FieldFormat, value: &Value) -> String {
                 .join(" ")
         }
         FieldFormat::Text
+        | FieldFormat::Prose
         | FieldFormat::Number
         | FieldFormat::Boolean
         | FieldFormat::Timestamp

@@ -19,7 +19,7 @@
 		settings_email_daemonAlertsDescription,
 		settings_email_trialLabel,
 		settings_email_trialDescription,
-		settings_email_productUpdatesLabel,
+		common_releaseNotes,
 		settings_email_productUpdatesDescription,
 		settings_email_requiredLabel,
 		settings_email_requiredDescription,
@@ -178,7 +178,7 @@
 							{#snippet children(field)}
 								<Checkbox
 									id="email-product-updates"
-									label={settings_email_productUpdatesLabel()}
+									label={common_releaseNotes()}
 									helpText={settings_email_productUpdatesDescription()}
 									{field}
 								/>

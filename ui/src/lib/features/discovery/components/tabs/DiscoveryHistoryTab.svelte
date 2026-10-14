@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { discoveryPhases, discoveryTypes } from '$lib/shared/stores/metadata';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
+	import { narrowsList } from '$lib/shared/components/data/controls/listQuery';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import type { Discovery } from '../../types/base';
 	import DiscoveryEditModal from '../DiscoveryModal/DiscoveryEditModal.svelte';
@@ -35,7 +35,7 @@
 	import { Info } from 'lucide-svelte';
 	import { useTagGroupsQuery, useTagsQuery } from '$lib/features/tags/queries';
 	import type { CardAction } from '$lib/shared/components/data/types';
-	import { runOutcomeTag, TERMINAL_PHASES, type OutcomeTag } from '../../utils/outcome';
+	import { runOutcomeTag, type OutcomeTag } from '../../utils/outcome';
 	import {
 		common_details,
 		common_none,
@@ -48,8 +48,6 @@
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
 	type DiscoveryOrderField = components['schemas']['DiscoveryOrderField'];
-	type OrderDirection = components['schemas']['OrderDirection'];
-	type DiscoveryPhase = components['schemas']['DiscoveryPhase'];
 
 	const DISCOVERY_FIELD_VALUES = '/api/v1/discovery/field-values/{field}';
 
@@ -63,45 +61,23 @@
 	let pageSize = $state(20);
 	let currentPage = $state(1);
 
-	// Ordering state (server-side)
-	// The grouping and sort the table opens with. Declared ahead of the query state so the
-	// first request already carries them; DataControls replaces them with a saved choice.
+	// The grouping and sort the table opens with until the user picks their own.
 	const tableDefaults: TableDefaults<DiscoveryOrderField> = {
 		sort: { field: 'started_at', direction: 'desc' }
 	};
-	let groupBy = $state<DiscoveryOrderField | undefined>(tableDefaults.group);
-	let orderBy = $state<DiscoveryOrderField | undefined>(tableDefaults.sort?.field);
-	let orderDirection = $state<OrderDirection>(tableDefaults.sort?.direction ?? 'asc');
 
-	// Search state (server-side: the run history is paginated, so a client-side
-	// search would only ever match the page in hand)
-	let search = $state('');
-
-	// Field filter state, server-side for the same reason.
-	let filterSiteIds = $state<string[]>([]);
-	let filterDaemonIds = $state<string[]>([]);
-	let filterDiscoveryTypes = $state<string[]>([]);
-	let filterPhases = $state<DiscoveryPhase[]>([]);
-	let hasServerFilters = $derived(
-		filterSiteIds.length > 0 ||
-			filterDaemonIds.length > 0 ||
-			filterDiscoveryTypes.length > 0 ||
-			filterPhases.length > 0
-	);
+	// The list's view as the endpoint's params: search, field filters and ordering, server-side
+	// because the run history is paginated, so filtering here would only narrow the page in hand.
+	// Null until DataControls has restored the view.
+	let listQuery = $state<URLSearchParams | null>(null);
+	let isNarrowed = $derived(listQuery !== null && narrowsList(listQuery));
 
 	// Queries
 	const discoveriesQuery = useDiscoveryHistoryQuery(
 		(): DiscoveryHistoryQueryParams => ({
 			limit: pageSize,
 			offset: (currentPage - 1) * pageSize,
-			group_by: groupBy,
-			order_by: orderBy,
-			order_direction: orderDirection,
-			search: search || undefined,
-			site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
-			daemon_ids: filterDaemonIds.length > 0 ? filterDaemonIds : undefined,
-			discovery_types: filterDiscoveryTypes.length > 0 ? filterDiscoveryTypes : undefined,
-			phases: filterPhases.length > 0 ? filterPhases : undefined
+			list: listQuery ?? undefined
 		}),
 		() => isActive
 	);
@@ -171,59 +147,6 @@
 	function handlePageChange(page: number, newPageSize: number) {
 		currentPage = page;
 		pageSize = newPageSize;
-	}
-
-	// Order change handler for server-side ordering
-	function handleOrderChange(
-		groupField: string | null,
-		orderField: string | null,
-		direction: 'asc' | 'desc'
-	) {
-		groupBy = (groupField as DiscoveryOrderField) ?? undefined;
-		orderBy = (orderField as DiscoveryOrderField) ?? undefined;
-		orderDirection = direction;
-	}
-
-	// Search change handler for server-side search (debounced by DataControls)
-	function handleSearchChange(query: string) {
-		search = query;
-	}
-
-	/**
-	 * Server-side field filter handler.
-	 *
-	 * The panel offers what the user reads — a daemon's name, a site's name —
-	 * while the API filters on ids, so each case resolves the labels back
-	 * through the same data the options were built from. Every key here must
-	 * match a field marked `serverFiltered`; an unhandled one would filter
-	 * nothing at all, since DataControls skips the client pass for those fields.
-	 */
-	function handleFilterChange(fieldKey: string, values: string[]) {
-		const wanted = new Set(values);
-		switch (fieldKey) {
-			case 'daemon_id':
-				filterDaemonIds = daemonsData.filter((d) => wanted.has(d.name)).map((d) => d.id);
-				break;
-			case 'site_id':
-				filterSiteIds = sitesData.filter((n) => wanted.has(n.name)).map((n) => n.id);
-				break;
-			case 'discovery_type':
-				filterDiscoveryTypes = discoveryTypes
-					.getItems()
-					.filter((type) => wanted.has(discoveryTypes.getName(type.id)))
-					.map((type) => type.id);
-				break;
-			case 'phase':
-				filterPhases = TERMINAL_PHASES.filter((phase) =>
-					wanted.has(discoveryPhases.getName(phase))
-				);
-				break;
-			default:
-				throw new Error(
-					`DiscoveryHistoryTab: no server-side filter handles "${fieldKey}". A serverFiltered ` +
-						`field without a case here filters nothing — neither the client nor the server.`
-				);
-		}
 	}
 
 	let showDiscoveryModal = $state(false);
@@ -352,7 +275,7 @@
 		<PreDaemonEmptyState title={daemons_installPromptDiscoveries()} {isReadOnly} />
 	{:else if isLoading}
 		<Loading />
-	{:else if discoveriesData.length === 0 && !search && !hasServerFilters}
+	{:else if discoveriesData.length === 0 && !isNarrowed}
 		<!--
 			"No sessions yet" only when nothing is narrowing the list. The search and the
 			field filters run server-side and are restored from storage on mount, so an
@@ -375,9 +298,8 @@
 			getItemId={(item) => item.id}
 			serverPagination={discoveriesPagination}
 			onPageChange={handlePageChange}
-			onOrderChange={handleOrderChange}
-			onSearchChange={handleSearchChange}
-			onFilterChange={handleFilterChange}
+			onQueryChange={(query) => (listQuery = query)}
+			serverQuery={{ tags: false, stale: false }}
 			onCsvExport={handleCsvExport}
 			getActions={discoveryActions}
 			entityLabel={discovery_historyTitle()}

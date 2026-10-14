@@ -409,4 +409,54 @@ describe('discovery warning rendering', () => {
 		expect(rendered[0]).toContain('10.0.0.2');
 		expect(rendered[1]).toContain('10.0.0.3');
 	});
+
+	it('gives each integration its own row, naming all its hosts in one sentence', () => {
+		const found = (integration: string, n: number) =>
+			Array.from(
+				{ length: n },
+				(_, i) =>
+					({
+						code: 'IntegrationWithoutCredential',
+						integration,
+						host_id: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`
+					}) as unknown as DiscoveryWarning
+			);
+
+		const rows = buildWarningReport([...found('Snmp', 40), ...found('Proxmox', 1)]).flatMap(
+			(section) => section.entries
+		);
+
+		// A row per integration, so each has its own title and its own button, and forty SNMP
+		// devices are still one row and one sentence rather than forty.
+		expect(rows).toHaveLength(2);
+		const [snmp, proxmox] = rows;
+		expect(snmp.title).toContain('SNMP');
+		expect(proxmox.title).toContain('Proxmox');
+		expect(snmp.warnings).toHaveLength(40);
+		expect(snmp.details).toHaveLength(1);
+		expect(snmp.details[0].sentence).toContain('40');
+		expect(proxmox.details[0].sentence).not.toContain('40');
+		expect(new Set(rows.map((r) => r.key)).size).toBe(2);
+	});
+
+	// Hosts are told apart by id, not name: two hosts both named "Docker" are two chips.
+	it('gives same-named hosts a chip each', () => {
+		const onHost = (host_id: string) =>
+			({
+				code: 'IntegrationWithoutCredential',
+				integration: 'Docker',
+				host_id
+			}) as unknown as DiscoveryWarning;
+		const sameName: EntityNameLookup = () => 'Docker';
+
+		const [row] = buildWarningReport(
+			[
+				onHost('00000000-0000-0000-0000-000000000001'),
+				onHost('00000000-0000-0000-0000-000000000002')
+			],
+			sameName
+		).flatMap((section) => section.entries);
+
+		expect(row.subjects.map((s) => s.label)).toEqual(['Docker', 'Docker']);
+	});
 });

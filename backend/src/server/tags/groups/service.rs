@@ -8,12 +8,7 @@ use crate::server::{
     auth::middleware::auth::AuthenticatedEntity,
     shared::{
         entities::EntityDiscriminants,
-        events::{
-            bus::EventBus,
-            registry::SubscriberRegistration,
-            traits::{Event, EventFilter, Subscriber},
-            types::{OnboardingOperation, OnboardingOperationDiscriminants},
-        },
+        events::{bus::EventBus, traits::Event},
         services::traits::{CrudService, EventBusService},
         storage::{
             filter::StorableFilter,
@@ -473,32 +468,6 @@ impl TagGroupService {
         Ok(())
     }
 }
-
-/// Every new organization gets the system groups, cloud or self-hosted. Cloud setup adds the
-/// starter groups on top.
-#[async_trait]
-impl Subscriber<OnboardingOperation> for TagGroupService {
-    fn filter(&self) -> EventFilter<OnboardingOperation> {
-        EventFilter::ops(vec![OnboardingOperationDiscriminants::OrgCreated])
-    }
-
-    async fn handle(&self, events: Vec<Event<OnboardingOperation>>) -> Result<()> {
-        for event in events {
-            self.ensure_groups(
-                event.scope.organization_id,
-                &[],
-                event.authentication.clone(),
-            )
-            .await?;
-        }
-        Ok(())
-    }
-}
-
-inventory::submit!(SubscriberRegistration::new::<
-    TagGroupService,
-    OnboardingOperation,
->());
 
 /// Whether `ids` holds exactly the members of `expected`, each once.
 fn is_permutation(ids: &[Uuid], expected: &[Uuid]) -> bool {

@@ -1,5 +1,9 @@
 //! Billing plans: tiers, config, rate, the feature matrix, and plan metadata.
 use super::*;
+use crate::server::billing::plans::{
+    SELF_HOSTED_NON_PRODUCTION_INSTANCES, SELF_HOSTED_PRODUCTION_INSTANCES,
+};
+use crate::server::license::instances::InstanceLimits;
 use crate::server::license::types::LicensePlan;
 
 #[derive(
@@ -361,6 +365,26 @@ impl BillingPlan {
             BillingPlan::SelfHostedStandard(_) => Some(LicensePlan::Standard),
             BillingPlan::SelfHostedPlus(_) => Some(LicensePlan::Plus),
             _ => None,
+        }
+    }
+
+    /// How many production and non-production server instances one online
+    /// key covers. Exhaustive on purpose: a new plan has to choose.
+    pub fn license_instance_limits(&self) -> InstanceLimits {
+        match self {
+            BillingPlan::SelfHostedStandard(_) | BillingPlan::SelfHostedPlus(_) => InstanceLimits {
+                production: Some(SELF_HOSTED_PRODUCTION_INSTANCES),
+                non_production: Some(SELF_HOSTED_NON_PRODUCTION_INSTANCES),
+            },
+            BillingPlan::Free(_)
+            | BillingPlan::Starter(_)
+            | BillingPlan::Pro(_)
+            | BillingPlan::Team(_)
+            | BillingPlan::Business(_)
+            | BillingPlan::Enterprise(_)
+            | BillingPlan::Community(_)
+            | BillingPlan::Demo(_)
+            | BillingPlan::CommercialSelfHosted(_) => InstanceLimits::default(),
         }
     }
 
@@ -1256,13 +1280,14 @@ impl TypeMetadataProvider for BillingPlan {
                 "Commercial self-hosted license for a single organization"
             }
             BillingPlan::SelfHostedPlus { .. } => {
-                "Multi-organization self-hosted license with offline (air-gapped) keys"
+                "Self-hosted license with offline (air-gapped) keys and higher limits"
             }
         }
     }
 
     fn metadata(&self) -> serde_json::Value {
         let config = self.config();
+        let instance_limits = self.license_instance_limits();
         let previous_tier = self
             .previous_tier()
             .and_then(BillingPlan::default_for_discriminant)
@@ -1280,6 +1305,8 @@ impl TypeMetadataProvider for BillingPlan {
             "included_sites": config.included_sites,
             "included_hosts": config.included_hosts,
             "included_orgs": config.included_orgs,
+            "included_instances": instance_limits.production,
+            "included_non_production_instances": instance_limits.non_production,
             // Feature flags and metadata
             "features": self.features(),
             "is_commercial": self.is_commercial(),

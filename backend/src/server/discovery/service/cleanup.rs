@@ -272,6 +272,7 @@ impl DiscoveryService {
             },
             scan_count: 0,
             force_full_scan: false,
+            next_run_is_full_scan: false,
             integration_targets: vec![],
         };
 
@@ -283,6 +284,16 @@ impl DiscoveryService {
                 session_id = %session_id,
                 error = %e,
                 "Failed to create historical discovery record for stalled session"
+            );
+        } else if let Err(e) = self.record_warnings(&historical_discovery).await {
+            super::dispatch::record_finish_error(
+                super::dispatch::DiscoveryFinishStep::WarningRecords,
+            );
+            tracing::error!(
+                session_id = %session_id,
+                discovery_id = %historical_discovery.id,
+                error = %e,
+                "Failed to record warnings for stalled session"
             );
         }
     }

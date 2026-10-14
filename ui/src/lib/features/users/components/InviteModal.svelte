@@ -38,8 +38,10 @@
 		users_permissionsLevelHelp,
 		users_sendInviteLink,
 		users_sensitiveLink,
-		users_sensitiveLinkWarning
+		users_sensitiveLinkWarning,
+		users_verifyEmailToInvite
 	} from '$lib/paraglide/messages';
+	import EmailVerificationNotice from '$lib/features/auth/components/EmailVerificationNotice.svelte';
 
 	// Shared components
 	import PermissionSelect from '$lib/shared/components/api-keys/PermissionSelect.svelte';
@@ -232,6 +234,7 @@
 
 					<!-- Generate Invite Button (shown when no invite exists) -->
 					{#if !invite}
+						<EmailVerificationNotice body={users_verifyEmailToInvite()} />
 						<button
 							onclick={handleGenerateInvite}
 							type="button"

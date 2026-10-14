@@ -1,11 +1,6 @@
 <script lang="ts">
 	import Tag from '$lib/shared/components/data/Tag.svelte';
-	import {
-		applicationGroupId,
-		isApplicationTag,
-		tagIcon,
-		tagTooltip
-	} from '$lib/features/tags/groups';
+	import { applicationGroupId, tagIcon, tagTooltip } from '$lib/features/tags/groups';
 	import TagPickerInline from '$lib/features/tags/components/TagPickerInline.svelte';
 	import { AVAILABLE_COLORS, type Color } from '$lib/shared/utils/styling';
 	import { createDefaultTag } from '$lib/features/tags/types/base';
@@ -55,7 +50,8 @@
 
 	let suggestions = $derived(getSuggestions(useCase));
 	let allTags = $derived(tagsQuery.data ?? []);
-	let nonAppTags = $derived(allTags.filter((t) => !isApplicationTag(t, applicationGroup)));
+	// Only ungrouped tags can become applications: a tag in another group already means something.
+	let ungroupedTags = $derived(allTags.filter((t) => !t.tag_group_id));
 	// Exclude suggestions whose name collides with ANY existing tag — creating one
 	// would violate the name-unique constraint, whether the existing tag is an app
 	// tag or not.
@@ -120,7 +116,7 @@
 
 <div class="space-y-6">
 	<p class="text-secondary text-sm">
-		{nonAppTags.length > 0
+		{ungroupedTags.length > 0
 			? appWizard_defineGroupsDescription_convert()
 			: appWizard_defineGroupsDescription_create()}
 	</p>
@@ -159,13 +155,13 @@
 	{/if}
 
 	<!-- Convert existing tags -->
-	{#if nonAppTags.length > 0}
+	{#if ungroupedTags.length > 0}
 		<div>
 			<h3 class="text-secondary mb-2 text-xs font-medium uppercase tracking-wide">
 				{appWizard_convertExisting()}
 			</h3>
 			<div class="flex flex-wrap gap-2">
-				{#each nonAppTags as tag (tag.id)}
+				{#each ungroupedTags as tag (tag.id)}
 					<button
 						type="button"
 						class="cursor-pointer"
@@ -192,7 +188,11 @@
 		</h3>
 		<TagPickerInline
 			selectedTagIds={appTags.map((t) => t.id)}
-			onAdd={() => {}}
+			availableTags={[...appTags, ...ungroupedTags]}
+			onAdd={(tagId) => {
+				const tag = ungroupedTags.find((t) => t.id === tagId);
+				if (tag) convertToApp(tag);
+			}}
 			onRemove={(tagId) => deleteAppTag(tagId)}
 			createAsApplication={true}
 		/>

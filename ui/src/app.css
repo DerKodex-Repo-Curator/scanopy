@@ -217,6 +217,44 @@
 		@apply p-1;
 	}
 
+	/*
+	 * Columns pinned while the table scrolls sideways (EntityTable's `pinAttrs`). A pinned cell is
+	 * opaque, or the cells scrolling under it would show through: it paints the page background
+	 * with its row's tint (`--row-tint`, set on the row for hover and selection) on top. The edge
+	 * classes draw the line between the pinned columns and the ones scrolling past them.
+	 */
+	.entity-table tr {
+		--row-tint: transparent;
+	}
+
+	.entity-table :is(.pin-left, .pin-right) {
+		position: sticky;
+		z-index: 20;
+		background: linear-gradient(var(--row-tint), var(--row-tint)), var(--color-bg-body);
+	}
+
+	.entity-table .pin-left {
+		left: var(--pin-left, 0px);
+	}
+
+	.entity-table .pin-right {
+		right: var(--pin-right, 0px);
+	}
+
+	/* A group header spans the whole row; its label stays at the left edge while the row scrolls. */
+	.entity-table .pin-content {
+		position: sticky;
+		left: var(--cell-px);
+	}
+
+	.entity-table .pin-edge-right {
+		box-shadow: inset -1px 0 var(--color-border);
+	}
+
+	.entity-table .pin-edge-left {
+		box-shadow: inset 1px 0 var(--color-border);
+	}
+
 	/* Card component */
 	.card {
 		border: 1px solid var(--color-border);
@@ -499,6 +537,13 @@
 	::-webkit-scrollbar-thumb:hover {
 		background-color: var(--color-scrollbar-thumb-hover);
 	}
+
+	/* The compact controls in a table's summary row (clears, fields, export, rows per page, paging):
+	   one height, so the row lines up. Defined after .btn-secondary and .input-field so its size wins
+	   over theirs. */
+	.summary-control {
+		@apply inline-flex h-6 w-auto shrink-0 items-center gap-1 rounded px-1.5 py-0 text-xs font-medium;
+	}
 }
 
 @layer utilities {
@@ -582,4 +627,10 @@
 
 .animate-text-pulse-highlight {
 	animation: text-pulse-highlight 1s ease-in-out 1;
+}
+
+/* Focus a click put there stays ringless until focus moves, even after a key press switches the
+   browser to keyboard mode. Tagged by `trackPointerFocus` (lib/shared/utils/pointer-focus.ts). */
+[data-pointer-focus]:focus-visible {
+	outline: none;
 }

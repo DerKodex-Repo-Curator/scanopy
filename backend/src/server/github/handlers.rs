@@ -20,6 +20,9 @@ const CACHE_KEY: &str = "github_stars";
 /// Get GitHub star count
 ///
 /// Returns the current star count for the Scanopy GitHub repository.
+/// Deprecated: nothing in the UI calls it. Both `GithubStars` mounts are
+/// commented out, and the route stays so they can come back.
+#[deprecated = "No UI caller; the GithubStars mounts are commented out"]
 #[utoipa::path(
     get,
     path = "/api/github-stars",

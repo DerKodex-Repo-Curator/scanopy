@@ -18,9 +18,41 @@ pub const MAX_SHOWN: usize = 5;
 /// The public changelog, for releases past [`MAX_SHOWN`].
 pub const CHANGELOG_URL: &str = "https://scanopy.net/changelog";
 
+/// `backend/release-notes/`: the release notes, and the terms updates under
+/// `terms/` (see [`super::terms`]).
 #[derive(Embed)]
 #[folder = "release-notes/"]
-struct EmbeddedNotes;
+pub(crate) struct EmbeddedNotes;
+
+/// The `key: value` lines between a file's `---` fences.
+pub(crate) struct Frontmatter<'a>(&'a str);
+
+impl Frontmatter<'_> {
+    pub(crate) fn field(&self, key: &str) -> Option<String> {
+        self.0.lines().find_map(|line| {
+            let (k, v) = line.split_once(':')?;
+            (k.trim() == key).then(|| unquote(v.trim()))
+        })
+    }
+
+    pub(crate) fn required(&self, key: &str) -> Result<String, String> {
+        self.field(key).ok_or(format!("missing `{key}`"))
+    }
+}
+
+/// Split a file into its YAML-style frontmatter and markdown body.
+pub(crate) fn split_frontmatter(source: &str) -> Result<(Frontmatter<'_>, &str), String> {
+    let rest = source.strip_prefix("---\n").ok_or("missing frontmatter")?;
+    let (frontmatter, body) = rest
+        .split_once("\n---\n")
+        .ok_or("unterminated frontmatter")?;
+    Ok((Frontmatter(frontmatter), body))
+}
+
+/// Render a markdown body with raw HTML left out.
+pub(crate) fn render_markdown(body: &str) -> String {
+    comrak::markdown_to_html(body.trim(), &comrak::Options::default())
+}
 
 /// One release's notes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +62,9 @@ pub struct ReleaseNote {
     pub title: String,
     /// Whether upgrading to this release sends the release email.
     pub email: bool,
+    /// Whether this release opens the release notes modal on its own. Notes
+    /// from before the flag existed have none and open it.
+    pub modal: bool,
     /// The body, rendered from markdown with raw HTML left out.
     pub html: String,
 }
@@ -41,20 +76,10 @@ impl ReleaseNote {
     }
 
     /// Parse a notes file: YAML-style frontmatter (`version`, `date`, `title`,
-    /// `email`), then the markdown body.
+    /// `email`, optional `modal`), then the markdown body.
     pub fn parse(source: &str) -> Result<Self, String> {
-        let rest = source.strip_prefix("---\n").ok_or("missing frontmatter")?;
-        let (frontmatter, body) = rest
-            .split_once("\n---\n")
-            .ok_or("unterminated frontmatter")?;
-
-        let field = |key: &str| {
-            frontmatter.lines().find_map(|line| {
-                let (k, v) = line.split_once(':')?;
-                (k.trim() == key).then(|| unquote(v.trim()))
-            })
-        };
-        let required = |key: &str| field(key).ok_or(format!("missing `{key}`"));
+        let (frontmatter, body) = split_frontmatter(source)?;
+        let required = |key: &str| frontmatter.required(key);
 
         let version = required("version")?;
         let version = Version::parse(version.trim_start_matches('v'))
@@ -67,13 +92,19 @@ impl ReleaseNote {
             "false" => false,
             other => return Err(format!("email `{other}` is not true or false")),
         };
+        let modal = match frontmatter.field("modal").as_deref() {
+            None | Some("true") => true,
+            Some("false") => false,
+            Some(other) => return Err(format!("modal `{other}` is not true or false")),
+        };
 
         Ok(Self {
             version,
             date,
             title: required("title")?,
             email,
-            html: comrak::markdown_to_html(body.trim(), &comrak::Options::default()),
+            modal,
+            html: render_markdown(body),
         })
     }
 }
@@ -152,10 +183,15 @@ pub(crate) mod tests {
     use super::*;
 
     pub(crate) fn note_file(version: &str, email: bool) -> (String, String) {
+        note_file_with(version, &format!("email: {email}"))
+    }
+
+    /// A notes file with `extra` frontmatter lines after `version`, `date` and `title`.
+    pub(crate) fn note_file_with(version: &str, extra: &str) -> (String, String) {
         (
             format!("v{version}.md"),
             format!(
-                "---\nversion: {version}\ndate: 2026-10-11\ntitle: 'It''s {version}'\nemail: {email}\n---\n\n## Fixes\n\n- Fix a thing <script>alert(1)</script>\n"
+                "---\nversion: {version}\ndate: 2026-10-11\ntitle: 'It''s {version}'\n{extra}\n---\n\n## Fixes\n\n- Fix a thing <script>alert(1)</script>\n"
             ),
         )
     }
@@ -169,6 +205,17 @@ pub(crate) mod tests {
         assert!(note.email);
         assert!(note.html.contains("<h2>Fixes</h2>"));
         assert!(!note.html.contains("<script>"));
+    }
+
+    /// Notes written before the `modal` flag existed open the modal, as they did.
+    #[test]
+    fn modal_defaults_to_on_when_the_flag_is_absent() {
+        let modal = |extra: &str| {
+            ReleaseNote::parse(&note_file_with("0.18.0", extra).1).map(|note| note.modal)
+        };
+        assert_eq!(modal("email: false"), Ok(true));
+        assert_eq!(modal("email: false\nmodal: false"), Ok(false));
+        assert!(modal("email: false\nmodal: maybe").is_err());
     }
 
     #[test]

@@ -14,6 +14,7 @@ import {
 	OPENAPI,
 	columnKeys,
 	dataControlsProps,
+	dataControlsServerQuery,
 	dataControlsTabs,
 	tabColumns,
 	type SchemaNode
@@ -61,6 +62,8 @@ const ARRAY_SORT = 'An array has no single order';
 const ARRAY_GROUP = 'An array has no single group';
 const COUNT = 'A count; every value would be its own group';
 const FREE_TEXT = 'Free text; search covers it';
+const SCAN_MODE =
+	"Read from the run's stored scan settings, which the server can't sort or filter on";
 
 /** Sorted, grouped and filtered on the client. */
 const YES: ColumnDecision = { sort: true, group: true, filter: true };
@@ -192,6 +195,8 @@ const DECISIONS: Record<string, TabDecisions> = {
 				group: COUNT,
 				filter: 'Sorting brings runs with warnings to the top'
 			},
+			// Light or full comes from the run's own stored scan settings, not a server column.
+			scan_mode: { sort: SCAN_MODE, group: SCAN_MODE, filter: SCAN_MODE },
 			tags: ownedArray('No server tag filter; runs are untagged unless tagged through the API')
 		}
 	},
@@ -342,6 +347,7 @@ const DECISIONS: Record<string, TabDecisions> = {
 			updated_at: DATE,
 			daemon_os: YES,
 			credential_type: YES,
+			integration: YES,
 			beta: BOOLEAN,
 			unofficial_api: BOOLEAN,
 			description: TEXT,
@@ -416,7 +422,7 @@ function decisionProblems(tab: string, decided: TabDecisions): string[] {
 
 	const props = dataControlsProps(tab);
 	const serverPaginated = props.has('serverPagination');
-	const serverTags = props.has('onTagFilterChange');
+	const server = dataControlsServerQuery(tab);
 	// The tab's order fields: the columns the server can sort and group by.
 	const variants = new Set(
 		[...configs.values()].filter((config) => 'orderField' in config).map(getFieldKey)
@@ -455,13 +461,13 @@ function decisionProblems(tab: string, decided: TabDecisions): string[] {
 			);
 		}
 		for (const column of serverFilterViolations([...configs.values()], true, {
-			tags: serverTags,
-			fields: true
+			tags: server.tags,
+			fields: server.fields
 		})) {
 			const fix =
 				column === 'tags'
-					? 'Pass onTagFilterChange to DataControls and send the ids as tag_ids'
-					: 'Mark it serverFiltered and handle it in onFilterChange';
+					? 'Pass onQueryChange to DataControls and send its query, which carries tag_ids'
+					: "Mark it serverFiltered and give it the endpoint's queryParam";
 			problems.push(
 				`${tab}: "${column}" is filterable on a server-paginated list but not filtered by the ` +
 					`server, so it would narrow only the loaded page. ${fix}, or drop filterable.`
@@ -552,7 +558,7 @@ function headerControlProblems(tab: string): string[] {
 
 	const props = dataControlsProps(tab);
 	const serverPaginated = props.has('serverPagination');
-	const staleWired = props.has('onStaleFilterChange');
+	const staleWired = dataControlsServerQuery(tab).stale;
 	const configs = [...fields.values()];
 	const problems: string[] = [];
 
@@ -577,12 +583,14 @@ function headerControlProblems(tab: string): string[] {
 	const staleColumns = configs.filter((config) => config.staleFilter === true);
 	if (staleWired && staleColumns.length !== 1) {
 		problems.push(
-			`${tab}: passes onStaleFilterChange, so exactly one field needs staleFilter: true to ` +
+			`${tab}: sends staleness to the server, so exactly one field needs staleFilter: true to ` +
 				`carry the Stale toggle; found ${staleColumns.length}.`
 		);
 	}
 	if (!staleWired && staleColumns.length > 0) {
-		problems.push(`${tab}: marks staleFilter without passing onStaleFilterChange.`);
+		problems.push(
+			`${tab}: marks staleFilter without sending staleness to the server (onQueryChange).`
+		);
 	}
 	return problems;
 }

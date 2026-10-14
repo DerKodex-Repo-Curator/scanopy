@@ -8,6 +8,7 @@
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
 	import InlineInfo from '$lib/shared/components/feedback/InlineInfo.svelte';
 	import type { DiscoveryUpdatePayload } from '../../types/api';
+	import { isFullScan } from '../../utils/fullScan';
 	import { formatDuration, formatTimestamp } from '$lib/shared/utils/formatting';
 	import { useSubnetsQuery, getSubnetById } from '$lib/features/subnets/queries';
 	import { useHostsByIds } from '$lib/features/hosts/queries';
@@ -19,6 +20,7 @@
 		discovery_scanSettings,
 		discovery_defaultSettings,
 		discovery_bestService,
+		discovery_fullScanCompleted,
 		discovery_scanModeFull,
 		discovery_scanModeLight,
 		discovery_subnetsScanned,
@@ -152,9 +154,14 @@
 		{/if}
 		{#if payload.discovery_type.type === 'Unified' && payload.discovery_type.scan_settings}
 			<InfoRow label={discovery_scanMode()}>
-				{payload.discovery_type.scan_settings.is_full_scan
-					? discovery_scanModeFull()
-					: discovery_scanModeLight()}
+				{#if isFullScan(payload.discovery_type)}
+					<div>
+						<p>{discovery_scanModeFull()}</p>
+						<p class="text-tertiary text-xs">{discovery_fullScanCompleted()}</p>
+					</div>
+				{:else}
+					{discovery_scanModeLight()}
+				{/if}
 			</InfoRow>
 		{/if}
 	</InfoCard>

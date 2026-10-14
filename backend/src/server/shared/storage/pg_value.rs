@@ -32,7 +32,7 @@
 
 use std::borrow::Cow;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use ipnetwork::IpNetwork;
 use mac_address::MacAddress;
 use serde_json::Value as JsonValue;
@@ -174,8 +174,10 @@ pub enum Bound<'q> {
     I64(i64),
     OptI64(&'q Option<i64>),
     Bool(&'q bool),
+    OptBool(&'q Option<bool>),
     Timestamp(&'q DateTime<Utc>),
     OptTimestamp(&'q Option<DateTime<Utc>>),
+    OptDate(&'q Option<NaiveDate>),
     IpNet(IpNetwork),
     OptIpNet(Option<IpNetwork>),
     Mac(MacAddress),
@@ -219,6 +221,7 @@ impl SqlValue {
             Self::Email(v) => Bound::Text(PgText::new(v.as_str())),
             Self::UserOrgPermissions(v) => Bound::Text(PgText::new(v.as_str())),
             Self::EdgeStyle(v) => Bound::Text(PgText::owned(v.to_string())),
+            Self::DiscoveryWarningCode(v) => Bound::Text(PgText::new(v.as_ref())),
             Self::StringArray(v) => Bound::TextArray(v.iter().map(|s| PgText::new(s)).collect()),
             Self::OptionalStringArray(v) => Bound::OptTextArray(
                 v.as_ref()
@@ -286,6 +289,7 @@ impl SqlValue {
             Self::OrgNotifications(v) => Bound::Json(PgJson::new(serde_json::to_value(v)?)),
             Self::OnboardingOperation(v) => Bound::Json(PgJson::new(serde_json::to_value(v)?)),
             Self::ShareOptions(v) => Bound::Json(PgJson::new(serde_json::to_value(v)?)),
+            Self::DiscoveryWarningDetails(v) => Bound::Json(PgJson::new(serde_json::to_value(v)?)),
             Self::RunType(v) => {
                 // Transient `scanned: ScannedEntityIds` rides the wire (daemon → server) and the
                 // in-memory entity carried by EntityOperation::Created event scope, but never
@@ -293,11 +297,15 @@ impl SqlValue {
                 // never contains `scanned`. The in-memory struct held by callers is unchanged —
                 // subscribers reading the entity off the EntityScope still see the populated
                 // scanned.
+                //
+                // `warnings` likewise: a run's warnings are rows of `discovery_warnings`, written
+                // beside the run and read back onto it, so the JSONB never holds them.
                 let mut rt_for_storage = v.clone();
                 if let crate::server::discovery::r#impl::types::RunType::Historical { results } =
                     &mut rt_for_storage
                 {
                     results.scanned = None;
+                    results.warnings = Vec::new();
                 }
                 Bound::Json(PgJson::new(serde_json::to_value(&rt_for_storage)?))
             }
@@ -355,8 +363,10 @@ impl SqlValue {
             Self::I64(v) => Bound::I64(*v),
             Self::OptionalI64(v) => Bound::OptI64(v),
             Self::Bool(v) => Bound::Bool(v),
+            Self::OptionalBool(v) => Bound::OptBool(v),
             Self::Timestamp(v) => Bound::Timestamp(v),
             Self::OptionTimestamp(v) => Bound::OptTimestamp(v),
+            Self::OptionDate(v) => Bound::OptDate(v),
             // Converted to IpNetwork for proper INET binding.
             Self::IpAddr(v) => Bound::IpNet(IpNetwork::from(*v)),
             Self::OptionalIpAddr(v) => Bound::OptIpNet(v.map(IpNetwork::from)),

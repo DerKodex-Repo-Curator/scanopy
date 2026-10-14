@@ -16,6 +16,7 @@ impl DaemonService {
         daemon_api_key_service: Arc<DaemonApiKeyService>,
         deployment_type: crate::server::config::DeploymentType,
         trusted_ca: Option<&TrustedCaBundle>,
+        has_email_service: bool,
     ) -> Self {
         let interfaced_subnet_storage =
             DaemonInterfacedSubnetStorage::new(daemon_storage.pool().clone());
@@ -40,6 +41,7 @@ impl DaemonService {
             host_service: std::sync::OnceLock::new(),
             poll_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_POLLS)),
             deployment_type,
+            has_email_service,
         }
     }
 
@@ -86,9 +88,15 @@ impl DaemonService {
             })
     }
 
-    /// Check if an unverified org has reached its daemon limit (1 daemon).
-    /// Allows first daemon so users can experience core product value.
-    pub async fn check_unverified_daemon_limit(&self, org_id: Uuid) -> Result<(), ApiError> {
+    /// Whether an unverified org has reached its daemon limit (1 daemon): it already has a
+    /// daemon and no owner has verified their email. The first daemon is always allowed so
+    /// users can experience core product value. Never reached on a server with no email
+    /// transport, where no owner could receive a verification link.
+    pub async fn unverified_daemon_limit_reached(&self, org_id: Uuid) -> Result<bool, ApiError> {
+        if !self.has_email_service {
+            return Ok(false);
+        }
+
         let owners = self
             .user_service
             .get_organization_owners(&org_id)
@@ -97,7 +105,7 @@ impl DaemonService {
 
         let any_verified = owners.iter().any(|u| u.base.email_verified);
         if any_verified {
-            return Ok(());
+            return Ok(false);
         }
 
         // Get sites for this org, then count daemons on those sites
@@ -109,7 +117,7 @@ impl DaemonService {
 
         let site_ids: Vec<Uuid> = sites.iter().map(|n| n.id).collect();
         if site_ids.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
 
         let all_daemons = self
@@ -117,13 +125,17 @@ impl DaemonService {
             .await
             .unwrap_or_default();
 
-        if !all_daemons.is_empty() {
+        Ok(!all_daemons.is_empty())
+    }
+
+    /// Refuse a new daemon while [`Self::unverified_daemon_limit_reached`].
+    pub async fn check_unverified_daemon_limit(&self, org_id: Uuid) -> Result<(), ApiError> {
+        if self.unverified_daemon_limit_reached(org_id).await? {
             return Err(ApiError::coded(
                 axum::http::StatusCode::FORBIDDEN,
                 crate::server::shared::types::error_codes::ErrorCode::AuthEmailVerificationRequired,
             ));
         }
-
         Ok(())
     }
 

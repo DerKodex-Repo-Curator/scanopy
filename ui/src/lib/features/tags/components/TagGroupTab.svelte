@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import {
 		useTagsQuery,
 		useTagGroupsQuery,
@@ -13,7 +14,7 @@
 	import type { TagGroup } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
 	import type { CardAction, FieldConfig } from '$lib/shared/components/data/types';
-	import { Plus, Trash2, Edit } from 'lucide-svelte';
+	import { Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { permissions, billingPlans } from '$lib/shared/stores/metadata';
@@ -24,7 +25,6 @@
 	import {
 		common_confirmBulkDelete,
 		common_confirmDeleteName,
-		common_create,
 		common_delete,
 		common_edit,
 		tags_tagGroups,
@@ -144,9 +144,7 @@
 
 {#snippet toolbarActions()}
 	{#if canManage}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreate}>
-			<Plus class="h-5 w-5" />{common_create()}
-		</button>
+		<CreateButton onclick={handleCreate} />
 	{/if}
 {/snippet}
 

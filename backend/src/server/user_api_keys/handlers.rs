@@ -171,14 +171,14 @@ pub async fn create_user_api_key(
         })?;
 
     // Emit FirstUserApiKeyCreated telemetry event if this is the first user API key
-    let organization = state
+    if state
         .services
         .organization_service
-        .get_by_id(&organization_id)
-        .await?;
-
-    if let Some(organization) = organization
-        && organization.not_onboarded(&OnboardingOperationDiscriminants::FirstUserApiKeyCreated)
+        .record_milestone(
+            organization_id,
+            OnboardingOperationDiscriminants::FirstUserApiKeyCreated,
+        )
+        .await?
     {
         service
             .event_bus()

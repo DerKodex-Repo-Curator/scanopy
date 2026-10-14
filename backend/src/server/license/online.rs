@@ -12,6 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 /// `sub` claim of an online key. Offline keys and entitlements use
 /// `"scanopy-license"`; the subject is how a parser tells the two apart.
@@ -62,6 +63,16 @@ pub struct OnlineKeyClaims {
 pub struct EntitlementRequest {
     /// The online key configured via `SCANOPY_LICENSE_KEY`.
     pub key: String,
+    /// The random id this server's database holds (`server_instance`), shared
+    /// by every container on that database. Absent from servers older than
+    /// instance counting; those share one instance slot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<Uuid>,
+    /// Whether the server was started with `SCANOPY_NON_PRODUCTION`. Absent
+    /// from servers older than the setting: they count as production, and
+    /// the cloud never refuses them a slot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub non_production: Option<bool>,
 }
 
 /// Data returned inside `ApiResponse` by [`ENTITLEMENT_PATH`].
@@ -70,6 +81,39 @@ pub struct EntitlementResponse {
     /// An offline-format license key (claims: [`super::types::LicenseClaims`])
     /// with `org_id` and `plan` set from the organization's current state.
     pub entitlement: String,
+    /// How many server instances the key is running on, against how many it
+    /// covers. Absent from clouds older than instance counting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instances: Option<InstanceUsage>,
+}
+
+/// Server instances an online key has checked in from within the last
+/// `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
+/// covers (`None` when the plan has no cap), for production and
+/// non-production servers. A server past its class's limit is refused an
+/// entitlement.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct InstanceUsage {
+    /// Production servers.
+    pub active: u32,
+    /// Production servers the key covers. `None` is no cap.
+    pub limit: Option<u32>,
+    /// Servers started with `SCANOPY_NON_PRODUCTION`. Absent from clouds
+    /// older than the setting.
+    #[serde(default)]
+    #[schema(required)]
+    pub non_production_active: u32,
+    /// Non-production servers the key covers. `None` is no cap.
+    #[serde(default)]
+    #[schema(required)]
+    pub non_production_limit: Option<u32>,
+}
+
+impl InstanceUsage {
+    pub fn is_over(&self) -> bool {
+        let over = |active: u32, limit: Option<u32>| limit.is_some_and(|limit| active > limit);
+        over(self.active, self.limit) || over(self.non_production_active, self.non_production_limit)
+    }
 }
 
 #[cfg(test)]

@@ -18,7 +18,9 @@
 //!   `collected` counts, per-address diagnostics, and the pairing between a credential and the
 //!   address it failed at.
 
+pub mod entity_ids;
 pub mod metadata;
+pub mod summary;
 pub mod values;
 
 use std::net::IpAddr;
@@ -30,8 +32,11 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::server::credentials::r#impl::mapping::CredentialQueryPayloadDiscriminants;
+use crate::server::credentials::r#impl::types::CredentialIntegration;
 
+pub use entity_ids::EntityIdSlots;
 pub use metadata::WarningRemedy;
+pub use summary::{RemedyCount, RunWarningSummary};
 pub use values::{ClaimSource, MalformedNeighbourConsequence, SnmpWalkGroup};
 
 /// A single non-fatal finding from one discovery run, about one device, neighbour, or the scan
@@ -300,6 +305,32 @@ pub enum DiscoveryWarning {
         #[serde(default)]
         actual_os: Option<crate::server::daemons::r#impl::base::DaemonOs>,
     },
+    /// The daemon is older than the credential type needs, so the server did not send it the
+    /// credential at all. Raised by the server, never a daemon: the daemon that would report it is
+    /// the one that cannot parse the credential.
+    #[schema(title = "CredentialDaemonTooOld")]
+    CredentialDaemonTooOld {
+        integration: CredentialQueryPayloadDiscriminants,
+        /// The stored credential. See [`CredentialAttempt::credential_id`].
+        #[serde(default)]
+        #[schema(required)]
+        credential_id: Option<Uuid>,
+        /// The oldest daemon version that can receive this credential type.
+        #[schema(
+            value_type = String,
+            pattern = r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$",
+            example = "0.18.1"
+        )]
+        minimum_daemon_version: Version,
+        /// The version of the daemon that ran the scan. `None` for a daemon that never reported one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[schema(
+            value_type = Option<String>,
+            pattern = r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$",
+            example = "0.18.0"
+        )]
+        daemon_version: Option<Version>,
+    },
     /// The port the credential needs was not open, so it was never tried.
     #[schema(title = "CredentialGateClosed")]
     CredentialGateClosed {
@@ -330,6 +361,19 @@ pub enum DiscoveryWarning {
     CredentialUnreachable(CredentialAttempt),
     /// The attempt timed out before anything answered.
     CredentialTimedOut(CredentialAttempt),
+    /// The scan found a service an integration reads, on a host no credential of that integration
+    /// is assigned to. Raised by the server at the end of a run, never a daemon: coverage is a
+    /// fact about stored assignments, which the daemon does not hold. One per host and
+    /// integration; the UI groups them.
+    #[schema(title = "IntegrationWithoutCredential")]
+    IntegrationWithoutCredential {
+        /// The host running the service. `None` once the host is deleted.
+        #[serde(default)]
+        #[schema(required)]
+        host_id: Option<Uuid>,
+        /// The integration that would read it.
+        integration: CredentialIntegration,
+    },
 
     // ---- Scan-level ------------------------------------------------------
     /// Addresses on a routed subnet completed a TCP handshake and then answered nothing, so no
@@ -517,8 +561,10 @@ pub struct CredentialAttempt {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, ToSchema)]
 pub struct UnmatchedNeighbour {
     /// The local device that saw the neighbour, not the far end — the far end is what could not
-    /// be identified.
-    pub host_id: Uuid,
+    /// be identified. `None` once that host has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub host_id: Option<Uuid>,
     /// The local interface that advertised the neighbour.
     pub if_descr: String,
     /// The chassis ID (LLDP) or device id (CDP) that did not identify one host.
@@ -548,8 +594,11 @@ pub struct UnmatchedNeighbour {
 pub struct ProvisionalSubnet {
     /// The range, in CIDR notation.
     pub cidr: String,
-    /// The subnet row created for it, so the UI can link straight to it.
-    pub subnet_id: Uuid,
+    /// The subnet row created for it, so the UI can link straight to it. `None` once that subnet
+    /// has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub subnet_id: Option<Uuid>,
     /// The addresses that motivated it, in the order observed.
     pub addresses: Vec<String>,
     /// The far ends' own `sysName`s, where they sent any — the labels an operator recognises.
@@ -565,13 +614,18 @@ pub struct ProvisionalSubnet {
 /// A neighbour whose far-end host resolved but whose far-end *port* did not.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, ToSchema)]
 pub struct UnresolvedPort {
-    /// The local device that saw the neighbour, and the port it saw it on.
-    pub host_id: Uuid,
+    /// The local device that saw the neighbour, and the port it saw it on. `None` once that host
+    /// has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub host_id: Option<Uuid>,
     /// The local interface that advertised the neighbour.
     pub if_descr: String,
     /// The far-end device, already resolved — this is what makes it distinct from
-    /// [`UnmatchedNeighbour`].
-    pub remote_host_id: Uuid,
+    /// [`UnmatchedNeighbour`]. `None` once that host has been deleted.
+    #[serde(default)]
+    #[schema(required)]
+    pub remote_host_id: Option<Uuid>,
     /// The advertised port id in `Debug` form, which carries subtype and value together
     /// (`MacAddress("00:ad:24:af:4e:00")`, `InterfaceName("2")`). Both halves are needed: the
     /// subtype says which tier ran and the value says what it looked for.
@@ -644,6 +698,7 @@ pub enum DiscoveryWarningCode {
     CredentialTargetNotScanned,
     CredentialTargetNotResponding,
     CredentialDaemonOsMismatch,
+    CredentialDaemonTooOld,
     CredentialGateClosed,
     CredentialRejected,
     CredentialMalformed,
@@ -653,6 +708,7 @@ pub enum DiscoveryWarningCode {
     CredentialCollectionTimedOut,
     CredentialUnreachable,
     CredentialTimedOut,
+    IntegrationWithoutCredential,
     ConnectionsWithoutProtocolResponse,
     ScanTimeLimitWithEstimate,
     ScanTimeLimit,
@@ -729,6 +785,7 @@ impl DiscoveryWarning {
             Self::CredentialDaemonOsMismatch { .. } => {
                 DiscoveryWarningCode::CredentialDaemonOsMismatch
             }
+            Self::CredentialDaemonTooOld { .. } => DiscoveryWarningCode::CredentialDaemonTooOld,
             Self::CredentialGateClosed { .. } => DiscoveryWarningCode::CredentialGateClosed,
             Self::CredentialRejected(_) => DiscoveryWarningCode::CredentialRejected,
             Self::CredentialMalformed(_) => DiscoveryWarningCode::CredentialMalformed,
@@ -740,6 +797,9 @@ impl DiscoveryWarning {
             }
             Self::CredentialUnreachable(_) => DiscoveryWarningCode::CredentialUnreachable,
             Self::CredentialTimedOut(_) => DiscoveryWarningCode::CredentialTimedOut,
+            Self::IntegrationWithoutCredential { .. } => {
+                DiscoveryWarningCode::IntegrationWithoutCredential
+            }
             Self::ConnectionsWithoutProtocolResponse { .. } => {
                 DiscoveryWarningCode::ConnectionsWithoutProtocolResponse
             }
@@ -801,7 +861,8 @@ impl DiscoveryWarning {
             Self::CredentialTargetNotScanned { integration, .. }
             | Self::CredentialTargetNotResponding { integration, .. }
             | Self::CredentialGateClosed { integration, .. }
-            | Self::CredentialDaemonOsMismatch { integration, .. } => Some(*integration),
+            | Self::CredentialDaemonOsMismatch { integration, .. }
+            | Self::CredentialDaemonTooOld { integration, .. } => Some(*integration),
 
             Self::CredentialRejected(a)
             | Self::CredentialMalformed(a)
@@ -815,6 +876,73 @@ impl DiscoveryWarning {
             // Two integrations, and neither one produced it: the merge in the daemon pipeline did.
             // Naming either would count it against an integration that did nothing wrong.
             Self::EqualReachIntegrationsMerged { .. }
+            // No integration ran: this reports the absence of a credential, and the metric label
+            // is a wire payload type, which an integration with two transports has no single one of.
+            | Self::IntegrationWithoutCredential { .. }
+            | Self::ConnectionsWithoutProtocolResponse { .. }
+            | Self::ScanTimeLimitWithEstimate { .. }
+            | Self::ScanTimeLimit { .. }
+            | Self::DcpSweepTimedOut { .. }
+            | Self::IcmpSweepTimedOut { .. }
+            | Self::ReverseDnsTimedOut { .. }
+            | Self::LldpNeighbourNotFound(_)
+            | Self::LldpNeighbourAmbiguous(_)
+            | Self::LldpPortNoStrategy(_)
+            | Self::LldpPortNotFound(_)
+            | Self::LldpPortAmbiguous(_)
+            | Self::ProvisionalSubnetInferred(_)
+            | Self::NeighbourResolutionIncomplete { .. }
+            | Self::FdbResolutionIncomplete { .. }
+            | Self::OutdatedDaemonFormat { .. }
+            | Self::WarningsTruncated { .. }
+            | Self::Unknown { .. } => None,
+        }
+    }
+
+    /// The stored credential this warning is about. `None` for every warning that is not about
+    /// one, and for a credential warning from a daemon that predates the id.
+    pub fn credential_id(&self) -> Option<Uuid> {
+        match self {
+            Self::CredentialTargetNotScanned { credential_id, .. }
+            | Self::CredentialTargetNotResponding { credential_id, .. }
+            | Self::CredentialGateClosed { credential_id, .. }
+            | Self::CredentialDaemonOsMismatch { credential_id, .. }
+            | Self::CredentialDaemonTooOld { credential_id, .. } => *credential_id,
+
+            Self::CredentialRejected(a)
+            | Self::CredentialMalformed(a)
+            | Self::CredentialTlsFailed(a)
+            | Self::CredentialNotThisService(a)
+            | Self::CredentialCollectionFailed(a)
+            | Self::CredentialCollectionTimedOut(a)
+            | Self::CredentialUnreachable(a)
+            | Self::CredentialTimedOut(a) => a.credential_id,
+
+            Self::InterfaceSetCutShort { .. }
+            | Self::InterfaceDetailsCutShort { .. }
+            | Self::SnmpWalkEntryCap { .. }
+            | Self::SnmpWalkUnsupported { .. }
+            | Self::SnmpWalkDesynchronised { .. }
+            | Self::SnmpWalkPartialDiscarded { .. }
+            | Self::SnmpWalkPartialRecorded { .. }
+            | Self::SnmpWalkBridgeMibAbsent { .. }
+            | Self::SnmpWalkNoAnswer { .. }
+            | Self::ClaimedCountReadCutShort { .. }
+            | Self::ClaimedCountUnderRead { .. }
+            | Self::ClaimedCapabilityReadCutShort { .. }
+            | Self::ClaimedCapabilityEmpty { .. }
+            | Self::LldpLocalPortDropped { .. }
+            | Self::LldpLocalPortDroppedReadCutShort { .. }
+            | Self::LldpLocalPortMisplaced { .. }
+            | Self::MalformedNeighboursWalkCutShort(_)
+            | Self::MalformedNeighboursGhostRows(_)
+            | Self::MalformedNeighboursIncompleteRecords(_)
+            | Self::MalformedNeighboursUnexpectedType(_)
+            | Self::MalformedNeighboursUnreadableIndex(_)
+            | Self::SnmpCollectedNothing { .. }
+            | Self::VlanRecordingFailed { .. }
+            | Self::EqualReachIntegrationsMerged { .. }
+            | Self::IntegrationWithoutCredential { .. }
             | Self::ConnectionsWithoutProtocolResponse { .. }
             | Self::ScanTimeLimitWithEstimate { .. }
             | Self::ScanTimeLimit { .. }
@@ -858,7 +986,7 @@ where
     Ok(raw.into_iter().map(warning_from_value).collect())
 }
 
-fn warning_from_value(value: serde_json::Value) -> DiscoveryWarning {
+pub fn warning_from_value(value: serde_json::Value) -> DiscoveryWarning {
     if let serde_json::Value::String(detail) = value {
         return DiscoveryWarning::Unknown { detail };
     }

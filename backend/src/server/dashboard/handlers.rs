@@ -1,9 +1,10 @@
+use crate::daemon::discovery::types::warnings::RunWarningSummary;
 use crate::server::openapi::tags as api_tags;
 use crate::server::{
     auth::middleware::permissions::{Authorized, Viewer},
     config::AppState,
     daemons::r#impl::{api::DaemonResponse, base::Daemon, version::DaemonVersionPolicy},
-    discovery::r#impl::base::Discovery,
+    discovery::r#impl::{base::Discovery, types::RunType},
     shared::{
         services::traits::CrudService,
         storage::filter::StorableFilter,
@@ -12,7 +13,10 @@ use crate::server::{
     sites::r#impl::Site,
 };
 
-use super::types::{DashboardSummary, PlanUsage, SiteSummary};
+use super::types::{
+    DashboardSummary, PlanUsage, RecentDiscovery, SiteSummary, UncoveredIntegration,
+};
+use crate::server::credentials::service::FoundIntegration;
 
 use axum::{extract::State, response::Json};
 use std::sync::Arc;
@@ -160,6 +164,39 @@ async fn get_dashboard_summary(
         .await
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
+    let recent_discoveries = discovery_result
+        .items
+        .into_iter()
+        .map(|discovery| {
+            let warning_summary = match &discovery.base.run_type {
+                RunType::Historical { results } => {
+                    RunWarningSummary::from(results.warnings.as_slice())
+                }
+                _ => RunWarningSummary::default(),
+            };
+            RecentDiscovery {
+                discovery,
+                warning_summary,
+            }
+        })
+        .collect();
+
+    // What the latest full scans found with no credential, re-checked against today's
+    // assignments so a credential saved since clears its nudge without waiting for a scan.
+    let (found, tried_at) = state
+        .services
+        .discovery_service
+        .latest_integrations_without_credentials(&site_ids)
+        .await
+        .map_err(|e| ApiError::internal_error(&e.to_string()))?;
+    let uncovered = state
+        .services
+        .credential_service
+        .uncovered_integrations(found, &[], None, &tried_at)
+        .await
+        .map_err(|e| ApiError::internal_error(&e.to_string()))?;
+    let uncovered_integrations = group_by_integration(uncovered);
+
     let plan_usage = PlanUsage {
         host_limit,
         host_count,
@@ -172,7 +209,30 @@ async fn get_dashboard_summary(
     Ok(Json(ApiResponse::success(DashboardSummary {
         sites: site_summaries,
         daemons: daemon_responses,
-        recent_discoveries: discovery_result.items,
+        recent_discoveries,
         plan_usage,
+        uncovered_integrations,
     })))
+}
+
+/// One entry per integration, naming every host it was found on, most hosts first.
+fn group_by_integration(found: Vec<FoundIntegration>) -> Vec<UncoveredIntegration> {
+    let mut grouped: Vec<UncoveredIntegration> = Vec::new();
+    for f in found {
+        match grouped.iter_mut().find(|g| g.integration == f.integration) {
+            Some(g) => {
+                g.host_ids.push(f.host_id);
+                if !g.site_ids.contains(&f.site_id) {
+                    g.site_ids.push(f.site_id);
+                }
+            }
+            None => grouped.push(UncoveredIntegration {
+                integration: f.integration,
+                host_ids: vec![f.host_id],
+                site_ids: vec![f.site_id],
+            }),
+        }
+    }
+    grouped.sort_by(|a, b| b.host_ids.len().cmp(&a.host_ids.len()));
+    grouped
 }

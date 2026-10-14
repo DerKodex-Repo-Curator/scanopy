@@ -1,0 +1,39 @@
+{
+  "type": 3,
+  "title": "Scanopy",
+  "name": "scanopy",
+  "description": "Discovers the hosts, services and subnets on your network and draws them as topology diagrams that rebuild on every scan. Source: https://github.com/scanopy/scanopy",
+  "categories": ["Network", "Tools"],
+  "platform": "linux",
+  "logo": "https://cdn.jsdelivr.net/gh/scanopy/scanopy@main/media/logo.png",
+  "restart_policy": "unless-stopped",
+  "administrator_only": true,
+  "repository": {
+    "url": "https://github.com/scanopy/scanopy",
+    "stackfile": "docker-compose.portainer.yml"
+  },
+  "env": [
+    {
+      "name": "POSTGRES_PASSWORD",
+      "label": "Database password (required)",
+      "description": "Generate one with: openssl rand -hex 32. Keep it the same when you redeploy, or the server can't reach its database."
+    },
+    {
+      "name": "SCANOPY_PUBLIC_URL",
+      "label": "Address you'll open Scanopy at",
+      "description": "Used to build links. It must match the address in your browser, port included.",
+      "default": "http://localhost:60072"
+    },
+    {
+      "name": "SCANOPY_LOG_LEVEL",
+      "label": "Log level",
+      "select": [
+        { "text": "Info", "value": "info", "default": true },
+        { "text": "Debug", "value": "debug" },
+        { "text": "Warning", "value": "warn" },
+        { "text": "Error", "value": "error" }
+      ]
+    }
+  ],
+  "note": "Set a <b>database password</b> before you deploy (<code>openssl rand -hex 32</code> makes a good one). The stack won't start without it. Then open <code>http://&lt;your-host&gt;:60072</code> and create your account. The first discovery starts on its own.<br><br>The scanning daemon runs with <b>host networking</b> and <b>privileged</b> mode, because ARP and ICMP discovery need raw sockets on the host's own network. It also mounts the <b>Docker socket</b> read-only, for Scanopy's Docker integration. Portainer admins can block privileged mode for regular users, so this template may only deploy for admins. Data is stored in the <code>postgres_data</code>, <code>daemon-config</code> and <code>server-data</code> volumes.<br><br>Integrations such as Docker, SNMP and UniFi add more discovery data, like containers and device details. Docs: <a href=\"https://scanopy.net/docs\" target=\"_blank\">scanopy.net/docs</a>"
+}

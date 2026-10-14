@@ -10,10 +10,15 @@ pub const SELF_HOSTED_STANDARD_SITES: u64 = 50;
 pub const SELF_HOSTED_STANDARD_SEATS: u64 = 25;
 pub const SELF_HOSTED_STANDARD_ORGS: u64 = 1;
 
-pub const SELF_HOSTED_PLUS_ANNUAL_CENTS: i64 = 600_000; // $6,000/yr
+pub const SELF_HOSTED_PLUS_ANNUAL_CENTS: i64 = 700_000; // $7,000/yr
 pub const SELF_HOSTED_PLUS_SITES: u64 = 100;
 pub const SELF_HOSTED_PLUS_SEATS: u64 = 50;
-pub const SELF_HOSTED_PLUS_ORGS: u64 = 5;
+pub const SELF_HOSTED_PLUS_ORGS: u64 = 1;
+
+/// Servers one online key covers on either paid self-hosted tier: production
+/// servers, and servers started with `SCANOPY_NON_PRODUCTION` set.
+pub const SELF_HOSTED_PRODUCTION_INSTANCES: u32 = 1;
+pub const SELF_HOSTED_NON_PRODUCTION_INSTANCES: u32 = 2;
 
 /// Card-less trial length for both paid self-hosted tiers.
 pub const SELF_HOSTED_TRIAL_DAYS: u32 = 14;
@@ -130,7 +135,7 @@ pub fn get_self_hosted_standard_plan() -> BillingPlan {
     })
 }
 
-/// Self-Hosted Plus: multi-org commercial license with offline (air-gapped) keys,
+/// Self-Hosted Plus: single-org commercial license with offline (air-gapped) keys,
 /// annual-only, published price. Air-gapped. Hard caps, no Stripe overage.
 pub fn get_self_hosted_plus_plan() -> BillingPlan {
     BillingPlan::SelfHostedPlus(PlanConfig {

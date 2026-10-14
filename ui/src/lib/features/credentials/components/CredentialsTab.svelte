@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import {
 		useCredentialsQuery,
 		useCreateCredentialMutation,
@@ -17,12 +18,16 @@
 	import { credentialColumns } from './CredentialsTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
 	import type { Site } from '$lib/features/sites/types';
-	import { Plus, Trash2, Edit } from 'lucide-svelte';
+	import { Trash2, Edit } from 'lucide-svelte';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import { permissions, credentialTypes, billingPlans } from '$lib/shared/stores/metadata';
 	import { getCredentialTypeId } from '$lib/features/credentials/types/base';
-	import { modalState, resolveModalDeepLink } from '$lib/shared/stores/modal-registry';
+	import {
+		modalState,
+		resolveModalDeepLink,
+		type ModalState
+	} from '$lib/shared/stores/modal-registry';
 	import type { TabProps } from '$lib/shared/types';
 	import { downloadCsv } from '$lib/shared/utils/csvExport';
 	import { useSitesQuery } from '$lib/features/sites/queries';
@@ -48,6 +53,7 @@
 
 	let showCredentialEditor = $state(false);
 	let editingCredential: Credential | null = $state(null);
+	let prefill = $state<ModalState['prefill']>();
 
 	// Deep-link: open credential editor from URL
 	$effect(() => {
@@ -59,6 +65,8 @@
 			editingCredential?.id
 		);
 		if (result !== undefined) {
+			// Create mode opened from a prompt carries its integration and hosts in the URL.
+			prefill = result === null ? $modalState.prefill : undefined;
 			editingCredential = result;
 			showCredentialEditor = true;
 		}
@@ -158,6 +166,7 @@
 	);
 
 	function handleCreateCredential() {
+		prefill = undefined;
 		editingCredential = null;
 		showCredentialEditor = true;
 	}
@@ -210,6 +219,7 @@
 		await createCredentialMutation.mutateAsync(data);
 		showCredentialEditor = false;
 		editingCredential = null;
+		prefill = undefined;
 	}
 
 	async function handleCredentialUpdate(_id: string, data: Credential) {
@@ -221,6 +231,7 @@
 	function handleCloseCredentialEditor() {
 		showCredentialEditor = false;
 		editingCredential = null;
+		prefill = undefined;
 	}
 
 	async function handleBulkDelete(ids: string[]) {
@@ -257,8 +268,8 @@
 		return credential.tags;
 	}
 
-	const tableDefaults: TableDefaults<CredentialOrderField | 'credential_type'> = {
-		group: 'credential_type',
+	const tableDefaults: TableDefaults<CredentialOrderField | 'credential_type' | 'integration'> = {
+		group: 'integration',
 		sort: { field: 'name', direction: 'asc' }
 	};
 
@@ -268,6 +279,7 @@
 	const credentialFields = credentialColumns({
 		lookup: () => lookup,
 		tags: () => tagsData,
+		sites: () => sitesData,
 		sitesForCredential,
 		hostsForCredential,
 		targetsFor,
@@ -279,9 +291,7 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if canManage}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateCredential}>
-			<Plus class="h-5 w-5" />{common_create()}
-		</button>
+		<CreateButton onclick={handleCreateCredential} />
 	{/if}
 {/snippet}
 
@@ -322,6 +332,9 @@
 	name="credential-editor"
 	isOpen={showCredentialEditor}
 	credential={editingCredential}
+	initialIntegration={prefill?.integration ?? null}
+	initialHostIds={prefill?.hosts?.split(',') ?? []}
+	initialSiteIds={prefill?.sites?.split(',') ?? []}
 	onCreate={handleCredentialCreate}
 	onUpdate={handleCredentialUpdate}
 	onClose={handleCloseCredentialEditor}

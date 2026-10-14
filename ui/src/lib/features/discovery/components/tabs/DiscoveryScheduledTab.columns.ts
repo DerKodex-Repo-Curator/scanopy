@@ -105,6 +105,9 @@ export function discoveryScheduledColumns(ctx: DiscoveryScheduledColumnsContext)
 				// a `!== 'Unified'` check flagged Rescan, which is new rather than frozen.
 				getValue: (item) =>
 					discoveryTypes.getMetadata(item.discovery_type.type).is_legacy ? common_legacy() : '',
+				getFilterValue: (item) =>
+					discoveryTypes.getMetadata(item.discovery_type.type).is_legacy ? 'legacy' : null,
+				filterLabel: () => common_legacy(),
 				display: {
 					getItems: (item) =>
 						discoveryTypes.getMetadata(item.discovery_type.type).is_legacy

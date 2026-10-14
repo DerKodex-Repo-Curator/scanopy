@@ -1,5 +1,6 @@
 use crate::daemon::discovery::types::base::DiscoveryPhase;
 use crate::server::openapi::tags as api_tags;
+use crate::server::shared::sse::until_shutdown;
 use crate::server::shared::types::api::ApiJson;
 use crate::server::shared::types::metadata::HasId;
 use crate::server::{
@@ -104,7 +105,7 @@ impl OrderField for DiscoveryOrderField {
             Self::FinishedAt => RUN_FINISHED_AT_SQL,
             Self::Duration => concatcp!("(", RUN_FINISHED_AT_SQL, " - ", RUN_STARTED_AT_SQL, ")"),
             Self::Warnings => {
-                "COALESCE(jsonb_array_length(discovery.run_type->'results'->'warnings'), 0)"
+                "(SELECT COUNT(*) FROM discovery_warnings WHERE discovery_warnings.discovery_id = discovery.id)"
             }
         }
     }
@@ -745,7 +746,7 @@ async fn discovery_stream(
         }
     };
 
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    Sse::new(until_shutdown(stream, &state.shutdown)).keep_alive(KeepAlive::default())
 }
 
 /// Get active Discovery Sessions

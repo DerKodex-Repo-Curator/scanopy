@@ -10,7 +10,7 @@ use crate::daemon::discovery::integration::snmp::sim::wire::MacEncoding;
 use crate::daemon::discovery::integration::snmp::sim::{Purpose, SimDevice, Tables};
 use crate::daemon::discovery::integration::snmp::types::SystemInfo;
 use crate::server::credentials::r#impl::types::{
-    CredentialType, SnmpV3AuthProtocol, SnmpV3PrivProtocol,
+    CredentialType, SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpV3Security,
 };
 use crate::server::lldp::{LldpChassisId, LldpPortId};
 
@@ -26,10 +26,12 @@ pub fn device() -> SimDevice {
         },
         credential: CredentialType::SnmpV3 {
             security_name: "scanopyv3".into(),
-            auth_protocol: SnmpV3AuthProtocol::Sha256,
-            auth_password: inline("authpass12345"),
-            priv_protocol: SnmpV3PrivProtocol::Aes128,
-            priv_password: inline("privpass12345"),
+            security: SnmpV3Security::AuthPriv {
+                auth_protocol: SnmpV3AuthProtocol::Sha256,
+                auth_password: inline("authpass12345"),
+                priv_protocol: SnmpV3PrivProtocol::Aes128,
+                priv_password: inline("privpass12345"),
+            },
             context_name: None,
         },
         system: SystemInfo {

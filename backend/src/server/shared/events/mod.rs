@@ -1,4 +1,5 @@
 pub mod bus;
+pub mod dispatch;
 pub mod operations;
 pub mod registry;
 pub mod traits;

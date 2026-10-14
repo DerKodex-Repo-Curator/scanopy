@@ -482,23 +482,26 @@ impl BillingService {
             return Ok(());
         }
 
-        self.event_bus
-            .publish(Event::new(
-                OrgScope {
-                    organization_id: organization.id,
-                },
-                BillingOperation::PaymentFailed {
-                    invoice_id: invoice
-                        .id
-                        .as_ref()
-                        .map(|i| i.to_string())
-                        .unwrap_or_default(),
-                    amount_cents: invoice.amount_due,
-                    plan: organization.base.plan.unwrap_or_else(get_free_plan),
-                    attempt_count: invoice.attempt_count as u32,
-                },
-                AuthenticatedEntity::System,
-            ))
+        self.organization_service
+            .apply_billing(
+                organization.id,
+                vec![Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::PaymentFailed {
+                        invoice_id: invoice
+                            .id
+                            .as_ref()
+                            .map(|i| i.to_string())
+                            .unwrap_or_default(),
+                        amount_cents: invoice.amount_due,
+                        plan: organization.base.plan.unwrap_or_else(get_free_plan),
+                        attempt_count: invoice.attempt_count as u32,
+                    },
+                    AuthenticatedEntity::System,
+                )],
+            )
             .await?;
 
         Ok(())
@@ -526,21 +529,24 @@ impl BillingService {
             return Ok(());
         }
 
-        self.event_bus
-            .publish(Event::new(
-                OrgScope {
-                    organization_id: organization.id,
-                },
-                BillingOperation::PaymentActionRequired {
-                    invoice_id: invoice
-                        .id
-                        .as_ref()
-                        .map(|i| i.to_string())
-                        .unwrap_or_default(),
-                    hosted_invoice_url: invoice.hosted_invoice_url.clone(),
-                },
-                AuthenticatedEntity::System,
-            ))
+        self.organization_service
+            .apply_billing(
+                organization.id,
+                vec![Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::PaymentActionRequired {
+                        invoice_id: invoice
+                            .id
+                            .as_ref()
+                            .map(|i| i.to_string())
+                            .unwrap_or_default(),
+                        hosted_invoice_url: invoice.hosted_invoice_url.clone(),
+                    },
+                    AuthenticatedEntity::System,
+                )],
+            )
             .await?;
 
         Ok(())

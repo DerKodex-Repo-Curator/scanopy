@@ -116,6 +116,7 @@
 				onSelect={select}
 				createLabel={canCreate ? tags_createTagQuoted({ name: query.trim() }) : null}
 				onCreate={create}
+				createOnEnter={options.length === 0}
 			/>
 		</div>
 	{/if}

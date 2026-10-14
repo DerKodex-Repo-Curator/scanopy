@@ -1,7 +1,8 @@
 //! The OS of the machine the daemon runs on, as the daemon reads it locally.
 //!
 //! In a container this is the image's OS (its os-release) with the host's kernel, which is what
-//! the daemon runs in. A Docker integration reading the engine host replaces it, by rank.
+//! the daemon runs in. It outranks the OS a Docker or Podman engine reports, because the engine
+//! may run in a VM on this machine (Docker Desktop, OrbStack, Colima) and describe the VM.
 
 use crate::server::daemons::r#impl::base::DaemonOs;
 use crate::server::hosts::r#impl::os::{HostOs, HostOsFamily};

@@ -1,4 +1,4 @@
-use super::{Body, Content, Email, EmailCategory, links};
+use super::{Body, Content, Email, EmailCategory, compose::html_escape, links};
 
 /// Delivers a ready-to-run daemon install command for the recipient's OS.
 pub struct InstallCommand<'a> {
@@ -26,7 +26,7 @@ impl Email for InstallCommand<'_> {
                             </div>
                             <p style="margin: 0 0 10px 0; font-size: 14px; line-height: 20px; color: #6b7280;">Copy and paste this command into your terminal. The daemon will download, install, and start automatically.</p>
 "#,
-            self.install_command
+            html_escape(self.install_command)
         );
         Body::new()
             .content(

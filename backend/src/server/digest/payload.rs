@@ -7,6 +7,7 @@ use strum::{AsRefStr, EnumIter};
 use strum_macros::EnumDiscriminants;
 use uuid::Uuid;
 
+use crate::server::credentials::r#impl::types::CredentialIntegration;
 use crate::server::shared::events::traits::{
     EventFilter, EventScope, Operation, ScopeOrganization,
 };
@@ -18,8 +19,8 @@ use crate::server::shared::events::types::EventLogLevel;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HostSummary {
     pub id: Uuid,
-    /// Hostname when discovery resolved one (SNMP `sysName.0`, reverse DNS,
-    /// or user-assigned); falls back to the synthetic `name`.
+    /// The host's [`Host::display_name`](crate::server::hosts::r#impl::base::Host::display_name),
+    /// as every other surface titles it, or "Unnamed host" when nothing identifies it.
     pub label: String,
 }
 
@@ -150,6 +151,54 @@ mod email_address_serde {
     }
 }
 
+/// The run's warnings, counted by what each asks of the reader (`WarningRemedy`). Only the first
+/// three ask for anything; the email leads with those and gives `no_action` one line.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WarningCounts {
+    /// `FixInScanopy` warnings about one credential.
+    pub fix_credentials: u32,
+    /// Every other `FixInScanopy` warning: scan settings, the daemon, duplicate hosts.
+    pub fix_other: u32,
+    /// `CheckTheDevice`: the device serves less than it claims, and only its agent can change that.
+    pub check_device: u32,
+    /// `ClearsOnTheNextScan` and `NothingToDo`.
+    pub no_action: u32,
+    /// Integrations found with no credential, counted once per integration however many hosts
+    /// run it, so forty SNMP devices are one thing to fix.
+    #[serde(default)]
+    pub add_credentials: u32,
+}
+
+impl WarningCounts {
+    /// Warnings the reader can resolve.
+    pub fn actionable(&self) -> u32 {
+        self.fix_credentials + self.fix_other + self.check_device + self.add_credentials
+    }
+}
+
+/// An integration the run found on hosts no credential of it covers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IntegrationWithoutCredential {
+    pub integration: CredentialIntegration,
+    /// The hosts it was found on, which the email's link pre-assigns the new credential to.
+    pub host_ids: Vec<Uuid>,
+}
+
+/// A credential the run raised a warning about. Name and type only: never an address, a
+/// username, a community, a key, a path or a script's output.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CredentialProblem {
+    /// The stored credential's name. `None` when it no longer exists, or for the warnings of a
+    /// daemon too old to say which credential it used.
+    pub name: Option<String>,
+    /// The credential's type, e.g. "SNMP v2c".
+    pub type_label: String,
+    /// Hosts it worked on this run: collected from, script applied, or woken.
+    pub hosts_reached: u32,
+    /// Warnings the run raised about it.
+    pub warnings: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DiscoveryDigestPayload {
     pub session_id: Uuid,
@@ -174,18 +223,40 @@ pub struct DiscoveryDigestPayload {
     pub vlans_stale: Vec<VlanSummary>,
 
     pub recipients: Vec<DigestRecipient>,
+
+    /// The historical discovery row this session was recorded as, which the email links to.
+    /// `None` on an event queued by a server that did not carry it.
+    #[serde(default)]
+    pub discovery_id: Option<Uuid>,
+    #[serde(default)]
+    pub warnings: WarningCounts,
+    /// Credentials the run used or warned about.
+    #[serde(default)]
+    pub credentials_used: u32,
+    /// The ones with warnings, in the order the run's Credentials tab lists them.
+    #[serde(default)]
+    pub credential_problems: Vec<CredentialProblem>,
+    /// Integrations found with no credential, one entry per integration.
+    #[serde(default)]
+    pub integrations_without_credentials: Vec<IntegrationWithoutCredential>,
 }
 
 impl DiscoveryDigestPayload {
     /// Whether the digest has any user-visible deltas worth emailing about.
-    /// Subnets-scanned alone is metadata, not a change — empty digests are
-    /// suppressed regardless of recipient settings.
+    /// Subnets-scanned alone is metadata, not a change.
     pub fn has_changes(&self) -> bool {
         !self.hosts_added.is_empty()
             || !self.hosts_stale.is_empty()
             || !self.hosts_changed.is_empty()
             || !self.vlans_added.is_empty()
             || !self.vlans_stale.is_empty()
+    }
+
+    /// Whether the digest is worth emailing: something changed, or the run raised a warning the
+    /// reader can resolve. A run whose only warnings need no action sends nothing. Applies
+    /// regardless of recipient settings.
+    pub fn should_send(&self) -> bool {
+        self.has_changes() || self.warnings.actionable() > 0
     }
 }
 
@@ -218,8 +289,8 @@ impl EventScope for DiscoveryDigestScope {
     }
 }
 
-/// What leaves the server about a digest: how much changed, never which hosts, subnets or
-/// recipients.
+/// What leaves the server about a digest: how much changed, never which hosts, subnets,
+/// credentials or recipients.
 #[derive(Serialize)]
 struct DiscoveryDigestMetadata {
     session_id: Uuid,
@@ -231,6 +302,12 @@ struct DiscoveryDigestMetadata {
     vlans_added: usize,
     vlans_stale: usize,
     recipients: usize,
+    warnings_fix_credentials: u32,
+    warnings_fix_other: u32,
+    warnings_check_device: u32,
+    warnings_no_action: u32,
+    credentials_used: u32,
+    credential_problems: usize,
 }
 
 impl Operation for DiscoveryDigestOperation {
@@ -258,6 +335,12 @@ impl Operation for DiscoveryDigestOperation {
             vlans_added: payload.vlans_added.len(),
             vlans_stale: payload.vlans_stale.len(),
             recipients: payload.recipients.len(),
+            warnings_fix_credentials: payload.warnings.fix_credentials,
+            warnings_fix_other: payload.warnings.fix_other,
+            warnings_check_device: payload.warnings.check_device,
+            warnings_no_action: payload.warnings.no_action,
+            credentials_used: payload.credentials_used,
+            credential_problems: payload.credential_problems.len(),
         }
     }
 }

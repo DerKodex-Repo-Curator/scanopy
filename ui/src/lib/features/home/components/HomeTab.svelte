@@ -184,14 +184,15 @@
 			<DaemonHealthPanel daemons={dashboard.daemons} onNavigate={navigateTo} />
 		{/if}
 
-		<!-- Recent Discoveries — shown when discoveries exist -->
-		{#if dashboard.recent_discoveries.length > 0}
+		<!-- Recent scans — shown once a daemon exists, so before that the checklist is the only ask -->
+		{#if dashboard.recent_discoveries.length > 0 || has('FirstDaemonRegistered')}
 			<RecentDiscoveries
-				discoveries={dashboard.recent_discoveries}
+				recent={dashboard.recent_discoveries}
 				daemons={dashboard.daemons}
 				sites={dashboard.sites}
-				onNavigate={(discovery) => {
-					openModal('discovery-history-detail', { id: discovery.id });
+				onOpenRun={(discovery) => {
+					// The run itself, so the modal opens even when the history tab has not loaded it.
+					openModal('discovery-history-detail', { id: discovery.id, entityData: discovery });
 					navigateTo('discovery-history');
 				}}
 			/>

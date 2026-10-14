@@ -6,7 +6,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { User } from '$lib/features/users/types';
 	import { pushError, pushSuccess } from '$lib/shared/stores/feedback';
-	import { Link, Key, LogOut, Shield } from 'lucide-svelte';
+	import { Link, Key, LogOut, Mail, Shield } from 'lucide-svelte';
 	import CookieSettingsPanel from '$lib/shared/components/feedback/CookieSettingsPanel.svelte';
 	import { createForm } from '@tanstack/svelte-form';
 	import { submitForm } from '$lib/shared/components/forms/form-context';
@@ -20,26 +20,19 @@
 	import TextInput from '$lib/shared/components/forms/input/TextInput.svelte';
 	import Password from '$lib/shared/components/forms/input/Password.svelte';
 	import { useConfigQuery } from '$lib/shared/stores/config-query';
-	import { useOrganizationQuery } from '$lib/features/organizations/queries';
-	import InfoRow from '$lib/shared/components/data/InfoRow.svelte';
 	import {
 		common_back,
 		common_close,
 		common_currentPassword,
 		common_email,
 		common_emailAndPassword,
+		common_password,
 		common_link,
 		common_logout,
-		common_organization,
-		common_permissions,
 		common_redirecting,
 		common_saveChanges,
 		common_saving,
 		common_unlink,
-		common_update,
-		common_userId,
-		common_change,
-		settings_account_authMethods,
 		settings_account_credentialsUpdated,
 		settings_account_currentPasswordPlaceholder,
 		settings_account_emailChangeIntro,
@@ -54,8 +47,9 @@
 		settings_account_signOut,
 		settings_account_unlinkFirst,
 		settings_account_updateCredentials,
-		settings_account_updateEmailPassword,
-		settings_account_userInfo,
+		settings_account_updateEmail,
+		settings_account_updatePassword,
+		settings_account_identityProviders,
 		settings_account_verificationSentTo,
 		settings_account_cookiePreferencesDesc,
 		cookies_preferences,
@@ -74,14 +68,12 @@
 		dismissible?: boolean;
 	} = $props();
 
-	// TanStack Query for current user and organization
+	// TanStack Query for current user
 	const currentUserQuery = useCurrentUserQuery();
 	const logoutMutation = useLogoutMutation();
 	const queryClient = useQueryClient();
-	const organizationQuery = useOrganizationQuery();
 
 	let user = $derived(currentUserQuery.data);
-	let organization = $derived(organizationQuery.data);
 
 	const configQuery = useConfigQuery();
 	let configData = $derived(configQuery.data);
@@ -223,133 +215,113 @@
 		{#if subView === 'main'}
 			{#if user}
 				<div class="space-y-6">
-					<!-- User Info -->
-					<InfoCard title={settings_account_userInfo()}>
-						<InfoRow label={common_organization()}>{organization?.name}</InfoRow>
-						<InfoRow label={common_email()}>
-							<div class="flex items-center gap-2">
-								<span>{user.email}</span>
-								{#if !hasLinkedOidc}
-									<button
-										type="button"
-										onclick={() => {
-											emailChangeForm.reset({ currentPassword: '', newEmail: '' });
-											subView = 'email-change';
-										}}
-										class="text-xs text-blue-500 hover:text-blue-700"
-									>
-										{common_change()}
-									</button>
-								{/if}
+					<!-- Email & Password. A linked OIDC account owns the address, so it can't be changed here. -->
+					<InfoCard title={common_emailAndPassword()}>
+						<div class="flex items-center justify-between gap-4">
+							<div class="flex min-w-0 items-center gap-4">
+								<Mail class="text-secondary h-5 w-5 flex-shrink-0" />
+								<div class="min-w-0">
+									<p class="text-primary text-sm font-medium">{common_email()}</p>
+									<p class="text-secondary truncate text-xs">{user.email}</p>
+								</div>
 							</div>
-						</InfoRow>
-						<InfoRow label={common_permissions()} mono={true}>{user.permissions}</InfoRow>
-						<InfoRow label={common_userId()} mono={true}>{user.id}</InfoRow>
-					</InfoCard>
-
-					<!-- Authentication Methods -->
-					<div>
-						<h3 class="text-primary mb-3 text-sm font-semibold">
-							{settings_account_authMethods()}
-						</h3>
-						<div class="space-y-3">
-							<!-- Email & Password -->
-							<InfoCard variant="compact">
-								<div class="flex items-center justify-between">
-									<div class="flex items-center gap-4">
-										<Key class="text-secondary h-5 w-5 flex-shrink-0" />
-										<div>
-											<p class="text-primary text-sm font-medium">
-												{common_emailAndPassword()}
-											</p>
-											<p class="text-secondary text-xs">
-												{settings_account_updateEmailPassword()}
-											</p>
-										</div>
-									</div>
-									<button
-										type="button"
-										onclick={() => {
-											subView = 'credentials';
-											form.reset({ currentPassword: '', password: '', confirmPassword: '' });
-										}}
-										class="btn-primary"
-									>
-										{common_update()}
-									</button>
-								</div>
-							</InfoCard>
-
-							<!-- OIDC Providers -->
-							{#if hasOidcProviders}
-								<div class="space-y-3">
-									<p class="text-secondary text-xs">
-										{settings_account_oidcLinkHelp()}
-									</p>
-
-									{#each oidcProviders as provider (provider.slug)}
-										{@const isLinked = hasLinkedOidc && user.oidc_provider === provider.slug}
-										{@const isDisabled = hasLinkedOidc && !isLinked}
-										<InfoCard variant="compact">
-											<div class="flex items-center justify-between">
-												<div class="mr-2 flex items-center gap-4">
-													{#if provider.logo}
-														<img src={provider.logo} alt={provider.name} class="h-5 w-5" />
-													{:else}
-														<Link class="text-secondary h-5 w-5 flex-shrink-0" />
-													{/if}
-													<div>
-														<p class="text-primary text-sm font-medium">{provider.name}</p>
-														{#if isLinked}
-															<p class="text-secondary text-xs">
-																{settings_account_linkedOn({
-																	date: formatDate(user.oidc_linked_at || '')
-																})}
-															</p>
-														{:else if isDisabled}
-															<p class="text-secondary text-xs">
-																{settings_account_unlinkFirst({
-																	provider: linkedProvider?.name || ''
-																})}
-															</p>
-														{:else}
-															<p class="text-secondary text-xs">{settings_account_notLinked()}</p>
-														{/if}
-													</div>
-												</div>
-												{#if isLinked}
-													<button
-														type="button"
-														onclick={() => unlinkOidcAccount(provider.slug)}
-														class="btn-danger"
-													>
-														{common_unlink()}
-													</button>
-												{:else if !hasLinkedOidc}
-													<button
-														type="button"
-														onclick={() => linkOidcAccount(provider.slug)}
-														disabled={(linkingProviderSlug &&
-															linkingProviderSlug != provider.slug) ||
-															isDisabled}
-														class={isDisabled ? 'btn-disabled' : 'btn-primary'}
-													>
-														{linkingProviderSlug == provider.slug
-															? common_redirecting()
-															: common_link()}
-													</button>
-												{:else}
-													<button type="button" disabled={isDisabled} class="btn-primary">
-														{common_link()}
-													</button>
-												{/if}
-											</div>
-										</InfoCard>
-									{/each}
-								</div>
+							{#if !hasLinkedOidc}
+								<button
+									type="button"
+									onclick={() => {
+										emailChangeForm.reset({ currentPassword: '', newEmail: '' });
+										subView = 'email-change';
+									}}
+									class="btn-primary whitespace-nowrap"
+								>
+									{settings_account_updateEmail()}
+								</button>
 							{/if}
 						</div>
-					</div>
+						<div class="flex items-center justify-between gap-4">
+							<div class="flex items-center gap-4">
+								<Key class="text-secondary h-5 w-5 flex-shrink-0" />
+								<p class="text-primary text-sm font-medium">{common_password()}</p>
+							</div>
+							<button
+								type="button"
+								onclick={() => {
+									subView = 'credentials';
+									form.reset({ currentPassword: '', password: '', confirmPassword: '' });
+								}}
+								class="btn-primary whitespace-nowrap"
+							>
+								{settings_account_updatePassword()}
+							</button>
+						</div>
+					</InfoCard>
+
+					<!-- Identity providers: link one for single sign-on. -->
+					{#if hasOidcProviders}
+						<InfoCard title={settings_account_identityProviders()}>
+							<p class="text-secondary text-xs">
+								{settings_account_oidcLinkHelp()}
+							</p>
+							<div class="space-y-3">
+								{#each oidcProviders as provider (provider.slug)}
+									{@const isLinked = hasLinkedOidc && user.oidc_provider === provider.slug}
+									{@const isDisabled = hasLinkedOidc && !isLinked}
+									<div class="flex items-center justify-between">
+										<div class="mr-2 flex items-center gap-4">
+											{#if provider.logo}
+												<img src={provider.logo} alt={provider.name} class="h-5 w-5" />
+											{:else}
+												<Link class="text-secondary h-5 w-5 flex-shrink-0" />
+											{/if}
+											<div>
+												<p class="text-primary text-sm font-medium">{provider.name}</p>
+												{#if isLinked}
+													<p class="text-secondary text-xs">
+														{settings_account_linkedOn({
+															date: formatDate(user.oidc_linked_at || '')
+														})}
+													</p>
+												{:else if isDisabled}
+													<p class="text-secondary text-xs">
+														{settings_account_unlinkFirst({
+															provider: linkedProvider?.name || ''
+														})}
+													</p>
+												{:else}
+													<p class="text-secondary text-xs">{settings_account_notLinked()}</p>
+												{/if}
+											</div>
+										</div>
+										{#if isLinked}
+											<button
+												type="button"
+												onclick={() => unlinkOidcAccount(provider.slug)}
+												class="btn-danger"
+											>
+												{common_unlink()}
+											</button>
+										{:else if !hasLinkedOidc}
+											<button
+												type="button"
+												onclick={() => linkOidcAccount(provider.slug)}
+												disabled={(linkingProviderSlug && linkingProviderSlug != provider.slug) ||
+													isDisabled}
+												class={isDisabled ? 'btn-disabled' : 'btn-primary'}
+											>
+												{linkingProviderSlug == provider.slug
+													? common_redirecting()
+													: common_link()}
+											</button>
+										{:else}
+											<button type="button" disabled={isDisabled} class="btn-primary">
+												{common_link()}
+											</button>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</InfoCard>
+					{/if}
 
 					<!-- Cookie Preferences -->
 					{#if configData?.needs_cookie_consent}

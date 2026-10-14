@@ -192,7 +192,8 @@ export const queryKeys = {
 	},
 	licenses: {
 		all: ['licenses'] as const,
-		currentKey: () => [...queryKeys.licenses.all, 'current-key'] as const
+		currentKey: () => [...queryKeys.licenses.all, 'current-key'] as const,
+		instances: () => [...queryKeys.licenses.all, 'instances'] as const
 	},
 	shares: {
 		all: ['shares'] as const,

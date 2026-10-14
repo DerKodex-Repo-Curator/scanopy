@@ -8,7 +8,10 @@ use validator::Validate;
 
 use crate::server::{
     credentials::r#impl::mapping::IntegrationTarget,
-    discovery::r#impl::types::{DiscoveryType, RunType},
+    discovery::r#impl::{
+        scan_settings::defaults as scan_settings_defaults,
+        types::{DiscoveryType, RunType},
+    },
     shared::entities::ChangeTriggersTopologyStaleness,
 };
 
@@ -58,6 +61,11 @@ pub struct Discovery {
     /// When true, the next scan will be a full port scan regardless of interval
     #[serde(default)]
     pub force_full_scan: bool,
+    /// Whether the next run of this discovery will be a full scan of all 65,535 ports rather than
+    /// a light scan of common ports. Computed by the server on read and never stored.
+    #[serde(default)]
+    #[schema(read_only)]
+    pub next_run_is_full_scan: bool,
     /// Per-daemon integration targeting: which integrations run on this daemon, and on which
     /// IPs. Delivered via the init command at registration and editable via the discovery
     /// modal. This is the single home for cred↔IP targeting; it replaces the global
@@ -76,13 +84,11 @@ pub struct Discovery {
 impl Discovery {
     /// Remove the `Site`-scope integration targets and return their credential ids.
     ///
-    /// Broadcast targets are the one scope discovery never promotes: the daemon only reports a
-    /// credential assignment for a probe it can attribute to a stored credential, and a
-    /// broadcast default reaches the probe with no id at all (`daemon/discovery/credentials.rs`
-    /// → `dispatch.rs`, which skips `None`). Pruning one outright would silently stop a
-    /// site-wide credential — typically an SNMP community seeded by the install command —
-    /// after a single scan. So the caller migrates these into the `site_credentials`
-    /// junction, which is the durable site-wide channel, before dropping them.
+    /// A broadcast target is pinned only to the hosts it worked on, and a site-wide credential has
+    /// to keep reaching hosts found later. Pruning one outright would silently stop it, typically
+    /// an SNMP community seeded by the install command, after a single scan. So the caller
+    /// migrates these into the `site_credentials` junction, which is the durable site-wide
+    /// channel, before dropping them.
     pub fn take_site_scope_credential_ids(&mut self) -> Vec<Uuid> {
         let mut credential_ids = Vec::new();
         self.integration_targets.retain(|target| match target {
@@ -111,6 +117,32 @@ impl Discovery {
         self.scan_count += 1;
         self.force_full_scan = false;
         self.integration_targets.clear();
+        self.next_run_is_full_scan = self.full_scan_is_due();
+    }
+
+    /// Whether the next run should scan all 65,535 ports. Only Unified discoveries port-scan.
+    ///
+    /// The first run is light so the first results arrive fast. The second run
+    /// (`scan_count == 1`) is a full baseline, and after that every `full_scan_interval`-th run
+    /// is full.
+    /// An interval of 0 means light scans only, 1 means every run is full, and
+    /// `force_full_scan` overrides the interval for one run.
+    pub fn full_scan_is_due(&self) -> bool {
+        // A historical run is a record of one finished scan and has no next run.
+        if matches!(self.base.run_type, RunType::Historical { .. }) {
+            return false;
+        }
+        let DiscoveryType::Unified { scan_settings, .. } = &self.base.discovery_type else {
+            return false;
+        };
+        let interval = scan_settings
+            .full_scan_interval
+            .unwrap_or_else(scan_settings_defaults::full_scan_interval);
+        self.force_full_scan
+            || (interval != 0
+                && (interval == 1
+                    || self.scan_count == 1
+                    || (self.scan_count > 1 && self.scan_count.is_multiple_of(interval))))
     }
 
     pub fn disable(&mut self) {
@@ -139,6 +171,8 @@ impl ChangeTriggersTopologyStaleness<Discovery> for Discovery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::server::daemons::r#impl::api::DiscoveryUpdatePayload;
+    use crate::server::discovery::r#impl::scan_settings::ScanSettings;
     use std::net::IpAddr;
 
     fn discovery(integration_targets: Vec<IntegrationTarget>) -> Discovery {
@@ -202,5 +236,110 @@ mod tests {
         assert!(discovery.integration_targets.is_empty());
         assert_eq!(discovery.scan_count, 1);
         assert!(!discovery.force_full_scan);
+    }
+
+    fn unified(full_scan_interval: Option<u32>) -> Discovery {
+        Discovery {
+            base: DiscoveryBase {
+                discovery_type: DiscoveryType::Unified {
+                    host_id: Uuid::new_v4(),
+                    subnet_ids: None,
+                    host_naming_fallback: Default::default(),
+                    scan_settings: ScanSettings {
+                        full_scan_interval,
+                        ..Default::default()
+                    },
+                },
+                run_type: RunType::AdHoc { last_run: None },
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    /// Whether each of the first `runs` runs is full, driven through `apply_successful_scan` as the server
+    /// does, reading the computed field the UI receives before each run.
+    fn full_scan_by_run(mut discovery: Discovery, runs: usize) -> Vec<bool> {
+        discovery.next_run_is_full_scan = discovery.full_scan_is_due();
+        (0..runs)
+            .map(|_| {
+                let full = discovery.next_run_is_full_scan;
+                assert_eq!(full, discovery.full_scan_is_due());
+                discovery.apply_successful_scan();
+                full
+            })
+            .collect()
+    }
+
+    #[test]
+    fn first_run_is_light_second_is_full_then_every_interval() {
+        assert_eq!(
+            full_scan_by_run(unified(None), 8),
+            vec![false, true, false, true, false, false, true, false]
+        );
+    }
+
+    #[test]
+    fn interval_zero_is_light_only_and_one_is_always_full() {
+        assert!(
+            full_scan_by_run(unified(Some(0)), 5)
+                .iter()
+                .all(|full| !full)
+        );
+        assert!(
+            full_scan_by_run(unified(Some(1)), 5)
+                .iter()
+                .all(|full| *full)
+        );
+    }
+
+    /// A forced full scan applies to one run, then the interval resumes.
+    #[test]
+    fn forced_full_scan_applies_once() {
+        let mut discovery = unified(Some(0));
+        discovery.force_full_scan = true;
+        assert_eq!(full_scan_by_run(discovery, 3), vec![true, false, false]);
+    }
+
+    #[test]
+    fn only_unified_schedulable_discoveries_have_a_full_next_run() {
+        let mut historical = unified(Some(1));
+        historical.base.run_type = RunType::Historical {
+            results: Box::new(DiscoveryUpdatePayload::new(
+                Uuid::nil(),
+                Uuid::nil(),
+                Uuid::nil(),
+                DiscoveryType::default(),
+                None,
+            )),
+        };
+        assert!(!historical.full_scan_is_due());
+
+        let self_report = Discovery {
+            force_full_scan: true,
+            ..Default::default()
+        };
+        assert!(!self_report.full_scan_is_due());
+    }
+
+    /// Rows and payloads written before these fields existed still parse, as light.
+    #[test]
+    fn records_without_full_scan_fields_parse_as_light() {
+        let mut value = serde_json::to_value(unified(None)).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("next_run_is_full_scan");
+        value["discovery_type"]["scan_settings"]
+            .as_object_mut()
+            .unwrap()
+            .remove("is_full_scan");
+
+        let discovery: Discovery = serde_json::from_value(value).unwrap();
+        assert!(!discovery.next_run_is_full_scan);
+        let DiscoveryType::Unified { scan_settings, .. } = discovery.base.discovery_type else {
+            panic!("expected Unified");
+        };
+        assert!(!scan_settings.is_full_scan);
     }
 }

@@ -64,7 +64,8 @@ pub struct FieldDefinition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub help_text: Option<&'static str>,
     /// Choices for `Select` fields. Each option carries a wire `value` (the serialized enum
-    /// variant) and a human-facing `label`.
+    /// variant) and a human-facing `label`. A `FieldSet::Sets` dropdown takes them from its set's
+    /// enum ([`FieldSetValue::options`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<&'static [SelectOption]>,
     /// Value pre-filled when the field is first shown.
@@ -84,6 +85,87 @@ pub struct FieldDefinition {
     /// Whether the field is short enough to share a row. The form puts two adjacent half-width
     /// fields of the same group side by side.
     pub half_width: bool,
+    /// This field's part in a [`FieldSet`]: the dropdown that picks the set, or a field shown only
+    /// for some of its values. `None` for a field that always shows.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_field_set"
+    )]
+    #[schema(value_type = Option<FieldSetRole>)]
+    pub field_set: Option<&'static dyn FieldSetBinding>,
+}
+
+/// Which fields a form shows, picked by one dropdown.
+///
+/// `T` is the choice's own enum (e.g. SNMPv3's security level), so the dropdown's values and
+/// every `Requires` list are the same type: a field cannot require a value the dropdown does not
+/// offer, and one credential type's set cannot name another's values.
+#[derive(Debug, Serialize)]
+pub enum FieldSet<T: 'static> {
+    /// This dropdown picks the set. Its options are `T`'s variants.
+    Sets,
+    /// Shown only while the dropdown holds one of these values.
+    Requires(&'static [T]),
+}
+
+/// An enum a [`FieldSet`] dropdown chooses from.
+pub trait FieldSetValue:
+    Copy + Serialize + std::fmt::Debug + Sync + Into<&'static str> + strum::IntoEnumIterator + 'static
+{
+    /// Human-facing option label.
+    fn label(&self) -> &'static str;
+
+    /// The dropdown's options. Implement as a `LazyLock` over [`field_set_options`]; a static
+    /// inside a default method would be one value shared by every implementor.
+    fn options() -> &'static [SelectOption];
+}
+
+/// One option per variant of `T`, valued with the variant's serialized name.
+pub fn field_set_options<T: FieldSetValue>() -> Vec<SelectOption> {
+    T::iter()
+        .map(|v| SelectOption {
+            value: v.into(),
+            label: v.label(),
+        })
+        .collect()
+}
+
+/// A [`FieldSet`] with its value type erased, so fields of every credential type share one
+/// `FieldDefinition`. Serializes through `T`'s own `Serialize`.
+pub trait FieldSetBinding: std::fmt::Debug + Sync {
+    /// The role as the frontend reads it: `"Sets"` or `{"Requires": [...]}`.
+    fn to_json(&self) -> serde_json::Value;
+    /// Every value the set's dropdown offers.
+    fn set_options(&self) -> &'static [SelectOption];
+}
+
+impl<T: FieldSetValue> FieldSetBinding for FieldSet<T> {
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).expect("a field set serializes")
+    }
+
+    fn set_options(&self) -> &'static [SelectOption] {
+        T::options()
+    }
+}
+
+fn serialize_field_set<S: serde::Serializer>(
+    field_set: &Option<&'static dyn FieldSetBinding>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    field_set.map(|f| f.to_json()).serialize(serializer)
+}
+
+/// Schema of [`FieldDefinition::field_set`] on the wire. Never constructed: the values are the
+/// serialized variants of the set's own enum, which the schema cannot name generically.
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub enum FieldSetRole {
+    /// This dropdown picks the set.
+    Sets,
+    /// Shown only while the dropdown holds one of these values.
+    #[schema(title = "Requires")]
+    Requires(Vec<String>),
 }
 
 /// A placeholder that applies while `depends_on` holds `value`.

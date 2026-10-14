@@ -100,23 +100,12 @@ export function useFieldValuesQuery<P extends FieldValuesPath>(
 	});
 }
 
-/** The non-null, non-empty values, sorted for a filter panel. */
-export function fieldValueOptions(counts: FieldValueCount[] | undefined): string[] {
-	return labelledFieldValueOptions(counts, (value) => value);
-}
-
 /**
- * The present values rendered as the labels a field's `getValue` returns, deduplicated and
- * sorted. `label` returns null for a value it cannot render, which is then left out.
+ * The values some row holds, without nulls and empty strings: a filter's options, which the panel
+ * labels through the field's `filterLabel` and orders by label.
  */
-export function labelledFieldValueOptions(
-	counts: FieldValueCount[] | undefined,
-	label: (value: string) => string | null | undefined
-): string[] {
-	const labels = presentFieldValues(counts)
-		.map(label)
-		.filter((name): name is string => name !== null && name !== undefined && name !== '');
-	return [...new Set(labels)].sort((a, b) => a.localeCompare(b));
+export function fieldValueOptions(counts: FieldValueCount[] | undefined): string[] {
+	return [...new Set(presentFieldValues(counts))];
 }
 
 /** The raw values that occur, without nulls and empty strings. */

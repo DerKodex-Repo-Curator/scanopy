@@ -1,12 +1,14 @@
 //! Cloud setup: the site, its system subnets, the live topology row and the starter tags
 //! a cloud org works from.
 //!
-//! This is the one place that sequence is created. It runs from `OrgCreated`
-//! (the site requested at signup) and from billing events that land an org
-//! on a cloud plan, so a self-hosted license buyer who moves to cloud ends up
-//! with what a cloud signup has. The site-create and org-reset handlers call
-//! the same functions. Every step is idempotent: it fills only what's missing,
-//! so a bus retry or a repeat event never duplicates anything.
+//! This is the one place that sequence is created. Registration runs it for
+//! the site requested at signup (`AuthService::provision_user`), and billing
+//! events that land an org on a cloud plan run it too, so a self-hosted license
+//! buyer who moves to cloud ends up with what a cloud signup has. The
+//! site-create and org-reset handlers call the same functions. Every step is
+//! idempotent: it fills only what's missing, so a bus retry or a repeat event
+//! never duplicates anything, and `LockKey::CloudSetup` keeps two runs for one
+//! org from both creating a site.
 
 use anyhow::Error;
 use async_trait::async_trait;
@@ -19,14 +21,12 @@ use crate::server::{
         events::{
             registry::SubscriberRegistration,
             traits::{Event, EventFilter, Subscriber},
-            types::{
-                BillingOperation, BillingOperationDiscriminants, OnboardingOperation,
-                OnboardingOperationDiscriminants,
-            },
+            types::{BillingOperation, BillingOperationDiscriminants},
         },
         services::traits::CrudService,
         storage::{
             filter::StorableFilter,
+            lock::{DEFAULT_LOCK_TIMEOUT, LockKey},
             seed_data::{
                 create_remote_subnet, create_starter_tags, create_wan_subnet,
                 starter_custom_group_names,
@@ -106,6 +106,14 @@ impl TopologyService {
         requested: Option<&PendingSiteSetup>,
         authentication: AuthenticatedEntity,
     ) -> Result<(), Error> {
+        let lock = self
+            .storage()
+            .session_lock(
+                LockKey::CloudSetup { organization_id },
+                DEFAULT_LOCK_TIMEOUT,
+            )
+            .await?;
+
         let mut sites = self
             .site_service
             .get_all(StorableFilter::<Site>::new_from_org_id(&organization_id))
@@ -132,6 +140,7 @@ impl TopologyService {
         self.ensure_starter_tags(organization_id, authentication)
             .await?;
 
+        lock.release().await?;
         Ok(())
     }
 
@@ -215,39 +224,6 @@ impl TopologyService {
         Ok(())
     }
 }
-
-#[async_trait]
-impl Subscriber<OnboardingOperation> for TopologyService {
-    fn filter(&self) -> EventFilter<OnboardingOperation> {
-        EventFilter::ops(vec![OnboardingOperationDiscriminants::OrgCreated])
-    }
-
-    /// Inline (no debounce): registration provisions the integrated daemon on
-    /// this site right after `OrgCreated` is published.
-    async fn handle(&self, events: Vec<Event<OnboardingOperation>>) -> Result<(), Error> {
-        for event in events {
-            // No requested site means a self-hosted license buyer; the org
-            // is set up if it later lands on a cloud plan.
-            if let OnboardingOperation::OrgCreated {
-                site: Some(site), ..
-            } = &event.operation
-            {
-                self.ensure_cloud_setup(
-                    event.scope.organization_id,
-                    Some(site),
-                    event.authentication.clone(),
-                )
-                .await?;
-            }
-        }
-        Ok(())
-    }
-}
-
-inventory::submit!(SubscriberRegistration::new::<
-    TopologyService,
-    OnboardingOperation,
->());
 
 #[async_trait]
 impl Subscriber<BillingOperation> for TopologyService {

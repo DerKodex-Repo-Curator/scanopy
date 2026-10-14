@@ -18,7 +18,7 @@
 	}: {
 		isOpen?: boolean;
 		onClose: () => void;
-		exportParams?: CsvExportParams;
+		exportParams?: CsvExportParams | URLSearchParams;
 	} = $props();
 
 	let isExporting = $state(false);

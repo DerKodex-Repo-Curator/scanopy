@@ -1,19 +1,22 @@
 use crate::server::auth::r#impl::oidc::OidcProviderMetadata;
+use crate::server::github::latest_release::{self, AvailableUpgrade};
 use crate::server::license::key::LicenseKey;
 use crate::server::license::mint::LicenseIssuer;
+use crate::server::license::online::InstanceUsage;
 use crate::server::license::service::{LicenseService, self_hosted_plan};
 use crate::server::license::types::LicenseKeyType;
 use crate::server::license::types::LicenseStatusDiscriminants;
 use crate::server::openapi::tags as api_tags;
+use crate::server::shared::handlers::cache::AppCache;
 use crate::server::shared::types::api::ApiResponse;
 use crate::server::{
     auth::r#impl::oidc::OidcProviderConfig, shared::services::factory::ServiceFactory,
 };
 use anyhow::{Error, Result};
-use axum::Json;
 use axum::extract::State;
 use axum::http::header::CACHE_CONTROL;
 use axum::response::IntoResponse;
+use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use clap::{CommandFactory, Parser};
 use email_address::EmailAddress;
@@ -30,6 +33,7 @@ use utoipa::ToSchema;
 use crate::server::shared::env_file::apply_file_env_vars;
 use crate::server::shared::storage::factory::StorageFactory;
 use sqlx::PgPool;
+use tokio_util::sync::CancellationToken;
 
 /// Prefix figment reads `ServerConfig` fields from: `SCANOPY_SERVER_PORT` sets `server_port`.
 const ENV_PREFIX: &str = "SCANOPY_";
@@ -84,6 +88,11 @@ pub struct ServerCli {
     /// Turn off email and password login, leaving OIDC as the only way to sign in.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     disable_password_login: Option<bool>,
+
+    /// Stop checking GitHub for new Scanopy releases. The check is an anonymous request to
+    /// api.github.com twice a day; with it off, admins see no banner when an upgrade is out.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    disable_update_check: Option<bool>,
 
     /// Stripe publishable key (exposed to the frontend for Stripe Elements)
     #[arg(long, hide = true)]
@@ -180,6 +189,11 @@ pub struct ServerCli {
     #[arg(long)]
     pub license_key: Option<String>,
 
+    /// Mark this server as non-production (staging, testing or disaster recovery). It takes a
+    /// non-production slot on the license key and shows a banner saying so.
+    #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+    pub non_production: Option<bool>,
+
     /// Email address shown to users who can't create an organization because the server has
     /// reached its organization limit.
     #[arg(long)]
@@ -203,6 +217,9 @@ pub struct ServerConfig {
     pub use_secure_session_cookies: bool,
     pub disable_registration: bool,
     pub disable_password_login: bool,
+    /// `SCANOPY_DISABLE_UPDATE_CHECK`: no GitHub release check, no upgrade banner.
+    #[serde(default)]
+    pub disable_update_check: bool,
     pub client_ip_source: Option<String>,
     pub smtp_username: Option<String>,
     pub smtp_password: Option<String>,
@@ -266,6 +283,12 @@ pub struct ServerConfig {
 
     // License key for commercial self-hosted deployments
     pub license_key: Option<String>,
+
+    /// Whether this server is non-production, from `SCANOPY_NON_PRODUCTION`.
+    /// Sent with each license check-in, so the server takes a non-production
+    /// slot on the key.
+    #[serde(default)]
+    pub non_production: bool,
 
     /// Ed25519 PEM private key the cloud signs license keys and entitlements
     /// with, from `SCANOPY_LICENSE_SIGNING_KEY`. Cloud only; never set on
@@ -360,6 +383,12 @@ pub struct PublicConfigResponse {
     /// When Scanopy Cloud last answered this instance's license check-in.
     /// Online keys only.
     pub license_entitlement_at: Option<DateTime<Utc>>,
+    /// How many server instances this instance's online key is running on,
+    /// against how many it covers, as Scanopy Cloud reported at the last
+    /// check-in. Online keys only.
+    pub license_instances: Option<InstanceUsage>,
+    /// Whether this server was started with `SCANOPY_NON_PRODUCTION`.
+    pub non_production: bool,
     /// Hard expiry — the drop-dead date after which the server rejects
     /// the key. Referenced by the grace-period banner.
     #[schema(format = "date")]
@@ -401,6 +430,10 @@ pub struct PublicConfigResponse {
     pub license_key_buffer_days: u32,
     /// Further days past the user-visible expiry before a key stops working.
     pub license_key_grace_days: u32,
+    /// The newest promoted release, when it is newer than this server. `None`
+    /// on cloud, with `SCANOPY_DISABLE_UPDATE_CHECK` set, before the first
+    /// check answers, or when this server is current.
+    pub available_upgrade: Option<AvailableUpgrade>,
 }
 
 impl Default for ServerConfig {
@@ -416,6 +449,7 @@ impl Default for ServerConfig {
             integrated_daemon_url: None,
             disable_registration: false,
             disable_password_login: false,
+            disable_update_check: false,
             stripe_key: None,
             stripe_secret: None,
             stripe_webhook_secret: None,
@@ -438,6 +472,7 @@ impl Default for ServerConfig {
             metrics_token: None,
             external_service_allowed_ips: HashMap::new(),
             license_key: None,
+            non_production: false,
             license_signing_key: None,
             license_server_url: None,
             server_admin_contact_email: None,
@@ -448,6 +483,12 @@ impl Default for ServerConfig {
 }
 
 impl ServerConfig {
+    /// Whether billing is enforced: a Stripe secret is configured (the cloud),
+    /// or a test turned it on.
+    pub fn billing_enabled(&self) -> bool {
+        self.stripe_secret.is_some() || self.enforce_billing_for_testing
+    }
+
     pub fn load(cli_args: ServerCli) -> anyhow::Result<Self> {
         apply_file_env_vars::<ServerConfig>()?;
 
@@ -535,6 +576,9 @@ impl ServerConfig {
         if let Some(disable_password_login) = cli_args.disable_password_login {
             figment = figment.merge(("disable_password_login", disable_password_login));
         }
+        if let Some(disable_update_check) = cli_args.disable_update_check {
+            figment = figment.merge(("disable_update_check", disable_update_check));
+        }
         if let Some(metrics_token) = cli_args.metrics_token {
             figment = figment.merge(("metrics_token", metrics_token));
         }
@@ -546,6 +590,9 @@ impl ServerConfig {
         }
         if let Some(license_key) = cli_args.license_key {
             figment = figment.merge(("license_key", license_key));
+        }
+        if let Some(non_production) = cli_args.non_production {
+            figment = figment.merge(("non_production", non_production));
         }
         if let Some(server_admin_contact_email) = cli_args.server_admin_contact_email {
             figment = figment.merge(("server_admin_contact_email", server_admin_contact_email));
@@ -699,6 +746,9 @@ pub struct AppState {
     /// Mints license keys and entitlements for orgs on self-hosted plans.
     pub license_issuer: Option<Arc<LicenseIssuer>>,
     pub pool: PgPool,
+    /// Cancelled when a shutdown signal arrives. Stops the HTTP listener and ends open SSE
+    /// streams so in-flight requests can drain.
+    pub shutdown: CancellationToken,
 }
 
 impl AppState {
@@ -727,6 +777,7 @@ impl AppState {
             license_service,
             license_issuer,
             pool: storage.pool,
+            shutdown: CancellationToken::new(),
         }))
     }
 }
@@ -757,7 +808,10 @@ pub fn get_deployment_type(config: &ServerConfig) -> DeploymentType {
         (status = 200, description = "Public server configuration", body = ApiResponse<PublicConfigResponse>)
     )
 )]
-pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn get_public_config(
+    State(state): State<Arc<AppState>>,
+    Extension(cache): Extension<Arc<AppCache>>,
+) -> impl IntoResponse {
     let oidc_providers = state
         .services
         .oidc_service
@@ -774,6 +828,10 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
     let license_key_type = license_service.map(|svc| svc.key_type());
     let license_entitlement_at = match license_service {
         Some(svc) => svc.entitlement_at().await,
+        None => None,
+    };
+    let license_instances = match license_service {
+        Some(svc) => svc.instance_usage().await,
         None => None,
     };
     let license_status = current_license.as_ref().map(|s| s.discriminant());
@@ -813,6 +871,12 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
         }
     };
 
+    let available_upgrade = if deployment_type.is_self_hosted() {
+        latest_release::available_upgrade(&cache).await
+    } else {
+        None
+    };
+
     (
         [(CACHE_CONTROL, "no-store, no-cache, must-revalidate")],
         Json(ApiResponse::success(PublicConfigResponse {
@@ -838,6 +902,8 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
             license_status,
             license_key_type,
             license_entitlement_at,
+            license_instances,
+            non_production: state.config.non_production,
             license_expiry,
             license_intended_expiry,
             license_valid_through,
@@ -851,6 +917,7 @@ pub async fn get_public_config(State(state): State<Arc<AppState>>) -> impl IntoR
             license_signing_available: state.license_issuer.is_some(),
             license_key_buffer_days: crate::server::license::mint::PAID_THROUGH_BUFFER_DAYS as u32,
             license_key_grace_days: crate::server::license::mint::GRACE_PERIOD_DAYS as u32,
+            available_upgrade,
         })),
     )
 }

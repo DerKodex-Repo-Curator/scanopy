@@ -263,6 +263,12 @@ fn resolve_install_target(
     Ok(Resolution::Ambiguous)
 }
 
+/// Whether an install command's key makes it a different daemon than the one installed in the
+/// slot. A command without a key reconfigures the installed daemon.
+fn replaces_daemon(installed_key: Option<&str>, command_key: Option<&str>) -> bool {
+    command_key.is_some_and(|key| !key.is_empty() && installed_key != Some(key))
+}
+
 /// The next unused slot: the default one if free, else `scanopy-daemon-2`, `-3`, …
 fn next_free_slot(installed: &[Installed]) -> String {
     let taken = |slot: &str| installed.iter().any(|i| i.slot == slot);
@@ -399,7 +405,20 @@ async fn run_install(args: InstallArgs) -> Result<()> {
         .expect("config_dir was just set");
 
     // Same config layering the daemon itself uses — single source of truth.
+    let identity_args = daemon_args.clone();
     let mut config = AppConfig::load(daemon_args)?;
+
+    // Replacing an installed daemon with another daemon's key: the slot's cached identity is the
+    // old daemon's, and the server rejects it alongside the new key. Re-running install with the
+    // same key keeps it.
+    if let Some(existing) = installed.iter().find(|i| i.slot == slot)
+        && replaces_daemon(
+            existing.api_key.as_deref(),
+            identity_args.daemon_api_key.as_deref(),
+        )
+    {
+        config.forget_server_identity(&identity_args);
+    }
 
     // Keep this daemon off a port another one on this host already listens on. The install command
     // carries no port (identity and connectivity come from the key and the server url), so without

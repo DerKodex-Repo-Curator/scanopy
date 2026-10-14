@@ -631,7 +631,14 @@ impl EntityTagService {
             ))
             .into());
         }
-        self.refuse_out_of_scope(&tags, entity_type).await?;
+        // Only tags the entity doesn't already hold are checked against scope, so one it was
+        // given before its group's scope narrowed doesn't block every later save.
+        let held = self
+            .storage
+            .get_for_entity(&entity_id, &entity_type)
+            .await?;
+        let added: Vec<Tag> = tags.into_iter().filter(|t| !held.contains(&t.id)).collect();
+        self.refuse_out_of_scope(&added, entity_type).await?;
 
         // Replace tags
         self.storage

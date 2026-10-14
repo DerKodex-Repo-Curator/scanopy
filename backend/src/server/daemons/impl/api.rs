@@ -610,6 +610,14 @@ pub struct TestReachabilityRequest {
     pub check_health: bool,
 }
 
+/// Whether provisioning another daemon would be refused for the caller's organization.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ProvisionEligibility {
+    /// The organization already has a daemon and no owner has verified their email, so a new
+    /// daemon is refused until one does.
+    pub email_verification_required: bool,
+}
+
 /// Response from a reachability test.
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct TestReachabilityResponse {

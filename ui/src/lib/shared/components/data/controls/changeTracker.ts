@@ -40,8 +40,3 @@ export function createChangeTracker<V>(
 		}
 	};
 }
-
-/** Element-wise equality, for the tracked values that are lists. */
-export function sameOrder<V>(a: V[], b: V[]): boolean {
-	return a.length === b.length && a.every((value, i) => value === b[i]);
-}

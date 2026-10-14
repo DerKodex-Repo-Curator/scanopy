@@ -18,32 +18,51 @@ export function getFieldValue<T>(item: T, field: FieldConfig<T>): FieldValue {
 }
 
 /**
- * The distinct values a field takes across the given items, sorted.
- *
- * Array-typed fields are flattened, so a "tags" field offers each individual
- * tag as an option rather than one option per combination.
- *
- * Only meaningful for lists holding every row: on a server-paginated list this
- * would only ever see the loaded page, which is why `FieldConfig.filterOptions`
- * exists to bypass it.
+ * The value a filter matches an item on: `getFilterValue`, else the displayed value. A date has no
+ * filter value.
  */
-export function getUniqueValues<T>(items: T[], field: FieldConfig<T>): string[] {
-	const values = new Set<string>();
+export function getFilterValue<T>(
+	item: T,
+	field: FieldConfig<T>
+): string | boolean | string[] | null {
+	if (field.getFilterValue) return field.getFilterValue(item);
+	const value = getFieldValue(item, field);
+	return value instanceof Date ? null : value;
+}
 
-	items.forEach((item) => {
-		const value = getFieldValue(item, field);
-		if (value === null || value === undefined) return;
+/** The text a filter option shows for `value`. */
+export function filterLabelOf<T>(field: FieldConfig<T>, value: string): string {
+	return field.filterLabel?.(value) ?? value;
+}
 
-		if (field.type === 'array' && Array.isArray(value)) {
-			value.forEach((v) => {
-				if (v !== null && v !== undefined && v !== '') {
-					values.add(String(v));
-				}
-			});
-		} else if (value !== '') {
-			values.add(String(value));
-		}
-	});
+/**
+ * The values a field's filter offers, ordered by the label each shows: `filterOptions` when the
+ * field supplies them, else the distinct filter values across `items`.
+ *
+ * Array-typed fields are flattened, so a "tags" field offers each individual tag as an option
+ * rather than one option per combination. Reading the loaded items is only meaningful for lists
+ * holding every row: on a server-paginated list it would only ever see the loaded page, which is
+ * why `FieldConfig.filterOptions` exists.
+ */
+export function filterOptionsOf<T>(items: T[], field: FieldConfig<T>): string[] {
+	const values = new Set<string>(field.filterOptions);
 
-	return Array.from(values).sort();
+	if (!field.filterOptions) {
+		items.forEach((item) => {
+			const value = getFilterValue(item, field);
+			if (value === null || value === undefined) return;
+
+			if (Array.isArray(value)) {
+				value.forEach((v) => {
+					if (v !== null && v !== undefined && v !== '') values.add(String(v));
+				});
+			} else if (value !== '') {
+				values.add(String(value));
+			}
+		});
+	}
+
+	return Array.from(values).sort((a, b) =>
+		filterLabelOf(field, a).localeCompare(filterLabelOf(field, b), undefined, { numeric: true })
+	);
 }

@@ -14,6 +14,7 @@ import type { components } from '$lib/api/schema';
 import type { EntityDiscriminants } from '$lib/api/entities';
 import type { Tag } from '$lib/features/tags/types/base';
 import { isEditableTarget } from '$lib/shared/utils/shortcuts';
+import { SEARCH_MAX_LENGTH } from '$lib/shared/components/forms/input/SearchInput.svelte';
 
 /** What the palette searches for: the typed text and the tag chips before it. */
 export interface GlobalSearchState {
@@ -26,6 +27,32 @@ export const EMPTY_SEARCH: GlobalSearchState = { text: '', tagIds: [] };
 /** Whether there is anything to search for. */
 export function hasSearchTerms(state: GlobalSearchState): boolean {
 	return state.text.trim().length > 0 || state.tagIds.length > 0;
+}
+
+/** The search endpoint's query for a search. The palette's URL carries the same params. */
+export function globalSearchQuery(state: GlobalSearchState): { q?: string; tag_ids: string[] } {
+	const q = state.text.trim();
+	return { q: q || undefined, tag_ids: state.tagIds };
+}
+
+/**
+ * A search as URL params: `globalSearchQuery`, with `q` written even when empty, since its presence
+ * is what marks the palette open (`URL_SCOPES.search.marker`).
+ */
+export function globalSearchUrlParams(state: GlobalSearchState): URLSearchParams {
+	const { q, tag_ids } = globalSearchQuery(state);
+	const params = new URLSearchParams({ q: q ?? '' });
+	tag_ids.forEach((id) => params.append('tag_ids', id));
+	return params;
+}
+
+/** The search a palette URL carries, or null when it carries none. */
+export function globalSearchFromUrl(params: URLSearchParams): GlobalSearchState | null {
+	if (!params.has('q')) return null;
+	return {
+		text: (params.get('q') ?? '').slice(0, SEARCH_MAX_LENGTH),
+		tagIds: params.getAll('tag_ids').filter(Boolean)
+	};
 }
 
 /** Whether the palette is open. The sidebar's search bar and the shortcut both set it. */
@@ -106,26 +133,6 @@ export function flattenGroups<T>(groups: SearchGroup<T>[]): SearchRow<T>[] {
 		const remaining = group.total - group.items.length;
 		return remaining > 0 ? [...rows, { type: group.type, more: remaining }] : rows;
 	});
-}
-
-/**
- * The tag the typed text completes to, or `null`. The text, trimmed and ignoring case, must start
- * a tag's name; a tag already chipped is not offered again. Of several, an exact name wins, then the
- * shortest name (the fewest letters left to type), then the alphabetically first.
- */
-export function tagCompletion(text: string, tags: Tag[], chosenIds: string[]): Tag | null {
-	const typed = text.trim().toLowerCase();
-	if (!typed) return null;
-	const candidates = tags.filter(
-		(tag) => !chosenIds.includes(tag.id) && tag.name.toLowerCase().startsWith(typed)
-	);
-	candidates.sort(
-		(a, b) =>
-			Number(b.name.toLowerCase() === typed) - Number(a.name.toLowerCase() === typed) ||
-			a.name.length - b.name.length ||
-			a.name.localeCompare(b.name)
-	);
-	return candidates[0] ?? null;
 }
 
 /** A click on a tag a result carries: it becomes a chip, keeping the text. Once only. */

@@ -3,7 +3,9 @@
 use crate::server::credentials::r#impl::mapping::{
     BannerField, BannerFieldValue, CredentialMapping, IpOverride, ResolvableSecret,
 };
-use crate::server::shared::types::field_definition::SelectOption;
+use crate::server::shared::types::field_definition::{
+    FieldSetValue, SelectOption, field_set_options,
+};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use utoipa::ToSchema;
@@ -59,9 +61,8 @@ impl std::str::FromStr for SnmpVersion {
     }
 }
 
-/// SNMPv3 USM authentication protocol. Variants are limited to the modern,
-/// secure set Scanopy supports; MD5 / SHA-2 variants beyond these are
-/// intentionally excluded. Serialized form (e.g. "Sha256") is the wire value
+/// SNMPv3 USM authentication protocol. MD5 is offered for devices that support nothing else;
+/// SHA-2 variants beyond SHA-256 are not. Serialized form (e.g. "Sha256") is the wire value
 /// stored in the credential and used as the frontend select option value.
 #[derive(
     Debug,
@@ -77,6 +78,8 @@ impl std::str::FromStr for SnmpVersion {
     ToSchema,
 )]
 pub enum SnmpV3AuthProtocol {
+    /// HMAC-MD5. Weaker than SHA; for devices that support nothing else.
+    Md5,
     /// HMAC-SHA-1
     Sha1,
     /// HMAC-SHA-256
@@ -88,6 +91,7 @@ impl SnmpV3AuthProtocol {
     /// Human-facing label for the credential form dropdown.
     pub fn label(&self) -> &'static str {
         match self {
+            Self::Md5 => "MD5",
             Self::Sha1 => "SHA-1",
             Self::Sha256 => "SHA-256",
         }
@@ -95,6 +99,10 @@ impl SnmpV3AuthProtocol {
 
     /// Select options surfaced to the frontend via `field_definitions()`.
     pub const OPTIONS: &'static [SelectOption] = &[
+        SelectOption {
+            value: "Md5",
+            label: "MD5",
+        },
         SelectOption {
             value: "Sha1",
             label: "SHA-1",
@@ -150,22 +158,226 @@ impl SnmpV3PrivProtocol {
     ];
 }
 
-/// SNMPv3 USM AuthPriv parameters for daemon queries.
+/// SNMPv3 USM security level (RFC 3414): whether requests are authenticated, and whether they
+/// are also encrypted. Picks which of [`SnmpV3Security`]'s fields a credential carries.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    Eq,
+    PartialEq,
+    Hash,
+    Default,
+    strum::VariantNames,
+    strum::EnumIter,
+    strum::IntoStaticStr,
+    ToSchema,
+)]
+pub enum SnmpV3SecurityLevel {
+    /// User name only: no authentication, no encryption.
+    NoAuthNoPriv,
+    /// Authenticated, not encrypted.
+    AuthNoPriv,
+    /// Authenticated and encrypted. Every v3 credential stored before the level existed.
+    #[default]
+    AuthPriv,
+}
+
+impl FieldSetValue for SnmpV3SecurityLevel {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::NoAuthNoPriv => "No authentication, no privacy (noAuthNoPriv)",
+            Self::AuthNoPriv => "Authentication, no privacy (authNoPriv)",
+            Self::AuthPriv => "Authentication and privacy (authPriv)",
+        }
+    }
+
+    fn options() -> &'static [SelectOption] {
+        static OPTIONS: std::sync::LazyLock<Vec<SelectOption>> =
+            std::sync::LazyLock::new(field_set_options::<SnmpV3SecurityLevel>);
+        &OPTIONS
+    }
+}
+
+/// The security material of an SNMPv3 credential, by security level. A level carries exactly
+/// the fields it uses, so a credential cannot hold a privacy password it never sends.
+///
+/// `S` is the secret's representation: `SecretValue` where the credential is stored,
+/// `ResolvableSecret` on the server→daemon wire. Flattened into its parent, so the stored JSON
+/// keeps the flat shape it had before levels existed.
+#[derive(Debug, Clone, Serialize, Eq, PartialEq, Hash, ToSchema)]
+#[serde(tag = "security_level")]
+pub enum SnmpV3Security<S> {
+    /// User name only.
+    #[schema(title = "NoAuthNoPriv")]
+    NoAuthNoPriv,
+    /// Authenticated, not encrypted.
+    #[schema(title = "AuthNoPriv")]
+    AuthNoPriv {
+        /// Hash algorithm used for authentication.
+        auth_protocol: SnmpV3AuthProtocol,
+        /// Authentication passphrase.
+        auth_password: S,
+    },
+    /// Authenticated and encrypted.
+    #[schema(title = "AuthPriv")]
+    AuthPriv {
+        /// Hash algorithm used for authentication.
+        auth_protocol: SnmpV3AuthProtocol,
+        /// Authentication passphrase.
+        auth_password: S,
+        /// Cipher used for privacy (encryption).
+        priv_protocol: SnmpV3PrivProtocol,
+        /// Privacy passphrase.
+        priv_password: S,
+    },
+}
+
+/// Read by hand rather than derived, for one reason: a credential stored before security levels
+/// existed has no `security_level`, and an internally tagged enum cannot default its tag. Those
+/// rows were all AuthPriv, so a missing level reads as AuthPriv. Fields the level does not use
+/// are dropped rather than refused, so a form that sent them back costs nothing.
+impl<'de, S: Deserialize<'de>> Deserialize<'de> for SnmpV3Security<S> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+
+        #[derive(Deserialize)]
+        #[serde(bound = "S: Deserialize<'de>")]
+        struct Fields<S> {
+            #[serde(default)]
+            security_level: SnmpV3SecurityLevel,
+            auth_protocol: Option<SnmpV3AuthProtocol>,
+            auth_password: Option<S>,
+            priv_protocol: Option<SnmpV3PrivProtocol>,
+            priv_password: Option<S>,
+        }
+
+        let fields = Fields::<S>::deserialize(deserializer)?;
+        let level = fields.security_level;
+        let missing = |field: &'static str| {
+            D::Error::custom(format!("SNMPv3 {level:?} credential is missing `{field}`"))
+        };
+        Ok(match level {
+            SnmpV3SecurityLevel::NoAuthNoPriv => Self::NoAuthNoPriv,
+            SnmpV3SecurityLevel::AuthNoPriv => Self::AuthNoPriv {
+                auth_protocol: fields
+                    .auth_protocol
+                    .ok_or_else(|| missing("auth_protocol"))?,
+                auth_password: fields
+                    .auth_password
+                    .ok_or_else(|| missing("auth_password"))?,
+            },
+            SnmpV3SecurityLevel::AuthPriv => Self::AuthPriv {
+                auth_protocol: fields
+                    .auth_protocol
+                    .ok_or_else(|| missing("auth_protocol"))?,
+                auth_password: fields
+                    .auth_password
+                    .ok_or_else(|| missing("auth_password"))?,
+                priv_protocol: fields
+                    .priv_protocol
+                    .ok_or_else(|| missing("priv_protocol"))?,
+                priv_password: fields
+                    .priv_password
+                    .ok_or_else(|| missing("priv_password"))?,
+            },
+        })
+    }
+}
+
+impl<S> SnmpV3Security<S> {
+    pub fn level(&self) -> SnmpV3SecurityLevel {
+        match self {
+            Self::NoAuthNoPriv => SnmpV3SecurityLevel::NoAuthNoPriv,
+            Self::AuthNoPriv { .. } => SnmpV3SecurityLevel::AuthNoPriv,
+            Self::AuthPriv { .. } => SnmpV3SecurityLevel::AuthPriv,
+        }
+    }
+
+    /// The same security material with each secret converted, e.g. a stored `SecretValue` to
+    /// the `ResolvableSecret` the daemon receives.
+    pub fn map_secrets<T>(&self, convert: impl Fn(&S) -> T) -> SnmpV3Security<T> {
+        match self.try_map_secrets(|_, secret| Ok::<_, std::convert::Infallible>(convert(secret))) {
+            Ok(mapped) => mapped,
+        }
+    }
+
+    /// [`Self::map_secrets`] with a conversion that can fail, e.g. reading a secret's file.
+    /// The conversion also receives the field id, for its error message.
+    pub fn try_map_secrets<T, E>(
+        &self,
+        convert: impl Fn(&'static str, &S) -> Result<T, E>,
+    ) -> Result<SnmpV3Security<T>, E> {
+        Ok(match self {
+            Self::NoAuthNoPriv => SnmpV3Security::NoAuthNoPriv,
+            Self::AuthNoPriv {
+                auth_protocol,
+                auth_password,
+            } => SnmpV3Security::AuthNoPriv {
+                auth_protocol: *auth_protocol,
+                auth_password: convert("auth_password", auth_password)?,
+            },
+            Self::AuthPriv {
+                auth_protocol,
+                auth_password,
+                priv_protocol,
+                priv_password,
+            } => SnmpV3Security::AuthPriv {
+                auth_protocol: *auth_protocol,
+                auth_password: convert("auth_password", auth_password)?,
+                priv_protocol: *priv_protocol,
+                priv_password: convert("priv_password", priv_password)?,
+            },
+        })
+    }
+
+    /// Each secret by its field id, for the per-field passes over a credential (redaction merge,
+    /// inline values, file paths).
+    pub fn secrets(&self) -> Vec<(&'static str, &S)> {
+        match self {
+            Self::NoAuthNoPriv => vec![],
+            Self::AuthNoPriv { auth_password, .. } => vec![("auth_password", auth_password)],
+            Self::AuthPriv {
+                auth_password,
+                priv_password,
+                ..
+            } => vec![
+                ("auth_password", auth_password),
+                ("priv_password", priv_password),
+            ],
+        }
+    }
+
+    /// [`Self::secrets`], mutably.
+    pub fn secrets_mut(&mut self) -> Vec<(&'static str, &mut S)> {
+        match self {
+            Self::NoAuthNoPriv => vec![],
+            Self::AuthNoPriv { auth_password, .. } => vec![("auth_password", auth_password)],
+            Self::AuthPriv {
+                auth_password,
+                priv_password,
+                ..
+            } => vec![
+                ("auth_password", auth_password),
+                ("priv_password", priv_password),
+            ],
+        }
+    }
+}
+
+/// SNMPv3 USM parameters for daemon queries.
 /// `community` on the parent struct is unused for v3; these params carry the
-/// security material instead. Both passwords are `ResolvableSecret` (inline or
+/// security material instead. Passwords are `ResolvableSecret` (inline or
 /// daemon-read file path) and never logged in plaintext.
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ToSchema)]
 pub struct SnmpV3Params {
     /// SNMPv3 USM security (user) name.
     pub security_name: String,
-    /// Hash algorithm used for authentication.
-    pub auth_protocol: SnmpV3AuthProtocol,
-    /// Authentication passphrase.
-    pub auth_password: ResolvableSecret,
-    /// Cipher used for privacy (encryption).
-    pub priv_protocol: SnmpV3PrivProtocol,
-    /// Privacy passphrase.
-    pub priv_password: ResolvableSecret,
+    /// Security level and the authentication / privacy material it uses.
+    #[serde(flatten)]
+    pub security: SnmpV3Security<ResolvableSecret>,
     /// Context name, sent as the scoped PDU's contextName. Empty or unset addresses the default
     /// context. Cisco IOS-XE keeps its per-VLAN bridge forwarding database in a named context,
     /// so reading one without this returns the default context's near-empty table (GH #686).
@@ -175,12 +387,10 @@ pub struct SnmpV3Params {
 
 impl std::fmt::Debug for SnmpV3Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `ResolvableSecret`'s own Debug redacts, so the security material prints safely.
         f.debug_struct("SnmpV3Params")
             .field("security_name", &self.security_name)
-            .field("auth_protocol", &self.auth_protocol)
-            .field("auth_password", &"********")
-            .field("priv_protocol", &self.priv_protocol)
-            .field("priv_password", &"********")
+            .field("security", &self.security)
             .field("context_name", &self.context_name)
             .finish()
     }
@@ -240,21 +450,48 @@ impl SnmpQueryCredential {
                     value: BannerFieldValue::Plain(v3.security_name.clone()),
                 });
                 lines.push(BannerField {
-                    label: "Auth Protocol",
-                    value: BannerFieldValue::Plain(v3.auth_protocol.label().to_string()),
+                    label: "Security Level",
+                    value: BannerFieldValue::Plain(format!("{:?}", v3.security.level())),
                 });
-                lines.push(BannerField {
-                    label: "Auth Password",
-                    value: v3.auth_password.banner_value(),
-                });
-                lines.push(BannerField {
-                    label: "Priv Protocol",
-                    value: BannerFieldValue::Plain(v3.priv_protocol.label().to_string()),
-                });
-                lines.push(BannerField {
-                    label: "Priv Password",
-                    value: v3.priv_password.banner_value(),
-                });
+                match &v3.security {
+                    SnmpV3Security::NoAuthNoPriv => {}
+                    SnmpV3Security::AuthNoPriv {
+                        auth_protocol,
+                        auth_password,
+                    } => {
+                        lines.push(BannerField {
+                            label: "Auth Protocol",
+                            value: BannerFieldValue::Plain(auth_protocol.label().to_string()),
+                        });
+                        lines.push(BannerField {
+                            label: "Auth Password",
+                            value: auth_password.banner_value(),
+                        });
+                    }
+                    SnmpV3Security::AuthPriv {
+                        auth_protocol,
+                        auth_password,
+                        priv_protocol,
+                        priv_password,
+                    } => {
+                        lines.push(BannerField {
+                            label: "Auth Protocol",
+                            value: BannerFieldValue::Plain(auth_protocol.label().to_string()),
+                        });
+                        lines.push(BannerField {
+                            label: "Auth Password",
+                            value: auth_password.banner_value(),
+                        });
+                        lines.push(BannerField {
+                            label: "Priv Protocol",
+                            value: BannerFieldValue::Plain(priv_protocol.label().to_string()),
+                        });
+                        lines.push(BannerField {
+                            label: "Priv Password",
+                            value: priv_password.banner_value(),
+                        });
+                    }
+                }
             }
             _ => {
                 lines.push(BannerField {
@@ -402,5 +639,88 @@ mod tests {
             lines[1].value,
             BannerFieldValue::RedactedInline(12)
         )); // "my-community".len()
+    }
+
+    /// A v3 credential row exactly as every release before security levels stored it: no
+    /// `security_level`, all four AuthPriv fields. It must load as the AuthPriv credential it was.
+    #[test]
+    fn a_v3_row_stored_before_security_levels_loads_as_auth_priv() {
+        use super::super::{CredentialType, SecretValue};
+        use secrecy::ExposeSecret;
+
+        let stored = r#"{
+            "type": "SnmpV3",
+            "security_name": "scanopy-ro",
+            "auth_protocol": "Sha256",
+            "auth_password": {"mode": "Inline", "value": "auth-secret"},
+            "priv_protocol": "Aes128",
+            "priv_password": {"mode": "FilePath", "path": "/etc/scanopy/snmpv3-priv"},
+            "context_name": "vlan-20"
+        }"#;
+        let credential: CredentialType = serde_json::from_str(stored).expect("old row loads");
+
+        let CredentialType::SnmpV3 {
+            security_name,
+            security:
+                SnmpV3Security::AuthPriv {
+                    auth_protocol,
+                    auth_password: SecretValue::Inline { value },
+                    priv_protocol,
+                    priv_password: SecretValue::FilePath { path },
+                },
+            context_name,
+        } = &credential
+        else {
+            panic!("expected an AuthPriv v3 credential, got {credential:?}");
+        };
+        assert_eq!(security_name, "scanopy-ro");
+        assert_eq!(*auth_protocol, SnmpV3AuthProtocol::Sha256);
+        assert_eq!(value.expose_secret(), "auth-secret");
+        assert_eq!(*priv_protocol, SnmpV3PrivProtocol::Aes128);
+        assert_eq!(path.as_str(), "/etc/scanopy/snmpv3-priv");
+        assert_eq!(context_name.as_deref(), Some("vlan-20"));
+
+        // And it reaches the daemon unchanged.
+        let CredentialQueryPayload::Snmp(snmp) = credential.to_query_payload() else {
+            panic!("an SNMP credential");
+        };
+        assert_eq!(
+            snmp.v3.expect("v3 params").security.level(),
+            SnmpV3SecurityLevel::AuthPriv
+        );
+    }
+
+    #[test]
+    fn a_level_keeps_only_the_fields_it_uses() {
+        // A form that sent the privacy fields back while AuthNoPriv was picked.
+        let json = r#"{
+            "security_level": "AuthNoPriv",
+            "auth_protocol": "Md5",
+            "auth_password": {"mode": "Value", "value": "a"},
+            "priv_protocol": "Aes128",
+            "priv_password": {"mode": "Value", "value": "p"}
+        }"#;
+        let security: SnmpV3Security<ResolvableSecret> = serde_json::from_str(json).unwrap();
+        assert_eq!(security.secrets().len(), 1);
+        let reserialized = serde_json::to_value(&security).unwrap();
+        assert!(reserialized.get("priv_password").is_none());
+
+        let no_auth: SnmpV3Security<ResolvableSecret> = serde_json::from_str(
+            r#"{"security_level": "NoAuthNoPriv", "auth_password": {"mode": "Value", "value": "a"}}"#,
+        )
+        .unwrap();
+        assert_eq!(no_auth, SnmpV3Security::NoAuthNoPriv);
+    }
+
+    #[test]
+    fn a_level_missing_a_field_it_needs_is_refused() {
+        let json = r#"{
+            "security_level": "AuthPriv",
+            "auth_protocol": "Sha1",
+            "auth_password": {"mode": "Value", "value": "a"},
+            "priv_protocol": "Aes128"
+        }"#;
+        let err = serde_json::from_str::<SnmpV3Security<ResolvableSecret>>(json).unwrap_err();
+        assert!(err.to_string().contains("priv_password"), "{err}");
     }
 }

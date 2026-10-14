@@ -1,5 +1,6 @@
 use crate::server::openapi::tags as api_tags;
 use crate::server::shared::extractors::Query;
+use crate::server::shared::sse::until_shutdown;
 use crate::server::shared::storage::traits::Entity;
 use crate::server::shared::types::api::ApiJson;
 use crate::server::{
@@ -172,7 +173,8 @@ async fn get_topology_data(
     // (`mark_viewed=true`), which it does solely while the topology tab is focused. The
     // background topology-data query never sets the flag, so the milestone can't fire from
     // other tabs. Still gated to a live view with hosts and a completed discovery, one-time
-    // per org (the not_onboarded guard here + the subscriber's dedup).
+    // per org: the not_onboarded read skips the org lock once recorded, and record_milestone
+    // decides which request publishes.
     if params.mark_viewed.unwrap_or(false)
         && params.snapshot_id.is_none()
         && !data.hosts.is_empty()
@@ -184,6 +186,14 @@ async fn get_topology_data(
             .await
         && org.has_onboarded(&OnboardingOperationDiscriminants::FirstDiscoveryCompleted)
         && org.not_onboarded(&OnboardingOperationDiscriminants::FirstTopologyRebuild)
+        && let Ok(true) = state
+            .services
+            .organization_service
+            .record_milestone(
+                org.id,
+                OnboardingOperationDiscriminants::FirstTopologyRebuild,
+            )
+            .await
     {
         let _ = state
             .services
@@ -633,5 +643,5 @@ async fn live_topology_updates_stream(
         }
     });
 
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    Sse::new(until_shutdown(stream, &state.shutdown)).keep_alive(KeepAlive::default())
 }

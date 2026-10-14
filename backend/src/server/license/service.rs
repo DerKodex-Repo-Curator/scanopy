@@ -7,9 +7,10 @@ use rand::Rng;
 use reqwest::StatusCode;
 use tokio::sync::RwLock;
 
+use super::instances::service::LicenseInstanceService;
 use super::key::{ConfiguredKey, LicenseKey};
 use super::online::{
-    ENTITLEMENT_PATH, EntitlementRequest, EntitlementResponse, SERVER_VERSION_HEADER,
+    ENTITLEMENT_PATH, EntitlementRequest, EntitlementResponse, InstanceUsage, SERVER_VERSION_HEADER,
 };
 use super::types::{LicenseKeyType, LicenseStatus};
 use crate::server::billing::plans::plan_for_license;
@@ -43,6 +44,13 @@ pub struct LicenseService {
     key_type: ConfiguredKey,
     /// Where check-ins go. `CLOUD_BASE_URL` unless overridden for testing.
     base_url: String,
+    /// This database's instance id, sent with each check-in. `None` for
+    /// offline keys, and when it could not be read, in which case the cloud
+    /// counts this server with the ones too old to send one.
+    instance_id: Option<uuid::Uuid>,
+    /// `SCANOPY_NON_PRODUCTION`, sent with each check-in so the server takes
+    /// a non-production slot.
+    non_production: bool,
     state: RwLock<LicenseState>,
     organization_service: Arc<OrganizationService>,
     http: reqwest::Client,
@@ -61,6 +69,9 @@ struct LicenseState {
     /// Why the cloud rejected the online key (400/403). Cleared by the next
     /// entitlement.
     rejection: Option<String>,
+    /// The instance count the cloud reported at the last check-in. In memory
+    /// only: the check-in at startup fills it again.
+    instances: Option<InstanceUsage>,
 }
 
 impl LicenseState {
@@ -97,8 +108,23 @@ impl LicenseService {
         organization_service: Arc<OrganizationService>,
         base_url: Option<String>,
         trusted_ca: Option<&TrustedCaBundle>,
+        instance_service: Option<&LicenseInstanceService>,
+        non_production: bool,
     ) -> Self {
         let key_type = license_key.key_type();
+
+        let instance_id = match (&key_type, instance_service) {
+            (ConfiguredKey::Online(_), Some(instance_service)) => {
+                match instance_service.server_instance_id().await {
+                    Ok(id) => Some(id),
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to read this server's instance id; check-ins will not send one");
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
 
         let (entitlement, entitlement_at) = match &key_type {
             ConfiguredKey::Offline => (None, None),
@@ -128,6 +154,7 @@ impl LicenseService {
             entitlement,
             entitlement_at,
             rejection: None,
+            instances: None,
         };
         state.status = state.derive_status(&license_key, &key_type);
 
@@ -140,6 +167,8 @@ impl LicenseService {
             license_key,
             key_type,
             base_url,
+            instance_id,
+            non_production,
             state: RwLock::new(state),
             organization_service,
             http: TrustedCaBundle::apply(
@@ -162,6 +191,18 @@ impl LicenseService {
 
     pub fn is_online(&self) -> bool {
         matches!(self.key_type, ConfiguredKey::Online(_))
+    }
+
+    /// The id this server sends with each check-in. `None` for offline keys,
+    /// or when it could not be read at startup.
+    pub fn instance_id(&self) -> Option<uuid::Uuid> {
+        self.instance_id
+    }
+
+    /// How many server instances the key is running on, against how many it
+    /// covers, as of the last check-in. Always `None` for offline keys.
+    pub async fn instance_usage(&self) -> Option<InstanceUsage> {
+        self.state.read().await.instances
     }
 
     /// When the cloud last answered a check-in. Always `None` for offline keys.
@@ -276,6 +317,8 @@ impl LicenseService {
 
         let request = EntitlementRequest {
             key: self.license_key.as_str().to_string(),
+            instance_id: self.instance_id,
+            non_production: Some(self.non_production),
         };
         let send = self
             .http
@@ -293,7 +336,8 @@ impl LicenseService {
                 .map(ApiResponse::into_data)
             {
                 Ok(Some(data)) => {
-                    self.apply_entitlement(data.entitlement).await;
+                    self.apply_entitlement(data.entitlement, data.instances)
+                        .await;
                     Ok(())
                 }
                 Ok(None) => Err(anyhow::anyhow!("check-in returned no entitlement")),
@@ -314,10 +358,49 @@ impl LicenseService {
                     ));
                 }
 
+                // Refused because the key already runs on as many servers of
+                // this server's class as the plan covers: keep the counts so
+                // the UI can say so.
+                let instances = body
+                    .as_ref()
+                    .filter(|body| {
+                        body.code.as_deref()
+                            == Some(
+                                ErrorCode::LicenseInstanceLimitReached {
+                                    active: 0,
+                                    limit: 0,
+                                }
+                                .code(),
+                            )
+                    })
+                    .and_then(|body| body.params.as_ref())
+                    .and_then(|params| {
+                        let count = |key: &str| {
+                            params
+                                .get(key)
+                                .and_then(serde_json::Value::as_u64)
+                                .and_then(|n| u32::try_from(n).ok())
+                        };
+                        let (active, limit) = (count("active")?, Some(count("limit")?));
+                        Some(if self.non_production {
+                            InstanceUsage {
+                                non_production_active: active,
+                                non_production_limit: limit,
+                                ..InstanceUsage::default()
+                            }
+                        } else {
+                            InstanceUsage {
+                                active,
+                                limit,
+                                ..InstanceUsage::default()
+                            }
+                        })
+                    });
+
                 let reason = body.and_then(|body| body.error).unwrap_or_else(|| {
                     format!("License key rejected by Scanopy Cloud ({http_status})")
                 });
-                self.reject(reason).await;
+                self.reject(reason, instances).await;
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("check-in returned {http_status}")),
@@ -328,7 +411,7 @@ impl LicenseService {
     /// plans to it. An entitlement that fails verification (bad signature,
     /// another org) is a bad response rather than a verdict on the key, so it
     /// leaves state unchanged.
-    async fn apply_entitlement(&self, token: String) {
+    async fn apply_entitlement(&self, token: String, instances: Option<InstanceUsage>) {
         let ConfiguredKey::Online(claims) = &self.key_type else {
             return;
         };
@@ -345,6 +428,7 @@ impl LicenseService {
             state.entitlement = Some(entitlement);
             state.entitlement_at = Some(checked_at);
             state.rejection = None;
+            state.instances = instances;
             Self::set_status(&mut state, new_status);
         }
 
@@ -353,8 +437,10 @@ impl LicenseService {
     }
 
     /// Record that the cloud rejected the key, and drop the cached entitlement
-    /// so a restart can't bring the rejected key's tier back.
-    async fn reject(&self, reason: String) {
+    /// so a restart can't bring the rejected key's tier back. `instances` is
+    /// set when the refusal was for running on more servers than the plan
+    /// covers.
+    async fn reject(&self, reason: String, instances: Option<InstanceUsage>) {
         tracing::warn!(%reason, "Scanopy Cloud rejected the license key");
         let checked_at = Utc::now();
         {
@@ -362,6 +448,7 @@ impl LicenseService {
             state.entitlement = None;
             state.entitlement_at = Some(checked_at);
             state.rejection = Some(reason.clone());
+            state.instances = instances;
             Self::set_status(&mut state, LicenseStatus::Invalid(reason));
         }
 
@@ -420,7 +507,7 @@ mod tests {
     }
 
     async fn service(key: LicenseKey) -> LicenseService {
-        LicenseService::new(key, unreachable_org_service(), None, None).await
+        LicenseService::new(key, unreachable_org_service(), None, None, None, false).await
     }
 
     /// A stand-in for the cloud entitlement endpoint that answers every
@@ -444,6 +531,7 @@ mod tests {
         cloud(move || {
             Json(ApiResponse::success(EntitlementResponse {
                 entitlement: entitlement.clone(),
+                instances: None,
             }))
             .into_response()
         })
@@ -497,6 +585,7 @@ mod tests {
             }
             Json(ApiResponse::success(EntitlementResponse {
                 entitlement: entitlement.clone(),
+                instances: None,
             }))
             .into_response()
         })
@@ -508,6 +597,8 @@ mod tests {
                 unreachable_org_service(),
                 Some(base_url),
                 None,
+                None,
+                false,
             )
             .await,
         );
@@ -533,6 +624,36 @@ mod tests {
             "the retried check-in should have applied the entitlement (attempts: {})",
             attempts.load(Ordering::SeqCst)
         );
+    }
+
+    /// Over the instance limit is a warning: the server keeps its entitlement
+    /// and its plan, and only reports the count.
+    #[tokio::test]
+    async fn an_instance_over_the_limit_stays_licensed() {
+        let over = InstanceUsage {
+            active: 2,
+            limit: Some(1),
+            ..InstanceUsage::default()
+        };
+        let entitlement = license_token(Some(ORG_ID), Some(LicensePlan::Plus), 30);
+        let base_url = cloud(move || {
+            Json(ApiResponse::success(EntitlementResponse {
+                entitlement: entitlement.clone(),
+                instances: Some(over),
+            }))
+            .into_response()
+        })
+        .await;
+
+        let license = service(online_key(ORG_ID)).await;
+        license.check_in(&base_url).await;
+
+        assert!(matches!(
+            license.current_status().await,
+            LicenseStatus::Valid(_)
+        ));
+        assert_eq!(license.effective_plan().await, get_self_hosted_plus_plan());
+        assert_eq!(license.instance_usage().await, Some(over));
     }
 
     #[tokio::test]
@@ -647,6 +768,36 @@ mod tests {
         assert_eq!(service.entitlement_at().await, checked);
     }
 
+    /// A server refused for running past the plan's limit is read-only and
+    /// keeps the counts the cloud sent, for the banner that says why.
+    #[tokio::test]
+    async fn a_server_refused_for_the_instance_limit_is_locked_with_the_counts() {
+        let base_url = cloud(|| {
+            ApiError::coded(
+                StatusCode::FORBIDDEN,
+                ErrorCode::LicenseInstanceLimitReached {
+                    active: 2,
+                    limit: 1,
+                },
+            )
+            .into_response()
+        })
+        .await;
+
+        let license = service(online_key(ORG_ID)).await;
+        license.check_in(&base_url).await;
+
+        assert!(license.current_status().await.is_locked());
+        assert_eq!(
+            license.instance_usage().await,
+            Some(InstanceUsage {
+                active: 2,
+                limit: Some(1),
+                ..InstanceUsage::default()
+            })
+        );
+    }
+
     #[tokio::test]
     async fn rejected_key_is_invalid_until_the_cloud_returns_an_entitlement() {
         for rejection in [StatusCode::FORBIDDEN, StatusCode::BAD_REQUEST] {
@@ -704,8 +855,6 @@ mod tests {
     async fn entitlement_swap_reconciles_plans_and_survives_restart() {
         use crate::server::auth::middleware::auth::AuthenticatedEntity;
         use crate::server::organizations::r#impl::base::{Organization, OrganizationBase};
-        use crate::server::shared::events::traits::Subscriber;
-        use crate::server::shared::events::types::BillingOperation;
         use crate::server::shared::services::traits::CrudService;
         use crate::server::shared::storage::traits::Storable;
         use crate::tests::test_storage;
@@ -716,8 +865,6 @@ mod tests {
             storage.organizations.clone(),
             event_bus.clone(),
         ));
-        let subscriber: Arc<dyn Subscriber<BillingOperation>> = orgs.clone();
-        event_bus.register(subscriber, "organization_service").await;
         let org = orgs
             .create(
                 Organization::new(OrganizationBase {
@@ -729,7 +876,8 @@ mod tests {
             .await
             .unwrap();
 
-        let license = LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None).await;
+        let license =
+            LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None, None, false).await;
         assert!(matches!(
             license.current_status().await,
             LicenseStatus::Pending
@@ -738,20 +886,14 @@ mod tests {
             .check_in(&entitlement_cloud(LicensePlan::Plus, 30).await)
             .await;
 
-        // The org subscriber applies `LicenseReconciled` from its event batch.
-        let mut stored = orgs.get_by_id(&org.id).await.unwrap().unwrap();
-        for _ in 0..100 {
-            if stored.base.plan == Some(get_self_hosted_plus_plan()) {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            stored = orgs.get_by_id(&org.id).await.unwrap().unwrap();
-        }
+        // The check-in writes the reconciled plan before it returns.
+        let stored = orgs.get_by_id(&org.id).await.unwrap().unwrap();
         assert_eq!(stored.base.plan, Some(get_self_hosted_plus_plan()));
         assert!(stored.base.license_entitlement.is_some());
 
         // Restart with the cloud unreachable: the persisted entitlement applies.
-        let restarted = LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None).await;
+        let restarted =
+            LicenseService::new(online_key(ORG_ID), orgs.clone(), None, None, None, false).await;
         assert!(matches!(
             restarted.current_status().await,
             LicenseStatus::Valid(_)

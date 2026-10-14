@@ -56,6 +56,25 @@ where
         None
     }
 
+    /// The rows a list request narrows to, before pagination and ordering.
+    ///
+    /// Every reader of a list's query builds its filter here, so the CSV export returns the rows
+    /// the list does for the same query. Defaults to the access filter plus the query's own
+    /// fields. An entity whose list also applies tags, search, staleness or field filters
+    /// overrides it, and its list handler calls it too.
+    async fn list_filter(
+        state: &AppState,
+        query: &Self::FilterQuery,
+        site_ids: &[Uuid],
+        organization_id: Uuid,
+    ) -> ApiResult<StorableFilter<Self>>
+    where
+        Self: 'static,
+    {
+        let _ = state;
+        Ok(base_list_filter::<Self>(site_ids, organization_id, query))
+    }
+
     /// Get entity name for error messages (e.g., "Group", "Site")
     fn entity_name() -> &'static str {
         Self::table_name()
@@ -218,7 +237,7 @@ where
         .ok_or_else(ApiError::organization_required)?;
     let user_id = auth.user_id();
 
-    let filter = base_list_filter::<T>(&site_ids, organization_id, &query);
+    let filter = T::list_filter(&state, &query, &site_ids, organization_id).await?;
 
     // Apply pagination
     let pagination = query.pagination();

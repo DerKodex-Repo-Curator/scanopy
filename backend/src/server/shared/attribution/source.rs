@@ -198,7 +198,10 @@ pub enum AttributeSource {
     /// We opened a TCP connection to a port, or a UDP probe to it was answered. Stamps the port,
     /// and the address of a host found only this way.
     PortScan,
-    /// The daemon reading its own host: NIC and routing configuration, and its own hostname.
+    /// The daemon reading its own host: NIC and routing configuration, its own hostname and its
+    /// OS. `Native` for the reason [`Self::ProfinetDcp`] is: the host describes itself, first-hand,
+    /// with no transport or third party between the reading and the machine. It outranks
+    /// [`Self::ContainerRuntimeInfo`], whose engine may run in a VM on this machine.
     DaemonSelfReport,
     /// A PROFINET DCP Identify exchange: we sent the request and the transport correlated the
     /// reply to the station that sent it. `Native`, not merely `Queried` — like [`Self::Probe`]
@@ -209,24 +212,26 @@ pub enum AttributeSource {
     /// `AppProbe` producer), and DCP is raw Ethernet with no port at all.
     ProfinetDcp,
     /// A container engine (Docker, Podman) reporting the machine it runs on, from its `info`
-    /// endpoint: the host OS, its release and kernel. `Native` for the reason [`Self::ProfinetDcp`]
-    /// is: the engine reads its own host, and that is what the answer means. A bare variant rather
-    /// than `Probe(Docker)`, which is the container listing; this is a different exchange.
+    /// endpoint: the host OS, its release and kernel. `Queried`, not `Native`: we chose the engine
+    /// and authenticated to it, but the machine it describes is the host only when the engine runs
+    /// on it directly. Docker Desktop, OrbStack, Colima, Rancher Desktop and `podman machine` run
+    /// the engine in a Linux VM, and `info` describes that VM. A bare variant rather than
+    /// `Probe(Docker)`, which is the container listing; this is a different exchange.
     ContainerRuntimeInfo,
     /// The configuration of the hypervisor or container runtime that runs the guest, read
     /// through its API: the MAC of a Proxmox guest's virtual NIC or of a container's macvlan
-    /// endpoint, and the hostname and distribution a Proxmox LXC container's config sets. `Native` for the reason [`Self::ContainerRuntimeInfo`] is: the hypervisor or
-    /// runtime assigned that MAC, keeps it for the guest's or container's life and puts it on the
-    /// wire for it, so its record is the NIC's own identity, not a third party's report of it.
+    /// endpoint, and the hostname and distribution a Proxmox LXC container's config sets. `Native`
+    /// for the reason [`Self::ProfinetDcp`] is: the hypervisor or runtime assigned that MAC, keeps
+    /// it for the guest's or container's life and puts it on the wire for it, so its record is the NIC's own identity, not a third party's report of it.
     /// That is what lets a guest with no address still be identified by its NIC. A bare variant
     /// rather than `Probe(Proxmox)` or `Probe(Docker)`, which cover everything else those APIs
     /// report and stay `Reported`.
     HypervisorConfig,
     /// Software inside a guest read this from the guest's own operating system and answered the
     /// hypervisor's API: the QEMU guest agent behind Proxmox, and the same role VMware Tools and
-    /// Hyper-V integration services fill. `Native` for the reason [`Self::ContainerRuntimeInfo`]
-    /// is: the guest describes itself, over a channel the hypervisor binds to that one guest, so
-    /// it is first-hand, not the hypervisor's report of the guest (`Probe(Proxmox)`).
+    /// Hyper-V integration services fill. `Native` for the reason [`Self::ProfinetDcp`] is: the
+    /// guest describes itself, over a channel the hypervisor binds to that one guest, so it is
+    /// first-hand, not the hypervisor's report of the guest (`Probe(Proxmox)`).
     GuestAgent,
     /// A script the operator wrote, run on the host over SSH, printed it. Queried: we chose the
     /// host, authenticated to it and read the answer from its own shell. Human-authored, because
@@ -275,14 +280,14 @@ impl AttributeSource {
             Self::ArpReply
             | Self::IcmpEcho
             | Self::PortScan
-            | Self::DaemonSelfReport
+            | Self::ContainerRuntimeInfo
             | Self::SshScript => M::Queried,
 
             // The protocol is the device's own, not a generic transport a MIB approximates —
             // same reasoning as `ClientProbe::method()`'s `Native` arms, just not delegated (see
             // the variant's own doc comment for why).
             Self::ProfinetDcp
-            | Self::ContainerRuntimeInfo
+            | Self::DaemonSelfReport
             | Self::HypervisorConfig
             | Self::GuestAgent => M::Native,
 
@@ -785,6 +790,9 @@ impl TypeMetadataProvider for ClientProbe {
             Self::Bacula => "Bacula",
             Self::BeszelAgent => "Beszel agent",
             Self::H323 => "H.323",
+            Self::SnmpEngine => "SNMP",
+            Self::DockerPing => "Docker",
+            Self::PodmanPing => "Podman",
         }
     }
 }

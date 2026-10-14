@@ -116,6 +116,14 @@ impl DaemonRuntimeService {
             .is_some_and(|e| e.matches_error(&ApiError::not_authenticated()))
     }
 
+    /// Check if the server rejected the daemon's saved id as belonging to a different daemon than
+    /// its api key. The key is valid; the cached identity is stale (left by replacing a daemon).
+    fn is_identity_mismatch_error(error: &anyhow::Error) -> bool {
+        error
+            .downcast_ref::<ApiErrorResponse>()
+            .is_some_and(|e| e.matches_error(&ApiError::daemon_identity_mismatch()))
+    }
+
     /// Check if an error indicates an authorization failure for an unregistered daemon.
     /// This happens during onboarding when the API key isn't active yet in the database.
     fn is_unregistered_auth_error(error: &anyhow::Error) -> bool {
@@ -409,7 +417,7 @@ impl DaemonRuntimeService {
         self.config.set_site_id(site_id).await?;
         self.config.set_api_key(api_key).await?;
 
-        let daemon_id = self.config.get_id().await?;
+        let mut daemon_id = self.config.get_id().await?;
 
         match self.announce_startup(daemon_id).await {
             Ok(_) => {
@@ -435,6 +443,15 @@ impl DaemonRuntimeService {
             }
             Err(e) if Self::is_daemon_not_found_error(&e, &daemon_id) => {
                 tracing::info!(target: LOG_TARGET, "  Status:          Daemon not yet registered; beginning registration");
+            }
+            Err(e) if Self::is_identity_mismatch_error(&e) => {
+                tracing::warn!(
+                    target: LOG_TARGET,
+                    saved_daemon_id = %daemon_id,
+                    "  Status:          Saved daemon ID belongs to a different daemon than this API key; registering as the key's daemon"
+                );
+                self.config.forget_server_identity().await?;
+                daemon_id = self.config.get_id().await?;
             }
             Err(e) if Self::is_version_too_old_error(&e) => {
                 return Ok(StartupOutcome::VersionRejected(e));

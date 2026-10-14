@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'svelte/compiler';
 import type { components } from '$lib/api/schema';
 import { getFieldKey, type FieldConfig } from '$lib/shared/components/data/types';
+import { CLIENT_QUERY, type ServerQuery } from '$lib/shared/components/data/controls/listQuery';
 
 /**
  * What the entity-tab tests share: the committed OpenAPI spec, the tabs that render
@@ -172,7 +173,10 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				force_full_scan: 'force_full_scan',
 				run_type: 'run_type',
 				scan_count: 'scan_count',
-				tags: 'tags'
+				tags: 'tags',
+				next_run_is_full_scan: excluded(
+					"Shown in the scan editor's Scan Info, and a running full scan says so in the progress cell"
+				)
 			})
 		]
 	},
@@ -190,7 +194,9 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				scan_count: excluded('Always 0 on run records; the count lives on the scheduled scan'),
 				force_full_scan: excluded(
 					'Always false on run records; the flag lives on the scheduled scan'
-				)
+				),
+				// Whether the run itself was full is the Scan Mode column.
+				next_run_is_full_scan: excluded('Always false on run records; a run has no next run')
 			})
 		]
 	},
@@ -282,7 +288,10 @@ export const COVERAGE: Record<string, TabCoverage> = {
 				organization_id: ORGANIZATION,
 				// Decided with Maya, 2026-10-04.
 				display_settings: excluded("The user's own display preferences, not an account fact"),
-				email_settings: excluded("The user's own email preferences, not an account fact")
+				email_settings: excluded("The user's own email preferences, not an account fact"),
+				terms_acceptance_required: excluded(
+					"Set only on the signed-in user's own record, false in every list"
+				)
 			}),
 			decide('Invite', {
 				created_at: 'created_at',
@@ -530,7 +539,7 @@ export function columnKeys(tab: string): Set<string> {
  * The props a tab passes to `<DataControls>`, from the Svelte compiler's parse of the tab. These
  * are template wiring, not values a test can call, so they are read from the syntax tree.
  */
-export function dataControlsProps(tab: string): Set<string> {
+function dataControlsAttributes(tab: string): SchemaNode[] {
 	const elements: SchemaNode[] = [];
 	const walk = (node: SchemaNode) => {
 		if (!node || typeof node !== 'object') return;
@@ -542,9 +551,29 @@ export function dataControlsProps(tab: string): Set<string> {
 	if (elements.length !== 1) {
 		throw new Error(`${tab}: expected one <DataControls> element, found ${elements.length}.`);
 	}
-	return new Set(
-		elements[0].attributes
-			.filter((attribute: SchemaNode) => attribute.type === 'Attribute')
-			.map((attribute: SchemaNode) => attribute.name)
-	);
+	return elements[0].attributes.filter((attribute: SchemaNode) => attribute.type === 'Attribute');
+}
+
+export function dataControlsProps(tab: string): Set<string> {
+	return new Set(dataControlsAttributes(tab).map((attribute: SchemaNode) => attribute.name));
+}
+
+/**
+ * What the server applies from the query a tab's list sends: every part when it passes
+ * `onQueryChange`, less those its `serverQuery` literal turns off. The same rule `DataControls`
+ * applies, read from the template.
+ */
+export function dataControlsServerQuery(tab: string): ServerQuery {
+	const attributes = dataControlsAttributes(tab);
+	if (!attributes.some((attribute: SchemaNode) => attribute.name === 'onQueryChange')) {
+		return CLIENT_QUERY;
+	}
+	const server: ServerQuery = { search: true, tags: true, stale: true, order: true, fields: true };
+	const literal = attributes.find((attribute: SchemaNode) => attribute.name === 'serverQuery')
+		?.value?.expression;
+	for (const property of literal?.properties ?? []) {
+		const key = property.key?.name as keyof ServerQuery;
+		if (key in server && property.value?.value === false) server[key] = false;
+	}
+	return server;
 }

@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { AlertTriangle } from 'lucide-svelte';
 	import { useResendVerificationMutation } from '$lib/features/auth/queries';
-	import { pushSuccess } from '$lib/shared/stores/feedback';
 	import AppBanner from './AppBanner.svelte';
 	import {
-		auth_verificationEmailSent,
 		auth_verifyEmailBannerBody,
 		common_resend,
 		common_sending
@@ -14,13 +12,9 @@
 
 	const resendMutation = useResendVerificationMutation();
 
-	async function handleResend() {
-		try {
-			await resendMutation.mutateAsync({ email });
-			pushSuccess(auth_verificationEmailSent());
-		} catch {
-			// Error handled by mutation
-		}
+	// The mutation shows the success toast; the API client toasts errors.
+	function handleResend() {
+		resendMutation.mutate({ email });
 	}
 </script>
 

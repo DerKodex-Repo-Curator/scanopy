@@ -28,6 +28,7 @@
 		billing_rateYearly,
 		billing_rateYearlyBilled,
 		billing_seatUnit,
+		billing_serversIncluded,
 		billing_seatUnitPlural,
 		billing_hostingCloudTooltip,
 		billing_hostingSelfHostedTooltip,
@@ -48,6 +49,7 @@
 		billing_continueOnPlan,
 		common_hide,
 		common_hosts,
+		common_servers,
 		common_monthly,
 		common_sites,
 		common_seats,
@@ -387,6 +389,14 @@
 		return value == null ? common_unlimited() : String(value);
 	}
 
+	function formatIncludedServers(plan: BillingPlan): string {
+		const metadata = billingPlanHelpers.getMetadata(plan.type);
+		const production = metadata?.included_instances;
+		const nonProduction = metadata?.included_non_production_instances;
+		if (production == null || nonProduction == null) return formatIncludedValue(null, plan);
+		return billing_serversIncluded({ production, nonProduction });
+	}
+
 	function formatSnapshotRetention(plan: BillingPlan): string {
 		// Self-hosted deployments set their own retention window, so no fixed number is
 		// published for them — unless this deployment carries the universal override,
@@ -676,6 +686,16 @@
 									{formatIncludedValue(plan.included_hosts, plan)}
 								</span>
 							</div>
+
+							<!-- Servers (self-hosted only: how many servers one license key covers) -->
+							{#if getHosting(plan) === 'SelfHosted'}
+								<div class="flex items-center justify-between text-sm">
+									<span class="text-secondary">{common_servers()}</span>
+									<span class="text-primary font-medium">
+										{formatIncludedServers(plan)}
+									</span>
+								</div>
+							{/if}
 
 							<!-- Snapshot Retention -->
 							<div class="flex items-center justify-between text-sm">

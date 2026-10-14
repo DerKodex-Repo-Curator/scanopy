@@ -3,6 +3,7 @@ use crate::server::shared::events::traits::{EntityEventFlags, EntityScope, Event
 use crate::server::subnets::r#impl::base::{SubnetCidr, SubnetCidrValue};
 use crate::server::{
     auth::middleware::auth::AuthenticatedEntity,
+    discovery_warnings::service::DiscoveryWarningService,
     ip_addresses::service::IPAddressService,
     shared::{
         entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants},
@@ -41,6 +42,8 @@ pub struct SubnetService {
     /// It has to live here rather than in a caller because a daemon's own interfaced subnets arrive
     /// through `DaemonService`, which cannot reach addresses at all.
     ip_address_service: Arc<IPAddressService>,
+    /// For where an assumed range came from, which only its creating scan's warning records.
+    warning_service: Arc<DiscoveryWarningService>,
 }
 
 impl EventBusService<Subnet> for SubnetService {
@@ -136,7 +139,22 @@ impl SubnetService {
             .used_by_subnet(&site_ids, at)
             .await?;
 
-        Ok(nesting::responses(subnets, &site_subnets, &own_used))
+        let mut responses = nesting::responses(subnets, &site_subnets, &own_used);
+
+        // Only the ranges marked as assumed have evidence to show, so a list without one makes no
+        // extra read. An as-of read holds closed copies, whose ids no warning names.
+        let assumed: Vec<(Uuid, Uuid)> = responses
+            .iter()
+            .filter(|r| r.subnet.base.cidr.source() == AttributeSource::LldpNeighbourAddress)
+            .map(|r| (r.subnet.id, r.subnet.base.site_id))
+            .collect();
+        if at.is_none() && !assumed.is_empty() {
+            let mut evidence = self.warning_service.range_evidence(&assumed).await?;
+            for response in &mut responses {
+                response.range_evidence = evidence.remove(&response.subnet.id);
+            }
+        }
+        Ok(responses)
     }
 
     /// Fold `source` into `target`, moving its addresses and removing the row.
@@ -639,12 +657,14 @@ impl SubnetService {
         event_bus: Arc<EventBus>,
         entity_tag_service: Arc<EntityTagService>,
         ip_address_service: Arc<IPAddressService>,
+        warning_service: Arc<DiscoveryWarningService>,
     ) -> Self {
         Self {
             storage,
             event_bus,
             entity_tag_service,
             ip_address_service,
+            warning_service,
         }
     }
 }

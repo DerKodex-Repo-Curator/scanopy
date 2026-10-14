@@ -76,6 +76,18 @@ pub enum WarningRemedy {
     NothingToDo,
 }
 
+impl WarningRemedy {
+    /// Whether a warning on this rung asks the reader to do something. The two rungs below it
+    /// either resolve themselves or cannot be resolved, so a summary that counts them as work
+    /// would raise an alarm nobody can answer.
+    pub fn is_actionable(&self) -> bool {
+        match self {
+            Self::FixInScanopy | Self::CheckTheDevice => true,
+            Self::ClearsOnTheNextScan | Self::NothingToDo => false,
+        }
+    }
+}
+
 impl HasId for WarningRemedy {
     fn id(&self) -> &'static str {
         self.into()
@@ -129,6 +141,12 @@ impl TypeMetadataProvider for WarningRemedy {
             }
         }
     }
+
+    /// Publishes [`WarningRemedy::is_actionable`], so the UI picks out the rungs that ask for work
+    /// from the same answer the server's counts use.
+    fn metadata(&self) -> serde_json::Value {
+        json!({ "actionable": self.is_actionable() })
+    }
 }
 
 impl DiscoveryWarningCode {
@@ -181,6 +199,7 @@ impl DiscoveryWarningCode {
             }
             Self::CredentialGateClosed => &["credential", "addresses", "ports"],
             Self::CredentialDaemonOsMismatch => &["credential", "declared", "daemon", "actual"],
+            Self::CredentialDaemonTooOld => &["credential", "required", "daemon", "version"],
             Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed
@@ -189,6 +208,11 @@ impl DiscoveryWarningCode {
             | Self::CredentialCollectionTimedOut
             | Self::CredentialUnreachable
             | Self::CredentialTimedOut => &["credential", "addresses", "detail"],
+
+            // The integration identifies the statement and the hosts aggregate, so one sentence
+            // per integration names every host it was found on. `discovers` is the integration's
+            // own "what's discovered" text, which says what a credential adds.
+            Self::IntegrationWithoutCredential => &["integration", "count", "discovers"],
 
             Self::ConnectionsWithoutProtocolResponse => &["cidr", "declined", "ports"],
 
@@ -233,6 +257,7 @@ impl DiscoveryWarningCode {
             | Self::CredentialTargetNotResponding
             | Self::CredentialGateClosed
             | Self::CredentialDaemonOsMismatch
+            | Self::CredentialDaemonTooOld
             | Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed
@@ -286,6 +311,8 @@ impl DiscoveryWarningCode {
             // Running two full-ifTable integrations against one device is supported. Nothing was
             // lost that the configuration did not choose.
             | Self::EqualReachIntegrationsMerged
+            // Nothing failed: the scan found something more it could read with a credential.
+            | Self::IntegrationWithoutCredential
             | Self::Unknown => Severity::Informational,
             // Links are missing that the device did advertise, which is data loss for this scan
             // rather than something for the operator to confirm.
@@ -299,7 +326,7 @@ impl DiscoveryWarningCode {
     /// Exhaustive, so a new code cannot ship without someone deciding whether it is work for the
     /// reader — which is the question the warning list is organised around and the one the old
     /// flat list never answered.
-    fn remedy(&self) -> WarningRemedy {
+    pub fn remedy(&self) -> WarningRemedy {
         match self {
             // The credential family stays whole. Several of these sentences straddle Scanopy and
             // the far end ("check the address and port, and that the service is listening"), and
@@ -310,6 +337,7 @@ impl DiscoveryWarningCode {
             | Self::CredentialTargetNotResponding
             | Self::CredentialGateClosed
             | Self::CredentialDaemonOsMismatch
+            | Self::CredentialDaemonTooOld
             | Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed
@@ -318,6 +346,8 @@ impl DiscoveryWarningCode {
             | Self::CredentialCollectionTimedOut
             | Self::CredentialUnreachable
             | Self::CredentialTimedOut
+            // Adding the credential is the fix, and the create flow opens pre-filled from the row.
+            | Self::IntegrationWithoutCredential
             // Scan settings: the duration to raise, or the coverage to narrow, or — for the
             // middlebox case — the "Trust Port-Only Detections" opt-in, once the reader has
             // decided the addresses really are empty.
@@ -438,6 +468,7 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
             Self::CredentialTargetNotResponding => "Credential target did not respond",
             Self::CredentialGateClosed => "Credential port not open",
             Self::CredentialDaemonOsMismatch => "Credential set up for another OS",
+            Self::CredentialDaemonTooOld => "Daemon too old for credential",
             Self::CredentialRejected => "Credential refused",
             Self::CredentialMalformed => "Credential incomplete",
             Self::CredentialTlsFailed => "TLS negotiation failed",
@@ -446,6 +477,7 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
             Self::CredentialCollectionTimedOut => "Collection timed out after authenticating",
             Self::CredentialUnreachable => "Credential target unreachable",
             Self::CredentialTimedOut => "Credential attempt timed out",
+            Self::IntegrationWithoutCredential => "{integration} found without a credential",
             Self::ConnectionsWithoutProtocolResponse => "Handshakes with nothing behind them",
             Self::ScanTimeLimitWithEstimate => "Scan hit its time limit",
             Self::ScanTimeLimit => "Scan hit its time limit",
@@ -554,6 +586,9 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
             Self::CredentialDaemonOsMismatch => {
                 "The {credential} credential reads files on a {declared} daemon, and {daemon} runs {actual}, so it was not used. Set the credential's daemon OS to match, or scan with a {declared} daemon."
             }
+            Self::CredentialDaemonTooOld => {
+                "The {credential} credential needs daemon {required} or newer, and {daemon} runs {version}, so it was not sent. Upgrade the daemon to use it."
+            }
             Self::CredentialRejected => {
                 "The {credential} credential for {addresses} was refused — check the username, password or community string. ({detail})"
             }
@@ -577,6 +612,9 @@ impl TypeMetadataProvider for DiscoveryWarningCode {
             }
             Self::CredentialTimedOut => {
                 "The {credential} credential for {addresses} timed out before anything answered — check the address and port, and that the service is listening rather than dropping the connection. ({detail})"
+            }
+            Self::IntegrationWithoutCredential => {
+                "{integration} answers on {count} host(s) that no {integration} credential works on. Add one to collect more: {discovers}"
             }
             Self::ConnectionsWithoutProtocolResponse => {
                 "{declined} address(es) in {cidr} completed a TCP connection on {ports} and then answered nothing, so no host was recorded at any of them. Something in the path — a firewall session helper, a load balancer, a scrubbing appliance — answers for addresses that hold no device, and a bare handshake cannot tell one from the other. If those addresses really do hold devices, scan the subnet from a daemon with an interface on it; if they are empty, nothing here needs fixing."
@@ -656,6 +694,7 @@ impl DiscoveryWarningCode {
             | Self::CredentialTargetNotResponding
             | Self::CredentialGateClosed
             | Self::CredentialDaemonOsMismatch
+            | Self::CredentialDaemonTooOld
             | Self::CredentialRejected
             | Self::CredentialMalformed
             | Self::CredentialTlsFailed
@@ -676,6 +715,9 @@ impl DiscoveryWarningCode {
             | Self::IcmpSweepTimedOut
             | Self::InterfaceDetailsCutShort
             | Self::InterfaceSetCutShort
+            // About a host with no credential, so there is no credential's results to file it
+            // under. It sits with the scan's findings, where its row opens the create flow.
+            | Self::IntegrationWithoutCredential
             | Self::LldpLocalPortDropped
             | Self::LldpLocalPortDroppedReadCutShort
             | Self::LldpLocalPortMisplaced
@@ -750,6 +792,27 @@ mod tests {
             "description templates and slots() disagree:\n{}",
             mismatched.join("\n")
         );
+    }
+
+    /// A name may be a template too, and splits the run report into one row per distinct title. It
+    /// can only use slots the description declares, since those are the only parameters the UI
+    /// builds for the code.
+    #[test]
+    fn every_name_interpolates_only_declared_slots() {
+        for code in DiscoveryWarningCode::iter() {
+            let declared: BTreeSet<String> =
+                code.slots().iter().map(|s| (*s).to_string()).collect();
+            let undeclared: Vec<String> =
+                crate::server::shared::types::metadata::extract_slots(code.name())
+                    .into_iter()
+                    .filter(|slot| !declared.contains(slot))
+                    .collect();
+            assert!(
+                undeclared.is_empty(),
+                "{}'s name uses undeclared slots {undeclared:?}",
+                code.id()
+            );
+        }
     }
 
     /// A slot value the UI cannot resolve renders as an empty string, so every code has to have

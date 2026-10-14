@@ -44,6 +44,7 @@ impl Storable for Discovery {
             base,
             scan_count: 0,
             force_full_scan: false,
+            next_run_is_full_scan: false,
             integration_targets: vec![],
         }
     }
@@ -68,6 +69,7 @@ impl Storable for Discovery {
                 },
             scan_count,
             force_full_scan,
+            next_run_is_full_scan: _, // Computed on read, never stored
             integration_targets,
         } = self.clone();
 
@@ -106,14 +108,21 @@ impl Storable for Discovery {
             serde_json::from_value(row.get::<serde_json::Value, _>("discovery_type"))
                 .map_err(|e| anyhow::anyhow!("Failed to deserialize discovery_type: {}", e))?;
 
-        let run_type: RunType = serde_json::from_value(row.get::<serde_json::Value, _>("run_type"))
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize run_type: {}", e))?;
+        let mut run_type: RunType =
+            serde_json::from_value(row.get::<serde_json::Value, _>("run_type"))
+                .map_err(|e| anyhow::anyhow!("Failed to deserialize run_type: {}", e))?;
+        // Runs stored before `discovery_warnings` still carry their warnings in the JSON, and
+        // those were copied into the table. The table is the one source: the service attaches its
+        // rows, so the JSON copy is dropped here rather than shown alongside them.
+        if let RunType::Historical { results } = &mut run_type {
+            results.warnings.clear();
+        }
 
         let integration_targets =
             serde_json::from_value(row.get::<serde_json::Value, _>("integration_targets"))
                 .map_err(|e| anyhow::anyhow!("Failed to deserialize integration_targets: {}", e))?;
 
-        Ok(Discovery {
+        let mut discovery = Discovery {
             id: row.get("id"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -127,8 +136,11 @@ impl Storable for Discovery {
             },
             scan_count: row.get::<i32, _>("scan_count") as u32,
             force_full_scan: row.get("force_full_scan"),
+            next_run_is_full_scan: false,
             integration_targets,
-        })
+        };
+        discovery.next_run_is_full_scan = discovery.full_scan_is_due();
+        Ok(discovery)
     }
 }
 

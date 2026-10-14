@@ -27,6 +27,7 @@
 	} from 'lucide-svelte';
 	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
 	import { GLOBAL_SEARCH_KEY, globalSearchOpen } from '$lib/features/search/results';
+	import { tableSearchFocused } from '$lib/shared/components/data/controls/listShortcuts';
 	import { onMount } from 'svelte';
 	import type { Component } from 'svelte';
 	import type { UserOrgPermissions } from '$lib/features/users/types';
@@ -40,7 +41,8 @@
 		globalSearch_searchAll,
 		globalSearch_placeholder,
 		daemons_legacyKeyHelp,
-		common_settings
+		common_settings,
+		common_shortcutsPausedInSearch
 	} from '$lib/paraglide/messages';
 	import {
 		getTrialDaysLeft,
@@ -725,7 +727,7 @@
 >
 	<!-- Logo/Brand -->
 	<div class="flex min-h-0 flex-1 flex-col">
-		<div class="border-b px-2 py-4" style="border-color: var(--color-border)">
+		<div class="px-2 py-4">
 			<button
 				onclick={toggleCollapse}
 				class="text-tertiary hover:text-secondary flex w-full items-center rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -756,7 +758,13 @@
 					<Search class="text-tertiary h-4 w-4 flex-shrink-0" />
 					{#if !collapsed}
 						<span class="flex-1 truncate text-left">{globalSearch_searchAll()}</span>
-						<KbdKey key={searchShortcut} size="sm" />
+						<!-- Dims while a table search has focus: the key types there instead. -->
+						<span
+							class="inline-flex transition-opacity {$tableSearchFocused ? 'opacity-40' : ''}"
+							title={$tableSearchFocused ? common_shortcutsPausedInSearch() : undefined}
+						>
+							<KbdKey key={searchShortcut} size="sm" />
+						</span>
 					{/if}
 				</button>
 			{/if}

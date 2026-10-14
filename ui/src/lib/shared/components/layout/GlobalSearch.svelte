@@ -9,6 +9,9 @@
 -->
 <script lang="ts">
 	import throttle from 'just-throttle';
+	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
+	import { registerUrlOwner, syncUrl, takeInitialParams } from '$lib/shared/stores/url-state';
 	import { createForm } from '@tanstack/svelte-form';
 	import GenericModal from './GenericModal.svelte';
 	import SearchInput from '$lib/shared/components/forms/input/SearchInput.svelte';
@@ -26,16 +29,19 @@
 		tagIcon,
 		tagTooltip
 	} from '$lib/features/tags/groups';
-	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
-	import { keyLabel } from '$lib/shared/utils/shortcuts';
+	import TagCompletionGhost from '$lib/features/tags/components/TagCompletionGhost.svelte';
+	import { tagCompletion } from '$lib/features/tags/completion';
 	import {
 		acceptCompletion,
 		addChip,
 		backspaceChip,
 		EMPTY_SEARCH,
 		flattenGroups,
+		globalSearchFromUrl,
 		globalSearchOpen,
 		globalSearchRestoreQuery,
+		globalSearchUrlParams,
+		reopenGlobalSearch,
 		hasSearchTerms,
 		isGlobalSearchShortcut,
 		moveHighlight,
@@ -44,7 +50,6 @@
 		removeSelectedChip,
 		responseGroups,
 		withMorePages,
-		tagCompletion,
 		type GlobalSearchState,
 		type SearchItem,
 		type SearchRow
@@ -147,6 +152,26 @@
 		query = restored.text;
 		tagIds = restored.tagIds;
 		search = restored;
+	});
+
+	// While open, the URL carries the search as sent: the same `q` and `tag_ids` the endpoint takes.
+	$effect(() =>
+		registerUrlOwner({
+			scope: 'search',
+			isActive: () => get(globalSearchOpen),
+			params: () => globalSearchUrlParams(search)
+		})
+	);
+	$effect(() => {
+		void search;
+		void $globalSearchOpen;
+		syncUrl();
+	});
+
+	// A palette link opens the palette on its search.
+	onMount(() => {
+		const linked = globalSearchFromUrl(takeInitialParams('search'));
+		if (linked) reopenGlobalSearch(linked);
 	});
 
 	function groupLabel(type: EntityDiscriminants): string {
@@ -329,25 +354,14 @@
 				{#snippet ghost()}
 					{#if completion}
 						{@const tag = completion}
-						<!-- Tab accepts from the keyboard; the click is for the mouse, so it takes no focus. -->
-						<button
-							type="button"
-							tabindex="-1"
-							class="pointer-events-auto ml-1.5 inline-flex items-center gap-1.5 opacity-60 transition-opacity hover:opacity-100"
-							onclick={(event) => {
-								event.stopPropagation();
+						<TagCompletionGhost
+							{tag}
+							{applicationGroup}
+							onAccept={() => {
 								applySearch(acceptCompletion({ text: query, tagIds }, tag));
 								inputEl?.focus();
 							}}
-						>
-							<Tag
-								label={tag.name}
-								color={tag.color}
-								icon={tagIcon(tag, applicationGroup)}
-								isShiny={isApplicationTag(tag, applicationGroup)}
-							/>
-							<KbdKey key={keyLabel('Tab')} size="sm" />
-						</button>
+						/>
 					{/if}
 				{/snippet}
 			</SearchInput>

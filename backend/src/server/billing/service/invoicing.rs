@@ -126,22 +126,25 @@ impl BillingService {
                 // the buyer looking at a locked app with their invoice already
                 // sent, so say it here as well. Publishing after finalizing
                 // means an invoice that could not be issued never grants
-                // anything, and the subscriber writes only on a difference, so
+                // anything, and applying it writes only on a difference, so
                 // the webhook arriving later changes nothing.
                 if organization.is_lapsed() {
-                    self.event_bus
-                        .publish(Event::new(
-                            OrgScope { organization_id },
-                            BillingOperation::CheckoutCompleted {
-                                plan,
-                                included_sites: plan.config().included_sites,
-                                included_seats: plan.config().included_seats,
-                                mrr_amount_cents: mrr_from_subscription(&subscription),
-                                is_trialing: false,
-                                next_renewal_at: next_renewal_from_subscription(&subscription),
-                            },
-                            authentication,
-                        ))
+                    self.organization_service
+                        .apply_billing(
+                            organization_id,
+                            vec![Event::new(
+                                OrgScope { organization_id },
+                                BillingOperation::CheckoutCompleted {
+                                    plan,
+                                    included_sites: plan.config().included_sites,
+                                    included_seats: plan.config().included_seats,
+                                    mrr_amount_cents: mrr_from_subscription(&subscription),
+                                    is_trialing: false,
+                                    next_renewal_at: next_renewal_from_subscription(&subscription),
+                                },
+                                authentication,
+                            )],
+                        )
                         .await?;
                 }
 
@@ -402,14 +405,17 @@ impl BillingService {
             return Ok(());
         };
 
-        self.event_bus
-            .publish(Event::new(
-                OrgScope {
-                    organization_id: organization.id,
-                },
-                BillingOperation::InvoiceIssued { invoice: snapshot },
-                AuthenticatedEntity::System,
-            ))
+        self.organization_service
+            .apply_billing(
+                organization.id,
+                vec![Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::InvoiceIssued { invoice: snapshot },
+                    AuthenticatedEntity::System,
+                )],
+            )
             .await?;
         Ok(())
     }
@@ -495,13 +501,23 @@ impl BillingService {
     /// paying.
     pub(crate) async fn report_invoice_overdue(
         &self,
-        organization: &Organization,
+        organization_id: Uuid,
         invoice: BillingInvoice,
     ) -> Result<(), Error> {
+        let Some(locked) = self
+            .organization_service
+            .lock_for_update(organization_id)
+            .await?
+        else {
+            return Ok(());
+        };
+        let organization = &locked.org;
+
         // Going past due is a transition, not a repeatable fact, and how often
         // the subscription update arrives is Stripe's to decide: deliveries
         // are retried, and later updates carry the same status. Without this
-        // guard each one sends the customer another overdue email.
+        // guard each one sends the customer another overdue email. Read under
+        // the org lock, so two deliveries together report it once.
         if organization.base.plan_status == Some(PlanStatus::PastDue) {
             return Ok(());
         }
@@ -523,16 +539,14 @@ impl BillingService {
             invoice_id = %invoice.stripe_invoice_id,
             "Sent licence invoice is overdue"
         );
-        self.event_bus
-            .publish(Event::new(
-                OrgScope {
-                    organization_id: organization.id,
-                },
-                BillingOperation::InvoiceOverdue { invoice },
-                AuthenticatedEntity::System,
-            ))
-            .await?;
-        Ok(())
+        let event = Event::new(
+            OrgScope { organization_id },
+            BillingOperation::InvoiceOverdue { invoice },
+            AuthenticatedEntity::System,
+        );
+        self.organization_service
+            .commit_billing(locked, None, vec![event])
+            .await
     }
 
     /// The organization's oldest unpaid licence invoice, for the paths that
@@ -573,14 +587,17 @@ impl BillingService {
             return Ok(());
         };
 
-        self.event_bus
-            .publish(Event::new(
-                OrgScope {
-                    organization_id: organization.id,
-                },
-                BillingOperation::InvoiceVoided { invoice: snapshot },
-                AuthenticatedEntity::System,
-            ))
+        self.organization_service
+            .apply_billing(
+                organization.id,
+                vec![Event::new(
+                    OrgScope {
+                        organization_id: organization.id,
+                    },
+                    BillingOperation::InvoiceVoided { invoice: snapshot },
+                    AuthenticatedEntity::System,
+                )],
+            )
             .await?;
         Ok(())
     }

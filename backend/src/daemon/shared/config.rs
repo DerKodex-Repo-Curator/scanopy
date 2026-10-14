@@ -813,6 +813,31 @@ impl AppConfig {
         }
     }
 
+    /// Clear what the server told this daemon about itself: its id, site, name and host, and the
+    /// self-report state that goes with them. A value the install command passed (`cli_args`)
+    /// is kept. The daemon then registers as whichever daemon its api key belongs to.
+    ///
+    /// Install calls this when it hands a slot to another daemon's key. Kept, the old id goes out
+    /// with the new key and the server rejects the pair as a daemon mismatch. The daemon calls it
+    /// on that rejection too, which repairs a config an older install left in that state.
+    pub fn forget_server_identity(&mut self, cli_args: &DaemonArgs) {
+        let fresh = AppConfig::default();
+        self.id = fresh.id;
+        self.host_id = fresh.host_id;
+        self.last_heartbeat = fresh.last_heartbeat;
+        self.capabilities = fresh.capabilities;
+        self.has_self_reported = fresh.has_self_reported;
+        if cli_args.site_id.is_none() {
+            self.site_id = fresh.site_id;
+        }
+        if cli_args.name.is_none() {
+            self.name = fresh.name;
+        }
+        if cli_args.user_id.is_none() {
+            self.user_id = fresh.user_id;
+        }
+    }
+
     pub fn load(cli_args: DaemonArgs) -> anyhow::Result<Self> {
         apply_file_env_vars::<AppConfig>()?;
 
@@ -1140,6 +1165,14 @@ impl ConfigStore {
     pub async fn set_name(&self, name: String) -> Result<()> {
         let mut config = self.config.write().await;
         config.name = name;
+        self.save(&config.clone()).await
+    }
+
+    /// Clear and persist the identity the server gave this daemon. See
+    /// [`AppConfig::forget_server_identity`].
+    pub async fn forget_server_identity(&self) -> Result<()> {
+        let mut config = self.config.write().await;
+        config.forget_server_identity(&DaemonArgs::default());
         self.save(&config.clone()).await
     }
 

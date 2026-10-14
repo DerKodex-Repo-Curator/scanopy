@@ -213,13 +213,7 @@ impl DemoData {
         let tags = generate_tags(organization_id, &tag_groups, now);
         let credentials = generate_credentials(organization_id, now);
         let sites = generate_sites(organization_id, &tags, &credentials, now);
-        let subnets = generate_subnets(
-            &sites,
-            &tags,
-            dep_svc_ids.docker_hq,
-            dep_svc_ids.docker_dc,
-            now,
-        );
+        let subnets = generate_subnets(&sites, dep_svc_ids.docker_hq, dep_svc_ids.docker_dc, now);
         let site_credential_assignments =
             generate_site_credential_assignments(&sites, &credentials);
         let mut hosts_with_services =
@@ -253,7 +247,7 @@ impl DemoData {
         let shares = generate_shares(&topologies, &sites, user_id, now);
         let user_api_keys = generate_user_api_keys(&sites, organization_id, now);
 
-        let dependencies = generate_dependencies(&sites, &tags, &dep_svc_ids);
+        let dependencies = generate_dependencies(&sites, &dep_svc_ids);
 
         Self {
             tag_groups,

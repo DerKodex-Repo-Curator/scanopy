@@ -1,6 +1,6 @@
 import { SvelteSet } from 'svelte/reactivity';
 import { getFieldKey, type FieldConfig } from '../types';
-import { getFieldValue } from './fieldValues';
+import { getFieldValue, getFilterValue } from './fieldValues';
 
 /** One field's filter selection. Readonly set so both `Set` and `SvelteSet` fit. */
 export interface FieldFilter {
@@ -21,9 +21,9 @@ export type FilterState = Record<string, FieldFilter>;
  * gate the client pass rather than the server one.
  */
 export interface ServerFilterMode {
-	/** `onTagFilterChange` is wired, so tag filtering happens server-side. */
+	/** The server applies the tag filter from the list's query. */
 	tags: boolean;
-	/** `onFilterChange` is wired, so `serverFiltered` fields are handled server-side. */
+	/** The server applies `serverFiltered` fields from the list's query. */
 	fields: boolean;
 }
 
@@ -117,48 +117,12 @@ export function blankFilterState<T>(fields: FieldConfig<T>[], applyDefaults: boo
 	return state;
 }
 
-/** The checked booleans as strings, the payload shape `onFilterChange` takes. */
+/** The checked booleans as strings, as a boolean filter's query param carries them. */
 export function booleanFilterValues(showTrue: boolean, showFalse: boolean): string[] {
 	const values: string[] = [];
 	if (showTrue) values.push('true');
 	if (showFalse) values.push('false');
 	return values;
-}
-
-/**
- * The server-side filters a restored `filterState` implies, as the calls the
- * parent needs to replay.
- *
- * State restored from storage has to reach the parent's query, or the panel
- * shows a filter the request never carried. A boolean counts as constraining
- * when a box is *un*checked — the opposite test from a value set being
- * non-empty, which is why the two cases cannot share one condition.
- */
-export function restoredServerFilters<T>(
-	fields: FieldConfig<T>[],
-	filterState: FilterState
-): { key: string; values: string[] }[] {
-	const restored: { key: string; values: string[] }[] = [];
-
-	for (const field of fields) {
-		if (!field.filterable || !field.serverFiltered) continue;
-
-		const key = getFieldKey(field);
-		const filter = filterState[key];
-		if (!filter) continue;
-
-		if (filter.type === 'boolean') {
-			const showTrue = filter.showTrue ?? true;
-			const showFalse = filter.showFalse ?? true;
-			if (!showTrue || !showFalse) {
-				restored.push({ key, values: booleanFilterValues(showTrue, showFalse) });
-			}
-		} else if (filter.values.size > 0) {
-			restored.push({ key, values: Array.from(filter.values) });
-		}
-	}
-
-	return restored;
 }
 
 /**
@@ -246,7 +210,7 @@ export function matchesFilters<T>(
 		if (isHandledServerSide(field, server)) return true;
 
 		const value =
-			fieldKey === 'tags' && getItemTags ? getItemTags(item) : getFieldValue(item, field);
+			fieldKey === 'tags' && getItemTags ? getItemTags(item) : getFilterValue(item, field);
 
 		if (field.type === 'boolean') {
 			// A null boolean is "unknown" rather than false, so neither box excludes it.

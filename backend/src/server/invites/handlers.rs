@@ -25,6 +25,7 @@ use axum::extract::Path;
 use axum::extract::State;
 use axum::response::Redirect;
 use axum::routing::get;
+use email_address::EmailAddress;
 use std::sync::Arc;
 use tower_sessions::Session;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -174,14 +175,14 @@ async fn create_invite(
         .map_err(|e| ApiError::internal_error(&e.to_string()))?;
 
     // Emit InviteSent telemetry event if this is the first invite
-    let organization = state
+    if state
         .services
         .organization_service
-        .get_by_id(&organization_id)
-        .await?;
-
-    if let Some(organization) = organization
-        && organization.not_onboarded(&OnboardingOperationDiscriminants::InviteSent)
+        .record_milestone(
+            organization_id,
+            OnboardingOperationDiscriminants::InviteSent,
+        )
+        .await?
     {
         state
             .services
@@ -449,7 +450,12 @@ async fn accept_invite_link(
         }
 
         // User is logged in but not in an org - add them to the organization immediately
-        if let Some((org_id, permissions, site_ids)) = process_pending_invite(&state, &session)
+        if let Some(AcceptedInvite {
+            organization_id: org_id,
+            permissions,
+            site_ids,
+            ..
+        }) = process_pending_invite(&state, &session)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to process invite for logged-in user: {}", e);
@@ -511,10 +517,20 @@ async fn accept_invite_link(
     )))
 }
 
+/// The membership a pending invite grants, read from the session when it is consumed.
+pub struct AcceptedInvite {
+    pub organization_id: Uuid,
+    pub permissions: UserOrgPermissions,
+    pub site_ids: Vec<Uuid>,
+    /// The address the invite was emailed to. `None` for a link-only invite, or when the
+    /// invite record could not be read back. Registering with this address proves it.
+    pub send_to: Option<EmailAddress>,
+}
+
 pub async fn process_pending_invite(
     state: &Arc<AppState>,
     session: &Session,
-) -> Result<Option<(Uuid, UserOrgPermissions, Vec<Uuid>)>, Error> {
+) -> Result<Option<AcceptedInvite>, Error> {
     // Check for pending invite in session
     let pending_org_id = match session.get::<Uuid>("pending_org_invite").await {
         Ok(Some(org_id)) => org_id,
@@ -544,21 +560,23 @@ pub async fn process_pending_invite(
     };
 
     // Mark invite as used
-    if let Err(e) = state.services.invite_service.use_invite(invite_id).await {
-        tracing::error!("Failed to mark invite as used: {}", e);
-    }
+    let send_to = match state.services.invite_service.use_invite(invite_id).await {
+        Ok(invite) => invite.base.send_to,
+        Err(e) => {
+            tracing::error!("Failed to mark invite as used: {}", e);
+            None
+        }
+    };
 
     // Emit InviteAccepted telemetry event if this is the first accepted invite
-    let organization = state
+    if let Ok(true) = state
         .services
         .organization_service
-        .get_by_id(&pending_org_id)
+        .record_milestone(
+            pending_org_id,
+            OnboardingOperationDiscriminants::InviteAccepted,
+        )
         .await
-        .ok()
-        .flatten();
-
-    if let Some(organization) = organization
-        && organization.not_onboarded(&OnboardingOperationDiscriminants::InviteAccepted)
         && let Err(e) = state
             .services
             .invite_service
@@ -582,5 +600,10 @@ pub async fn process_pending_invite(
     let _ = session.remove::<String>("pending_site_ids").await;
     let _ = session.remove::<String>("pending_network_ids").await;
 
-    Ok(Some((pending_org_id, permissions, site_ids)))
+    Ok(Some(AcceptedInvite {
+        organization_id: pending_org_id,
+        permissions,
+        site_ids,
+        send_to,
+    }))
 }

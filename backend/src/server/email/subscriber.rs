@@ -697,7 +697,7 @@ impl Subscriber<DiscoveryDigestOperation> for EmailService {
         let mut failures = Vec::new();
         for event in events {
             let DiscoveryDigestOperation::Computed { payload } = event.operation;
-            if !payload.has_changes() {
+            if !payload.should_send() {
                 continue;
             }
             // A scan on a cloud org that has moved to a self-hosted plan comes

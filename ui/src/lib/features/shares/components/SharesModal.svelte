@@ -40,8 +40,13 @@
 		shares_noSharesYet,
 		shares_selectToEdit,
 		shares_snapshotShareInfoTitle,
-		shares_snapshotShareInfoBody
+		shares_snapshotShareInfoBody,
+		topology_verifyEmailToShare
 	} from '$lib/paraglide/messages';
+	import EmailVerificationNotice from '$lib/features/auth/components/EmailVerificationNotice.svelte';
+	import { useEmailVerificationPending } from '$lib/features/auth/queries';
+
+	const emailVerification = useEmailVerificationPending();
 
 	let {
 		isOpen = false,
@@ -269,6 +274,12 @@
 	{#if isSnapshotView}
 		<div class="px-6 pb-2 pt-4">
 			<InlineInfo title={shares_snapshotShareInfoTitle()} body={shares_snapshotShareInfoBody()} />
+		</div>
+	{/if}
+
+	{#if emailVerification.pending}
+		<div class="px-6 pb-2 pt-4">
+			<EmailVerificationNotice body={topology_verifyEmailToShare()} />
 		</div>
 	{/if}
 

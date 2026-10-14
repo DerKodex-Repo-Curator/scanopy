@@ -11,12 +11,13 @@ use tokio::time::timeout;
 
 use crate::server::credentials::r#impl::mapping::{SnmpQueryCredential, SnmpV3Params};
 use crate::server::credentials::r#impl::types::{
-    SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpVersion,
+    SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpV3Security, SnmpVersion,
 };
 
 impl From<SnmpV3AuthProtocol> for snmp2::v3::AuthProtocol {
     fn from(p: SnmpV3AuthProtocol) -> Self {
         match p {
+            SnmpV3AuthProtocol::Md5 => snmp2::v3::AuthProtocol::Md5,
             SnmpV3AuthProtocol::Sha1 => snmp2::v3::AuthProtocol::Sha1,
             SnmpV3AuthProtocol::Sha256 => snmp2::v3::AuthProtocol::Sha256,
         }
@@ -157,6 +158,62 @@ pub enum SnmpContext {
     FromCredential,
 }
 
+impl SnmpV3Params {
+    /// The contextName sent in each scoped PDU for `context`.
+    ///
+    /// The context name addresses a MIB view other than the default one. Cisco IOS-XE keeps its
+    /// per-VLAN bridge FDB in one, so a switch read without it answers from a default context
+    /// holding almost nothing — a full forwarding database that reads as a single row (GH #686).
+    /// Applied only where the caller asked for it; see [`SnmpContext`] for why that is not the
+    /// whole session.
+    pub fn wire_context(&self, context: SnmpContext) -> &str {
+        match context {
+            SnmpContext::Default => "",
+            SnmpContext::FromCredential => self.context_name.as_deref().unwrap_or_default(),
+        }
+    }
+
+    /// The snmp2 USM security for these parameters, at their security level.
+    ///
+    /// AES-256 with an MD5 or SHA-1 key needs the localized key stretched, and snmp2 refuses the
+    /// pair without a method. Blumenthal is the one RFC-track drafts and net-snmp's `AES-256` use;
+    /// Cisco's `aes 256` (Reeder) is not tried.
+    pub fn usm_security(&self, context: SnmpContext) -> Result<snmp2::v3::Security> {
+        use snmp2::v3::{Auth, KeyExtension, Security};
+
+        let name = self.security_name.as_bytes();
+        let security = match &self.security {
+            SnmpV3Security::NoAuthNoPriv => Security::new(name, b"").with_auth(Auth::NoAuthNoPriv),
+            SnmpV3Security::AuthNoPriv {
+                auth_protocol,
+                auth_password,
+            } => {
+                let auth_pw = auth_password.resolve("auth_password", "SNMPv3")?;
+                Security::new(name, auth_pw.expose_secret().as_bytes())
+                    .with_auth_protocol((*auth_protocol).into())
+                    .with_auth(Auth::AuthNoPriv)
+            }
+            SnmpV3Security::AuthPriv {
+                auth_protocol,
+                auth_password,
+                priv_protocol,
+                priv_password,
+            } => {
+                let auth_pw = auth_password.resolve("auth_password", "SNMPv3")?;
+                let priv_pw = priv_password.resolve("priv_password", "SNMPv3")?;
+                Security::new(name, auth_pw.expose_secret().as_bytes())
+                    .with_auth_protocol((*auth_protocol).into())
+                    .with_auth(Auth::AuthPriv {
+                        cipher: (*priv_protocol).into(),
+                        privacy_password: priv_pw.expose_secret().as_bytes().to_vec(),
+                    })
+                    .with_key_extension_method(KeyExtension::Blumenthal)
+            }
+        };
+        Ok(security.with_context_name(self.wire_context(context).as_bytes()))
+    }
+}
+
 /// Whether this credential names a bridge context worth opening a second session for.
 ///
 /// `None` for v1/v2c and for a v3 credential that leaves the field blank, which is the common
@@ -236,44 +293,16 @@ pub async fn create_session(
             }
         }
         SnmpVersion::V3 => {
-            let SnmpV3Params {
-                security_name,
-                auth_protocol,
-                auth_password,
-                priv_protocol,
-                priv_password,
-                context_name,
-            } = v3
+            let params = v3
                 .as_ref()
                 .ok_or_else(|| anyhow!("SNMPv3 credential missing USM parameters"))?;
-            let auth_pw = auth_password.resolve("auth_password", "SNMPv3")?;
-            let priv_pw = priv_password.resolve("priv_password", "SNMPv3")?;
-
-            // The context name addresses a MIB view other than the default one. Cisco IOS-XE
-            // keeps its per-VLAN bridge FDB in one, so a switch read without it answers from a
-            // default context holding almost nothing — a full forwarding database that reads as
-            // a single row (GH #686). Applied only where the caller asked for it; see
-            // [`SnmpContext`] for why that is not the whole session.
-            let wire_context = match context {
-                SnmpContext::Default => "",
-                SnmpContext::FromCredential => context_name.as_deref().unwrap_or_default(),
-            };
-
-            // AuthPriv: both authentication and encryption.
-            let security = snmp2::v3::Security::new(
-                security_name.as_bytes(),
-                auth_pw.expose_secret().as_bytes(),
-            )
-            .with_auth_protocol((*auth_protocol).into())
-            .with_auth(snmp2::v3::Auth::AuthPriv {
-                cipher: (*priv_protocol).into(),
-                privacy_password: priv_pw.expose_secret().as_bytes().to_vec(),
-            })
-            .with_context_name(wire_context.as_bytes());
+            let wire_context = params.wire_context(context);
+            let security = params.usm_security(context)?;
 
             tracing::debug!(
                 ip = %ip,
-                security_name = %security_name,
+                security_name = %params.security_name,
+                security_level = ?params.security.level(),
                 context = if wire_context.is_empty() { "(default)" } else { wire_context },
                 "Creating SNMPv3 session"
             );

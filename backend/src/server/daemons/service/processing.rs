@@ -389,7 +389,7 @@ impl DaemonService {
             // provisioning), not in the new-registration branch — so emit the onboarding
             // milestone here too, or the org never records FirstDaemonRegistered and the UI
             // keeps showing "install a daemon" while discovery actually runs. Idempotent: the
-            // emit is guarded by org.not_onboarded, so restarts don't re-fire it.
+            // emit is guarded by record_milestone, so restarts don't re-fire it.
             self.emit_first_daemon_telemetry(updated_daemon.id, updated_daemon.base.site_id)
                 .await?;
 
@@ -635,9 +635,20 @@ impl DaemonService {
             self.resolve_neighbours_into_session(&mut update).await;
         }
 
+        if update.phase == DiscoveryPhase::Complete {
+            self.report_integrations_without_credentials(&mut update)
+                .await;
+        }
+
         if update.phase.is_terminal() {
             self.report_superseded_wire_shape(&mut update).await;
             self.report_touched_subnets(&mut update).await;
+            // Credentials the dispatch withheld for this daemon's version, latched at dispatch.
+            update.warnings.extend(
+                self.discovery_service
+                    .take_withheld_credentials(&update.daemon_id)
+                    .await,
+            );
         }
 
         self.discovery_service.update_session(update).await?;
@@ -691,6 +702,52 @@ impl DaemonService {
                 found_subnet_ids: found,
                 ..Default::default()
             });
+    }
+
+    /// Fold `IntegrationWithoutCredential` into the terminal payload: one per host this run
+    /// found an integration's service on with no credential of that integration covering it.
+    ///
+    /// Before `update_session`, like the warnings below, and best-effort: a lookup failure costs
+    /// the prompt, never the scan record. Runs on rescans too, since a single-host rescan reports
+    /// the services it touched the same way.
+    async fn report_integrations_without_credentials(&self, update: &mut DiscoveryUpdatePayload) {
+        let Some(host_service) = self.host_service.get() else {
+            return;
+        };
+        let Some(scanned) = update.scanned.as_ref() else {
+            return;
+        };
+
+        let integration_targets = self
+            .discovery_service
+            .get_integration_targets_for_session(&update.session_id)
+            .await;
+        let daemon_host_id = self
+            .get_by_id(&update.daemon_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|daemon| daemon.base.host_id);
+
+        match host_service
+            .uncovered_integrations_for_run(
+                scanned,
+                &integration_targets,
+                update.site_id,
+                daemon_host_id,
+                update.started_at.unwrap_or_else(chrono::Utc::now),
+            )
+            .await
+        {
+            Ok(uncovered) => update
+                .warnings
+                .extend(uncovered.into_iter().map(|f| f.into_warning())),
+            Err(e) => tracing::warn!(
+                session_id = %update.session_id,
+                error = %e,
+                "Could not check which integrations this scan found without a credential"
+            ),
+        }
     }
 
     /// Fold a latched "this daemon submitted an outdated format" observation into the terminal
@@ -1017,6 +1074,13 @@ impl DaemonService {
                 .get_by_id(&site.base.organization_id)
                 .await
             && org.not_onboarded(&OnboardingOperationDiscriminants::FirstHostDiscovered)
+            && let Ok(true) = self
+                .organization_service
+                .record_milestone(
+                    org.id,
+                    OnboardingOperationDiscriminants::FirstHostDiscovered,
+                )
+                .await
         {
             let _ = self
                 .event_bus
@@ -1374,7 +1438,15 @@ impl DaemonService {
             .await?
             .ok_or_else(|| ApiError::not_found("Organization not found".to_string()))?;
 
-        if org.not_onboarded(&OnboardingOperationDiscriminants::FirstDaemonRegistered) {
+        if org.not_onboarded(&OnboardingOperationDiscriminants::FirstDaemonRegistered)
+            && self
+                .organization_service
+                .record_milestone(
+                    org.id,
+                    OnboardingOperationDiscriminants::FirstDaemonRegistered,
+                )
+                .await?
+        {
             let daemon_name = self
                 .get_by_id(&daemon_id)
                 .await?

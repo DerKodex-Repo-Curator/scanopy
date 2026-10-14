@@ -11,10 +11,12 @@ use reqwest::header::{self, HeaderName};
 use scanopy::server::{
     auth::middleware::{
         demo_mode::demo_mode_middleware, logging::request_logging_middleware,
-        rate_limit::rate_limit_middleware,
+        rate_limit::rate_limit_middleware, terms::terms_gate_middleware,
     },
     billing::plans::get_purchasable_plans,
     config::{AppState, DeploymentType, ServerCli, ServerConfig, get_deployment_type},
+    email,
+    github::latest_release::run_latest_release_checks,
     license::middleware::license_guard_middleware,
     shared::handlers::{
         cache::AppCache,
@@ -157,11 +159,9 @@ async fn main() -> anyhow::Result<()> {
         let mut interval = tokio::time::interval(Duration::from_secs(15 * 60)); // 15 minutes
         loop {
             interval.tick().await;
-            auth_cleanup_state
-                .services
-                .auth_service
-                .cleanup_old_login_attempts()
-                .await;
+            let auth_service = &auth_cleanup_state.services.auth_service;
+            auth_service.cleanup_old_login_attempts().await;
+            auth_service.cleanup_old_verification_cooldowns().await;
         }
     });
 
@@ -219,6 +219,26 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         release_notes.announce_running_version().await;
     });
+
+    // Terms-update notices (at startup, then daily). Scanopy Cloud emails each
+    // user notice of a terms update before it takes effect, once per update;
+    // a deploy shipping a new update sends it, and a sweep the relay cut short
+    // finishes the next day. A no-op on self-hosted servers.
+    if let Some(terms_email) = state.services.email_service.clone() {
+        // Half the relay's rate, so other email keeps the rest while it goes out.
+        let bulk = governor::RateLimiter::direct(email::rate_limit::per_second(
+            state.config.smtp_max_per_second / 2,
+        ));
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+            loop {
+                interval.tick().await;
+                if let Err(e) = terms_email.send_terms_notices(&bulk).await {
+                    tracing::error!(error = %e, "Terms notice sweep failed");
+                }
+            }
+        });
+    }
 
     // Snapshot retention sweep (daily). Deletes snapshots past the per-plan
     // retention window; the FK cascade reaps closed entity rows + topology
@@ -293,6 +313,14 @@ async fn main() -> anyhow::Result<()> {
         && license_check_in.is_online()
     {
         tokio::spawn(license_check_in.run_check_ins());
+    }
+
+    let app_cache = Arc::new(AppCache::new());
+
+    // Self-hosted servers ask GitHub for the latest release at startup and
+    // twice a day after, for the upgrade banner. `/config` reads the cache.
+    if deployment_type.is_self_hosted() && !state.config.disable_update_check {
+        tokio::spawn(run_latest_release_checks(app_cache.clone()));
     }
 
     tracing::info!(target: LOG_TARGET, "  Background tasks started");
@@ -409,8 +437,6 @@ async fn main() -> anyhow::Result<()> {
         HeaderValue::from_str(&csp_value).expect("OIDC values will not change during runtime"),
     );
 
-    let app_cache = Arc::new(AppCache::new());
-
     // Create main app with all middleware
     let protected_app = Router::new().merge(api_router).layer(
         ServiceBuilder::new()
@@ -429,6 +455,10 @@ async fn main() -> anyhow::Result<()> {
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 demo_mode_middleware,
+            ))
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                terms_gate_middleware,
             ))
             .layer(middleware::from_fn_with_state(
                 state.clone(),
@@ -552,14 +582,18 @@ async fn main() -> anyhow::Result<()> {
         .merge(protected_app);
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
 
-    // Spawn server in background
-    tokio::spawn(async move {
-        axum::serve(
-            listener,
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .await
-        .unwrap();
+    // Spawn server in background. On shutdown it stops accepting connections and lets in-flight
+    // requests finish. SSE streams end on the same token, so they don't hold the drain open.
+    let server = tokio::spawn({
+        let shutdown = state.shutdown.clone();
+        async move {
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(shutdown.cancelled_owned())
+            .await
+        }
     });
 
     // Start discovery scheduler
@@ -640,6 +674,9 @@ async fn main() -> anyhow::Result<()> {
                         );
                     }
                 }
+                if let Some(instance_id) = license_service.instance_id() {
+                    tracing::info!(target: LOG_TARGET, "  Instance ID:     {}", instance_id);
+                }
             }
         }
     }
@@ -689,11 +726,47 @@ async fn main() -> anyhow::Result<()> {
     }
     tracing::info!(target: LOG_TARGET, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    // Wait for shutdown signal
-    tokio::signal::ctrl_c().await?;
-
+    shutdown_signal().await?;
     tracing::info!(target: LOG_TARGET, "Shutdown signal received");
+
+    // Docker sends SIGKILL 10s after SIGTERM (kamal-proxy deploys pass no `-t`, and compose uses
+    // the same default). Requests get a short drain; the subscriber work they queued gets the
+    // rest.
+    state.shutdown.cancel();
+    match tokio::time::timeout(HTTP_DRAIN, server).await {
+        Ok(Ok(Ok(()))) => {}
+        Ok(Ok(Err(e))) => tracing::error!(target: LOG_TARGET, error = %e, "HTTP server failed"),
+        Ok(Err(e)) => tracing::error!(target: LOG_TARGET, error = %e, "HTTP server task failed"),
+        Err(_) => tracing::warn!(
+            target: LOG_TARGET,
+            "Open connections outlived the HTTP drain; closing them"
+        ),
+    }
+    state.services.event_bus.shutdown(EVENT_DRAIN).await;
+
     tracing::info!(target: LOG_TARGET, "Server stopped");
 
     Ok(())
+}
+
+/// How long in-flight requests get to finish after a shutdown signal.
+const HTTP_DRAIN: Duration = Duration::from_secs(2);
+/// How long queued event-subscriber work gets after that.
+const EVENT_DRAIN: Duration = Duration::from_secs(7);
+
+/// SIGTERM (`docker stop`, a deploy) or SIGINT (Ctrl-C).
+async fn shutdown_signal() -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result,
+            _ = terminate.recv() => Ok(()),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await
+    }
 }

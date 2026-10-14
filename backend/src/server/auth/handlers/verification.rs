@@ -53,9 +53,8 @@ pub(crate) async fn verify_email(
     tags = [api_tags::AUTH, api_tags::INTERNAL],
     request_body = ResendVerificationRequest,
     responses(
-        (status = 200, description = "Verification email sent", body = EmptyApiResponse),
-        (status = 400, description = "Invalid request or already verified", body = ApiErrorResponse),
-        (status = 429, description = "Rate limited", body = ApiErrorResponse),
+        (status = 200, description = "Accepted. A link is sent only when the address has an unverified account", body = EmptyApiResponse),
+        (status = 400, description = "Invalid request, or a link was sent to this address less than a minute ago", body = ApiErrorResponse),
     )
 )]
 

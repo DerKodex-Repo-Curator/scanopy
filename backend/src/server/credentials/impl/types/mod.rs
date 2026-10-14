@@ -46,7 +46,9 @@ pub use secrets::{
 };
 
 // Re-export SnmpVersion and v3 protocol enums from snmp submodule
-pub use snmp::{SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpVersion};
+pub use snmp::{
+    SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpV3Security, SnmpV3SecurityLevel, SnmpVersion,
+};
 
 pub use instant_on::InstantOnQueryCredential;
 pub use proxmox::{ProxmoxQueryCredential, default_proxmox_port};
@@ -102,19 +104,15 @@ pub enum CredentialType {
         /// SNMPv2c community string.
         community: SecretValue,
     },
-    /// SNMPv3 USM AuthPriv — security name + auth/priv protocols and passwords.
+    /// SNMPv3 USM — security name, plus the authentication and privacy material its security
+    /// level uses.
     #[schema(title = "SnmpV3")]
     SnmpV3 {
         /// USM security (user) name.
         security_name: String,
-        /// Hash algorithm used for authentication.
-        auth_protocol: SnmpV3AuthProtocol,
-        /// Authentication passphrase.
-        auth_password: SecretValue,
-        /// Cipher used for privacy (encryption).
-        priv_protocol: SnmpV3PrivProtocol,
-        /// Privacy passphrase.
-        priv_password: SecretValue,
+        /// Security level and the authentication / privacy material it uses.
+        #[serde(flatten)]
+        security: SnmpV3Security<SecretValue>,
         /// Optional context name (default/empty context used if unset).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         context_name: Option<String>,
@@ -415,22 +413,20 @@ impl CredentialType {
                 }
             }
             (
+                Self::SnmpV3 { security, .. },
                 Self::SnmpV3 {
-                    auth_password,
-                    priv_password,
-                    ..
-                },
-                Self::SnmpV3 {
-                    auth_password: existing_auth,
-                    priv_password: existing_priv,
-                    ..
+                    security: existing, ..
                 },
             ) => {
-                if auth_password.is_redacted_sentinel() {
-                    *auth_password = existing_auth.clone();
-                }
-                if priv_password.is_redacted_sentinel() {
-                    *priv_password = existing_priv.clone();
+                // By field id, so a secret kept across a level change (AuthPriv → AuthNoPriv
+                // keeps the auth password) is restored, and one the old level never had is not.
+                let existing = existing.secrets();
+                for (field, secret) in security.secrets_mut() {
+                    if secret.is_redacted_sentinel()
+                        && let Some((_, old)) = existing.iter().find(|(id, _)| *id == field)
+                    {
+                        *secret = (*old).clone();
+                    }
                 }
             }
             (
@@ -667,15 +663,11 @@ impl CredentialType {
                 "community" => inline_secret(community),
                 _ => None,
             },
-            Self::SnmpV3 {
-                auth_password,
-                priv_password,
-                ..
-            } => match field_id {
-                "auth_password" => inline_secret(auth_password),
-                "priv_password" => inline_secret(priv_password),
-                _ => None,
-            },
+            Self::SnmpV3 { security, .. } => security
+                .secrets()
+                .into_iter()
+                .find(|(id, _)| *id == field_id)
+                .and_then(|(_, secret)| inline_secret(secret)),
             Self::Gnmi { password, .. } => match field_id {
                 "password" => inline_secret(password),
                 _ => None,
@@ -783,14 +775,11 @@ impl CredentialType {
             Self::SnmpV1 { community } | Self::SnmpV2c { community } => {
                 vec![secret("community", community)]
             }
-            Self::SnmpV3 {
-                auth_password,
-                priv_password,
-                ..
-            } => vec![
-                secret("auth_password", auth_password),
-                secret("priv_password", priv_password),
-            ],
+            Self::SnmpV3 { security, .. } => security
+                .secrets()
+                .into_iter()
+                .map(|(field, s)| secret(field, s))
+                .collect(),
             Self::Gnmi { password, .. }
             | Self::UnifiLocalAdmin { password, .. }
             | Self::InstantOnAccount { password, .. } => vec![secret("password", password)],
@@ -939,10 +928,7 @@ impl CredentialType {
             }
             CredentialType::SnmpV3 {
                 security_name,
-                auth_protocol,
-                auth_password,
-                priv_protocol,
-                priv_password,
+                security,
                 context_name,
             } => CredentialQueryPayload::Snmp(SnmpQueryCredential {
                 version: SnmpVersion::V3,
@@ -951,10 +937,7 @@ impl CredentialType {
                 },
                 v3: Some(SnmpV3Params {
                     security_name: security_name.clone(),
-                    auth_protocol: *auth_protocol,
-                    auth_password: secret_to_resolvable(auth_password),
-                    priv_protocol: *priv_protocol,
-                    priv_password: secret_to_resolvable(priv_password),
+                    security: security.map_secrets(secret_to_resolvable),
                     context_name: context_name.clone(),
                 }),
             }),
@@ -1188,11 +1171,29 @@ mod tests {
     fn snmpv3_cred(auth_pw: &str, priv_pw: &str) -> CredentialType {
         CredentialType::SnmpV3 {
             security_name: "snmp-user".to_string(),
-            auth_protocol: SnmpV3AuthProtocol::Sha256,
-            auth_password: inline(auth_pw),
-            priv_protocol: SnmpV3PrivProtocol::Aes128,
-            priv_password: inline(priv_pw),
+            security: SnmpV3Security::AuthPriv {
+                auth_protocol: SnmpV3AuthProtocol::Sha256,
+                auth_password: inline(auth_pw),
+                priv_protocol: SnmpV3PrivProtocol::Aes128,
+                priv_password: inline(priv_pw),
+            },
             context_name: Some("ctx-1".to_string()),
+        }
+    }
+
+    /// The exposed (auth, priv) passwords of an inline AuthPriv v3 credential.
+    fn auth_priv_passwords(credential: &CredentialType) -> (String, String) {
+        match credential {
+            CredentialType::SnmpV3 {
+                security:
+                    SnmpV3Security::AuthPriv {
+                        auth_password: SecretValue::Inline { value: a },
+                        priv_password: SecretValue::Inline { value: p },
+                        ..
+                    },
+                ..
+            } => (a.expose_secret().to_string(), p.expose_secret().to_string()),
+            other => panic!("expected an inline AuthPriv SnmpV3 credential, got {other:?}"),
         }
     }
 
@@ -1492,17 +1493,10 @@ mod tests {
         let existing = snmpv3_cred("auth-real", "priv-real");
         let mut updated = snmpv3_cred(REDACTED_SECRET_SENTINEL, REDACTED_SECRET_SENTINEL);
         updated.merge_redacted_secrets(&existing);
-        match &updated {
-            CredentialType::SnmpV3 {
-                auth_password: SecretValue::Inline { value: a },
-                priv_password: SecretValue::Inline { value: p },
-                ..
-            } => {
-                assert_eq!(a.expose_secret(), "auth-real");
-                assert_eq!(p.expose_secret(), "priv-real");
-            }
-            _ => panic!("expected SnmpV3 inline passwords"),
-        }
+        assert_eq!(
+            auth_priv_passwords(&updated),
+            ("auth-real".to_string(), "priv-real".to_string())
+        );
     }
 
     #[test]
@@ -1511,17 +1505,10 @@ mod tests {
         let existing = snmpv3_cred("auth-real", "priv-real");
         let mut updated = snmpv3_cred("auth-new", REDACTED_SECRET_SENTINEL);
         updated.merge_redacted_secrets(&existing);
-        match &updated {
-            CredentialType::SnmpV3 {
-                auth_password: SecretValue::Inline { value: a },
-                priv_password: SecretValue::Inline { value: p },
-                ..
-            } => {
-                assert_eq!(a.expose_secret(), "auth-new");
-                assert_eq!(p.expose_secret(), "priv-real");
-            }
-            _ => panic!("expected SnmpV3 inline passwords"),
-        }
+        assert_eq!(
+            auth_priv_passwords(&updated),
+            ("auth-new".to_string(), "priv-real".to_string())
+        );
     }
 
     #[test]
@@ -1548,19 +1535,17 @@ mod tests {
                 assert_eq!(s.version, SnmpVersion::V3);
                 let v3 = s.v3.expect("v3 params present");
                 assert_eq!(v3.security_name, "snmp-user");
-                assert_eq!(v3.auth_protocol, SnmpV3AuthProtocol::Sha256);
-                assert_eq!(v3.priv_protocol, SnmpV3PrivProtocol::Aes128);
                 assert_eq!(v3.context_name.as_deref(), Some("ctx-1"));
+                let value = |v: &str| ResolvableSecret::Value {
+                    value: v.to_string(),
+                };
                 assert_eq!(
-                    v3.auth_password,
-                    ResolvableSecret::Value {
-                        value: "auth-pw".to_string()
-                    }
-                );
-                assert_eq!(
-                    v3.priv_password,
-                    ResolvableSecret::Value {
-                        value: "priv-pw".to_string()
+                    v3.security,
+                    SnmpV3Security::AuthPriv {
+                        auth_protocol: SnmpV3AuthProtocol::Sha256,
+                        auth_password: value("auth-pw"),
+                        priv_protocol: SnmpV3PrivProtocol::Aes128,
+                        priv_password: value("priv-pw"),
                     }
                 );
             }

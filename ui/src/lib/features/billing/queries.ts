@@ -18,6 +18,7 @@ type CancelSubscriptionRequest = components['schemas']['CancelSubscriptionReques
 type CancelSubscriptionResponse = components['schemas']['CancelSubscriptionResponse'];
 type LicenseKeyType = components['schemas']['LicenseKeyType'];
 type LicenseKeyResponse = components['schemas']['LicenseKeyResponse'];
+type LicenseInstancesResponse = components['schemas']['LicenseInstancesResponse'];
 
 /**
  * Query hook for fetching current billing plans
@@ -451,4 +452,37 @@ export async function downloadQuotePdf(quoteNumber: string | null): Promise<void
 	link.click();
 	document.body.removeChild(link);
 	URL.revokeObjectURL(url);
+}
+
+/**
+ * Query hook for the server instances running this org's online license key.
+ * Enabled only where the License tab shows a key, as with the key query.
+ */
+export function useLicenseInstancesQuery(enabled: () => boolean = () => true) {
+	return createQuery(() => ({
+		queryKey: queryKeys.licenses.instances(),
+		enabled: enabled(),
+		queryFn: async (): Promise<LicenseInstancesResponse> => {
+			return unwrapData(await apiClient.GET('/api/v1/licenses/instances', {}));
+		}
+	}));
+}
+
+/**
+ * Mutation hook that deletes a server instance from the key, freeing its slot.
+ */
+export function useDeleteLicenseInstanceMutation() {
+	return createMutation(() => ({
+		mutationFn: async (id: string) => {
+			requireSuccess(
+				await apiClient.DELETE('/api/v1/licenses/instances/{id}', {
+					params: { path: { id } }
+				})
+			);
+			return true;
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.licenses.instances() });
+		}
+	}));
 }

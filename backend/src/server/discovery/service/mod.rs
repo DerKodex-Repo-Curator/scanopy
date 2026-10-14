@@ -1,13 +1,19 @@
 use crate::bail_validation;
 use crate::daemon::discovery::types::base::{DiscoveryPhase, DiscoveryTerminalReason};
+use crate::daemon::discovery::types::warnings::DiscoveryWarning;
 use crate::daemon::runtime::service::LOG_TARGET;
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::credentials::r#impl::mapping::{IntegrationTarget, Target};
 use crate::server::credentials::service::CredentialService;
-use crate::server::daemons::r#impl::api::{DaemonDiscoveryRequest, DiscoveryUpdatePayload};
+use crate::server::daemons::r#impl::api::{
+    DaemonDiscoveryRequest, DiscoveryUpdatePayload, ScannedEntityIds,
+};
 use crate::server::daemons::service::DaemonService;
+use crate::server::digest::service::DiscoveryDigestService;
 use crate::server::discovery::r#impl::base::{Discovery, DiscoveryBase};
 use crate::server::discovery::r#impl::types::{DiscoveryType, RunType};
+use crate::server::discovery_warnings::service::DiscoveryWarningService;
+use crate::server::hosts::service::HostService;
 use crate::server::organizations::service::OrganizationService;
 use crate::server::shared::entities::{ChangeTriggersTopologyStaleness, EntityDiscriminants};
 use crate::server::shared::events::bus::EventBus;
@@ -18,7 +24,7 @@ use crate::server::shared::events::types::{
 use crate::server::shared::services::traits::{CrudService, EventBusService};
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::generic::GenericPostgresStorage;
-use crate::server::shared::storage::traits::{Entity, Storable, Storage};
+use crate::server::shared::storage::traits::{Entity, PaginatedResult, Storable, Storage, Unique};
 use crate::server::shared::types::api::ApiError;
 use crate::server::sites::service::SiteService;
 use crate::server::subnets::r#impl::base::Subnet;
@@ -70,6 +76,10 @@ pub struct DiscoveryService {
     /// Per daemon, the subnets its host requests stored during the running scan. Drained into
     /// the terminal update's scanned set; see `note_touched_subnets`.
     touched_subnets: RwLock<HashMap<Uuid, HashSet<Uuid>>>,
+    /// Per daemon, the credentials its latest dispatch withheld because the daemon is too old to
+    /// parse them. Latched at dispatch, which builds the request but cannot write the session
+    /// (`update_session` replaces it wholesale), and drained into the terminal update's warnings.
+    withheld_credentials: RwLock<HashMap<Uuid, Vec<DiscoveryWarning>>>,
     session_last_updated: RwLock<HashMap<Uuid, chrono::DateTime<Utc>>>,
     update_tx: broadcast::Sender<DiscoveryUpdatePayload>,
     scheduler: Option<Arc<JobScheduler>>,
@@ -79,8 +89,14 @@ pub struct DiscoveryService {
     credential_service: Arc<CredentialService>,
     site_service: Arc<SiteService>,
     organization_service: Arc<OrganizationService>,
-    // Lazy dependency (set after construction to break circular dependency)
+    /// Each historical run's warnings, stored as rows beside it.
+    warning_service: Arc<DiscoveryWarningService>,
+    // Lazy dependencies (set after construction to break circular dependencies)
     daemon_service: std::sync::OnceLock<Arc<DaemonService>>,
+    /// Stamps the discovery FKs on what a finished session scanned.
+    host_service: std::sync::OnceLock<Arc<HostService>>,
+    /// Computes a finished session's digest.
+    digest_service: std::sync::OnceLock<Arc<DiscoveryDigestService>>,
 }
 
 impl EventBusService<Discovery> for DiscoveryService {
@@ -106,6 +122,64 @@ impl CrudService<Discovery> for DiscoveryService {
         Some(&self.entity_tag_service)
     }
 
+    // Every read attaches a historical run's warnings, which the run's own row does not hold.
+
+    async fn get_by_id(&self, id: &Uuid) -> Result<Option<Discovery>, anyhow::Error> {
+        let Some(mut discovery) = self.discovery_storage.get_by_id(id).await? else {
+            return Ok(None);
+        };
+        self.hydrate_tags(&mut discovery).await?;
+        self.attach_warnings(std::slice::from_mut(&mut discovery))
+            .await?;
+        Ok(Some(discovery))
+    }
+
+    async fn get_all(
+        &self,
+        filter: StorableFilter<Discovery>,
+    ) -> Result<Vec<Discovery>, anyhow::Error> {
+        let mut all = self.discovery_storage.get_all(filter).await?;
+        self.bulk_hydrate_tags(&mut all, None).await?;
+        self.attach_warnings(&mut all).await?;
+        Ok(all)
+    }
+
+    async fn get_paginated(
+        &self,
+        filter: StorableFilter<Discovery>,
+    ) -> Result<PaginatedResult<Discovery>, anyhow::Error> {
+        self.get_paginated_ordered(filter, "created_at ASC").await
+    }
+
+    async fn get_paginated_ordered(
+        &self,
+        filter: StorableFilter<Discovery>,
+        order_by: &str,
+    ) -> Result<PaginatedResult<Discovery>, anyhow::Error> {
+        let mut paginated = self
+            .discovery_storage
+            .get_paginated(filter, order_by)
+            .await?;
+        self.bulk_hydrate_tags(&mut paginated.items, None).await?;
+        self.attach_warnings(&mut paginated.items).await?;
+        Ok(paginated)
+    }
+
+    async fn get_unique(
+        &self,
+        filter: StorableFilter<Discovery>,
+    ) -> Result<Unique<Discovery>, anyhow::Error> {
+        Ok(match self.discovery_storage.get_unique(filter).await? {
+            Unique::One(mut discovery) => {
+                self.hydrate_tags(&mut discovery).await?;
+                self.attach_warnings(std::slice::from_mut(&mut discovery))
+                    .await?;
+                Unique::One(discovery)
+            }
+            other => other,
+        })
+    }
+
     async fn update(
         &self,
         entity: &mut Discovery,
@@ -121,6 +195,8 @@ impl CrudService<Discovery> for DiscoveryService {
         // Preserve server-managed fields from current DB state
         // (the API client may send stale values for these read-only fields)
         entity.scan_count = current.scan_count;
+        // Storage returns this entity as given, so the computed field is set here.
+        entity.next_run_is_full_scan = entity.full_scan_is_due();
 
         // Scoped so the borrows on `entity`/`current` end before the update below.
         let (schedule_changed, enabled_changed, entity_is_scheduled) = {
@@ -229,3 +305,4 @@ mod lifecycle;
 mod scheduling;
 mod sessions;
 mod state;
+mod warnings;

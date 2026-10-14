@@ -13,6 +13,9 @@ pub struct LoginRegisterParams {
     pub ip: IpAddr,
     pub user_agent: Option<String>,
     pub site_ids: Vec<Uuid>,
+    /// The address an accepted invite was emailed to. Registering with it counts as proof
+    /// of the address.
+    pub invited_as: Option<EmailAddress>,
 }
 
 #[derive(Clone)]
@@ -45,8 +48,8 @@ pub struct ProvisionUserParams {
     pub billing_enabled: bool,
 }
 
-/// The first site requested at signup. Carried on `OrgCreated`, whose
-/// subscriber creates it, so it survives past the session.
+/// The first site requested at signup. `provision_user` creates it; it is
+/// also carried on `OrgCreated` for telemetry.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 pub struct PendingSiteSetup {
     /// Name the user gave the site.

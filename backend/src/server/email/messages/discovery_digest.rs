@@ -1,21 +1,26 @@
 use uuid::Uuid;
 
 use super::{Email, EmailCategory, compose::html_escape, links};
+use crate::daemon::discovery::types::warnings::WarningRemedy;
 use crate::server::{
     digest::payload::{
-        AffectedHostCard, DiscoveryDigestPayload, EntityFreshness, InterfaceSummary,
-        IpAddressSummary, PortSummary, ServiceSummary, SubnetSummary, VlanSummary,
+        AffectedHostCard, CredentialProblem, DiscoveryDigestPayload, EntityFreshness,
+        IntegrationWithoutCredential, InterfaceSummary, IpAddressSummary, PortSummary,
+        ServiceSummary, SubnetSummary, VlanSummary,
     },
     shared::{
         concepts::Concept,
         entities::EntityDiscriminants,
-        types::{Color, metadata::EntityMetadataProvider},
+        types::{
+            Color,
+            metadata::{EntityMetadataProvider, HasId, TypeMetadataProvider},
+        },
     },
 };
 
-/// Per-discovery-session digest summarising hosts added/changed/vanished,
-/// VLANs, and subnets scanned. Holds the computed payload plus the installed
-/// app's `public_url`, used to build absolute deep-links into the UI.
+/// Per-discovery-session digest: the warnings the reader can resolve, then hosts
+/// added/changed/stale and VLANs, then the subnets scanned. Holds the computed payload plus the
+/// installed app's `public_url`, used to build absolute deep-links into the UI.
 pub struct DiscoveryDigest<'a> {
     pub payload: &'a DiscoveryDigestPayload,
     pub base_url: &'a str,
@@ -49,31 +54,291 @@ impl Email for DiscoveryDigest<'_> {
         // entity links below are built per id, so they resolve `base` here.
         let settings_url = links::SETTINGS_EMAIL;
 
+        let run = RunLinks {
+            base,
+            discovery_id: payload.discovery_id,
+            email: self,
+        };
+
+        // What the reader can act on comes first: warnings they can resolve, then what changed
+        // on the network. What the scan covered is one line under the header.
+        let scope_line = render_scope_line(payload, &started, &finished, &run);
+        let attention_section = render_attention_section(payload, &run);
         let summary_section = render_summary_banner(payload);
-        let legend_section = render_legend(payload.stale_after_hours);
+        let legend_section = if payload.has_changes() {
+            render_legend(payload.stale_after_hours)
+        } else {
+            String::new()
+        };
         let subnets_section = render_subnets_section(&payload.subnets_scanned, base, self);
-        let hosts_added_section =
-            render_host_cards_section("New hosts discovered", &payload.hosts_added, base, self);
-        let hosts_stale_section =
-            render_host_cards_section("Stale hosts", &payload.hosts_stale, base, self);
-        let hosts_changed_section =
-            render_host_cards_section("Hosts with changes", &payload.hosts_changed, base, self);
+        let hosts_added_section = render_host_cards_section(
+            "New hosts discovered",
+            &payload.hosts_added,
+            CardChildren::All,
+            base,
+            self,
+        );
+        let hosts_stale_section = render_host_cards_section(
+            "Stale hosts",
+            &payload.hosts_stale,
+            CardChildren::All,
+            base,
+            self,
+        );
+        let hosts_changed_section = render_host_cards_section(
+            "Hosts with changes",
+            &payload.hosts_changed,
+            CardChildren::ChangedOnly,
+            base,
+            self,
+        );
         let vlans_added_section = render_vlan_list_section("VLANs detected", &payload.vlans_added);
         let vlans_stale_section = render_vlan_list_section("Stale VLANs", &payload.vlans_stale);
+        let open_scan_link = run.href(None).map_or_else(String::new, |href| {
+            format!(
+                r#"<p style="margin: 24px 0 0 0; font-size: 14px;"><a href="{href}" style="color: #2563eb;">Open this scan in Scanopy</a></p>"#,
+                href = html_escape(&href),
+            )
+        });
 
         BODY.replace("{site_name}", &html_escape(&payload.site_name))
-            .replace("{started_at}", &started)
-            .replace("{finished_at}", &finished)
+            .replace("{scope_line}", &scope_line)
             .replace("{settings_url}", settings_url)
+            .replace("{attention_section}", &attention_section)
             .replace("{summary_section}", &summary_section)
             .replace("{legend_section}", &legend_section)
-            .replace("{subnets_section}", &subnets_section)
             .replace("{hosts_added_section}", &hosts_added_section)
             .replace("{hosts_stale_section}", &hosts_stale_section)
             .replace("{hosts_changed_section}", &hosts_changed_section)
             .replace("{vlans_added_section}", &vlans_added_section)
             .replace("{vlans_stale_section}", &vlans_stale_section)
+            .replace("{subnets_section}", &subnets_section)
+            .replace("{open_scan_link}", &open_scan_link)
     }
+}
+
+/// Links into the run's historical discovery view: the `discovery-history-detail` modal on the
+/// history page, opened at one of its tabs (`scan`, `credentials`). `None` for a digest queued
+/// before the run's id was carried.
+struct RunLinks<'a> {
+    base: &'a str,
+    discovery_id: Option<Uuid>,
+    email: &'a dyn Email,
+}
+
+impl RunLinks<'_> {
+    fn href(&self, tab: Option<&str>) -> Option<String> {
+        let id = self.discovery_id?;
+        let tab = tab.map_or_else(String::new, |t| format!("&tab={t}"));
+        // UTM goes in the query, before the fragment that selects the history page.
+        let url = self.email.with_utm(&format!(
+            "{}/?modal=discovery-history-detail&id={id}{tab}",
+            self.base
+        ));
+        Some(format!("{url}#discovery-history"))
+    }
+
+    /// `text`, linked to `tab` when the run can be linked to. `text` is already escaped.
+    fn link(&self, tab: &str, text: &str) -> String {
+        match self.href(Some(tab)) {
+            Some(href) => format!(
+                r#"<a href="{href}" style="color: #2563eb;">{text}</a>"#,
+                href = html_escape(&href),
+            ),
+            None => text.to_string(),
+        }
+    }
+}
+
+fn plural(n: u32, one: &str, many: &str) -> String {
+    if n == 1 {
+        format!("1 {one}")
+    } else {
+        format!("{n} {many}")
+    }
+}
+
+/// "Scan ran {start} → {end} across 4 subnets using 6 credentials." and, when the run raised
+/// any, how many warnings need no action. Each count links to where the run lists them.
+fn render_scope_line(
+    payload: &DiscoveryDigestPayload,
+    started: &str,
+    finished: &str,
+    run: &RunLinks,
+) -> String {
+    let mut line = format!("Scan ran {started} → {finished}");
+    let subnets = payload.subnets_scanned.len() as u32;
+    if subnets > 0 {
+        line.push_str(&format!(" across {}", plural(subnets, "subnet", "subnets")));
+    }
+    if payload.credentials_used > 0 {
+        let credentials = plural(payload.credentials_used, "credential", "credentials");
+        line.push_str(&format!(" using {}", run.link("credentials", &credentials)));
+    }
+    line.push('.');
+    let no_action = payload.warnings.no_action;
+    if no_action > 0 {
+        let text = if no_action == 1 {
+            "1 warning needs no action".to_string()
+        } else {
+            format!("{no_action} warnings need no action")
+        };
+        line.push_str(&format!(" {}.", run.link("scan", &text)));
+    }
+    format!(
+        r#"<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 20px; color: #6b7280;">{line}</p>"#
+    )
+}
+
+/// Credentials named in the attention block before the rest fold into "+N more".
+const MAX_CREDENTIAL_PROBLEMS_INLINE: usize = 5;
+
+/// The warnings the reader can resolve, under the headings the app files them under
+/// (`WarningRemedy`), with the credentials that raised them named. Empty when there are none:
+/// warnings that need no action are only counted, in the scope line.
+fn render_attention_section(payload: &DiscoveryDigestPayload, run: &RunLinks) -> String {
+    let counts = payload.warnings;
+    let actionable = counts.actionable();
+    if actionable == 0 {
+        return String::new();
+    }
+
+    let group = |remedy: WarningRemedy, count: u32, body: &str| {
+        format!(
+            r#"<div style="margin: 0 0 12px 0;"><div style="font-size: 14px; font-weight: 600; color: #1a1a1a; margin: 0 0 4px 0;">{name} ({count})</div>{body}</div>"#,
+            name = html_escape(remedy.name()),
+        )
+    };
+    let line = |text: &str| {
+        format!(r#"<div style="font-size: 13px; line-height: 20px; color: #4b5563;">{text}</div>"#)
+    };
+
+    let mut groups = String::new();
+    let fix = counts.fix_credentials + counts.fix_other + counts.add_credentials;
+    if fix > 0 {
+        // First: each is one click from done, and the link opens the create flow pre-filled.
+        let mut body: String = payload
+            .integrations_without_credentials
+            .iter()
+            .map(|e| {
+                line(&integration_without_credential_line(
+                    e,
+                    payload.site_id,
+                    run,
+                ))
+            })
+            .collect();
+        body += &payload
+            .credential_problems
+            .iter()
+            .take(MAX_CREDENTIAL_PROBLEMS_INLINE)
+            .map(|p| line(&credential_problem_line(p)))
+            .collect::<String>();
+        let more = payload
+            .credential_problems
+            .len()
+            .saturating_sub(MAX_CREDENTIAL_PROBLEMS_INLINE) as u32;
+        if more > 0 {
+            body.push_str(&line(&format!(
+                "+{}",
+                plural(more, "more credential", "more credentials")
+            )));
+        }
+        if counts.fix_other > 0 {
+            body.push_str(&line(&format!(
+                "{} about the scan itself",
+                plural(counts.fix_other, "warning", "warnings")
+            )));
+        }
+        groups.push_str(&group(WarningRemedy::FixInScanopy, fix, &body));
+    }
+    if counts.check_device > 0 {
+        groups.push_str(&group(
+            WarningRemedy::CheckTheDevice,
+            counts.check_device,
+            &line(&html_escape(WarningRemedy::CheckTheDevice.description())),
+        ));
+    }
+
+    // Every actionable warning is about a credential: open where the run lists them by
+    // credential. Otherwise the scan's own tab.
+    let tab = if counts.fix_other == 0 && counts.check_device == 0 && counts.add_credentials == 0 {
+        "credentials"
+    } else {
+        "scan"
+    };
+    let button = run.href(Some(tab)).map_or_else(String::new, |href| {
+        format!(
+            r#"<a href="{href}" style="display: inline-block; margin: 4px 0 0 0; padding: 10px 20px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;">Review warnings</a>"#,
+            href = html_escape(&href),
+        )
+    });
+
+    format!(
+        r#"<div style="margin: 0 0 20px 0; padding: 14px 16px; background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;"><div style="font-size: 15px; font-weight: 600; color: #1a1a1a; margin: 0 0 10px 0;">This scan raised {raised} you can resolve.</div>{groups}{button}</div>"#,
+        raised = plural(actionable, "warning", "warnings"),
+    )
+}
+
+/// "Proxmox VE answers on 3 hosts that no credential works on. Create a Proxmox VE credential",
+/// the link opening the credential create flow with the integration chosen and where it applies
+/// already assigned: the
+/// run's site for an integration whose credentials can cover a site, the hosts otherwise. The same
+/// URL the app's own prompts open, so every surface lands in the same flow.
+fn integration_without_credential_line(
+    e: &IntegrationWithoutCredential,
+    site_id: Uuid,
+    run: &RunLinks,
+) -> String {
+    let name = e.integration.name();
+    let text = format!(
+        "<strong>{}</strong> answers on {} that no credential works on.",
+        html_escape(name),
+        plural(e.host_ids.len() as u32, "host", "hosts"),
+    );
+    let scope = if e.integration.applies_to_sites() {
+        format!("sites={site_id}")
+    } else {
+        let hosts = e
+            .host_ids
+            .iter()
+            .map(Uuid::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("hosts={hosts}")
+    };
+    let href = run.email.with_utm(&format!(
+        "{}/?modal=credential-editor&integration={}&{scope}#credentials",
+        run.base,
+        e.integration.id(),
+    ));
+    format!(
+        r#"{text} <a href="{href}" style="color: #2563eb;">Create a {name} credential</a>"#,
+        href = html_escape(&href),
+        name = html_escape(name),
+    )
+}
+
+/// "Lab switches (SNMP v2c): reached no hosts" or "...: reached 3 hosts, 2 warnings".
+fn credential_problem_line(p: &CredentialProblem) -> String {
+    let who = match &p.name {
+        Some(name) => format!(
+            "<strong>{}</strong> ({})",
+            html_escape(name),
+            html_escape(&p.type_label)
+        ),
+        None => format!("<strong>{}</strong>", html_escape(&p.type_label)),
+    };
+    let what = if p.hosts_reached == 0 {
+        "reached no hosts".to_string()
+    } else {
+        format!(
+            "reached {}, {}",
+            plural(p.hosts_reached, "host", "hosts"),
+            plural(p.warnings, "warning", "warnings")
+        )
+    };
+    format!("{who}: {what}")
 }
 
 const TITLE: &str = "Discovery scan summary";
@@ -83,15 +348,17 @@ const BODY: &str = r#"                    <!-- Main Content -->
                         <td style="padding: 0 40px 20px 40px;">
                             <h1 style="margin: 0 0 20px 0; font-size: 24px; font-weight: 600; color: #1a1a1a; text-align: center;">Discovery scan summary</h1>
                             <p style="margin: 0 0 8px 0; font-size: 16px; line-height: 24px; color: #4a4a4a;">Site: <strong>{site_name}</strong></p>
-                            <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 20px; color: #6b7280;">Scan ran {started_at} → {finished_at}.</p>
+                            {scope_line}
+                            {attention_section}
                             {summary_section}
                             {legend_section}
-                            {subnets_section}
                             {hosts_added_section}
                             {hosts_stale_section}
                             {hosts_changed_section}
                             {vlans_added_section}
                             {vlans_stale_section}
+                            {subnets_section}
+                            {open_scan_link}
                         </td>
                     </tr>
 
@@ -288,16 +555,22 @@ fn render_vlan_list_section(heading: &str, vlans: &[VlanSummary]) -> String {
     render_section(&header, &render_tag_bag(&tags))
 }
 
-/// Stats banner at the top of the digest body.
+/// Counts of what changed, above the sections that list it. Only the counts that are not zero;
+/// no banner at all when nothing changed. Subnets scanned is scope, and sits in the scope line.
 fn render_summary_banner(payload: &DiscoveryDigestPayload) -> String {
-    let cells: Vec<(usize, &str)> = vec![
+    let cells: Vec<(usize, &str)> = [
         (payload.hosts_added.len(), "new hosts"),
         (payload.hosts_stale.len(), "stale hosts"),
         (payload.hosts_changed.len(), "changed hosts"),
         (payload.vlans_added.len(), "VLANs detected"),
         (payload.vlans_stale.len(), "stale VLANs"),
-        (payload.subnets_scanned.len(), "subnets scanned"),
-    ];
+    ]
+    .into_iter()
+    .filter(|(count, _)| *count > 0)
+    .collect();
+    if cells.is_empty() {
+        return String::new();
+    }
     let inner: String = cells
         .iter()
         .map(|(count, label)| {
@@ -314,12 +587,55 @@ fn render_summary_banner(payload: &DiscoveryDigestPayload) -> String {
     )
 }
 
+/// Which of a host's children its card shows.
+#[derive(Clone, Copy)]
+enum CardChildren {
+    /// Its whole footprint. A new host's children are all new; a stale host's last-known
+    /// children are what went quiet with it.
+    All,
+    /// Only those that changed this scan. A changed host is listed for those, and the host link
+    /// opens the rest.
+    ChangedOnly,
+}
+
+impl CardChildren {
+    fn apply(self, card: &AffectedHostCard) -> AffectedHostCard {
+        match self {
+            Self::All => card.clone(),
+            Self::ChangedOnly => AffectedHostCard {
+                host: card.host.clone(),
+                status: card.status,
+                services: card
+                    .services
+                    .iter()
+                    .filter(|s| s.is_fresh)
+                    .cloned()
+                    .collect(),
+                ip_addresses: card
+                    .ip_addresses
+                    .iter()
+                    .filter(|i| i.is_fresh)
+                    .cloned()
+                    .collect(),
+                interfaces: card
+                    .interfaces
+                    .iter()
+                    .filter(|i| i.is_fresh)
+                    .cloned()
+                    .collect(),
+                ports: card.ports.iter().filter(|p| p.is_fresh).cloned().collect(),
+            },
+        }
+    }
+}
+
 /// Render one section of host cards. Sections with more than 5 cards put
 /// the overflow inside `<details>` so recipients can opt-in to the full
 /// list. Summary reads "Show {N} more hosts".
 fn render_host_cards_section(
     heading: &str,
     cards: &[AffectedHostCard],
+    children: CardChildren,
     base: &str,
     email: &dyn Email,
 ) -> String {
@@ -330,7 +646,7 @@ fn render_host_cards_section(
     let visible: String = cards
         .iter()
         .take(MAX_HOST_CARDS_INLINE)
-        .map(|c| render_host_card(c, base, email))
+        .map(|c| render_host_card(&children.apply(c), base, email))
         .collect();
     if cards.len() <= MAX_HOST_CARDS_INLINE {
         return render_section(&header, &visible);
@@ -338,7 +654,7 @@ fn render_host_cards_section(
     let hidden: String = cards
         .iter()
         .skip(MAX_HOST_CARDS_INLINE)
-        .map(|c| render_host_card(c, base, email))
+        .map(|c| render_host_card(&children.apply(c), base, email))
         .collect();
     let more = cards.len() - MAX_HOST_CARDS_INLINE;
     let inner = format!(
@@ -522,4 +838,189 @@ fn tags_interfaces(
             logo_url: None,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::digest::payload::{HostSummary, WarningCounts};
+    use crate::server::sites::r#impl::DEFAULT_STALE_AFTER_HOURS;
+
+    const BASE: &str = "https://app.example.test";
+
+    fn payload() -> DiscoveryDigestPayload {
+        DiscoveryDigestPayload {
+            session_id: Uuid::nil(),
+            site_id: Uuid::nil(),
+            site_name: "HQ".to_string(),
+            started_at: chrono::Utc::now(),
+            finished_at: chrono::Utc::now(),
+            stale_after_hours: DEFAULT_STALE_AFTER_HOURS,
+            subnets_scanned: vec![],
+            hosts_added: vec![],
+            hosts_stale: vec![],
+            hosts_changed: vec![],
+            vlans_added: vec![],
+            vlans_stale: vec![],
+            recipients: vec![],
+            discovery_id: Some(Uuid::new_v4()),
+            warnings: WarningCounts::default(),
+            credentials_used: 0,
+            credential_problems: vec![],
+            integrations_without_credentials: vec![],
+        }
+    }
+
+    fn render(payload: &DiscoveryDigestPayload) -> String {
+        DiscoveryDigest {
+            payload,
+            base_url: BASE,
+        }
+        .body_html()
+    }
+
+    /// Every link in `html` that opens the run's historical view.
+    fn run_links(html: &str) -> Vec<url::Url> {
+        html.split("href=\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            // The settings link is still a `{base_url}` template until `render_html` expands it.
+            .filter_map(|href| url::Url::parse(&href.replace("&amp;", "&")).ok())
+            .filter(|u| {
+                u.query_pairs()
+                    .any(|(k, v)| k == "modal" && v == "discovery-history-detail")
+            })
+            .collect()
+    }
+
+    fn query(url: &url::Url, key: &str) -> Option<String> {
+        url.query_pairs()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.into_owned())
+    }
+
+    #[test]
+    fn resolvable_warnings_come_first_and_link_to_the_run() {
+        let mut p = payload();
+        p.warnings = WarningCounts {
+            fix_credentials: 1,
+            ..Default::default()
+        };
+        p.credential_problems = vec![CredentialProblem {
+            name: Some("Lab switches".to_string()),
+            type_label: "SNMP v2c".to_string(),
+            hosts_reached: 0,
+            warnings: 1,
+        }];
+        p.hosts_added = vec![AffectedHostCard {
+            host: HostSummary {
+                id: Uuid::new_v4(),
+                label: "printer".to_string(),
+            },
+            status: EntityFreshness::New,
+            services: vec![],
+            ip_addresses: vec![],
+            interfaces: vec![],
+            ports: vec![],
+        }];
+        let html = render(&p);
+
+        let review = html
+            .find("Review warnings")
+            .expect("the attention block renders");
+        let hosts = html.find("New hosts discovered").unwrap();
+        assert!(
+            review < hosts,
+            "warnings to resolve come before the network changes"
+        );
+
+        let links = run_links(&html);
+        assert!(!links.is_empty());
+        for link in &links {
+            assert_eq!(query(link, "id"), p.discovery_id.map(|id| id.to_string()));
+            assert_eq!(link.fragment(), Some("discovery-history"));
+            assert_eq!(query(link, "utm_source").as_deref(), Some("email"));
+        }
+        assert!(
+            links
+                .iter()
+                .any(|l| query(l, "tab").as_deref() == Some("credentials")),
+            "credential-only warnings open the run's Credentials tab"
+        );
+    }
+
+    #[test]
+    fn warnings_that_need_no_action_are_counted_but_not_raised() {
+        let mut p = payload();
+        p.warnings = WarningCounts {
+            no_action: 3,
+            ..Default::default()
+        };
+        let html = render(&p);
+        assert!(!html.contains("Review warnings"));
+        assert!(
+            run_links(&html)
+                .iter()
+                .any(|l| query(l, "tab").as_deref() == Some("scan")),
+            "the count still links to where the run lists them"
+        );
+    }
+
+    #[test]
+    fn a_digest_queued_without_the_run_id_renders_without_run_links() {
+        let mut p = payload();
+        p.discovery_id = None;
+        p.warnings.fix_other = 2;
+        let html = render(&p);
+        assert!(run_links(&html).is_empty());
+        assert!(!html.contains("discovery-history"));
+    }
+
+    #[test]
+    fn credential_names_are_escaped() {
+        let mut p = payload();
+        p.warnings.fix_credentials = 1;
+        p.credential_problems = vec![CredentialProblem {
+            name: Some("<script>alert(1)</script>".to_string()),
+            type_label: "SSH Key".to_string(),
+            hosts_reached: 2,
+            warnings: 1,
+        }];
+        let html = render(&p);
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn a_changed_host_card_shows_only_what_changed() {
+        let host_id = Uuid::new_v4();
+        let service = |name: &str, is_fresh: bool| ServiceSummary {
+            id: Uuid::new_v4(),
+            host_id,
+            name: name.to_string(),
+            is_container: false,
+            logo_url: None,
+            status: if is_fresh {
+                EntityFreshness::New
+            } else {
+                EntityFreshness::Current
+            },
+            is_fresh,
+        };
+        let mut p = payload();
+        p.hosts_changed = vec![AffectedHostCard {
+            host: HostSummary {
+                id: host_id,
+                label: "nas".to_string(),
+            },
+            status: EntityFreshness::Current,
+            services: vec![service("Plex", true), service("Samba", false)],
+            ip_addresses: vec![],
+            interfaces: vec![],
+            ports: vec![],
+        }];
+        let html = render(&p);
+        assert!(html.contains("Plex"));
+        assert!(!html.contains("Samba"));
+    }
 }

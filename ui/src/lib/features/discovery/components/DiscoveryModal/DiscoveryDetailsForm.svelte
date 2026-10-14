@@ -38,11 +38,8 @@
 		discovery_neverRun,
 		discovery_scanCount,
 		discovery_scanInfo,
-		discovery_scanModeBaselinePending,
-		discovery_scanModeFirstLight,
-		discovery_scanModeInfo,
-		discovery_scanModeFull,
-		discovery_scanModeLight,
+		discovery_nextRunFull,
+		discovery_nextRunLight,
 		discovery_scheduled,
 		discovery_scheduledDescription,
 		discovery_upgradeRequiredTitle,
@@ -232,14 +229,6 @@
 
 	{#if formData.discovery_type.type === 'Unified' && formData.scan_count !== undefined}
 		{@const scanCount = formData.scan_count ?? 0}
-		{@const interval = formData.discovery_type.scan_settings?.full_scan_interval ?? 3}
-		{@const nextScanNumber = scanCount + 1}
-		{@const nextIsFullScan =
-			formData.force_full_scan ||
-			(interval !== 0 &&
-				(interval === 1 ||
-					scanCount === 1 ||
-					(scanCount > 1 && interval > 0 && scanCount % interval === 0)))}
 		{@const lastRun =
 			formData.run_type.type === 'Scheduled' || formData.run_type.type === 'AdHoc'
 				? formData.run_type.last_run
@@ -248,22 +237,16 @@
 			<div class="space-y-1">
 				{#if scanCount === 0}
 					<p class="text-secondary text-sm">{discovery_neverRun()}</p>
-					<p class="text-tertiary text-xs">{discovery_scanModeFirstLight()}</p>
 				{:else}
 					<p class="text-secondary text-sm">
 						{discovery_lastRun({ time: lastRun ? formatTimestamp(lastRun) : '—' })}
 					</p>
 					<p class="text-secondary text-sm">{discovery_scanCount({ count: String(scanCount) })}</p>
-					<p class="text-tertiary text-sm">
-						{discovery_scanModeInfo({
-							next: String(nextScanNumber),
-							mode: nextIsFullScan ? discovery_scanModeFull() : discovery_scanModeLight()
-						})}
-					</p>
-					{#if scanCount === 1}
-						<p class="text-tertiary text-xs">{discovery_scanModeBaselinePending()}</p>
-					{/if}
 				{/if}
+				<!-- Which run is full is decided on the server; it sends the result for the next run. -->
+				<p class="text-tertiary text-xs">
+					{formData.next_run_is_full_scan ? discovery_nextRunFull() : discovery_nextRunLight()}
+				</p>
 			</div>
 		</CollapsibleCard>
 	{/if}

@@ -17,6 +17,7 @@ import {
 	auth_welcomeBack
 } from '$lib/paraglide/messages';
 import { resetIdentity } from '$lib/shared/utils/analytics';
+import { useConfigQuery } from '$lib/shared/stores/config-query';
 import type { User } from '../users/types';
 import type { components } from '$lib/api/schema';
 import type {
@@ -46,8 +47,36 @@ export function useCurrentUserQuery() {
 		// Don't retry auth checks - if it fails, user is not authenticated
 		retry: false,
 		// Auth state should be checked frequently
-		staleTime: 60 * 1000
+		staleTime: 60 * 1000,
+		// While unverified, refetch on every return to the tab, so verifying from the emailed
+		// link (in another tab or on another device) clears the verification notices without a
+		// reload.
+		refetchOnWindowFocus: (query) => (query.state.data?.email_verified === false ? 'always' : true)
 	}));
+}
+
+/**
+ * Whether the current user still has to verify their email before the server allows gated
+ * actions (invites, API keys, shares, emailing the install command, a second daemon).
+ *
+ * Display only: the server's `auth_email_verification_required` refusal is the actual gate,
+ * so controls stay enabled and show this as help text. A server with no email transport lifts
+ * the gate, and a missing flag counts as verified, matching the backend.
+ */
+export function useEmailVerificationPending() {
+	const currentUserQuery = useCurrentUserQuery();
+	const configQuery = useConfigQuery();
+	return {
+		get pending(): boolean {
+			return (
+				(configQuery.data?.has_email_service ?? false) &&
+				currentUserQuery.data?.email_verified === false
+			);
+		},
+		get email(): string | null {
+			return currentUserQuery.data?.email ?? null;
+		}
+	};
 }
 
 /**
@@ -120,6 +149,23 @@ export function useLogoutMutation() {
 			queryClient.clear();
 			resetIdentity();
 			pushSuccess(auth_loggedOut());
+		}
+	}));
+}
+
+/**
+ * Mutation hook for accepting the current terms. The returned user no longer
+ * needs to accept, which lifts the terms gate.
+ */
+export function useAcceptTermsMutation() {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: async () => {
+			return unwrapData(await apiClient.POST('/api/auth/accept-terms', {}));
+		},
+		onSuccess: (user: User) => {
+			queryClient.setQueryData(queryKeys.auth.currentUser(), user);
 		}
 	}));
 }

@@ -6,7 +6,7 @@ use crate::daemon::discovery::integration::snmp::sim::transport::Handler;
 use crate::daemon::discovery::integration::snmp::sim::{Purpose, SimDevice, Tables};
 use crate::daemon::discovery::integration::snmp::types::SystemInfo;
 use crate::server::credentials::r#impl::types::{
-    CredentialType, SnmpV3AuthProtocol, SnmpV3PrivProtocol,
+    CredentialType, SnmpV3AuthProtocol, SnmpV3PrivProtocol, SnmpV3Security,
 };
 use crate::server::interfaces::r#impl::base::if_type;
 
@@ -22,10 +22,13 @@ pub fn device() -> SimDevice {
         },
         credential: CredentialType::SnmpV3 {
             security_name: "scanopyctx".into(),
-            auth_protocol: SnmpV3AuthProtocol::Sha256,
-            auth_password: inline("ctxauthpass12345"),
-            priv_protocol: SnmpV3PrivProtocol::Aes128,
-            priv_password: inline("ctxprivpass12345"), context_name: Some("vlan-20".into()),
+            security: SnmpV3Security::AuthPriv {
+                auth_protocol: SnmpV3AuthProtocol::Sha256,
+                auth_password: inline("ctxauthpass12345"),
+                priv_protocol: SnmpV3PrivProtocol::Aes128,
+                priv_password: inline("ctxprivpass12345"),
+            },
+            context_name: Some("vlan-20".into()),
         },
         system: SystemInfo {
             sys_descr: Some("Cisco IOS Software [Fuji], Catalyst L3 Switch Software (CAT3K_CAA-UNIVERSALK9-M), Version 16.9.5".into()),

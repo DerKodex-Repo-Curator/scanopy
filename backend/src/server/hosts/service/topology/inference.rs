@@ -108,7 +108,7 @@ impl HostService {
                 created.id,
                 ProvisionalSubnet {
                     cidr: range.cidr.to_string(),
-                    subnet_id: created.id,
+                    subnet_id: Some(created.id),
                     addresses: range
                         .far_ends
                         .iter()
@@ -185,7 +185,7 @@ impl HostService {
             .map(|s| {
                 let detail = evidence.remove(&s.id).unwrap_or(ProvisionalSubnet {
                     cidr: s.base.cidr.to_string(),
-                    subnet_id: s.id,
+                    subnet_id: Some(s.id),
                     addresses: Vec::new(),
                     sys_names: Vec::new(),
                     seen_by_host_ids: Vec::new(),

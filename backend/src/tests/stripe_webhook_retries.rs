@@ -124,11 +124,11 @@ fn is_cancellation(operation: &BillingOperation) -> bool {
     matches!(operation, BillingOperation::SubscriptionCancelled { .. })
 }
 
-/// The duplicate-subscription cleanup runs after the checkout emails. When
-/// it fails, the redelivery finds the org already on its plan, so it finishes
-/// the cleanup and sends neither email again.
+/// The duplicate-subscription cleanup runs before the checkout is written or
+/// published. When it fails, nothing is sent, and the redelivery finishes the
+/// cleanup and sends each checkout email once.
 #[tokio::test]
-async fn a_failure_after_the_checkout_emails_does_not_resend_them() {
+async fn a_failed_duplicate_cleanup_sends_each_checkout_email_once() {
     let (state, _container) = test_state_with_email_dir(None).await;
     let org_id = Uuid::new_v4();
     let subscriptions = Endpoint::new(EMPTY_LIST).failing(1);

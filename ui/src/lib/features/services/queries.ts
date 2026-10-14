@@ -16,58 +16,23 @@ import { requireSuccess, unwrapData, unwrapEnvelope } from '$lib/api/query-helpe
 import type { Service } from './types/base';
 import { utcTimeZoneSentinel } from '$lib/shared/utils/formatting';
 import { v4 as uuidv4 } from 'uuid';
-import type { components } from '$lib/api/schema';
+import type { components, operations } from '$lib/api/schema';
+import { withListParams } from '$lib/api/list-params';
 
 // Re-export type for convenience
 export type { Service };
 
 /**
- * Query parameters for services query including pagination and ordering
+ * Query parameters for services query: the endpoint's own query, plus a list's view in its param
+ * names (`DataControls`' `onQueryChange`), which is sent as written.
  */
-export interface ServicesQueryParams {
-	limit?: number;
-	offset?: number;
-	/** Filter by site ID. Several narrows to the union of them. */
-	site_ids?: string[];
-	/** Filter by host ID. Several narrows to the union of them. */
-	host_ids?: string[];
-	/** Only services with one of these definitions (raw definition ids). */
-	service_definitions?: string[];
-	/** Filter by the name of the service containerizing this one, the value "Containerized" groups on. */
-	virtualization_service_names?: string[];
-	/** Also return services nothing containerizes; on its own, only those. */
-	include_uncontainerized?: boolean;
-	/** Primary ordering field (used for grouping). Always sorts ASC to keep groups together. */
-	group_by?: components['schemas']['ServiceOrderField'];
-	/** Secondary ordering field (sorting within groups or standalone sort). */
-	order_by?: components['schemas']['ServiceOrderField'];
-	/** Direction for order_by field. */
-	order_direction?: components['schemas']['OrderDirection'];
-	/** Filter by tag IDs (returns services that have ANY of the specified tags). */
-	tag_ids?: string[];
-	/** Tag sets a service must hold one tag of each of: one comma-separated id list per tag group. */
-	tag_sets?: string[];
-	/** Group by the tag each service holds from this tag group, in place of `group_by`. */
-	group_by_tag_group?: string;
-	/** Sort by the position of the tag each service holds from this tag group, in place of `order_by`. */
-	order_by_tag_group?: string;
-	/** `true` returns only services discovery hasn't observed within their
-	 * site's staleness window; omit for no staleness constraint. */
-	stale?: boolean;
-	/** Free-text search across service name, service definition, and the name
-	 * of the host the service runs on. */
-	search?: string;
-	/** Only services exposed on one of these port numbers, over either protocol. */
-	ports?: number[];
-	/** Exclude services belonging to these categories. */
-	exclude_categories?: components['schemas']['ServiceCategory'][];
-	/** Filter by how the service came to exist (`source.type`). */
-	sources?: components['schemas']['EntitySourceDiscriminants'][];
-	/** Filter by how confidently discovery matched the service. */
-	match_confidences?: components['schemas']['MatchConfidence'][];
+export type ServicesQueryParams = NonNullable<
+	operations['get_all_services']['parameters']['query']
+> & {
+	list?: URLSearchParams;
 	/** Set false to hold the fetch. Excluded from the query key. */
 	enabled?: boolean;
-}
+};
 
 /**
  * Pagination metadata from API response. Derived from the generated schema so
@@ -95,83 +60,15 @@ export function useServicesQuery(
 ) {
 	return createQuery(() => {
 		const params = typeof paramsOrGetter === 'function' ? paramsOrGetter() : paramsOrGetter;
-		const {
-			limit,
-			offset,
-			site_ids,
-			host_ids,
-			service_definitions,
-			virtualization_service_names,
-			include_uncontainerized,
-			group_by,
-			order_by,
-			order_direction,
-			tag_ids,
-			tag_sets,
-			group_by_tag_group,
-			order_by_tag_group,
-			stale,
-			search,
-			ports,
-			exclude_categories,
-			sources,
-			match_confidences,
-			enabled = true
-		} = params;
+		const { enabled = true, list, ...query } = params;
 
 		return {
-			queryKey: [
-				...queryKeys.services.all,
-				{
-					limit,
-					offset,
-					site_ids,
-					host_ids,
-					service_definitions,
-					virtualization_service_names,
-					include_uncontainerized,
-					group_by,
-					order_by,
-					order_direction,
-					tag_ids,
-					tag_sets,
-					group_by_tag_group,
-					order_by_tag_group,
-					stale,
-					search,
-					ports,
-					exclude_categories,
-					sources,
-					match_confidences
-				}
-			],
+			queryKey: [...queryKeys.services.all, { ...query, list: list?.toString() }],
 			queryFn: async (): Promise<PaginatedResult<Service>> => {
 				const envelope = unwrapEnvelope(
 					await apiClient.GET('/api/v1/services', {
-						params: {
-							query: {
-								limit,
-								offset,
-								site_ids,
-								host_ids,
-								service_definitions,
-								virtualization_service_names,
-								include_uncontainerized,
-								group_by,
-								order_by,
-								order_direction,
-								tag_ids,
-								tag_sets,
-								group_by_tag_group,
-								order_by_tag_group,
-								stale,
-								search,
-								ports,
-								exclude_categories,
-								sources,
-								match_confidences
-							}
-						}
+						params: { query },
+						querySerializer: withListParams(list)
 					})
 				);
 				return {

@@ -1,4 +1,20 @@
 export interface paths {
+    "/api/auth/accept-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["accept_terms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/check-email": {
         parameters: {
             query?: never;
@@ -848,7 +864,10 @@ export interface paths {
         };
         /**
          * Get GitHub star count
+         * @deprecated
          * @description Returns the current star count for the Scanopy GitHub repository.
+         *     Deprecated: nothing in the UI calls it. Both `GithubStars` mounts are
+         *     commented out, and the route stays so they can come back.
          */
         get: operations["get_stars"];
         put?: never;
@@ -1321,7 +1340,10 @@ export interface paths {
         put?: never;
         /**
          * Email install command to current user
-         * @description Session-only, and `IsUser` says so at the extractor rather than in the body. "The current user"
+         * @description Requires a verified email: the endpoint mails on demand, so an unproven address would let
+         *     anyone send Scanopy mail to an inbox they don't own.
+         *
+         *     Session-only, and `IsUser` says so at the extractor rather than in the body. "The current user"
          *     has no answer for an automation identity: a user API key carries `user_id` but no address, so
          *     this endpoint could never serve one. An API key that wants the command reads it directly from
          *     `GET /api/v1/daemons/{id}/install-command`.
@@ -1377,6 +1399,28 @@ export interface paths {
          *     regenerate (an OS switch, an advanced-setting change) from re-minting the key.
          */
         post: operations["provision_daemon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/daemons/provision-eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check whether a new daemon can be provisioned
+         * @description The create wizard reads this before its first step, so a refusal from `POST /provision`
+         *     (no verified owner and a daemon already exists) stops the user up front rather than after
+         *     they have configured everything. Reads only the caller's own organization.
+         */
+        get: operations["get_provision_eligibility"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2284,6 +2328,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/licenses/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the server instances running this organization's license key
+         * @description An instance counts against the limit while it has checked in within the
+         *     last week.
+         */
+        get: operations["list_license_instances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/licenses/instances/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a server instance from this organization's license key
+         * @description Frees its slot. A server that is still running is listed again at its next
+         *     check-in; rotating the key is what stops one.
+         */
+        delete: operations["delete_license_instance"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/licenses/keys": {
         parameters: {
             query?: never;
@@ -2376,8 +2462,9 @@ export interface paths {
         put?: never;
         /**
          * Record the user's response to the daemon-install prompt so it is not shown again.
-         *     Each CTA persists a distinct onboarding milestone (the org subscriber dedups); the
-         *     PostHog subscriber turns these into funnel events, so no client-side telemetry is needed.
+         *     Each CTA records a distinct onboarding milestone, which the UI reads to hide the prompt.
+         *     Every response is published; the PostHog subscriber turns these into funnel events, so
+         *     no client-side telemetry is needed.
          */
         post: operations["daemon_prompt_response"];
         delete?: never;
@@ -3710,7 +3797,7 @@ export interface components {
          * @description API metadata included in all responses
          * @example {
          *       "api_version": 1,
-         *       "server_version": "0.17.22"
+         *       "server_version": "0.18.1"
          *     }
          */
         ApiMeta: {
@@ -3721,7 +3808,7 @@ export interface components {
             api_version: number;
             /**
              * @description Server version (semver)
-             * @example 0.17.22
+             * @example 0.18.1
              */
             server_version: string;
         };
@@ -3750,19 +3837,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-11T21:15:50.709872Z",
+             *       "created_at": "2026-10-14T14:23:07.262626Z",
              *       "first_discovery_id": null,
-             *       "id": "e2f626c6-2fc8-471a-a564-7aa9e34ac9ac",
+             *       "id": "20c86e0f-7cc3-4e35-93c2-aa7d5c71a07f",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-11T21:15:50.709872Z",
+             *       "last_seen_at": "2026-10-14T14:23:07.262626Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-11T21:15:50.709872Z",
-             *       "valid_from": "2026-10-11T21:15:50.709872Z",
+             *       "updated_at": "2026-10-14T14:23:07.262626Z",
+             *       "valid_from": "2026-10-14T14:23:07.262626Z",
              *       "valid_to": null
              *     }
              */
@@ -4157,9 +4244,11 @@ export interface components {
                 /** @description Current usage against the organization's plan allowances. */
                 plan_usage: components["schemas"]["PlanUsage"];
                 /** @description The most recent discovery runs, newest first. */
-                recent_discoveries: components["schemas"]["Discovery"][];
+                recent_discoveries: components["schemas"]["RecentDiscovery"][];
                 /** @description Per-site counts for every site the caller can see. */
                 sites: components["schemas"]["SiteSummary"][];
+                /** @description Integrations found on hosts with no credential of them, most hosts first. */
+                uncovered_integrations: components["schemas"]["UncoveredIntegration"][];
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -4323,6 +4412,11 @@ export interface components {
                  */
                 integration_targets: components["schemas"]["IntegrationTarget"][];
                 /**
+                 * @description Whether the next run of this discovery will be a full scan of all 65,535 ports rather than
+                 *     a light scan of common ports. Computed by the server on read and never stored.
+                 */
+                readonly next_run_is_full_scan?: boolean;
+                /**
                  * Format: int32
                  * @description Number of completed scans (incremented by server on session completion)
                  */
@@ -4455,6 +4549,7 @@ export interface components {
                  *     with `org_id` and `plan` set from the organization's current state.
                  */
                 entitlement: string;
+                instances?: null | components["schemas"]["InstanceUsage"];
             };
             /**
              * @description Not sent on a successful response. Failure messages arrive in an
@@ -4627,19 +4722,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-11T21:15:50.684655Z",
+             *               "created_at": "2026-10-14T14:23:07.222936Z",
              *               "first_discovery_id": null,
-             *               "id": "2e668540-7651-42e3-82ce-de53ccb61665",
+             *               "id": "632537ab-dd34-47e5-a6a5-ab828df84b0e",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-11T21:15:50.684655Z",
+             *               "last_seen_at": "2026-10-14T14:23:07.222936Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-11T21:15:50.684655Z",
-             *               "valid_from": "2026-10-11T21:15:50.684655Z",
+             *               "updated_at": "2026-10-14T14:23:07.222936Z",
+             *               "valid_from": "2026-10-14T14:23:07.222936Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4652,7 +4747,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Open LDAP",
+             *           "service_definition": "Vaultwarden",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5156,6 +5251,31 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_LicenseInstancesResponse: {
+            /** @description The server instances an organization's online key is running on. */
+            data?: {
+                /**
+                 * @description Every instance that has checked in, most recent first, including ones
+                 *     silent long enough to no longer count.
+                 */
+                instances: components["schemas"]["LicenseInstanceSummary"][];
+                /** @description Instances counting against the limit now, and the limit. */
+                usage: components["schemas"]["InstanceUsage"];
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_LicenseKeyResponse: {
             /** @description The result payload. Omitted on failure. */
             data?: {
@@ -5390,9 +5510,33 @@ export interface components {
          * @description Envelope for a successful response. Failures are sent with a non-2xx status
          *     and an `ApiErrorResponse` body instead.
          */
+        ApiResponse_ProvisionEligibility: {
+            /** @description Whether provisioning another daemon would be refused for the caller's organization. */
+            data?: {
+                /**
+                 * @description The organization already has a daemon and no owner has verified their email, so a new
+                 *     daemon is refused until one does.
+                 */
+                email_verification_required: boolean;
+            };
+            /**
+             * @description Not sent on a successful response. Failure messages arrive in an
+             *     `ApiErrorResponse`.
+             */
+            error?: string | null;
+            /** @description API and server version metadata. */
+            meta: components["schemas"]["ApiMeta"];
+            /** @description Always `true` on a successful response. */
+            success: boolean;
+        };
+        /**
+         * @description Envelope for a successful response. Failures are sent with a non-2xx status
+         *     and an `ApiErrorResponse` body instead.
+         */
         ApiResponse_PublicConfigResponse: {
             /** @description The result payload. Omitted on failure. */
             data?: {
+                available_upgrade?: null | components["schemas"]["AvailableUpgrade"];
                 /** @description Whether this deployment has billing configured. */
                 billing_enabled: boolean;
                 /** @description How this instance is run: cloud, commercial self-hosted, or community. */
@@ -5428,6 +5572,7 @@ export interface components {
                  *     the hard `exp` — the silent grace window.
                  */
                 license_in_grace_period: boolean;
+                license_instances?: null | components["schemas"]["InstanceUsage"];
                 /**
                  * Format: date
                  * @description User-visible expiry — the date displayed to end users under
@@ -5466,6 +5611,8 @@ export interface components {
                 license_valid_through?: string | null;
                 /** @description Whether the client should show a cookie-consent prompt. */
                 needs_cookie_consent: boolean;
+                /** @description Whether this server was started with `SCANOPY_NON_PRODUCTION`. */
+                non_production: boolean;
                 /** @description Identity providers available on the login screen. */
                 oidc_providers: components["schemas"]["OidcProviderMetadata"][];
                 /**
@@ -5587,19 +5734,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-11T21:15:50.704908Z",
+             *           "created_at": "2026-10-14T14:23:07.251393Z",
              *           "first_discovery_id": null,
-             *           "id": "67a11fca-cc33-4eec-8f5f-9a47659ff3f1",
+             *           "id": "87fb78a3-12c3-4815-9175-88f2d72f1956",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-11T21:15:50.704908Z",
+             *           "last_seen_at": "2026-10-14T14:23:07.251393Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-11T21:15:50.704908Z",
-             *           "valid_from": "2026-10-11T21:15:50.704908Z",
+             *           "updated_at": "2026-10-14T14:23:07.251393Z",
+             *           "valid_from": "2026-10-14T14:23:07.251393Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5612,7 +5759,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Open LDAP",
+             *       "service_definition": "Vaultwarden",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -6030,6 +6177,7 @@ export interface components {
                  *     none does. Children are the subnets whose parent is this one.
                  */
                 readonly parent_subnet_id?: string | null;
+                range_evidence: null | components["schemas"]["RangeEvidence"];
                 /**
                  * Format: int64
                  * @description Addresses a host can hold in this range. Saturates for IPv6 ranges wider than a `/64`.
@@ -6325,6 +6473,11 @@ export interface components {
         ApiResponse_UnseenReleaseNotes: {
             /** @description The releases the caller hasn't dismissed. */
             data?: {
+                /**
+                 * @description Whether the modal opens on its own: true when any unseen release asks
+                 *     for it, including ones left out for the changelog.
+                 */
+                auto_open: boolean;
                 /** @description The full changelog, present when older unseen releases were left out. */
                 changelog_url?: string | null;
                 /** @description Newest first. Empty when there is nothing new. */
@@ -6348,6 +6501,7 @@ export interface components {
             /** @description Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method. */
             data?: {
                 docker: components["schemas"]["DockerUpgrade"];
+                /** @description Binary upgrade steps on FreeBSD. */
                 freebsd: components["schemas"]["UpgradeStep"][];
                 /**
                  * @description The restart step names the service after the daemon, as installs from before the install
@@ -6355,8 +6509,11 @@ export interface components {
                  *     operator to `scanopy-daemon list` for the real service.
                  */
                 legacy_service_name: boolean;
+                /** @description Binary upgrade steps on Linux. */
                 linux: components["schemas"]["UpgradeStep"][];
+                /** @description Binary upgrade steps on macOS. */
                 macos: components["schemas"]["UpgradeStep"][];
+                /** @description Binary upgrade steps on Windows. */
                 windows: components["schemas"]["UpgradeStep"][];
             };
             /**
@@ -6920,6 +7077,16 @@ export interface components {
              */
             Authored: components["schemas"]["ClientProbe"];
         } | "Manual";
+        /** @description A newer release than the one this server runs. */
+        AvailableUpgrade: {
+            /**
+             * Format: uri
+             * @description That release's page on the public changelog.
+             */
+            release_notes_url: string;
+            /** @description Semver of the newest promoted release, without a leading `v`. */
+            version: string;
+        };
         BillingPlan: (components["schemas"]["PlanConfig"] & {
             /** @enum {string} */
             type: "Community";
@@ -6959,19 +7126,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-11T21:15:50.685151Z",
+         *       "created_at": "2026-10-14T14:23:07.223743Z",
          *       "first_discovery_id": null,
-         *       "id": "0fdb2ae9-c347-46e4-9704-d9d53bb7755d",
+         *       "id": "217285f9-dc4e-4df2-b110-58abe807ad75",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-11T21:15:50.685151Z",
+         *       "last_seen_at": "2026-10-14T14:23:07.223743Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-11T21:15:50.685151Z",
-         *       "valid_from": "2026-10-11T21:15:50.685151Z",
+         *       "updated_at": "2026-10-14T14:23:07.223743Z",
+         *       "valid_from": "2026-10-14T14:23:07.223743Z",
          *       "valid_to": null
          *     }
          */
@@ -7217,7 +7384,7 @@ export interface components {
          *     `every_client_probe_variant_has_a_producer` is what now says so.
          * @enum {string}
          */
-        ClientProbe: "Docker" | "Gnmi" | "Podman" | "Snmp" | "UnifiController" | "InstantOn" | "Proxmox" | "ModbusTcp" | "OpcUa" | "EtherNetIp" | "Sip" | "Ssh" | "Ftp" | "Telnet" | "Rtsp" | "Nut" | "ZabbixAgent" | "CheckMkAgent" | "Smb" | "Ldap" | "Kerberos" | "MySql" | "PostgreSql" | "MsSql" | "MongoDb" | "Redis" | "Cassandra" | "Kafka" | "Amqp" | "Mqtt" | "OracleTns" | "Rdp" | "Nfs" | "DnsTcp" | "DockerSwarm" | "Tls" | "Ike" | "OpenVpn" | "Zmtp" | "Bacula" | "BeszelAgent" | "H323";
+        ClientProbe: "Docker" | "Gnmi" | "Podman" | "Snmp" | "UnifiController" | "InstantOn" | "Proxmox" | "ModbusTcp" | "OpcUa" | "EtherNetIp" | "Sip" | "Ssh" | "Ftp" | "Telnet" | "Rtsp" | "Nut" | "ZabbixAgent" | "CheckMkAgent" | "Smb" | "Ldap" | "Kerberos" | "MySql" | "PostgreSql" | "MsSql" | "MongoDb" | "Redis" | "Cassandra" | "Kafka" | "Amqp" | "Mqtt" | "OracleTns" | "Rdp" | "Nfs" | "DnsTcp" | "DockerSwarm" | "Tls" | "Ike" | "OpenVpn" | "Zmtp" | "Bacula" | "BeszelAgent" | "H323" | "SnmpEngine" | "DockerPing" | "PodmanPing";
         /** @enum {string} */
         ClockFormat: "browser_default" | "twelve_hour" | "twenty_four_hour";
         /** @enum {string} */
@@ -7317,7 +7484,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Open LDAP",
+         *           "service_definition": "Vaultwarden",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -7623,22 +7790,15 @@ export interface components {
             community: components["schemas"]["SecretValue"];
             /** @enum {string} */
             type: "SnmpV2c";
-        } | {
-            /** @description Authentication passphrase. */
-            auth_password: components["schemas"]["SecretValue"];
-            /** @description Hash algorithm used for authentication. */
-            auth_protocol: components["schemas"]["SnmpV3AuthProtocol"];
+        } | (components["schemas"]["SnmpV3Security_SecretValue"] & {
             /** @description Optional context name (default/empty context used if unset). */
             context_name?: string | null;
-            /** @description Privacy passphrase. */
-            priv_password: components["schemas"]["SecretValue"];
-            /** @description Cipher used for privacy (encryption). */
-            priv_protocol: components["schemas"]["SnmpV3PrivProtocol"];
             /** @description USM security (user) name. */
             security_name: string;
+        } & {
             /** @enum {string} */
             type: "SnmpV3";
-        } | {
+        }) | {
             /** @description Password, sent as gRPC `password` metadata. */
             password: components["schemas"]["SecretValue"];
             /**
@@ -8165,9 +8325,11 @@ export interface components {
             /** @description Current usage against the organization's plan allowances. */
             plan_usage: components["schemas"]["PlanUsage"];
             /** @description The most recent discovery runs, newest first. */
-            recent_discoveries: components["schemas"]["Discovery"][];
+            recent_discoveries: components["schemas"]["RecentDiscovery"][];
             /** @description Per-site counts for every site the caller can see. */
             sites: components["schemas"]["SiteSummary"][];
+            /** @description Integrations found on hosts with no credential of them, most hosts first. */
+            uncovered_integrations: components["schemas"]["UncoveredIntegration"][];
         };
         /** @enum {string} */
         DateOrder: "browser_default" | "iso" | "day_first" | "month_first";
@@ -8364,6 +8526,11 @@ export interface components {
              *     [`Discovery::take_site_scope_credential_ids`]).
              */
             integration_targets: components["schemas"]["IntegrationTarget"][];
+            /**
+             * @description Whether the next run of this discovery will be a full scan of all 65,535 ports rather than
+             *     a light scan of common ports. Computed by the server on read and never stored.
+             */
+            readonly next_run_is_full_scan?: boolean;
             /**
              * Format: int32
              * @description Number of completed scans (incremented by server on session completion)
@@ -8853,6 +9020,25 @@ export interface components {
             declared: components["schemas"]["OsFamily"];
             integration: components["schemas"]["CredentialQueryPayloadDiscriminants"];
         } | {
+            /** @enum {string} */
+            code: "CredentialDaemonTooOld";
+            /**
+             * Format: uuid
+             * @description The stored credential. See [`CredentialAttempt::credential_id`].
+             */
+            credential_id: string | null;
+            /**
+             * @description The version of the daemon that ran the scan. `None` for a daemon that never reported one.
+             * @example 0.18.0
+             */
+            daemon_version?: string | null;
+            integration: components["schemas"]["CredentialQueryPayloadDiscriminants"];
+            /**
+             * @description The oldest daemon version that can receive this credential type.
+             * @example 0.18.1
+             */
+            minimum_daemon_version: string;
+        } | {
             /** @description The address the credential is bound to. */
             address: string;
             /** @enum {string} */
@@ -8890,6 +9076,16 @@ export interface components {
             /** @enum {string} */
             code: "CredentialTimedOut";
         }) | {
+            /** @enum {string} */
+            code: "IntegrationWithoutCredential";
+            /**
+             * Format: uuid
+             * @description The host running the service. `None` once the host is deleted.
+             */
+            host_id: string | null;
+            /** @description The integration that would read it. */
+            integration: components["schemas"]["CredentialIntegration"];
+        } | {
             /** @description The subnet the addresses are in. */
             cidr: string;
             /** @enum {string} */
@@ -9341,11 +9537,26 @@ export interface components {
          * @enum {string}
          */
         ElementSort: "Automatic" | "Address" | "PortIndex" | "Name" | "Category";
-        /** @description Request body for emailing an install command to the authenticated user. */
-        EmailInstallCommandRequest: {
-            /** @description The install command to send, exactly as shown in the UI. */
-            install_command: string;
-            /** @description Operating system the command targets, used to pick the email wording. */
+        /**
+         * @description Request body for emailing an install command to the authenticated user. The server builds
+         *     the command from the daemon record, exactly as [`get_install_command`] does; the client only
+         *     picks which method's command to send.
+         */
+        EmailInstallCommandRequest: components["schemas"]["InstallCommandQuery"] & {
+            /**
+             * @description The daemon's api key, from the provision response. Required when `purpose` embeds the
+             *     key (`install`, `rekey`) and rejected otherwise. The server stores only its hash, so it
+             *     can't fill the key in itself; it checks this one against the daemon's bound key.
+             */
+            api_key?: string | null;
+            /**
+             * Format: uuid
+             * @description The daemon whose command to send.
+             */
+            daemon_id: string;
+            /** @description Send the docker compose instead of the binary command. Linux only. */
+            docker?: boolean;
+            /** @description Operating system the command targets. */
             os: components["schemas"]["DaemonOs"];
         };
         /**
@@ -9372,8 +9583,21 @@ export interface components {
         };
         /** @description Body the instance POSTs to [`ENTITLEMENT_PATH`]. */
         EntitlementRequest: {
+            /**
+             * Format: uuid
+             * @description The random id this server's database holds (`server_instance`), shared
+             *     by every container on that database. Absent from servers older than
+             *     instance counting; those share one instance slot.
+             */
+            instance_id?: string | null;
             /** @description The online key configured via `SCANOPY_LICENSE_KEY`. */
             key: string;
+            /**
+             * @description Whether the server was started with `SCANOPY_NON_PRODUCTION`. Absent
+             *     from servers older than the setting: they count as production, and
+             *     the cloud never refuses them a slot.
+             */
+            non_production?: boolean | null;
         };
         /** @description Data returned inside `ApiResponse` by [`ENTITLEMENT_PATH`]. */
         EntitlementResponse: {
@@ -9382,6 +9606,7 @@ export interface components {
              *     with `org_id` and `plan` set from the organization's current state.
              */
             entitlement: string;
+            instances?: null | components["schemas"]["InstanceUsage"];
         };
         /** @enum {string} */
         EntityDiscriminants: "Site" | "Vlan" | "Subnet" | "Host" | "Service" | "IPAddress" | "Interface" | "Port" | "Binding" | "Discovery" | "Daemon" | "DaemonApiKey" | "Tag" | "TagGroup" | "User" | "UserApiKey" | "Credential" | "Organization" | "Invite" | "Topology" | "Snapshot" | "Share" | "Dependency";
@@ -9490,6 +9715,7 @@ export interface components {
         FieldDefinition: {
             /** @description Value pre-filled when the field is first shown. */
             default_value?: string | null;
+            field_set?: null | components["schemas"]["FieldSetRole"];
             /** @description How the field should be rendered and validated. */
             field_type: components["schemas"]["FieldType"];
             /**
@@ -9515,7 +9741,8 @@ export interface components {
             optional: boolean;
             /**
              * @description Choices for `Select` fields. Each option carries a wire `value` (the serialized enum
-             *     variant) and a human-facing `label`.
+             *     variant) and a human-facing `label`. A `FieldSet::Sets` dropdown takes them from its set's
+             *     enum ([`FieldSetValue::options`]).
              */
             options?: components["schemas"]["SelectOption"][] | null;
             /** @description Placeholder text for the input. */
@@ -9533,6 +9760,9 @@ export interface components {
         FieldFormat: {
             /** @enum {string} */
             type: "Text";
+        } | {
+            /** @enum {string} */
+            type: "Prose";
         } | {
             /** @enum {string} */
             type: "Number";
@@ -9561,6 +9791,14 @@ export interface components {
         } | {
             /** @enum {string} */
             type: "Entity";
+        };
+        /**
+         * @description Schema of [`FieldDefinition::field_set`] on the wire. Never constructed: the values are the
+         *     serialized variants of the set's own enum, which the schema cannot name generically.
+         */
+        FieldSetRole: "Sets" | {
+            /** @description Shown only while the dropdown holds one of these values. */
+            Requires: string[];
         };
         /**
          * @description Field types for dynamic form generation.
@@ -9654,15 +9892,18 @@ export interface components {
         /** @description One step from an object to related objects. */
         Hop: {
             entity: components["schemas"]["EntityDiscriminants"];
+            /** @description Field on the current object holding the parent's id or ids. */
             key: string;
             /** @enum {string} */
             type: "Parent";
         } | {
             entity: components["schemas"]["EntityDiscriminants"];
+            /** @description Field on each child holding the current object's id. */
             key: string;
             /** @enum {string} */
             type: "Children";
         } | {
+            /** @description Field on the current object holding the array. */
             key: string;
             /** @enum {string} */
             type: "Embedded";
@@ -10037,19 +10278,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-11T21:15:50.684065Z",
+         *               "created_at": "2026-10-14T14:23:07.221915Z",
          *               "first_discovery_id": null,
-         *               "id": "12ade7a6-f2ab-49b1-b68f-c585007f1d5c",
+         *               "id": "56587744-20dc-41ee-b1da-39cc7dec8bdf",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-11T21:15:50.684065Z",
+         *               "last_seen_at": "2026-10-14T14:23:07.221915Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-11T21:15:50.684065Z",
-         *               "valid_from": "2026-10-11T21:15:50.684065Z",
+         *               "updated_at": "2026-10-14T14:23:07.221915Z",
+         *               "valid_from": "2026-10-14T14:23:07.221915Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10062,7 +10303,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Open LDAP",
+         *           "service_definition": "Vaultwarden",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10605,6 +10846,34 @@ export interface components {
             windows: string;
         };
         /**
+         * @description Query for [`get_install_command`]. `purpose` is required; the rest are the client-settable
+         *     advanced daemon settings, folded into an `install` command. Lists are comma-joined
+         *     (`interfaces`, `credential_refs`).
+         */
+        InstallCommandQuery: {
+            /** @description Continue scanning targets that present an untrusted certificate. */
+            accept_invalid_scan_certs?: boolean | null;
+            /** @description Accept a self-signed certificate when connecting back to the server. */
+            allow_self_signed_certs?: boolean | null;
+            /** @description Address and port the daemon should listen on, for server-polled mode. */
+            bind_address?: string | null;
+            /** @description Comma-separated credential/integration tokens (for the docker-compose env). */
+            credential_refs?: string | null;
+            /**
+             * Format: int64
+             * @description How often the daemon reports in, in seconds.
+             */
+            heartbeat_interval?: number | null;
+            /** @description Comma-separated interface names. */
+            interfaces?: string | null;
+            /** @description Path the daemon should write its log file to. */
+            log_file?: string | null;
+            /** @description Log verbosity the daemon should run at (e.g. `info`, `debug`). */
+            log_level?: string | null;
+            /** @description `install` or `rekey` (with the api-key placeholder), or `reconfigure` (credential-free). */
+            purpose: components["schemas"]["InstallCommandType"];
+        };
+        /**
          * @description What the caller wants the command to do — the one axis that actually varies.
          *
          *     `install` brings a new daemon up: it carries the api-key placeholder, fetches the binary, and
@@ -10620,6 +10889,36 @@ export interface components {
          * @enum {string}
          */
         InstallCommandType: "install" | "rekey" | "reconfigure";
+        /**
+         * @description Server instances an online key has checked in from within the last
+         *     `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
+         *     covers (`None` when the plan has no cap), for production and
+         *     non-production servers. A server past its class's limit is refused an
+         *     entitlement.
+         */
+        InstanceUsage: {
+            /**
+             * Format: int32
+             * @description Production servers.
+             */
+            active: number;
+            /**
+             * Format: int32
+             * @description Production servers the key covers. `None` is no cap.
+             */
+            limit?: number | null;
+            /**
+             * Format: int32
+             * @description Servers started with `SCANOPY_NON_PRODUCTION`. Absent from clouds
+             *     older than the setting.
+             */
+            non_production_active: number;
+            /**
+             * Format: int32
+             * @description Non-production servers the key covers. `None` is no cap.
+             */
+            non_production_limit: number | null;
+        };
         /**
          * @description Per-daemon integration targeting, stored on the `Discovery` entity and delivered via the
          *     init command at registration. Each entry references exactly one stored credential and says
@@ -11141,6 +11440,97 @@ export interface components {
         LegacyCapabilities: {
             /** @description Subnets the daemon has an interface on, as reported by older daemons. */
             interfaced_subnet_ids: string[];
+        };
+        /**
+         * @description A server instance that has checked in with an organization's online key,
+         *     as the cloud records it.
+         */
+        LicenseInstance: components["schemas"]["LicenseInstanceBase"] & {
+            /**
+             * Format: date-time
+             * @description When the cloud created the record.
+             */
+            readonly created_at: string;
+            /**
+             * Format: uuid
+             * @description Id of the cloud's record for this instance.
+             */
+            readonly id: string;
+            /**
+             * Format: date-time
+             * @description When the cloud last changed the record.
+             */
+            readonly updated_at: string;
+        };
+        LicenseInstanceBase: {
+            /**
+             * Format: date-time
+             * @description When the instance last started counting in its class: its first
+             *     check-in, its first after a silence, or a change of class. Slots go
+             *     to active instances in this order, so a server coming back never
+             *     displaces one that held the slot meanwhile.
+             */
+            active_since: string;
+            /**
+             * Format: date-time
+             * @description First check-in.
+             */
+            first_seen_at: string;
+            /**
+             * Format: uuid
+             * @description The id the server's database holds. `None` on the one row shared by
+             *     servers too old to send it.
+             */
+            instance_id?: string | null;
+            /**
+             * Format: date-time
+             * @description Latest check-in.
+             */
+            last_seen_at: string;
+            /**
+             * @description Source address the cloud observed on the latest check-in. The server
+             *     never sends an address; behind NAT several servers share one.
+             * @example 203.0.113.7
+             */
+            last_seen_ip?: string | null;
+            /**
+             * @description Whether the latest check-in came from a server started with
+             *     `SCANOPY_NON_PRODUCTION`. Production and non-production servers take
+             *     slots from separate limits. `None` when that check-in came from a
+             *     server older than the setting: it counts as production and is never
+             *     refused.
+             */
+            non_production?: boolean | null;
+            /**
+             * Format: uuid
+             * @description Organization whose online key the instance checks in with.
+             */
+            organization_id: string;
+            /** @description Version the latest check-in reported, as semver text. */
+            server_version?: string | null;
+        };
+        LicenseInstanceSummary: {
+            /**
+             * @description Whether the instance counts against the limit: it checked in within
+             *     the last week.
+             */
+            active: boolean;
+            instance: components["schemas"]["LicenseInstance"];
+            /**
+             * @description Whether the instance is past its class's limit and refused its
+             *     entitlement, so it is read-only.
+             */
+            refused: boolean;
+        };
+        /** @description The server instances an organization's online key is running on. */
+        LicenseInstancesResponse: {
+            /**
+             * @description Every instance that has checked in, most recent first, including ones
+             *     silent long enough to no longer count.
+             */
+            instances: components["schemas"]["LicenseInstanceSummary"][];
+            /** @description Instances counting against the limit now, and the limit. */
+            usage: components["schemas"]["InstanceUsage"];
         };
         LicenseKeyResponse: {
             /** @description Signed key to set as `SCANOPY_LICENSE_KEY` on a self-hosted server. */
@@ -11666,7 +12056,7 @@ export interface components {
          *         "offset": 0,
          *         "total_count": 142
          *       },
-         *       "server_version": "0.17.22"
+         *       "server_version": "0.18.1"
          *     }
          */
         PaginatedApiMeta: {
@@ -11679,7 +12069,7 @@ export interface components {
             pagination: components["schemas"]["PaginationMeta"];
             /**
              * @description Server version (semver)
-             * @example 0.17.22
+             * @example 0.18.1
              */
             server_version: string;
         };
@@ -11822,6 +12212,11 @@ export interface components {
                  *     [`Discovery::take_site_scope_credential_ids`]).
                  */
                 integration_targets: components["schemas"]["IntegrationTarget"][];
+                /**
+                 * @description Whether the next run of this discovery will be a full scan of all 65,535 ports rather than
+                 *     a light scan of common ports. Computed by the server on read and never stored.
+                 */
+                readonly next_run_is_full_scan?: boolean;
                 /**
                  * Format: int32
                  * @description Number of completed scans (incremented by server on session completion)
@@ -12096,6 +12491,7 @@ export interface components {
                  *     none does. Children are the subnets whose parent is this one.
                  */
                 readonly parent_subnet_id?: string | null;
+                range_evidence: null | components["schemas"]["RangeEvidence"];
                 /**
                  * Format: int64
                  * @description Addresses a host can hold in this range. Saturates for IPv6 ranges wider than a `/64`.
@@ -12680,6 +13076,14 @@ export interface components {
              */
             readonly daemon_api_key: string;
         };
+        /** @description Whether provisioning another daemon would be refused for the caller's organization. */
+        ProvisionEligibility: {
+            /**
+             * @description The organization already has a daemon and no owner has verified their email, so a new
+             *     daemon is refused until one does.
+             */
+            email_verification_required: boolean;
+        };
         /**
          * @description A range inferred from where unplaceable far ends say they live.
          *
@@ -12697,9 +13101,10 @@ export interface components {
             seen_by_host_ids: string[];
             /**
              * Format: uuid
-             * @description The subnet row created for it, so the UI can link straight to it.
+             * @description The subnet row created for it, so the UI can link straight to it. `None` once that subnet
+             *     has been deleted.
              */
-            subnet_id: string;
+            subnet_id: string | null;
             /** @description The far ends' own `sysName`s, where they sent any — the labels an operator recognises. */
             sys_names: string[];
             /**
@@ -12723,6 +13128,7 @@ export interface components {
             vm_name?: string | null;
         };
         PublicConfigResponse: {
+            available_upgrade?: null | components["schemas"]["AvailableUpgrade"];
             /** @description Whether this deployment has billing configured. */
             billing_enabled: boolean;
             /** @description How this instance is run: cloud, commercial self-hosted, or community. */
@@ -12758,6 +13164,7 @@ export interface components {
              *     the hard `exp` — the silent grace window.
              */
             license_in_grace_period: boolean;
+            license_instances?: null | components["schemas"]["InstanceUsage"];
             /**
              * Format: date
              * @description User-visible expiry — the date displayed to end users under
@@ -12796,6 +13203,8 @@ export interface components {
             license_valid_through?: string | null;
             /** @description Whether the client should show a cookie-consent prompt. */
             needs_cookie_consent: boolean;
+            /** @description Whether this server was started with `SCANOPY_NON_PRODUCTION`. */
+            non_production: boolean;
             /** @description Identity providers available on the login screen. */
             oidc_providers: components["schemas"]["OidcProviderMetadata"][];
             /**
@@ -12859,6 +13268,35 @@ export interface components {
             requires_password: boolean;
         };
         /**
+         * @description Where an assumed range came from: the far ends whose published addresses it was drawn around,
+         *     and the local devices that saw them. Read from the warning of the scan that created the range.
+         */
+        RangeEvidence: {
+            /** @description The addresses the far ends published for themselves, in the order observed. */
+            addresses: string[];
+            /**
+             * Format: uuid
+             * @description The run that created the range, so the reader can open its report.
+             */
+            discovery_id: string;
+            /**
+             * @description The local devices that saw the far ends. A host deleted since is still listed here; it
+             *     resolves to nothing.
+             */
+            seen_by_host_ids: string[];
+            /** @description The far ends' own `sysName`s, where they sent any. */
+            sys_names: string[];
+            /** @description Whether a shared VLAN widened the range past the conventional prefix. */
+            widened_by_vlan: boolean;
+        };
+        /** @description A recent discovery run with its warnings counted by remedy. */
+        RecentDiscovery: {
+            /** @description The historical run. */
+            discovery: components["schemas"]["Discovery"];
+            /** @description The run's warnings counted by remedy. Empty for a run that recorded none. */
+            warning_summary: components["schemas"]["RunWarningSummary"];
+        };
+        /**
          * @description How a user first heard about Scanopy, as offered by the onboarding prompt.
          * @enum {string}
          */
@@ -12896,11 +13334,22 @@ export interface components {
             date: string;
             /** @description The notes, as HTML rendered from the reviewed markdown, without raw HTML. */
             html: string;
+            /** @description The release's headline. */
             title: string;
             /** @description This release on the public changelog. */
             url: string;
             /** @description The release, as semver (e.g. `0.18.0`). */
             version: string;
+        };
+        /** @description The number of a run's warnings on one [`WarningRemedy`] rung. */
+        RemedyCount: {
+            /**
+             * Format: int32
+             * @description Warnings on that rung.
+             */
+            count: number;
+            /** @description The rung these warnings sit on. */
+            remedy: components["schemas"]["WarningRemedy"];
         };
         RequestEmailChangeRequest: {
             /**
@@ -12997,6 +13446,24 @@ export interface components {
             readonly last_run?: string | null;
             /** @enum {string} */
             type: "AdHoc";
+        };
+        /** @description One run's warnings, counted by remedy. */
+        RunWarningSummary: {
+            /**
+             * Format: int32
+             * @description Warnings whose remedy asks the reader to act ([`WarningRemedy::is_actionable`]).
+             */
+            actionable: number;
+            /**
+             * @description Counts per remedy in [`WarningRemedy`] declaration order. Rungs with no warnings are left
+             *     out.
+             */
+            by_remedy: components["schemas"]["RemedyCount"][];
+            /**
+             * Format: int32
+             * @description Every warning the run recorded.
+             */
+            total: number;
         };
         /**
          * @description Save-offer choices presented during in-app cancellation (Phase 5).
@@ -13256,19 +13723,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-11T21:15:50.684994Z",
+         *           "created_at": "2026-10-14T14:23:07.223478Z",
          *           "first_discovery_id": null,
-         *           "id": "a31f2f4d-cf7e-4250-a21f-058279753436",
+         *           "id": "11546c06-216e-4b68-be9b-9c5eedc2a860",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-11T21:15:50.684994Z",
+         *           "last_seen_at": "2026-10-14T14:23:07.223478Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-11T21:15:50.684994Z",
-         *           "valid_from": "2026-10-11T21:15:50.684994Z",
+         *           "updated_at": "2026-10-14T14:23:07.223478Z",
+         *           "valid_from": "2026-10-14T14:23:07.223478Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13281,7 +13748,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Open LDAP",
+         *       "service_definition": "Vaultwarden",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -13709,18 +14176,77 @@ export interface components {
             taken_at: string;
         };
         /**
-         * @description SNMPv3 USM authentication protocol. Variants are limited to the modern,
-         *     secure set Scanopy supports; MD5 / SHA-2 variants beyond these are
-         *     intentionally excluded. Serialized form (e.g. "Sha256") is the wire value
+         * @description SNMPv3 USM authentication protocol. MD5 is offered for devices that support nothing else;
+         *     SHA-2 variants beyond SHA-256 are not. Serialized form (e.g. "Sha256") is the wire value
          *     stored in the credential and used as the frontend select option value.
          * @enum {string}
          */
-        SnmpV3AuthProtocol: "Sha1" | "Sha256";
+        SnmpV3AuthProtocol: "Md5" | "Sha1" | "Sha256";
         /**
          * @description SNMPv3 USM privacy (encryption) protocol.
          * @enum {string}
          */
         SnmpV3PrivProtocol: "Aes128" | "Aes256";
+        /**
+         * @description The security material of an SNMPv3 credential, by security level. A level carries exactly
+         *     the fields it uses, so a credential cannot hold a privacy password it never sends.
+         *
+         *     `S` is the secret's representation: `SecretValue` where the credential is stored,
+         *     `ResolvableSecret` on the server→daemon wire. Flattened into its parent, so the stored JSON
+         *     keeps the flat shape it had before levels existed.
+         */
+        SnmpV3Security_SecretValue: {
+            /** @enum {string} */
+            security_level: "NoAuthNoPriv";
+        } | {
+            /** @description Secret value that can be either inline content or a file path on the daemon host. */
+            auth_password: {
+                /** @enum {string} */
+                mode: "Inline";
+                /** @description The secret itself. Write-only — reads return a redacted placeholder. */
+                value: string;
+            } | {
+                /** @enum {string} */
+                mode: "FilePath";
+                /** @description Path to a file on the daemon host holding the secret. */
+                path: components["schemas"]["DaemonPath"];
+            };
+            /** @description Hash algorithm used for authentication. */
+            auth_protocol: components["schemas"]["SnmpV3AuthProtocol"];
+            /** @enum {string} */
+            security_level: "AuthNoPriv";
+        } | {
+            /** @description Secret value that can be either inline content or a file path on the daemon host. */
+            auth_password: {
+                /** @enum {string} */
+                mode: "Inline";
+                /** @description The secret itself. Write-only — reads return a redacted placeholder. */
+                value: string;
+            } | {
+                /** @enum {string} */
+                mode: "FilePath";
+                /** @description Path to a file on the daemon host holding the secret. */
+                path: components["schemas"]["DaemonPath"];
+            };
+            /** @description Hash algorithm used for authentication. */
+            auth_protocol: components["schemas"]["SnmpV3AuthProtocol"];
+            /** @description Secret value that can be either inline content or a file path on the daemon host. */
+            priv_password: {
+                /** @enum {string} */
+                mode: "Inline";
+                /** @description The secret itself. Write-only — reads return a redacted placeholder. */
+                value: string;
+            } | {
+                /** @enum {string} */
+                mode: "FilePath";
+                /** @description Path to a file on the daemon host holding the secret. */
+                path: components["schemas"]["DaemonPath"];
+            };
+            /** @description Cipher used for privacy (encryption). */
+            priv_protocol: components["schemas"]["SnmpV3PrivProtocol"];
+            /** @enum {string} */
+            security_level: "AuthPriv";
+        };
         /**
          * @description An SNMP data group a walk may come up short on.
          *
@@ -13880,6 +14406,7 @@ export interface components {
              *     none does. Children are the subnets whose parent is this one.
              */
             readonly parent_subnet_id?: string | null;
+            range_evidence: null | components["schemas"]["RangeEvidence"];
             /**
              * Format: int64
              * @description Addresses a host can hold in this range. Saturates for IPv6 ranges wider than a `/64`.
@@ -14300,7 +14827,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "b0553a61-8b28-47d2-afa6-6523bc05c458",
+             *           "id": "6aff8cc7-b0c2-4166-a229-0bbba2f0bd02",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14310,23 +14837,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "89f76b13-43b3-4622-b1a1-e41776d966ae",
+             *           "id": "bc07ed67-514d-4aa0-9fba-a27192a1e80c",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "339e04cb-c8cd-4645-82d2-d1533aba08f9",
+             *           "id": "d0679fcc-b22d-402c-bfdd-3a70ba593ce2",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "26cda3ac-06f4-4fc2-88ed-b35e10987011",
+             *           "id": "0b0986e2-73d1-4c98-a5c2-1b0969e5e465",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "89f76b13-43b3-4622-b1a1-e41776d966ae",
+             *           "id": "bc07ed67-514d-4aa0-9fba-a27192a1e80c",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14340,19 +14867,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "53bae588-deb4-4f75-b147-246e78796aa7",
+             *         "id": "ad84a453-7655-4d9f-849d-40064f3bc44d",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "c17d3b7b-3c51-443a-b0d7-95b3c29b6c63",
+             *         "id": "04403969-b41c-4738-a666-b507eb0c4750",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "18661e7f-2e56-4ff6-9985-d2a9c9f60c42",
+             *         "id": "d734a1df-5380-484d-a0f8-38d80b6a2b75",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "58caf56b-f9f3-421e-8ca0-8e830e6353a9",
+             *         "id": "f60ca13d-2253-414a-a5b4-3222d3d58548",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14373,7 +14900,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "201bf00b-6faa-4792-9ad9-a10cb385da1c",
+             *         "id": "83a66494-dc0e-41c1-ac2e-00232697cadd",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14382,15 +14909,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "39473697-e965-4d67-aceb-245b70c31716",
+             *         "id": "08081253-78d8-4192-9d72-48f7bf286ac5",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "fca8b195-a3a8-42cb-8d36-5059f8725f3e",
+             *         "id": "a3a3f834-d03a-4017-8c75-9bd0e86f2b04",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "c6b32d99-3ffd-41de-8afc-261fa5083424",
+             *         "id": "dfcb4180-401c-4d9b-8b0e-3ddcac2b6f97",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -14495,6 +15022,21 @@ export interface components {
         TransportProtocol: "Udp" | "Tcp";
         /** @description No payload. Present only so the envelope keeps its shape. */
         TupleUnit: Record<string, never>;
+        /** @description An integration the latest scans found on hosts with no credential of it, still uncovered now. */
+        UncoveredIntegration: {
+            /**
+             * @description The hosts running its service, which the create flow pre-assigns when the integration's
+             *     credentials can only be pinned to hosts.
+             */
+            host_ids: string[];
+            /** @description The integration a credential would add. */
+            integration: components["schemas"]["CredentialIntegration"];
+            /**
+             * @description The sites those hosts are on, which the create flow pre-assigns instead when its
+             *     credentials can apply to a whole site.
+             */
+            site_ids: string[];
+        };
         /** @description A neighbour advertised by a local interface whose far end could not be placed on a host. */
         UnmatchedNeighbour: {
             /**
@@ -14511,9 +15053,9 @@ export interface components {
             /**
              * Format: uuid
              * @description The local device that saw the neighbour, not the far end — the far end is what could not
-             *     be identified.
+             *     be identified. `None` once that host has been deleted.
              */
-            host_id: string;
+            host_id: string | null;
             /** @description The chassis ID (LLDP) or device id (CDP) that did not identify one host. */
             identifier: string;
             /** @description The local interface that advertised the neighbour. */
@@ -14525,9 +15067,10 @@ export interface components {
         UnresolvedPort: {
             /**
              * Format: uuid
-             * @description The local device that saw the neighbour, and the port it saw it on.
+             * @description The local device that saw the neighbour, and the port it saw it on. `None` once that host
+             *     has been deleted.
              */
-            host_id: string;
+            host_id: string | null;
             /** @description The local interface that advertised the neighbour. */
             if_descr: string;
             /**
@@ -14544,12 +15087,17 @@ export interface components {
             /**
              * Format: uuid
              * @description The far-end device, already resolved — this is what makes it distinct from
-             *     [`UnmatchedNeighbour`].
+             *     [`UnmatchedNeighbour`]. `None` once that host has been deleted.
              */
-            remote_host_id: string;
+            remote_host_id: string | null;
         };
         /** @description The releases the caller hasn't dismissed. */
         UnseenReleaseNotes: {
+            /**
+             * @description Whether the modal opens on its own: true when any unseen release asks
+             *     for it, including ones left out for the changelog.
+             */
+            auto_open: boolean;
             /** @description The full changelog, present when older unseen releases were left out. */
             changelog_url?: string | null;
             /** @description Newest first. Empty when there is nothing new. */
@@ -14641,6 +15189,7 @@ export interface components {
         /** @description Everything the UI needs to upgrade a daemon: the binary steps per OS, and the docker method. */
         UpgradeArtifacts: {
             docker: components["schemas"]["DockerUpgrade"];
+            /** @description Binary upgrade steps on FreeBSD. */
             freebsd: components["schemas"]["UpgradeStep"][];
             /**
              * @description The restart step names the service after the daemon, as installs from before the install
@@ -14648,12 +15197,16 @@ export interface components {
              *     operator to `scanopy-daemon list` for the real service.
              */
             legacy_service_name: boolean;
+            /** @description Binary upgrade steps on Linux. */
             linux: components["schemas"]["UpgradeStep"][];
+            /** @description Binary upgrade steps on macOS. */
             macos: components["schemas"]["UpgradeStep"][];
+            /** @description Binary upgrade steps on Windows. */
             windows: components["schemas"]["UpgradeStep"][];
         };
         /** @description One command of a binary upgrade, in the order it runs. */
         UpgradeStep: {
+            /** @description The shell command to run. */
             command: string;
             type: components["schemas"]["UpgradeStepType"];
         };
@@ -14788,6 +15341,12 @@ export interface components {
             permissions: components["schemas"]["UserOrgPermissions"];
             /** @description The sites this entity applies to. */
             site_ids: string[];
+            /**
+             * @description Whether the user must accept the current terms before the API serves
+             *     their session. Computed, never stored: set only on the signed-in user's
+             *     own record (`/api/auth/me`, login, accept), false everywhere else.
+             */
+            readonly terms_acceptance_required?: boolean;
             /**
              * Format: date-time
              * @description When the user accepted the terms of service.
@@ -15098,6 +15657,19 @@ export interface components {
             /** @description Whether the scan found the address after the packets went out. */
             woke: boolean;
         };
+        /**
+         * @description What a warning asks of the person reading it.
+         *
+         *     The rung a code sits on *is* its instruction, which is why the warning list is grouped by this
+         *     and not by [`Severity`]: a reader scanning a completed run needs to know whether they are being
+         *     asked for something before they need to know how much data was lost. It reaches the UI as each
+         *     code's `category`, with this enum's own registry supplying the heading — the same shape
+         *     `service-definitions.json` and `service-categories.json` use.
+         *
+         *     Declaration order is the order the sections render in, most demanding first.
+         * @enum {string}
+         */
+        WarningRemedy: "FixInScanopy" | "CheckTheDevice" | "ClearsOnTheNextScan" | "NothingToDo";
         /** @enum {string} */
         WeekStart: "monday" | "sunday";
     };
@@ -15109,6 +15681,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    accept_terms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Terms accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_User"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     check_email: {
         parameters: {
             query?: never;
@@ -15457,7 +16058,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Verification email sent */
+            /** @description Accepted. A link is sent only when the address has an unverified account */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15466,17 +16067,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResponse"];
                 };
             };
-            /** @description Invalid request or already verified */
+            /** @description Invalid request, or a link was sent to this address less than a minute ago */
             400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorResponse"];
-                };
-            };
-            /** @description Rate limited */
-            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17856,7 +18448,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResponse"];
                 };
             };
-            /** @description Email service not configured */
+            /** @description Email service not configured, no command for this method, or api key missing or not this daemon's */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17865,8 +18457,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description User session required */
+            /** @description User session or verified email required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description Daemon not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17956,6 +18557,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_provision_eligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provisioning eligibility */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_ProvisionEligibility"];
                 };
             };
         };
@@ -20461,7 +21082,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description Key was regenerated, or the organization is not on a self-hosted plan */
+            /** @description Key was regenerated, the organization is not on a self-hosted plan, or the key already runs on as many servers as the plan covers */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -20472,6 +21093,76 @@ export interface operations {
             };
             /** @description Too many requests for this organization */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    list_license_instances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organization's server instances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_LicenseInstancesResponse"];
+                };
+            };
+            /** @description Not an owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_license_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description License instance ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Instance deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse"];
+                };
+            };
+            /** @description Not an owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description No such instance in this organization */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -29,7 +29,7 @@ export function guardServerPaginatedConfig<T>(
 			`DataControls: ${offenders.join(', ')} ${offenders.length === 1 ? 'is' : 'are'} ` +
 				`filterable on a server-paginated list but filtered client-side, which narrows ` +
 				`only the loaded page while the count describes every match. Mark the field ` +
-				`serverFiltered and handle it in onFilterChange, or drop its filterable flag.`
+				`serverFiltered and give it the endpoint's queryParam, or drop its filterable flag.`
 		);
 	});
 

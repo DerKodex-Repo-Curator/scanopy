@@ -404,6 +404,7 @@ pub fn user() -> User {
             oidc_linked_at: None,
             site_ids: vec![ids::SITE],
             terms_accepted_at: Some(example_timestamp()),
+            terms_acceptance_required: false,
             email_verified: true,
             email_verification_token: None,
             email_verification_expires: None,
@@ -415,6 +416,7 @@ pub fn user() -> User {
             display_settings: Default::default(),
             session_epoch: 0,
             release_notes_seen_version: None,
+            terms_notice_version: None,
         },
     }
 }
@@ -479,6 +481,7 @@ pub fn discovery() -> Discovery {
         },
         scan_count: 0,
         force_full_scan: false,
+        next_run_is_full_scan: false,
         integration_targets: vec![],
     }
 }

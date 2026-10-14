@@ -58,6 +58,7 @@ impl EmailTransport for RateLimitedTransport {
         base_url: &str,
         self_hosted: bool,
         unsubscribe_url: Option<&str>,
+        ses_tags: Option<&str>,
     ) -> Result<(), Error> {
         let mut backoff = self.first_backoff;
         let mut attempt = 0;
@@ -65,7 +66,14 @@ impl EmailTransport for RateLimitedTransport {
             self.limiter.until_ready().await;
             match self
                 .inner
-                .send(to.clone(), email, base_url, self_hosted, unsubscribe_url)
+                .send(
+                    to.clone(),
+                    email,
+                    base_url,
+                    self_hosted,
+                    unsubscribe_url,
+                    ses_tags,
+                )
                 .await
             {
                 Err(e) if attempt < TRANSIENT_RETRIES && (self.transient)(&e) => {
@@ -128,6 +136,7 @@ mod tests {
             _: &str,
             _: bool,
             _: Option<&str>,
+            _: Option<&str>,
         ) -> Result<(), Error> {
             let n = self.sends.fetch_add(1, Ordering::SeqCst);
             if n < self.failures {
@@ -159,6 +168,7 @@ mod tests {
                 &Probe,
                 "https://example.com",
                 false,
+                None,
                 None,
             )
             .await

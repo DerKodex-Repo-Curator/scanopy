@@ -1,52 +1,56 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { createForm } from '@tanstack/svelte-form';
-	import { Download } from 'lucide-svelte';
 	import PageTitle from '$lib/shared/components/layout/PageTitle.svelte';
 	import SearchInput from '$lib/shared/components/forms/input/SearchInput.svelte';
 	import { isFindShortcut } from '$lib/features/search/results';
-	import { shortcutLabel } from '$lib/shared/utils/shortcuts';
+	import { keyLabel, shortcutLabel } from '$lib/shared/utils/shortcuts';
 	import { isOnVisiblePage } from '$lib/shared/stores/modal-registry';
 	import { lowercasePreservingAcronyms } from '$lib/shared/utils/formatting';
-	import {
-		common_export,
-		common_exporting,
-		common_filter,
-		common_filterEntity
-	} from '$lib/paraglide/messages';
+	import { common_filter, common_filterEntity } from '$lib/paraglide/messages';
 
 	let {
 		searchQuery = $bindable(''),
 		onClearSearch,
-		onExport,
 		entityLabel = null,
 		title = null,
 		subtitle = null,
-		/** Column visibility and order menu. */
-		columnMenu,
 		/** The page's own actions (Create), last in the toolbar. */
 		actions = undefined,
 		/** First among the buttons while rows are selected (bulk delete). */
-		selectionActions = undefined
+		selectionActions = undefined,
+		onSearchFocusChange = undefined
 	}: {
 		searchQuery: string;
 		onClearSearch: () => void;
-		/** Export handler; the button shows only when there is one. */
-		onExport: (() => void | Promise<void>) | null;
 		/** The entities the page lists, as its title shows them ("Hosts"). */
 		entityLabel?: string | null;
 		/** The page title, first in the row. */
 		title?: string | null;
 		/** Shown on hover over an (i) beside the title. */
 		subtitle?: string | null;
-		columnMenu?: Snippet;
 		actions?: Snippet;
+		/** The search box gained or lost focus; while it has it, the list's single-key shortcuts are off. */
+		onSearchFocusChange?: (focused: boolean) => void;
 		selectionActions?: Snippet;
 	} = $props();
 
-	let isExporting = $state(false);
 	let inputEl: HTMLInputElement | undefined = $state();
 	const findShortcut = shortcutLabel('F');
+	// Esc clears from inside the box (handleInputKeydown); shown beside its clear button.
+	const clearSearchShortcut = keyLabel('Escape');
+
+	$effect(() => {
+		const input = inputEl;
+		if (!input) return;
+		const update = () => onSearchFocusChange?.(document.activeElement === input);
+		input.addEventListener('focus', update);
+		input.addEventListener('blur', update);
+		return () => {
+			input.removeEventListener('focus', update);
+			input.removeEventListener('blur', update);
+		};
+	});
 
 	const form = createForm(() => ({ defaultValues: { query: searchQuery } }));
 
@@ -63,23 +67,17 @@
 		// Only the page on screen takes Cmd/Ctrl+F; everywhere else the browser keeps its own find.
 		if (!isFindShortcut(event) || !isOnVisiblePage(inputEl)) return;
 		event.preventDefault();
-		inputEl?.focus();
+		// A second press leaves the search, so the list's single-key shortcuts work again.
+		if (document.activeElement === inputEl) inputEl?.blur();
+		else inputEl?.focus();
 	}
 
 	function handleInputKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && searchQuery) {
+		// Esc clears the search and leaves it, so the list's single-key shortcuts work again.
+		if (event.key === 'Escape') {
 			event.stopPropagation();
-			clear();
-		}
-	}
-
-	async function runExport() {
-		if (!onExport || isExporting) return;
-		isExporting = true;
-		try {
-			await onExport();
-		} finally {
-			isExporting = false;
+			if (searchQuery) clear();
+			inputEl?.blur();
 		}
 	}
 </script>
@@ -112,6 +110,7 @@
 						inset={false}
 						onInput={(next) => (searchQuery = next)}
 						onClear={clear}
+						clearShortcut={clearSearchShortcut}
 						onkeydown={handleInputKeydown}
 					/>
 				{/snippet}
@@ -123,22 +122,6 @@
 	<div class="flex flex-shrink-0 items-center gap-2">
 		{#if selectionActions}
 			{@render selectionActions()}
-		{/if}
-
-		{#if columnMenu}
-			{@render columnMenu()}
-		{/if}
-
-		{#if onExport}
-			<button
-				onclick={runExport}
-				disabled={isExporting}
-				class="btn-secondary toolbar-control disabled:cursor-not-allowed disabled:opacity-50"
-				title={isExporting ? common_exporting() : common_export()}
-				aria-label={isExporting ? common_exporting() : common_export()}
-			>
-				<Download class="h-5 w-5" />
-			</button>
 		{/if}
 
 		{#if actions}

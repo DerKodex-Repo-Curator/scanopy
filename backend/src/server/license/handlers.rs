@@ -8,8 +8,9 @@ use std::time::Duration;
 
 use crate::server::shared::types::api::ApiJson;
 use axum::Json;
-use axum::extract::State;
-use axum::http::HeaderMap;
+use axum::extract::{Path, State};
+use axum::http::{HeaderMap, StatusCode};
+use axum_client_ip::ClientIp;
 use chrono::Utc;
 use governor::{Quota, RateLimiter, clock::DefaultClock, state::keyed::DashMapStateStore};
 use serde::{Deserialize, Serialize};
@@ -17,9 +18,12 @@ use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
+use super::instances::LicenseInstance;
+use super::instances::service::CheckIn;
 use super::mint::{LicenseIssuer, MintError};
 use super::online::{
-    EntitlementRequest, EntitlementResponse, SERVER_VERSION_HEADER, reported_server_version,
+    EntitlementRequest, EntitlementResponse, InstanceUsage, SERVER_VERSION_HEADER,
+    reported_server_version,
 };
 use super::types::LicenseKeyType;
 use crate::server::auth::middleware::permissions::{Authorized, Owner};
@@ -31,6 +35,7 @@ use crate::server::shared::services::traits::CrudService;
 use crate::server::shared::types::api::{
     ApiError, ApiErrorResponse, ApiResponse, ApiResult, EmptyApiResponse,
 };
+use crate::server::shared::types::error_codes::ErrorCode;
 
 pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
     OpenApiRouter::new()
@@ -38,6 +43,8 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
         .routes(routes!(get_current_license_key))
         .routes(routes!(create_license_key))
         .routes(routes!(rotate_license_key))
+        .routes(routes!(list_license_instances))
+        .routes(routes!(delete_license_instance))
 }
 
 /// The license key to mint.
@@ -141,12 +148,13 @@ fn mint_error(error: MintError) -> ApiError {
     responses(
         (status = 200, description = "Entitlement for the key's organization", body = ApiResponse<EntitlementResponse>),
         (status = 400, description = "Malformed key, bad signature, or not an online key", body = ApiErrorResponse),
-        (status = 403, description = "Key was regenerated, or the organization is not on a self-hosted plan", body = ApiErrorResponse),
+        (status = 403, description = "Key was regenerated, the organization is not on a self-hosted plan, or the key already runs on as many servers as the plan covers", body = ApiErrorResponse),
         (status = 429, description = "Too many requests for this organization", body = ApiErrorResponse),
     )
 )]
 pub async fn get_entitlement(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     headers: HeaderMap,
     ApiJson(request): ApiJson<EntitlementRequest>,
 ) -> ApiResult<Json<ApiResponse<EntitlementResponse>>> {
@@ -176,9 +184,6 @@ pub async fn get_entitlement(
     }
 
     let now = Utc::now();
-    let entitlement = issuer
-        .mint_entitlement(&organization, now)
-        .map_err(mint_error)?;
     // The key has passed every check, so the caller is the key's holder.
     let server_version = reported_server_version(
         headers
@@ -186,11 +191,54 @@ pub async fn get_entitlement(
             .and_then(|v| v.to_str().ok()),
     );
     service
-        .record_license_check_in(organization_id, now, server_version)
+        .record_license_check_in(organization_id, now, server_version.clone())
+        .await?;
+    let recorded = state
+        .services
+        .license_instance_service
+        .record_check_in(
+            CheckIn {
+                organization_id,
+                instance_id: request.instance_id,
+                server_version,
+                ip: Some(ip),
+                non_production: request.non_production,
+                at: now,
+            },
+            organization.license_instance_limits(),
+        )
+        .await?;
+    service
+        .record_license_instance_usage(organization_id, recorded.usage)
         .await?;
 
+    // A server past its class's limit gets no entitlement and goes read-only.
+    // The servers holding a slot keep theirs, and servers too old to say
+    // which class they are are counted but never refused.
+    if recorded.refused {
+        let (active, limit) = if request.non_production.unwrap_or(false) {
+            (
+                recorded.usage.non_production_active,
+                recorded.usage.non_production_limit,
+            )
+        } else {
+            (recorded.usage.active, recorded.usage.limit)
+        };
+        return Err(ApiError::coded(
+            StatusCode::FORBIDDEN,
+            ErrorCode::LicenseInstanceLimitReached {
+                active,
+                limit: limit.unwrap_or_default(),
+            },
+        ));
+    }
+
+    let entitlement = issuer
+        .mint_entitlement(&organization, now)
+        .map_err(mint_error)?;
     Ok(Json(ApiResponse::success(EntitlementResponse {
         entitlement,
+        instances: Some(recorded.usage),
     })))
 }
 
@@ -374,6 +422,107 @@ pub async fn rotate_license_key(
         .organization_service
         .rotate_license_key(organization_id, auth.entity.clone())
         .await?;
+
+    Ok(Json(ApiResponse::success(())))
+}
+
+/// The server instances an organization's online key is running on.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LicenseInstancesResponse {
+    /// Every instance that has checked in, most recent first, including ones
+    /// silent long enough to no longer count.
+    pub instances: Vec<LicenseInstanceSummary>,
+    /// Instances counting against the limit now, and the limit.
+    pub usage: InstanceUsage,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LicenseInstanceSummary {
+    pub instance: LicenseInstance,
+    /// Whether the instance counts against the limit: it checked in within
+    /// the last week.
+    pub active: bool,
+    /// Whether the instance is past its class's limit and refused its
+    /// entitlement, so it is read-only.
+    pub refused: bool,
+}
+
+/// List the server instances running this organization's license key
+///
+/// An instance counts against the limit while it has checked in within the
+/// last week.
+#[utoipa::path(
+    get,
+    path = "/instances",
+    tags = [api_tags::BILLING, api_tags::INTERNAL],
+    responses(
+        (status = 200, description = "The organization's server instances", body = ApiResponse<LicenseInstancesResponse>),
+        (status = 403, description = "Not an owner", body = ApiErrorResponse),
+    ),
+    security(("user_api_key" = []), ("session" = []))
+)]
+pub async fn list_license_instances(
+    State(state): State<Arc<AppState>>,
+    auth: Authorized<Owner>,
+) -> ApiResult<Json<ApiResponse<LicenseInstancesResponse>>> {
+    let organization_id = auth.require_organization_id()?;
+    let organization = load_organization(&state, organization_id).await?;
+    let instances = state
+        .services
+        .license_instance_service
+        .list(organization_id)
+        .await?;
+    let now = Utc::now();
+    let limits = organization.license_instance_limits();
+    let usage = super::instances::usage(&instances, limits, now);
+    let summaries = instances
+        .iter()
+        .map(|instance| LicenseInstanceSummary {
+            active: instance.is_active_at(now),
+            refused: super::instances::is_refused(&instances, instance, limits, now),
+            instance: instance.clone(),
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(LicenseInstancesResponse {
+        instances: summaries,
+        usage,
+    })))
+}
+
+/// Delete a server instance from this organization's license key
+///
+/// Frees its slot. A server that is still running is listed again at its next
+/// check-in; rotating the key is what stops one.
+#[utoipa::path(
+    delete,
+    path = "/instances/{id}",
+    tags = [api_tags::BILLING, api_tags::INTERNAL],
+    params(("id" = Uuid, Path, description = "License instance ID")),
+    responses(
+        (status = 200, description = "Instance deleted", body = EmptyApiResponse),
+        (status = 403, description = "Not an owner", body = ApiErrorResponse),
+        (status = 404, description = "No such instance in this organization", body = ApiErrorResponse),
+    ),
+    security(("user_api_key" = []), ("session" = []))
+)]
+pub async fn delete_license_instance(
+    State(state): State<Arc<AppState>>,
+    auth: Authorized<Owner>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<EmptyApiResponse>> {
+    let organization_id = auth.require_organization_id()?;
+    load_organization(&state, organization_id).await?;
+    let deleted = state
+        .services
+        .license_instance_service
+        .delete(organization_id, id)
+        .await?;
+    if !deleted {
+        return Err(ApiError::not_found(format!(
+            "License instance {id} not found"
+        )));
+    }
 
     Ok(Json(ApiResponse::success(())))
 }

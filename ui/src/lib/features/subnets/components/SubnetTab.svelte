@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { isProvisionalCidr } from '$lib/shared/utils/cidr-source';
 	import { cidrContains } from '$lib/shared/utils/cidr';
 	import SubnetUtilization from './SubnetUtilization.svelte';
@@ -10,11 +11,12 @@
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
 	import type { Subnet, SubnetResponse } from '../types/base';
 	import DataControls from '$lib/shared/components/data/DataControls.svelte';
+	import { STALE_PARAM } from '$lib/shared/components/data/controls/listQuery';
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { subnetColumns } from './SubnetTab.columns';
 	import { collectionLookup } from '$lib/shared/entity-fields';
-	import { Plus, Trash2, Edit, CloudAlert } from 'lucide-svelte';
+	import { Trash2, Edit, CloudAlert } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
 	import {
@@ -64,8 +66,9 @@
 	let stale = $state<boolean | null>(null);
 	const subnetsQuery = useSubnetsQuery(undefined, () => stale ?? undefined);
 
-	function handleStaleFilterChange(next: boolean | null) {
-		stale = next;
+	// The list sends only staleness to the endpoint; it filters, searches and orders the rest itself.
+	function handleQueryChange(query: URLSearchParams) {
+		stale = query.get(STALE_PARAM) === 'true' ? true : null;
 	}
 	const sitesQuery = useSitesQuery();
 	// The container runtimes that manage the bridge subnets, fetched by id.
@@ -102,7 +105,7 @@
 	let showSubnetEditor = $state(false);
 	let editingSubnet = $state<Subnet | null>(null);
 	let showProvisionalRange = $state(false);
-	let resolvingSubnet = $state<Subnet | null>(null);
+	let resolvingSubnet = $state<SubnetResponse | null>(null);
 
 	// Deep-link: open subnet editor from URL (handles both fresh open and entity switch)
 	$effect(() => {
@@ -149,7 +152,7 @@
 	}
 
 	/** Row actions. */
-	function subnetActions(subnet: Subnet): CardAction[] {
+	function subnetActions(subnet: SubnetResponse): CardAction[] {
 		if (isReadOnly) return [];
 
 		const actions: CardAction[] = [];
@@ -180,7 +183,7 @@
 		return actions;
 	}
 
-	function handleResolveRange(subnet: Subnet) {
+	function handleResolveRange(subnet: SubnetResponse) {
 		resolvingSubnet = subnet;
 		showProvisionalRange = true;
 	}
@@ -314,6 +317,7 @@
 			discoveryRuns: () => discoveryRunsData,
 			nesting: () => nesting,
 			runtimeOf,
+			runtimes: () => runtimesData,
 			utilizationCell
 		})
 	);
@@ -326,9 +330,7 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if hasDaemon(onboarding) && !isReadOnly}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateSubnet}
-			><Plus class="h-5 w-5" />{common_create()}</button
-		>
+		<CreateButton onclick={handleCreateSubnet} />
 	{/if}
 {/snippet}
 
@@ -364,7 +366,8 @@
 			canEditTags={!isReadOnly}
 			getItemTags={getSubnetTags}
 			getItemId={(item) => item.id}
-			onStaleFilterChange={handleStaleFilterChange}
+			onQueryChange={handleQueryChange}
+			serverQuery={{ search: false, tags: false, order: false, fields: false }}
 			onCsvExport={handleCsvExport}
 			getActions={subnetActions}
 			entityLabel={common_subnets()}

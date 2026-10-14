@@ -7,7 +7,20 @@
 		showViewSwitcherHint,
 		showDependencyTutorial
 	} from '$lib/features/topology/queries';
-	import { entities, billingPlans, interfaceIntegrationsList } from '$lib/shared/stores/metadata';
+	import {
+		entities,
+		billingPlans,
+		credentialIntegrations,
+		interfaceIntegrationsList
+	} from '$lib/shared/stores/metadata';
+	import {
+		createIntegrationCredentialLabel,
+		openCredentialCreate
+	} from '$lib/features/credentials/utils/prefill';
+	import {
+		integrationWithoutCredentialSentence,
+		integrationWithoutCredentialTitle
+	} from '$lib/features/discovery/utils/warnings';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { hasSunsetWarning } from '$lib/features/daemons/utils';
 	import type { IconComponent } from '$lib/shared/utils/types';
@@ -94,6 +107,7 @@
 		visible: boolean;
 		icon: IconComponent;
 		iconColor: string;
+		dismissOnAction?: boolean;
 	}
 
 	let nudges = $derived.by((): Nudge[] => {
@@ -110,6 +124,19 @@
 				icon: entities.getIconComponent('Daemon'),
 				iconColor: entities.getColorHelper('Daemon').icon
 			},
+			// One per integration the latest scans found with no credential, most hosts first. Gone
+			// once a covering credential is saved, so acting on it does not dismiss it.
+			...dashboard.uncovered_integrations.map(({ integration, host_ids, site_ids }): Nudge => ({
+				id: `integration-${integration}`,
+				title: integrationWithoutCredentialTitle(integration),
+				description: integrationWithoutCredentialSentence(integration, host_ids.length),
+				actionLabel: createIntegrationCredentialLabel(integration),
+				action: () => openCredentialCreate(integration, { hostIds: host_ids, siteIds: site_ids }),
+				visible: has('FirstDiscoveryCompleted'),
+				icon: credentialIntegrations.getIconComponent(integration),
+				iconColor: credentialIntegrations.getColorHelper(integration).icon,
+				dismissOnAction: false
+			})),
 			{
 				id: 'explore-perspectives',
 				title: home_nudges_explorePerspectivesTitle(),
@@ -272,6 +299,7 @@
 					onAction={nudge.action}
 					Icon={nudge.icon}
 					iconColor={nudge.iconColor}
+					dismissOnAction={nudge.dismissOnAction}
 					{onDismiss}
 				/>
 			{/each}

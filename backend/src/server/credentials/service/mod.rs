@@ -1,3 +1,4 @@
+use crate::daemon::discovery::types::warnings::DiscoveryWarning;
 use crate::server::services::r#impl::definitions::ServiceDefinition;
 use crate::server::{
     auth::middleware::auth::AuthenticatedEntity,
@@ -37,7 +38,10 @@ use std::sync::{Arc, OnceLock};
 use strum::IntoDiscriminant;
 use uuid::Uuid;
 
+mod coverage;
 mod defaults;
+
+pub use coverage::{FoundIntegration, IntegrationCoverage, SiteTriedAt, find_uncovered};
 
 /// The set of things a credential targets, normalized across the site and host
 /// junction tables so two credentials can be tested for overlap. Used to enforce
@@ -166,43 +170,48 @@ impl CrudService<Credential> for CredentialService {
 
         // Emit onboarding events for credential creation
         let organization_id = created.base.organization_id;
-        if let Some(organization) = self
+
+        // Generic event for any credential type
+        if self
             .organization_service
-            .get_by_id(&organization_id)
+            .record_milestone(
+                organization_id,
+                OnboardingOperationDiscriminants::FirstCredentialCreated,
+            )
             .await?
         {
-            // Generic event for any credential type
-            if organization.not_onboarded(&OnboardingOperationDiscriminants::FirstCredentialCreated)
-            {
-                self.event_bus
-                    .publish(Event::new(
-                        OrgScope { organization_id },
-                        OnboardingOperation::FirstCredentialCreated,
-                        authentication.clone(),
-                    ))
-                    .await?;
-            }
+            self.event_bus
+                .publish(Event::new(
+                    OrgScope { organization_id },
+                    OnboardingOperation::FirstCredentialCreated,
+                    authentication.clone(),
+                ))
+                .await?;
+        }
 
-            // Clears the interface prompts on home and the L2 view; a container or Wake-on-LAN
-            // credential adds no interfaces, so it does not count.
-            if created
-                .base
-                .credential_type
-                .discriminant()
-                .integration()
-                .reports_interfaces()
-                && organization.not_onboarded(
-                    &OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated,
+        // Clears the interface prompts on home and the L2 view; a container or Wake-on-LAN
+        // credential adds no interfaces, so it does not count.
+        if created
+            .base
+            .credential_type
+            .discriminant()
+            .integration()
+            .reports_interfaces()
+            && self
+                .organization_service
+                .record_milestone(
+                    organization_id,
+                    OnboardingOperationDiscriminants::FirstInterfaceCredentialCreated,
                 )
-            {
-                self.event_bus
-                    .publish(Event::new(
-                        OrgScope { organization_id },
-                        OnboardingOperation::FirstInterfaceCredentialCreated,
-                        authentication,
-                    ))
-                    .await?;
-            }
+                .await?
+        {
+            self.event_bus
+                .publish(Event::new(
+                    OrgScope { organization_id },
+                    OnboardingOperation::FirstInterfaceCredentialCreated,
+                    authentication,
+                ))
+                .await?;
         }
 
         Ok(created)
@@ -705,6 +714,7 @@ impl CredentialService {
 
     /// Build generic credential mappings for unified discovery dispatch.
     /// Returns one `CredentialMapping<CredentialQueryPayload>` per credential type discriminant.
+    /// Alongside them, one warning per credential withheld because the daemon is too old for it.
     ///
     /// Combines: site-level credentials (broadcast defaults), host-level credential
     /// assignments (IP overrides on discovered hosts), and the per-daemon `integration_targets`
@@ -717,7 +727,13 @@ impl CredentialService {
         site_id: Uuid,
         integration_targets: &[IntegrationTarget],
         daemon_version: Option<&semver::Version>,
-    ) -> Result<Vec<CredentialMapping<CredentialQueryPayload>>, Error> {
+    ) -> Result<
+        (
+            Vec<CredentialMapping<CredentialQueryPayload>>,
+            Vec<DiscoveryWarning>,
+        ),
+        Error,
+    > {
         let host_service = self
             .host_service
             .get()
@@ -829,11 +845,11 @@ impl CredentialService {
         // wire tag — SnmpV1/V3 have a higher floor than SnmpV2c. A missing version is
         // treated conservatively (keep only the 0.16.2 wire floor). This protects the
         // installed base of already-released daemons that predate `serde(other)`.
-        retain_daemon_compatible(&mut mappings_by_credential, daemon_version);
+        let withheld = retain_daemon_compatible(&mut mappings_by_credential, daemon_version);
 
-        Ok(order_mappings_for_dispatch(
-            mappings_by_credential,
-            &created_at,
+        Ok((
+            order_mappings_for_dispatch(mappings_by_credential, &created_at),
+            withheld,
         ))
     }
 }
@@ -891,10 +907,13 @@ pub(crate) fn mapping_for<'a>(
 /// mixed-version fleet or a downgrade, where the credential silently does nothing on this daemon
 /// until it is upgraded — worth saying out loud, since a silent filter is indistinguishable from
 /// a credential that simply never worked.
+///
+/// Returns one `CredentialDaemonTooOld` warning per credential withheld, for the scan's record.
 pub(crate) fn retain_daemon_compatible(
     mappings: &mut BTreeMap<Uuid, TypedCredentialMapping>,
     daemon_version: Option<&semver::Version>,
-) {
+) -> Vec<DiscoveryWarning> {
+    let mut withheld = Vec::new();
     mappings.retain(|credential_id, typed| {
         let compatible = typed.discriminant.compatible_with_daemon(daemon_version);
         if !compatible {
@@ -906,9 +925,20 @@ pub(crate) fn retain_daemon_compatible(
                 "Not dispatching a credential this daemon is too old to use; upgrade the daemon \
                  or the credential will keep being skipped on its scans"
             );
+            withheld.push(DiscoveryWarning::CredentialDaemonTooOld {
+                integration: typed
+                    .discriminant
+                    .to_credential_type()
+                    .to_query_payload()
+                    .discriminant(),
+                credential_id: Some(*credential_id),
+                minimum_daemon_version: typed.discriminant.minimum_daemon_version(),
+                daemon_version: daemon_version.cloned(),
+            });
         }
         compatible
     });
+    withheld
 }
 
 /// Flatten the per-credential mappings into the order the daemon should probe them.
@@ -1446,9 +1476,14 @@ mod integration_target_tests {
         let v1 = CredentialTypeDiscriminants::SnmpV1.to_credential_type();
         mapping_for(&mut map, v1_id, &v1).default_credential = Some(v1.to_query_payload());
 
-        retain_daemon_compatible(&mut map, Some(&semver::Version::new(0, 16, 2)));
+        let withheld = retain_daemon_compatible(&mut map, Some(&semver::Version::new(0, 16, 2)));
 
         assert_eq!(map.keys().copied().collect::<Vec<_>>(), vec![v2c_id]);
+        // The withheld credential is reported on the scan rather than vanishing.
+        assert!(matches!(
+            withheld.as_slice(),
+            [DiscoveryWarning::CredentialDaemonTooOld { credential_id: Some(id), .. }] if *id == v1_id
+        ));
     }
 
     /// Overrides are emitted last so a host-specific credential still beats a site-wide one.

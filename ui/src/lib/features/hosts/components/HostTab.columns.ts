@@ -61,11 +61,11 @@ import { isContainerSubnet } from '$lib/features/subnets/queries';
 import type { Credential } from '$lib/features/credentials/types/base';
 import type { Interface } from '$lib/features/credentials/types/base';
 import { formatIPAddress } from '../address-labels';
-import type { components } from '$lib/api/schema';
+import type { components, operations } from '$lib/api/schema';
+import { NO_VALUE, valuesOrNoneCodec } from '$lib/shared/components/data/controls/listQuery';
 import {
 	fieldValueOptions,
 	hasEmptyFieldValue,
-	labelledFieldValueOptions,
 	type FieldValueCount
 } from '$lib/shared/api/field-values';
 import type { Service } from '$lib/features/services/types/base';
@@ -75,6 +75,8 @@ import type { Tag } from '$lib/features/tags/types/base';
 import type { Discovery } from '$lib/features/discovery/types/base';
 
 type HostOrderField = components['schemas']['HostOrderField'];
+/** The host list endpoint's query params, which the filters are sent and linked as. */
+type HostListParam = keyof NonNullable<operations['get_all_hosts']['parameters']['query']>;
 
 /** What the host columns read from the tab, each as a getter so values stay live. */
 export interface HostColumnsContext {
@@ -143,7 +145,7 @@ export function hostColumns(ctx: HostColumnsContext) {
 		return subnet ? isContainerSubnet(subnet) : false;
 	}
 
-	return defineRegistryFields<Host, HostOrderField>(
+	return defineRegistryFields<Host, HostOrderField, HostListParam>(
 		'Host',
 		ctx.lookup,
 		{
@@ -183,7 +185,12 @@ export function hostColumns(ctx: HostColumnsContext) {
 				// The names of the services that virtualize some host, and "Not Virtualized"
 				// only when some host has no virtualizing service (counted as '').
 				filterOptions: fieldValueOptions(ctx.virtualizedByValues()).concat(
-					hasEmptyFieldValue(ctx.virtualizedByValues()) ? [hosts_notVirtualized()] : []
+					hasEmptyFieldValue(ctx.virtualizedByValues()) ? [NO_VALUE] : []
+				),
+				filterLabel: (value) => (value === NO_VALUE ? hosts_notVirtualized() : value),
+				filterCodec: valuesOrNoneCodec<HostListParam>(
+					'virtualization_service_names',
+					'include_unvirtualized'
 				),
 				groupable: true,
 				// Grouped as a tree: every host under the host at the top of its chain, parent
@@ -263,12 +270,11 @@ export function hostColumns(ctx: HostColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
+				queryParam: 'site_ids',
 				groupable: true,
-				// The sites some host is on, by name.
-				filterOptions: labelledFieldValueOptions(
-					ctx.siteValues(),
-					(id) => ctx.sites().find((n) => n.id === id)?.name
-				),
+				// The sites some host is on.
+				filterOptions: fieldValueOptions(ctx.siteValues()),
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? common_unknownSite(),
 				// Displayed as a name, but grouped by id on the server.
 				getGroupValue: (item) => item.site_id,
 				getValue: (item) =>
@@ -293,10 +299,10 @@ export function hostColumns(ctx: HostColumnsContext) {
 				label: common_source(),
 				filterable: true,
 				serverFiltered: true,
-				// The sources some host was stamped with, by name.
-				filterOptions: labelledFieldValueOptions(ctx.sourceValues(), (id) =>
-					entitySources.getName(id)
-				),
+				queryParam: 'sources',
+				// The sources some host was stamped with.
+				filterOptions: fieldValueOptions(ctx.sourceValues()),
+				filterLabel: (id) => entitySources.getName(id),
 				// The server groups on the raw `source.type`.
 				getGroupValue: (host) => host.source.type,
 				display: { order: 1, getItems: (host) => entitySourceItems(host.source) }
@@ -308,6 +314,7 @@ export function hostColumns(ctx: HostColumnsContext) {
 				label: common_manufacturer(),
 				filterable: true,
 				serverFiltered: true,
+				queryParam: 'manufacturers',
 				filterOptions: fieldValueOptions(ctx.manufacturerValues()),
 				display: { hiddenByDefault: true }
 			},
@@ -315,6 +322,7 @@ export function hostColumns(ctx: HostColumnsContext) {
 				label: common_model(),
 				filterable: true,
 				serverFiltered: true,
+				queryParam: 'models',
 				filterOptions: fieldValueOptions(ctx.modelValues()),
 				display: { hiddenByDefault: true }
 			},
@@ -322,6 +330,7 @@ export function hostColumns(ctx: HostColumnsContext) {
 				label: common_location(),
 				filterable: true,
 				serverFiltered: true,
+				queryParam: 'sys_locations',
 				filterOptions: fieldValueOptions(ctx.sysLocationValues()),
 				display: { hiddenByDefault: true }
 			},
@@ -330,12 +339,13 @@ export function hostColumns(ctx: HostColumnsContext) {
 				label: common_operatingSystem(),
 				filterable: true,
 				serverFiltered: true,
-				// The families some host runs, resolved through the same list the handler
-				// maps names back with.
-				filterOptions: labelledFieldValueOptions(ctx.osFamilyValues(), (value) => {
+				queryParam: 'os_families',
+				// The families some host runs.
+				filterOptions: fieldValueOptions(ctx.osFamilyValues()),
+				filterLabel: (value) => {
 					const family = hostOsFamilyIds.find((id) => id === value);
-					return family ? hostOsFamilyName(family) : null;
-				}),
+					return family ? hostOsFamilyName(family) : value;
+				},
 				getValue: (host) => (host.os ? hostOsFamilyName(host.os.family) : null),
 				getGroupValue: (host) => host.os?.family ?? null,
 				display: { hiddenByDefault: true, cell: ctx.osCell }
@@ -421,13 +431,15 @@ export function hostColumns(ctx: HostColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// Names, resolved back to ids for the server. Only credentials assigned to some host:
-				// the rest match nothing.
+				queryParam: 'credential_ids',
+				// Only credentials assigned to some host: the rest match nothing.
 				filterOptions: ctx
 					.credentials()
 					.filter((c) => (c.host_assignments ?? []).length > 0)
-					.map((c) => c.name),
+					.map((c) => c.id),
+				filterLabel: (id) => ctx.credentials().find((c) => c.id === id)?.name ?? id,
 				getValue: (host) => hostCredentials(host).map((c) => c.name),
+				getFilterValue: (host) => hostCredentials(host).map((c) => c.id),
 				display: {
 					order: 3,
 					getItems: (host) => credentialItems(hostCredentials(host))
@@ -470,6 +482,7 @@ export function hostColumns(ctx: HostColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
+				queryParam: 'service_names',
 				// Names, not ids: the server matches a host's services by name. The options are
 				// every live service name the server counts; the services cache only holds the
 				// loaded page's.

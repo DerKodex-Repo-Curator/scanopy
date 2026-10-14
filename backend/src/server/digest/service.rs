@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::server::auth::middleware::auth::AuthenticatedEntity;
 use crate::server::bindings::service::BindingService;
+use crate::server::credentials::{r#impl::base::Credential, service::CredentialService};
 use crate::server::daemons::r#impl::api::{DiscoveryUpdatePayload, ScannedEntityIds};
 use crate::server::discovery::r#impl::types::DiscoveryType;
 use crate::server::discovery::service::DiscoveryService;
@@ -19,7 +20,11 @@ use crate::server::{
         InterfaceSummary, IpAddressSummary, PortSummary, ServiceSummary, SubnetSummary,
         VlanSummary,
     },
-    hosts::{r#impl::base::Host, service::HostService},
+    digest::run_report,
+    hosts::{
+        r#impl::{base::Host, name_ladder::UNNAMED_HOST},
+        service::HostService,
+    },
     interfaces::{r#impl::base::Interface, service::InterfaceService},
     ip_addresses::{r#impl::base::IPAddress, service::IPAddressService},
     ports::{r#impl::base::Port, service::PortService},
@@ -51,6 +56,7 @@ pub struct DiscoveryDigestService {
     pub user_service: Arc<UserService>,
     pub site_service: Arc<SiteService>,
     pub discovery_service: Arc<DiscoveryService>,
+    pub credential_service: Arc<CredentialService>,
     pub event_bus: Arc<EventBus>,
 }
 
@@ -68,6 +74,7 @@ impl DiscoveryDigestService {
         user_service: Arc<UserService>,
         site_service: Arc<SiteService>,
         discovery_service: Arc<DiscoveryService>,
+        credential_service: Arc<CredentialService>,
         event_bus: Arc<EventBus>,
     ) -> Self {
         Self {
@@ -82,6 +89,7 @@ impl DiscoveryDigestService {
             user_service,
             site_service,
             discovery_service,
+            credential_service,
             event_bus,
         }
     }
@@ -89,11 +97,13 @@ impl DiscoveryDigestService {
     /// Compute the digest for `payload` and publish a
     /// `DiscoveryDigestOperation::Computed` event. Skips publishing entirely
     /// when timestamps are missing — those would yield meaningless filter
-    /// windows.
+    /// windows. `discovery_id` is the historical row the session was recorded
+    /// as, which the email links to.
     pub async fn compute_and_publish(
         &self,
         payload: &DiscoveryUpdatePayload,
         scanned: &ScannedEntityIds,
+        discovery_id: Uuid,
     ) -> Result<()> {
         let (Some(t_start), Some(t_end)) = (payload.started_at, payload.finished_at) else {
             tracing::warn!(
@@ -114,9 +124,35 @@ impl DiscoveryDigestService {
             }
         };
 
-        let digest = self
+        let mut digest = self
             .compute(payload, scanned, t_start, t_end, &site)
             .await?;
+
+        // The run's warnings and credential results, read from the same payload the historical
+        // row stores. Credentials are looked up within this organization only, so an id from
+        // anywhere else never puts a name in the email.
+        let credential_ids =
+            run_report::referenced_credential_ids(&payload.warnings, &payload.credential_results);
+        let credentials: HashMap<Uuid, Credential> = if credential_ids.is_empty() {
+            HashMap::new()
+        } else {
+            self.credential_service
+                .get_all(
+                    StorableFilter::<Credential>::new_from_entity_ids(&credential_ids)
+                        .organization_id(&site.base.organization_id),
+                )
+                .await?
+                .into_iter()
+                .map(|c| (c.id, c))
+                .collect()
+        };
+        let report =
+            run_report::run_report(&payload.warnings, &payload.credential_results, &credentials);
+        digest.discovery_id = Some(discovery_id);
+        digest.warnings = report.warnings;
+        digest.credentials_used = report.credentials_used;
+        digest.credential_problems = report.credential_problems;
+        digest.integrations_without_credentials = report.integrations_without_credentials;
 
         let scope = DiscoveryDigestScope {
             organization_id: site.base.organization_id,
@@ -211,8 +247,10 @@ impl DiscoveryDigestService {
             .ip_address_service
             .get_all(StorableFilter::<IPAddress>::new_from_site_ids(&[site_id]).live())
             .await?;
+        let mut host_ips: HashMap<Uuid, Vec<&IPAddress>> = HashMap::new();
         let mut host_subnets: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
         for ip in &all_ips {
+            host_ips.entry(ip.base.host_id).or_default().push(ip);
             host_subnets
                 .entry(ip.base.host_id)
                 .or_default()
@@ -281,15 +319,15 @@ impl DiscoveryDigestService {
         {
             match status {
                 EntityFreshness::New => {
-                    hosts_added.push(build_card(&host, status, &current_children));
+                    hosts_added.push(build_card(&host, status, &current_children, &host_ips));
                 }
                 EntityFreshness::Stale => {
                     if is_fresh {
-                        hosts_stale.push(build_card(&host, status, &current_children));
+                        hosts_stale.push(build_card(&host, status, &current_children, &host_ips));
                     }
                 }
                 EntityFreshness::Current => {
-                    let card = build_card(&host, status, &current_children);
+                    let card = build_card(&host, status, &current_children, &host_ips);
                     if card_has_fresh_children(&card) {
                         hosts_changed.push(card);
                     }
@@ -351,6 +389,12 @@ impl DiscoveryDigestService {
             vlans_added,
             vlans_stale,
             recipients,
+            // Filled by `compute_and_publish` from the run's warnings and credential results.
+            discovery_id: None,
+            warnings: Default::default(),
+            credentials_used: 0,
+            credential_problems: Vec::new(),
+            integrations_without_credentials: Vec::new(),
         })
     }
 
@@ -684,10 +728,12 @@ fn build_card(
     host: &Host,
     status: EntityFreshness,
     children: &HashMap<Uuid, HostChildren>,
+    host_ips: &HashMap<Uuid, Vec<&IPAddress>>,
 ) -> AffectedHostCard {
     let kids = children.get(&host.id);
+    let ips = host_ips.get(&host.id).into_iter().flatten().copied();
     AffectedHostCard {
-        host: host_summary(host),
+        host: host_summary(host, ips),
         status,
         services: kids.map(|c| c.services.clone()).unwrap_or_default(),
         ip_addresses: kids.map(|c| c.ip_addresses.clone()).unwrap_or_default(),
@@ -696,10 +742,12 @@ fn build_card(
     }
 }
 
-fn host_summary(h: &Host) -> HostSummary {
-    let label = crate::server::shared::attribution::text_of(&h.base.hostname)
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| h.base.name.to_string());
+/// The host titled the way every other surface titles it: [`Host::display_name`], or
+/// [`UNNAMED_HOST`] when nothing identifies it.
+fn host_summary<'a>(h: &Host, ips: impl IntoIterator<Item = &'a IPAddress>) -> HostSummary {
+    let label = h
+        .display_name(ips)
+        .unwrap_or_else(|| UNNAMED_HOST.to_string());
     HostSummary { id: h.id, label }
 }
 
@@ -1220,5 +1268,52 @@ mod tests {
         );
         assert!(!coverage.covers_host(Uuid::new_v4(), Some(&subnets(&[Uuid::new_v4()])), false));
         assert!(!coverage.swept_subnets());
+    }
+
+    // ---- Host titles ------------------------------------------------------
+
+    /// A host with a blank name and no hostname (a controller import, an LLDP far end) is titled
+    /// from the rest of the ladder, the same as in the app, and never left blank.
+    #[test]
+    fn a_card_titles_its_host_the_way_the_app_does() {
+        use crate::server::hosts::r#impl::attributes::HostSysNameValue;
+        use crate::server::hosts::r#impl::name::{HostName, HostNameSources};
+        use crate::server::shared::attribution::{AttributeSource, Attributed};
+        use crate::server::shared::types::examples;
+
+        let nameless = |h: &mut Host| {
+            h.id = Uuid::new_v4();
+            h.base.name = HostName::unnamed();
+            h.base.hostname = None;
+            h.base.sys_name = None;
+            h.base.chassis_id = None;
+        };
+        let mut by_sys_name = examples::host();
+        nameless(&mut by_sys_name);
+        by_sys_name.base.sys_name = Some(Attributed::new(
+            HostSysNameValue("core-sw-01".to_string()),
+            AttributeSource::Unspecified,
+        ));
+        let mut by_address = examples::host();
+        nameless(&mut by_address);
+        let mut address = examples::ip_address();
+        address.base.host_id = by_address.id;
+        let mut unidentified = examples::host();
+        nameless(&mut unidentified);
+
+        let host_ips: HashMap<Uuid, Vec<&IPAddress>> =
+            HashMap::from([(by_address.id, vec![&address])]);
+        let label = |h: &Host| {
+            build_card(h, EntityFreshness::New, &HashMap::new(), &host_ips)
+                .host
+                .label
+        };
+
+        for h in [&by_sys_name, &by_address] {
+            let expected = h.display_name(host_ips.get(&h.id).into_iter().flatten().copied());
+            assert!(expected.is_some());
+            assert_eq!(Some(label(h)), expected);
+        }
+        assert_eq!(label(&unidentified), UNNAMED_HOST);
     }
 }

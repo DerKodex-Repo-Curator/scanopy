@@ -22,10 +22,11 @@ import osFamilies from '$lib/data/os-families.json';
 import snmpWalkGroups from '$lib/data/snmp-walk-groups.json';
 import warningCodes from '$lib/data/warning-codes.json';
 import warningRemedies from '$lib/data/warning-remedies.json';
-import { metaDescription, metaDescriptionWith, metaName } from '$lib/i18n/metadata';
+import { metaDescription, metaDescriptionWith, metaName, metaNameWith } from '$lib/i18n/metadata';
 import { joinList, MAX_LISTED } from '$lib/i18n/list';
 import { toColor, type Color } from '$lib/shared/utils/styling';
 import { osLabel } from '$lib/features/daemons/utils';
+import { credentialIntegrations } from '$lib/shared/stores/metadata';
 import {
 	common_host,
 	common_moreItems,
@@ -94,14 +95,19 @@ export interface WarningStatement {
 
 /** One warning code's worth of a run, as a row in the report. */
 export interface WarningEntry {
+	/** Unique within a run: the code and the title, since a code whose name is a template has a row
+	 *  per title. */
+	key: string;
 	code: DiscoveryWarningCode;
 	/** The code's short name — "Credential incomplete" — which is what the row is headed by. */
 	title: string;
 	/** Severity, as the fixture already publishes it. */
 	color: Color;
 	icon: string;
-	/** The devices, ranges or addresses this row concerns. */
+	/** The devices, ranges or addresses this row concerns, shown when the row is open. */
 	subjects: WarningSubject[];
+	/** The first few of them and a count of the rest, for the row's one-line header. */
+	preview: WarningSubject[];
 	/** What the row says, shown on disclosure. Usually one statement; more when they differ. */
 	details: WarningStatement[];
 	/** Every occurrence behind the row, so an action can read ids off the payload. */
@@ -157,13 +163,18 @@ export type EntityNameLookup = (type: EntityDiscriminants, id: string) => string
  * to say which devices they concerned. No `entity` on it, because there is nothing left to
  * navigate to — it reads as a label, the same as an address does.
  *
+ * A `null` id is a host deleted since the scan: the stored warning lost the id with it, so it reads
+ * as gone without a lookup.
+ *
  * `null` back means the lookup has not run yet, and the caller omits the segment exactly as it did
  * before, so nothing flashes "unknown" on its way to a name.
  */
-function hostSubject(hostId: string, hostName: HostNameLookup): WarningSubject | null {
+function hostSubject(hostId: string | null, hostName: HostNameLookup): WarningSubject | null {
+	const gone = { label: common_unknownEntity({ entity: common_host() }) };
+	if (hostId === null) return gone;
 	const label = hostName(hostId);
 	if (label) return { label, entity: { type: 'Host', id: hostId } };
-	if (label === null) return { label: common_unknownEntity({ entity: common_host() }) };
+	if (label === null) return gone;
 	return null;
 }
 
@@ -305,6 +316,19 @@ const WARNING_PARAMS = {
 		// The daemon's own OS where it sent one; runs recorded before that name its family.
 		actual: w[0].actual_os ? osLabel(w[0].actual_os) : osFamily(w[0].actual)
 	}),
+	// Server-raised, for the one daemon that ran the scan, so its name is the session's. A daemon that
+	// never reported a version still has to read as a sentence.
+	CredentialDaemonTooOld: (w, { daemonName }) => ({
+		credential: integration(w[0].integration),
+		required: w[0].minimum_daemon_version,
+		daemon: daemonName,
+		version: w[0].daemon_version ?? common_unknown()
+	}),
+
+	// One per host. The integration identifies the statement, so every host running one
+	// integration shares a sentence, and `discovers` is that integration's own description.
+	IntegrationWithoutCredential: (w) =>
+		integrationWithoutCredentialParams(w[0].integration, w.length),
 
 	// One warning per subnet, so the first is the only one — unlike the address-scoped codes above,
 	// which the daemon raises per host and the UI folds together here.
@@ -399,6 +423,45 @@ function malformedParams(
 	};
 }
 
+type CredentialIntegration = components['schemas']['CredentialIntegration'];
+
+/**
+ * The slots of `IntegrationWithoutCredential`'s sentence. Exported because the home nudge says the
+ * same thing in the same words, from the latest scans rather than one run.
+ */
+export function integrationWithoutCredentialParams(
+	id: CredentialIntegration,
+	hosts: number
+): Params {
+	return {
+		integration: credentialIntegrations.getName(id),
+		count: hosts,
+		discovers: credentialIntegrations.getDescription(id)
+	};
+}
+
+/** `IntegrationWithoutCredential`'s title for one integration, which heads its run report row. */
+export function integrationWithoutCredentialTitle(id: CredentialIntegration): string {
+	const code: DiscoveryWarningCode = 'IntegrationWithoutCredential';
+	const fallback = warningCodes.find((c) => c.id === code)?.name ?? code;
+	return metaNameWith('warning_codes', code, integrationWithoutCredentialParams(id, 0), fallback);
+}
+
+/** `IntegrationWithoutCredential`'s sentence for one integration found on `hosts` hosts. */
+export function integrationWithoutCredentialSentence(
+	id: CredentialIntegration,
+	hosts: number
+): string {
+	const code: DiscoveryWarningCode = 'IntegrationWithoutCredential';
+	const fallback = warningCodes.find((c) => c.id === code)?.description ?? '';
+	return metaDescriptionWith(
+		'warning_codes',
+		code,
+		integrationWithoutCredentialParams(id, hosts),
+		fallback
+	);
+}
+
 function credentialParams(
 	w: WarningOf<'CredentialTargetNotScanned' | 'CredentialTargetNotResponding'>[]
 ): Params {
@@ -443,7 +506,7 @@ function attemptParams(
  */
 function describeNeighbour(
 	w: {
-		host_id: string;
+		host_id: string | null;
 		if_descr: string;
 		identifier: string;
 		sys_name?: string | null;
@@ -478,8 +541,8 @@ function neighbourParams(
  */
 function describePort(
 	w: {
-		host_id: string;
-		remote_host_id: string;
+		host_id: string | null;
+		remote_host_id: string | null;
 		if_descr: string;
 		port_id?: string | null;
 		port_desc?: string | null;
@@ -642,6 +705,17 @@ function renderStatements(
 }
 
 /**
+ * What makes two subjects the same: the entity when there is one, the text otherwise. Not the
+ * label alone, which two hosts both named "Docker" share.
+ */
+export function subjectKey(subject: WarningSubject): string {
+	return subject.entity ? `${subject.entity.type}:${subject.entity.id}` : subject.label;
+}
+
+/** How many subjects a row's header names before counting the rest, so it stays one line. */
+const PREVIEW_SUBJECTS = 2;
+
+/**
  * What a warning is *about*, as the chips on its row.
  *
  * Read off the wire payload rather than out of the sentence: every variant carries a host id, a
@@ -660,7 +734,8 @@ function renderStatements(
  */
 function subjectsOf(
 	warnings: DiscoveryWarning[],
-	nameOfEntity: EntityNameLookup
+	nameOfEntity: EntityNameLookup,
+	limit: number = MAX_LISTED
 ): WarningSubject[] {
 	const subjects = warnings.flatMap((w): WarningSubject[] => {
 		if ('host_id' in w) {
@@ -681,8 +756,8 @@ function subjectsOf(
 		return chips;
 	});
 
-	const unique = [...new Map(subjects.map((s) => [s.label, s])).values()];
-	const listed = unique.slice(0, MAX_LISTED);
+	const unique = [...new Map(subjects.map((s) => [subjectKey(s), s])).values()];
+	const listed = unique.slice(0, limit);
 	const elided = unique.length - listed.length;
 	// Capped like the sentences are, and for the same reason: a row that wraps to five lines of
 	// chips is a wall of text with rounded corners.
@@ -756,6 +831,25 @@ export function warningCountsByCredential(warnings: DiscoveryWarning[]): Map<str
 }
 
 /**
+ * One code's occurrences, split by the title each fills its name in with. Insertion-ordered. A
+ * fixed name fills in the same for all of them, so that is one group.
+ */
+function byTitle(
+	code: DiscoveryWarningCode,
+	group_: DiscoveryWarning[],
+	fallback: string,
+	context: ParamContext
+): Map<string, DiscoveryWarning[]> {
+	const build = WARNING_PARAMS[code] as (w: DiscoveryWarning[], context: ParamContext) => Params;
+	const rows = new Map<string, DiscoveryWarning[]>();
+	for (const warning of group_) {
+		const title = metaNameWith('warning_codes', code, build([warning], context), fallback);
+		rows.set(title, [...(rows.get(title) ?? []), warning]);
+	}
+	return rows;
+}
+
+/**
  * A run's warnings, grouped into the sections an operator reads them in.
  *
  * The sections are the rungs of `warning-remedies.json` — what the reader has to do — in fixture
@@ -770,6 +864,10 @@ export function warningCountsByCredential(warnings: DiscoveryWarning[]): Map<str
  * devices restricting the same SNMP view produced four near-identical paragraphs, and are now one
  * row and one sentence. Occurrences that genuinely differ — a credential diagnostic, a device's own
  * figures — still get a sentence each, so nothing the backend kept apart is merged.
+ *
+ * A row's title may name only what every occurrence under it shares. So a code whose name is a
+ * template ("{integration} found without a credential") becomes one row per distinct title, each
+ * with its own action, and a code with a fixed name stays one row.
  */
 export function buildWarningReport(
 	warnings: DiscoveryWarning[],
@@ -798,15 +896,19 @@ export function buildWarningReport(
 		// sentence to show and no rung to file it under.
 		if (!meta) continue;
 
-		entries.push({
-			code,
-			title: metaName('warning_codes', code, meta.name ?? code),
-			color: toColor(meta.color),
-			icon: meta.icon,
-			subjects: subjectsOf(group_, nameOfEntity),
-			details: renderStatements(code, group_, hostName, context),
-			warnings: group_
-		});
+		for (const [title, row] of byTitle(code, group_, meta.name ?? code, context)) {
+			entries.push({
+				key: `${code}:${title}`,
+				code,
+				title,
+				color: toColor(meta.color),
+				icon: meta.icon,
+				subjects: subjectsOf(row, nameOfEntity),
+				preview: subjectsOf(row, nameOfEntity, PREVIEW_SUBJECTS),
+				details: renderStatements(code, row, hostName, context),
+				warnings: row
+			});
+		}
 	}
 
 	return warningRemedies

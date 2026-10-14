@@ -4,7 +4,6 @@ use super::*;
 
 pub(super) fn generate_subnets(
     sites: &[Site],
-    tags: &[Tag],
     docker_hq_svc_id: Uuid,
     docker_dc_svc_id: Uuid,
     now: DateTime<Utc>,
@@ -14,11 +13,6 @@ pub(super) fn generate_subnets(
         .find(|n| n.base.name == "Headquarters")
         .unwrap();
     let dc = sites.iter().find(|n| n.base.name == "Data Center").unwrap();
-
-    let monitoring_tag = tags
-        .iter()
-        .find(|t| t.base.name == "Monitoring")
-        .map(|t| t.id);
 
     vec![
         // ===== Headquarters subnets (9) =====
@@ -45,7 +39,7 @@ pub(super) fn generate_subnets(
                 subnet_type: SubnetType::Management,
                 virtualization_service_id: None,
                 source: EntitySource::Manual,
-                tags: monitoring_tag.into_iter().collect(),
+                tags: vec![],
             },
         },
         Subnet {
@@ -289,7 +283,7 @@ pub(super) fn generate_subnets(
                 subnet_type: SubnetType::Management,
                 virtualization_service_id: None,
                 source: EntitySource::Manual,
-                tags: monitoring_tag.into_iter().collect(),
+                tags: vec![],
             },
         },
         Subnet {

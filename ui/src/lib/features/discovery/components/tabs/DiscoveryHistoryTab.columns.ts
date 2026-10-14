@@ -4,13 +4,14 @@ import type { Discovery } from '../../types/base';
 import { formatDuration } from '$lib/shared/utils/formatting';
 import { defineRegistryFields } from '$lib/shared/entity-fields/table';
 import type { EntityLookup } from '$lib/shared/entity-fields';
-import { labelledFieldValueOptions, type FieldValueCount } from '$lib/shared/api/field-values';
-import type { components } from '$lib/api/schema';
+import { fieldValueOptions, type FieldValueCount } from '$lib/shared/api/field-values';
+import type { components, operations } from '$lib/api/schema';
 import { daemonItems } from '$lib/features/daemons/columns';
 import { siteItems } from '$lib/features/sites/columns';
 import { tagItems, tagNames } from '$lib/features/tags/columns';
 import { toColor } from '$lib/shared/utils/styling';
 import type { OutcomeTag } from '../../utils/outcome';
+import { isFullScan } from '../../utils/fullScan';
 import type { Daemon } from '$lib/features/daemons/types/base';
 import type { Site } from '$lib/features/sites/types';
 import type { Tag, TagGroup } from '$lib/features/tags/types/base';
@@ -18,6 +19,8 @@ import {
 	common_created,
 	common_daemon,
 	common_duration,
+	common_full,
+	common_light,
 	common_status,
 	common_tags,
 	common_warnings,
@@ -28,10 +31,15 @@ import {
 	common_unknownSite,
 	common_updated,
 	discovery_finishedAt,
+	discovery_scanMode,
 	discovery_startedAt
 } from '$lib/paraglide/messages';
 
 type DiscoveryOrderField = components['schemas']['DiscoveryOrderField'];
+/** The discovery list endpoint's query params, which the filters are sent and linked as. */
+type DiscoveryListParam = keyof NonNullable<
+	operations['get_all_discoveries']['parameters']['query']
+>;
 type DiscoveryResults = Extract<Discovery['run_type'], { type: 'Historical' }>['results'];
 
 /** What the run history columns read from the tab, each as a getter or function so values stay live. */
@@ -53,7 +61,7 @@ export interface DiscoveryHistoryColumnsContext {
 }
 
 export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
-	return defineRegistryFields<Discovery, DiscoveryOrderField>(
+	return defineRegistryFields<Discovery, DiscoveryOrderField, DiscoveryListParam>(
 		'Discovery',
 		ctx.lookup,
 		{
@@ -68,18 +76,19 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The daemons some run was made by, by name.
-				filterOptions: labelledFieldValueOptions(
-					ctx.daemonValues(),
-					(id) => ctx.daemons().find((d) => d.id === id)?.name
-				),
+				queryParam: 'daemon_ids',
+				// The daemons some run was made by.
+				filterOptions: fieldValueOptions(ctx.daemonValues()),
+				filterLabel: (id) =>
+					ctx.daemons().find((d) => d.id === id)?.name ??
+					common_unknownEntity({ entity: common_daemon() }),
 				groupable: true,
 				// Displayed as a name, but grouped by id on the server.
 				getGroupValue: (item) => item.daemon_id,
 				getValue: (item) =>
 					ctx.daemons().find((d) => d.id === item.daemon_id)?.name ??
 					common_unknownEntity({ entity: common_daemon() }),
-				display: { order: 7, getItems: (item) => daemonItems(item.daemon_id, ctx.daemons()) }
+				display: { order: 8, getItems: (item) => daemonItems(item.daemon_id, ctx.daemons()) }
 			},
 			site_id: {
 				label: common_site(),
@@ -87,16 +96,15 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The sites some run scanned, by name.
-				filterOptions: labelledFieldValueOptions(
-					ctx.siteValues(),
-					(id) => ctx.sites().find((n) => n.id === id)?.name
-				),
+				queryParam: 'site_ids',
+				// The sites some run scanned.
+				filterOptions: fieldValueOptions(ctx.siteValues()),
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? common_unknownSite(),
 				groupable: true,
 				getGroupValue: (item) => item.site_id,
 				getValue: (item) =>
 					ctx.sites().find((n) => n.id === item.site_id)?.name ?? common_unknownSite(),
-				display: { order: 6, getItems: (item) => siteItems(item.site_id, ctx.sites()) }
+				display: { order: 7, getItems: (item) => siteItems(item.site_id, ctx.sites()) }
 			},
 			discovery_type: {
 				label: common_type(),
@@ -104,10 +112,10 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The types some run had, by name.
-				filterOptions: labelledFieldValueOptions(ctx.typeValues(), (id) =>
-					discoveryTypes.getName(id)
-				),
+				queryParam: 'discovery_types',
+				// The types some run had.
+				filterOptions: fieldValueOptions(ctx.typeValues()),
+				filterLabel: (id) => discoveryTypes.getName(id),
 				groupable: true,
 				// The server groups on the raw discriminant; the column renders its name.
 				getGroupValue: (item) => item.discovery_type.type,
@@ -125,10 +133,10 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 				searchable: true,
 				filterable: true,
 				serverFiltered: true,
-				// The phases some run ended in, by name.
-				filterOptions: labelledFieldValueOptions(ctx.phaseValues(), (id) =>
-					discoveryPhases.getName(id)
-				),
+				queryParam: 'phases',
+				// The phases some run ended in.
+				filterOptions: fieldValueOptions(ctx.phaseValues()),
+				filterLabel: (id) => discoveryPhases.getName(id),
 				getValue: (item) => {
 					const phase = ctx.resultsOf(item)?.phase;
 					return phase ? discoveryPhases.getName(phase) : null;
@@ -199,6 +207,21 @@ export function discoveryHistoryColumns(ctx: DiscoveryHistoryColumnsContext) {
 			}
 		},
 		[
+			{
+				// Light or full, next to Duration: a full scan is why a run took much longer. Read
+				// from the run's own scan settings, so it neither sorts nor groups on the server.
+				key: 'scan_mode',
+				label: discovery_scanMode(),
+				type: 'string',
+				groupable: false,
+				getValue: (item) =>
+					item.discovery_type.type === 'Unified'
+						? isFullScan(item.discovery_type)
+							? common_full()
+							: common_light()
+						: null,
+				display: { order: 6 }
+			},
 			{
 				// The server writes runs with no tags, but a tag can be added to one through the API.
 				key: 'tags',

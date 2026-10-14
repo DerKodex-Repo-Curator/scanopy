@@ -410,6 +410,7 @@ const cachingMiddleware: Middleware = {
  * provides an error code. Falls back to the raw error message or HTTP status.
  */
 const BILLING_SELF_HOSTED_PLAN_LOCKED: ErrorCode = 'billing_self_hosted_plan_locked';
+const AUTH_TERMS_ACCEPTANCE_REQUIRED: ErrorCode = 'auth_terms_acceptance_required';
 
 const errorMiddleware: Middleware = {
 	async onResponse({ response }) {
@@ -433,6 +434,14 @@ const errorMiddleware: Middleware = {
 				// Expected while the org is on a self-hosted plan: the UI already
 				// holds the app behind the Settings billing gate, so no toast.
 				if (errorData.code === BILLING_SELF_HOSTED_PLAN_LOCKED) {
+					return response;
+				}
+				// The user must accept the current terms (the date moved while this
+				// session was open). Refetching the current user brings up the
+				// acceptance screen; imported lazily, as query-client imports this module.
+				if (errorData.code === AUTH_TERMS_ACCEPTANCE_REQUIRED) {
+					const { queryClient, queryKeys } = await import('./query-client');
+					queryClient.invalidateQueries({ queryKey: queryKeys.auth.currentUser() });
 					return response;
 				}
 				pushError(translateError(errorData));

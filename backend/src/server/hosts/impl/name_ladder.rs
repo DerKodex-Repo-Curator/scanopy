@@ -27,6 +27,13 @@ use crate::server::hosts::r#impl::base::Host;
 use crate::server::ip_addresses::r#impl::base::IPAddress;
 use crate::server::shared::attribution::{self, AttributeSource};
 
+/// What a host is called when it has nothing on any rung of the ladder.
+///
+/// Matches the `hosts_unnamedHost` string the UI renders for the same state. Literal rather than
+/// translated because the surfaces that use it (topology exports, emails) render server-side,
+/// where the reader's locale isn't in scope.
+pub const UNNAMED_HOST: &str = "Unnamed host";
+
 /// One rung of the display-name ladder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 pub enum HostNameRung {

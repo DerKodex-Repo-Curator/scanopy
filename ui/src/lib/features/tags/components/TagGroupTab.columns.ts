@@ -25,10 +25,17 @@ export interface TagGroupColumnsContext {
 	groups: () => TagGroup[];
 }
 
+/** The filter value of a group that applies to every entity type, which stores none. */
+const EVERY_ENTITY_TYPE = '*';
+
+function scopeName(type: string): string {
+	if (type === EVERY_ENTITY_TYPE) return tags_appliesToEvery();
+	const entityType = entities.getItems().find((item) => item.id === type);
+	return entityType ? (entities.getMetadata(entityType.id)?.entity_name_plural ?? type) : type;
+}
+
 function scopeNames(group: TagGroup): string[] {
-	return group.entity_types
-		? group.entity_types.map((type) => entities.getMetadata(type)?.entity_name_plural ?? type)
-		: [tags_appliesToEvery()];
+	return (group.entity_types ?? [EVERY_ENTITY_TYPE]).map(scopeName);
 }
 
 export function tagGroupColumns(ctx: TagGroupColumnsContext): FieldConfig<TagGroup>[] {
@@ -57,7 +64,8 @@ export function tagGroupColumns(ctx: TagGroupColumnsContext): FieldConfig<TagGro
 			label: common_description(),
 			type: 'string',
 			searchable: true,
-			getValue: (group) => group.description
+			getValue: (group) => group.description,
+			display: { wrap: true }
 		},
 		{
 			key: 'group_type',
@@ -66,7 +74,9 @@ export function tagGroupColumns(ctx: TagGroupColumnsContext): FieldConfig<TagGro
 			sortable: true,
 			filterable: true,
 			groupable: true,
-			getValue: (group) => (isSystemGroup(group) ? common_system() : common_custom())
+			getValue: (group) => (isSystemGroup(group) ? common_system() : common_custom()),
+			getFilterValue: (group) => (isSystemGroup(group) ? 'system' : 'custom'),
+			filterLabel: (value) => (value === 'system' ? common_system() : common_custom())
 		},
 		{
 			key: 'ordered',
@@ -75,14 +85,18 @@ export function tagGroupColumns(ctx: TagGroupColumnsContext): FieldConfig<TagGro
 			sortable: true,
 			filterable: true,
 			groupable: true,
-			getValue: (group) => (group.ordered ? tags_orderSet() : tags_orderByName())
+			getValue: (group) => (group.ordered ? tags_orderSet() : tags_orderByName()),
+			getFilterValue: (group) => (group.ordered ? 'set' : 'name'),
+			filterLabel: (value) => (value === 'set' ? tags_orderSet() : tags_orderByName())
 		},
 		{
 			key: 'entity_types',
 			label: tags_appliesTo(),
 			type: 'array',
 			filterable: true,
-			getValue: (group) => scopeNames(group)
+			getValue: (group) => scopeNames(group),
+			getFilterValue: (group) => group.entity_types ?? [EVERY_ENTITY_TYPE],
+			filterLabel: scopeName
 		},
 		{
 			key: 'tags',
@@ -91,6 +105,7 @@ export function tagGroupColumns(ctx: TagGroupColumnsContext): FieldConfig<TagGro
 			searchable: true,
 			filterable: true,
 			getValue: (group) => tagsInGroup(ctx.tags(), group.id).map((tag) => tag.name),
+			getFilterValue: (group) => tagsInGroup(ctx.tags(), group.id).map((tag) => tag.id),
 			display: {
 				getItems: (group) =>
 					tagItems(

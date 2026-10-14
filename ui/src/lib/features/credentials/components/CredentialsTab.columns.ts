@@ -4,7 +4,7 @@ import { defineRegistryFields } from '$lib/shared/entity-fields/table';
 import type { EntityLookup } from '$lib/shared/entity-fields';
 import type { Site } from '$lib/features/sites/types';
 import type { Tag } from '$lib/features/tags/types/base';
-import { credentialTypes, entities } from '$lib/shared/stores/metadata';
+import { credentialIntegrations, credentialTypes, entities } from '$lib/shared/stores/metadata';
 import {
 	getCredentialTypeId,
 	getStabilityTagProps,
@@ -17,6 +17,7 @@ import osFamilies from '$lib/data/os-families.json';
 import {
 	common_beta,
 	common_created,
+	common_integration,
 	common_type,
 	common_updated,
 	credentials_unofficialApi,
@@ -27,10 +28,16 @@ import {
 } from '$lib/paraglide/messages';
 import { tagNames } from '$lib/features/tags/columns';
 
+/** The integration a credential's type belongs to, as its `credentialIntegrations` id. */
+function integrationId(item: Credential): string {
+	return credentialTypes.getMetadata(getCredentialTypeId(item))?.integration ?? '';
+}
+
 /** What the credential columns read from the tab, each as a getter or function so values stay live. */
 export interface CredentialColumnsContext {
 	lookup: () => EntityLookup;
 	tags: () => Tag[];
+	sites: () => Site[];
 	sitesForCredential: (credential: Credential) => Site[];
 	hostsForCredential: (credential: Credential) => Host[];
 	targetsFor: (credential: Credential) => string[];
@@ -63,8 +70,10 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				filterable: true,
 				groupable: true,
 				sortable: true,
-				// The field holds an OS family, so the options are every family, named the same way.
-				filterOptions: osFamilies.map((family) => family.name),
+				// The field holds an OS family, so the options are every family.
+				filterOptions: osFamilies.map((family) => family.id),
+				filterLabel: (id) => osFamilies.find((family) => family.id === id)?.name ?? id,
+				getFilterValue: (item: Credential) => item.daemon_os ?? null,
 				getValue: (item: Credential) =>
 					item.daemon_os
 						? (osFamilies.find((family) => family.id === item.daemon_os)?.name ?? item.daemon_os)
@@ -72,16 +81,46 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				display: { hiddenByDefault: true }
 			},
 			{
+				// The integration a credential's type is a transport of (e.g. Docker for both the
+				// socket and the proxy). The axis credentials are organized by.
+				key: 'integration',
+				label: common_integration(),
+				type: 'string',
+				searchable: true,
+				filterable: true,
+				groupable: true,
+				sortable: true,
+				filterMode: 'include',
+				filterOptions: credentialIntegrations.getItems().map((i) => i.id),
+				filterLabel: (id) => credentialIntegrations.getName(id),
+				getFilterValue: (item: Credential) => integrationId(item),
+				getValue: (item: Credential) => credentialIntegrations.getName(integrationId(item)),
+				display: {
+					getItems: (item: Credential) => {
+						const id = integrationId(item);
+						return [
+							{
+								id,
+								...credentialIntegrations.getTag(id),
+								icon: credentialIntegrations.getIconComponent(id)
+							}
+						];
+					}
+				}
+			},
+			{
 				key: 'credential_type',
 				label: common_type(),
 				type: 'string',
 				searchable: true,
 				filterable: true,
-				// Type is the axis credentials are actually organized by.
 				groupable: true,
 				sortable: true,
 				filterMode: 'include',
-				filterOptions: credentialTypes.getItems().map((t) => credentialTypes.getName(t.id)),
+				queryParam: 'type',
+				filterOptions: credentialTypes.getItems().map((t) => t.id),
+				filterLabel: (id) => credentialTypes.getName(id),
+				getFilterValue: (item: Credential) => getCredentialTypeId(item),
 				getValue: (item: Credential) => credentialTypes.getName(getCredentialTypeId(item)),
 				display: {
 					getItems: (item: Credential) => {
@@ -144,6 +183,8 @@ export function credentialColumns(ctx: CredentialColumnsContext) {
 				// so search covers those.
 				filterable: true,
 				getValue: (item: Credential) => ctx.sitesForCredential(item).map((n) => n.name),
+				getFilterValue: (item: Credential) => ctx.sitesForCredential(item).map((n) => n.id),
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? id,
 				display: {
 					getItems: (item: Credential) =>
 						ctx.assignmentItems(

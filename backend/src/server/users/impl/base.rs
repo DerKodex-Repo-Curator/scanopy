@@ -13,7 +13,7 @@ use crate::server::{
     },
 };
 use anyhow::{Error, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -58,6 +58,12 @@ pub struct UserBase {
     #[serde(default)]
     #[schema(read_only)]
     pub terms_accepted_at: Option<DateTime<Utc>>,
+    /// Whether the user must accept the current terms before the API serves
+    /// their session. Computed, never stored: set only on the signed-in user's
+    /// own record (`/api/auth/me`, login, accept), false everywhere else.
+    #[serde(default)]
+    #[schema(read_only)]
+    pub terms_acceptance_required: bool,
     /// Whether the user has verified their email address
     #[serde(default)]
     pub email_verified: bool,
@@ -97,6 +103,10 @@ pub struct UserBase {
     /// moves it. `None` for a user created before release notes existed.
     #[serde(skip)]
     pub release_notes_seen_version: Option<String>,
+    /// The newest terms version (its effective date) this user was emailed
+    /// notice of. Server-owned; `None` until the first notice.
+    #[serde(skip)]
+    pub terms_notice_version: Option<NaiveDate>,
 }
 
 impl Default for UserBase {
@@ -107,6 +117,7 @@ impl Default for UserBase {
             organization_id: Uuid::new_v4(),
             password_hash: None,
             has_password: false,
+            terms_acceptance_required: false,
             oidc_linked_at: None,
             oidc_provider: None,
             oidc_subject: None,
@@ -123,13 +134,16 @@ impl Default for UserBase {
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
             release_notes_seen_version: None,
+            terms_notice_version: None,
         }
     }
 }
 
 impl UserBase {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_oidc(
         email: EmailAddress,
+        email_verified: bool,
         oidc_subject: String,
         oidc_provider: Option<String>,
         organization_id: Uuid,
@@ -141,6 +155,7 @@ impl UserBase {
             email,
             password_hash: None,
             has_password: false,
+            terms_acceptance_required: false,
             oidc_linked_at: Some(Utc::now()),
             permissions,
             organization_id,
@@ -148,8 +163,7 @@ impl UserBase {
             oidc_subject: Some(oidc_subject),
             site_ids,
             terms_accepted_at,
-            // OIDC users are already verified by the identity provider
-            email_verified: true,
+            email_verified,
             email_verification_token: None,
             email_verification_expires: None,
             password_reset_token: None,
@@ -160,6 +174,7 @@ impl UserBase {
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
             release_notes_seen_version: Some(RUNNING_VERSION.to_string()),
+            terms_notice_version: None,
         }
     }
 
@@ -176,6 +191,7 @@ impl UserBase {
             email,
             password_hash: Some(password_hash),
             has_password: true,
+            terms_acceptance_required: false,
             organization_id,
             permissions,
             oidc_linked_at: None,
@@ -194,6 +210,7 @@ impl UserBase {
             display_settings: DisplaySettings::default(),
             session_epoch: 0,
             release_notes_seen_version: Some(RUNNING_VERSION.to_string()),
+            terms_notice_version: None,
         }
     }
 }
@@ -300,6 +317,7 @@ impl Storable for User {
                     display_settings,
                     session_epoch,
                     release_notes_seen_version,
+                    terms_notice_version,
                     ..
                 },
         } = self.clone();
@@ -329,6 +347,7 @@ impl Storable for User {
                 "display_settings",
                 "session_epoch",
                 "release_notes_seen_version",
+                "terms_notice_version",
             ],
             vec![
                 SqlValue::Uuid(id),
@@ -353,6 +372,7 @@ impl Storable for User {
                 SqlValue::DisplaySettings(display_settings),
                 SqlValue::I64(session_epoch),
                 SqlValue::OptionalString(release_notes_seen_version),
+                SqlValue::OptionDate(terms_notice_version),
             ],
         ))
     }
@@ -382,6 +402,7 @@ impl Storable for User {
                 email,
                 password_hash,
                 has_password,
+                terms_acceptance_required: false,
                 permissions,
                 organization_id: row.get("organization_id"),
                 oidc_linked_at: row.get("oidc_linked_at"),
@@ -408,6 +429,7 @@ impl Storable for User {
                     .unwrap_or_default(),
                 session_epoch: row.try_get("session_epoch").unwrap_or(0),
                 release_notes_seen_version: row.get("release_notes_seen_version"),
+                terms_notice_version: row.get("terms_notice_version"),
             },
         })
     }
@@ -471,6 +493,7 @@ impl Entity for User {
         base.email = stored.email.clone();
         base.password_hash = stored.password_hash.clone();
         base.has_password = stored.has_password;
+        base.terms_acceptance_required = stored.terms_acceptance_required;
         base.oidc_provider = stored.oidc_provider.clone();
         base.oidc_subject = stored.oidc_subject.clone();
         base.oidc_linked_at = stored.oidc_linked_at;
@@ -484,6 +507,7 @@ impl Entity for User {
         base.email_unsubscribe_token = stored.email_unsubscribe_token;
         base.session_epoch = stored.session_epoch;
         base.release_notes_seen_version = stored.release_notes_seen_version.clone();
+        base.terms_notice_version = stored.terms_notice_version;
     }
 }
 
@@ -517,6 +541,7 @@ mod tests {
                 email_unsubscribe_token: Some(Uuid::new_v4()),
                 session_epoch: 2,
                 release_notes_seen_version: Some("0.18.0".to_string()),
+                terms_notice_version: NaiveDate::from_ymd_opt(2026, 12, 1),
                 ..UserBase::default()
             },
         }

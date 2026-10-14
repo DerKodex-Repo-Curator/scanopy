@@ -28,7 +28,7 @@ use crate::server::{
     },
 };
 
-use super::{CredentialCategory, CredentialTypeDiscriminants};
+use super::{CredentialCategory, CredentialTypeDiscriminants, Target};
 
 /// The integration a credential type connects to: one per associated service, shared by all of
 /// that service's transports (SNMP v1/v2c/v3 are three transports of the `Snmp` integration).
@@ -214,6 +214,38 @@ impl CredentialIntegration {
     /// list.
     pub fn reports_interfaces(&self) -> bool {
         self.interface_view_scope() != InterfaceViewScope::NoInterfaces
+    }
+
+    /// Whether a scan that finds this integration's service on a host with no credential for it
+    /// raises `IntegrationWithoutCredential`.
+    ///
+    /// Exhaustive (no wildcard), so a new integration has to say. SSH runs a script the user
+    /// writes, so finding sshd (on nearly every Linux host) says nothing about wanting one.
+    /// Wake-on-LAN has no service a scan can find.
+    pub fn prompts_when_found(&self) -> bool {
+        match self {
+            Self::Snmp
+            | Self::Gnmi
+            | Self::Docker
+            | Self::Podman
+            | Self::UnifiController
+            | Self::InstantOn
+            | Self::Proxmox => true,
+            Self::Ssh | Self::WakeOnLan => false,
+        }
+    }
+
+    /// Whether a credential of this integration can apply to a whole site, so a prompt for it
+    /// offers the site rather than the hosts. Derived from the transports' own `targets()`, which
+    /// is what the create form validates against.
+    ///
+    /// A site-wide credential is tried on every host and pinned where it works, which is what a
+    /// prompt wants for SNMP on a mixed estate: nothing tells which community or version a device
+    /// accepts until one answers.
+    pub fn applies_to_sites(&self) -> bool {
+        CredentialTypeDiscriminants::iter()
+            .filter(|t| t.integration() == *self)
+            .any(|t| t.to_credential_type().targets().contains(&Target::Site))
     }
 
     /// The kinds of host virtualization this integration reports: the relationships it records

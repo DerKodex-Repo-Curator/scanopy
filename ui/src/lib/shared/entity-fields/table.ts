@@ -32,7 +32,7 @@ import {
 } from './index';
 
 /** A tab's settings for one column: anything it leaves out comes from the registry. */
-type ColumnOverride<T> = Partial<OrderableFieldEntry<T>>;
+type ColumnOverride<T, Q extends string = string> = Partial<OrderableFieldEntry<T, Q>>;
 
 /** The column type a registry field gets when the tab declares none. */
 export function columnType(field: EntityField): BaseFieldConfig<unknown>['type'] {
@@ -73,9 +73,33 @@ export function registryColumn<T extends object>(
 					})
 			: undefined;
 
+	// Entity and metadata fields show a name; their filters hold the id the API filters on, and
+	// render it back through the same formatting.
+	const filterById =
+		(field.format.type === 'Entity' && targetType) || field.format.type === 'Metadata';
+	const rawValues = (item: T): string[] =>
+		resolveField(field, item, lookup())
+			.map((value) =>
+				value && typeof value === 'object' ? (value as { id?: string }).id : String(value)
+			)
+			.filter((value): value is string => !!value);
+	const filterLabel = (value: string): string => {
+		if (field.format.type !== 'Entity' || !targetType) return formatFieldValue(field, value);
+		const [entity] = lookup().byColumn(targetType, 'id', value);
+		return entity ? entityDisplayText(targetType, entity) : value;
+	};
+
 	return {
 		label: entityFieldLabel(entityType, field),
 		type,
+		...(filterById && {
+			getFilterValue: (item: T) => {
+				const values = rawValues(item);
+				if (type === 'array') return values;
+				return values[0] ?? null;
+			},
+			filterLabel
+		}),
 		getValue: (item: T) => {
 			if (type === 'boolean') return Boolean(resolveField(field, item, lookup())[0]);
 			if (type === 'date') return (resolveField(field, item, lookup())[0] as string) ?? null;
@@ -86,6 +110,7 @@ export function registryColumn<T extends object>(
 		display: {
 			hiddenByDefault: !field.summary,
 			getItems,
+			wrap: field.format.type === 'Prose',
 			getSource: field.source_field ? (item: T) => fieldSource(field, item) : undefined
 		}
 	};
@@ -96,14 +121,17 @@ export function registryColumn<T extends object>(
  * the tab's call, as it was before the registry; the registry's `summary` only decides for columns
  * the tab never listed.
  */
-function merge<T>(base: BaseFieldConfig<T> | undefined, override: ColumnOverride<T>) {
+function merge<T, Q extends string>(
+	base: BaseFieldConfig<T> | undefined,
+	override: ColumnOverride<T, Q>
+) {
 	const baseDisplay = { ...base?.display };
 	delete baseDisplay.hiddenByDefault;
 	return {
 		...base,
 		...override,
 		display: { ...baseDisplay, ...override.display }
-	} as OrderableFieldEntry<T>;
+	} as OrderableFieldEntry<T, Q>;
 }
 
 /**
@@ -111,14 +139,14 @@ function merge<T>(base: BaseFieldConfig<T> | undefined, override: ColumnOverride
  * id is a registry field starts from the registry's column, and the tab's settings win. Registry
  * fields the tab doesn't list are appended, hidden by default.
  */
-export function defineRegistryFields<T extends object, O extends string>(
+export function defineRegistryFields<T extends object, O extends string, Q extends string = string>(
 	entityType: EntityType,
 	lookup: () => EntityLookup,
-	orderable: { [K in O]: ColumnOverride<T> },
-	display: (Partial<DisplayFieldConfig<T>> & { key: string })[] = [],
+	orderable: { [K in O]: ColumnOverride<T, Q> },
+	display: (Partial<DisplayFieldConfig<T, Q>> & { key: string })[] = [],
 	/** Registry fields this table leaves out, so the omission is on record. */
 	omit: readonly string[] = []
-): FieldConfig<T, O>[] {
+): FieldConfig<T, O, Q>[] {
 	const registry = new Map(
 		entityFields(entityType).map((field) => [
 			field.id,
@@ -127,21 +155,21 @@ export function defineRegistryFields<T extends object, O extends string>(
 	);
 	const listed = new Set<string>(omit);
 
-	const orderableColumns = (Object.entries(orderable) as [O, ColumnOverride<T>][]).map(
+	const orderableColumns = (Object.entries(orderable) as [O, ColumnOverride<T, Q>][]).map(
 		([orderField, override]) => {
 			listed.add(orderField);
 			return { ...merge(registry.get(orderField), override), orderField };
 		}
-	) as OrderableFieldConfig<T, O>[];
+	) as OrderableFieldConfig<T, O, Q>[];
 
 	const displayColumns = display.map((column) => {
 		listed.add(column.key);
 		return { ...merge(registry.get(column.key), column), key: column.key };
-	}) as DisplayFieldConfig<T>[];
+	}) as DisplayFieldConfig<T, Q>[];
 
 	const unlisted = [...registry]
 		.filter(([id]) => !listed.has(id))
-		.map(([id, column]) => ({ ...column, key: id }) as DisplayFieldConfig<T>);
+		.map(([id, column]) => ({ ...column, key: id }) as DisplayFieldConfig<T, Q>);
 
 	const columns = [...orderableColumns, ...displayColumns, ...unlisted];
 	if (import.meta.env.DEV) {

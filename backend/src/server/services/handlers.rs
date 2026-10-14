@@ -8,7 +8,7 @@ use crate::server::shared::handlers::ordering::OrderField;
 use crate::server::shared::handlers::query::{
     FilterQueryExtractor, OrderDirection, PaginationParams, parse_tag_sets,
 };
-use crate::server::shared::handlers::traits::update_handler;
+use crate::server::shared::handlers::traits::{CrudHandlers, update_handler};
 use crate::server::shared::services::traits::CrudService;
 use crate::server::shared::storage::filter::StorableFilter;
 use crate::server::shared::storage::traits::{Entity, Storable};
@@ -186,6 +186,101 @@ pub struct ServiceFilterQuery {
 }
 
 impl ServiceFilterQuery {
+    /// Everything the Services list narrows by except staleness, which needs each site's cutoff:
+    /// access, the query's own fields, tags, search and the field filters.
+    pub fn narrow(
+        &self,
+        site_ids: &[Uuid],
+        organization_id: Uuid,
+    ) -> ApiResult<StorableFilter<Service>> {
+        let base_filter = StorableFilter::<Service>::new_from_site_ids(site_ids);
+        let filter = self.apply_to_filter(base_filter, site_ids, organization_id);
+
+        // SCD2 read path: live by default, or as-of the snapshot timestamp when set.
+        // Hides close-and-clone's closed historical copies from the services list.
+        let filter = filter.live_or_as_of(self.at);
+
+        // Apply tag filter if specified
+        let filter = match &self.tag_ids {
+            Some(tag_ids) if !tag_ids.is_empty() => filter.has_any_tags(
+                tag_ids,
+                crate::server::shared::entities::EntityDiscriminants::Service,
+            ),
+            _ => filter,
+        };
+        let filter = filter.has_tags_from_each(
+            &parse_tag_sets(self.tag_sets.as_deref())?,
+            EntityDiscriminants::Service,
+        );
+
+        // Server-side because the list is paginated: a client-side search would
+        // only ever match the page already loaded.
+        let filter = match self.search.as_deref() {
+            Some(search) if !search.trim().is_empty() => filter.text_search(search),
+            _ => filter,
+        };
+
+        // Ports reach services through the bindings junction.
+        let filter = match &self.ports {
+            Some(ports) if !ports.is_empty() => filter.bound_to_port(ports),
+            _ => filter,
+        };
+
+        // Exclude services by category if specified
+        let filter = match &self.exclude_categories {
+            Some(categories) if !categories.is_empty() => {
+                let excluded_ids: Vec<String> =
+                    ServiceDefinitionRegistry::all_service_definitions()
+                        .iter()
+                        .filter(|def| categories.contains(&def.category()))
+                        .map(|def| serde_json::to_string(def.id()).unwrap_or_default())
+                        .collect();
+                if !excluded_ids.is_empty() {
+                    filter.service_definition_not_in(&excluded_ids)
+                } else {
+                    filter
+                }
+            }
+            _ => filter,
+        };
+
+        // The column holds the JSON-encoded definition id, so encode the requested
+        // ids the same way the category exclusion above does.
+        let filter = match &self.service_definitions {
+            Some(definitions) if !definitions.is_empty() => {
+                let encoded: Vec<String> = definitions
+                    .iter()
+                    .map(|id| serde_json::to_string(id).unwrap_or_default())
+                    .collect();
+                filter.service_definition_in(&encoded)
+            }
+            _ => filter,
+        };
+
+        // "Not Containerized" is a choice about absence, so it can arrive without
+        // any service ids or names beside it.
+        let filter = filter.virtualization_parent(
+            self.virtualization_service_ids.as_deref().unwrap_or(&[]),
+            self.virtualization_service_names.as_deref().unwrap_or(&[]),
+            self.include_uncontainerized.unwrap_or(false),
+        );
+
+        let filter = match &self.sources {
+            Some(sources) if !sources.is_empty() => filter.source_type_in(sources),
+            _ => filter,
+        };
+
+        let filter = match &self.match_confidences {
+            Some(confidences) if !confidences.is_empty() => {
+                let ids: Vec<&str> = confidences.iter().map(|c| c.id()).collect();
+                filter.json_text_in("source", &["details", "confidence"], &ids)
+            }
+            _ => filter,
+        };
+
+        Ok(filter)
+    }
+
     /// Build the ORDER BY clause and apply any required JOINs to the filter.
     /// Returns: (modified_filter, order_by_sql)
     pub fn apply_ordering(
@@ -302,99 +397,7 @@ async fn get_all_services(
         .organization_id()
         .ok_or_else(ApiError::organization_required)?;
 
-    let base_filter = StorableFilter::<Service>::new_from_site_ids(&site_ids);
-    let filter = query.apply_to_filter(base_filter, &site_ids, organization_id);
-
-    // SCD2 read path: live by default, or as-of the snapshot timestamp when set.
-    // Hides close-and-clone's closed historical copies from the services list.
-    let filter = filter.live_or_as_of(query.at);
-
-    // Apply tag filter if specified
-    let filter = match &query.tag_ids {
-        Some(tag_ids) if !tag_ids.is_empty() => filter.has_any_tags(
-            tag_ids,
-            crate::server::shared::entities::EntityDiscriminants::Service,
-        ),
-        _ => filter,
-    };
-    let filter = filter.has_tags_from_each(
-        &parse_tag_sets(query.tag_sets.as_deref())?,
-        EntityDiscriminants::Service,
-    );
-
-    // Server-side because the list is paginated: a client-side search would
-    // only ever match the page already loaded.
-    let filter = match query.search.as_deref() {
-        Some(search) if !search.trim().is_empty() => filter.text_search(search),
-        _ => filter,
-    };
-
-    // Ports reach services through the bindings junction.
-    let filter = match &query.ports {
-        Some(ports) if !ports.is_empty() => filter.bound_to_port(ports),
-        _ => filter,
-    };
-
-    // Exclude services by category if specified
-    let filter = match &query.exclude_categories {
-        Some(categories) if !categories.is_empty() => {
-            let excluded_ids: Vec<String> = ServiceDefinitionRegistry::all_service_definitions()
-                .iter()
-                .filter(|def| categories.contains(&def.category()))
-                .map(|def| serde_json::to_string(def.id()).unwrap_or_default())
-                .collect();
-            if !excluded_ids.is_empty() {
-                filter.service_definition_not_in(&excluded_ids)
-            } else {
-                filter
-            }
-        }
-        _ => filter,
-    };
-
-    // The column holds the JSON-encoded definition id, so encode the requested
-    // ids the same way the category exclusion above does.
-    let filter = match &query.service_definitions {
-        Some(definitions) if !definitions.is_empty() => {
-            let encoded: Vec<String> = definitions
-                .iter()
-                .map(|id| serde_json::to_string(id).unwrap_or_default())
-                .collect();
-            filter.service_definition_in(&encoded)
-        }
-        _ => filter,
-    };
-
-    // "Not Containerized" is a choice about absence, so it can arrive without
-    // any service ids or names beside it.
-    let filter = filter.virtualization_parent(
-        query.virtualization_service_ids.as_deref().unwrap_or(&[]),
-        query.virtualization_service_names.as_deref().unwrap_or(&[]),
-        query.include_uncontainerized.unwrap_or(false),
-    );
-
-    let filter = match &query.sources {
-        Some(sources) if !sources.is_empty() => filter.source_type_in(sources),
-        _ => filter,
-    };
-
-    let filter = match &query.match_confidences {
-        Some(confidences) if !confidences.is_empty() => {
-            let ids: Vec<&str> = confidences.iter().map(|c| c.id()).collect();
-            filter.json_text_in("source", &["details", "confidence"], &ids)
-        }
-        _ => filter,
-    };
-
-    // Staleness is per-site, so resolve each accessible site's cutoff and
-    // let the filter compare every row against its own.
-    let filter = match query.stale {
-        Some(stale) => {
-            let cutoffs = state.services.site_service.stale_cutoffs(&site_ids).await?;
-            filter.stale_by_site(&cutoffs, stale)
-        }
-        None => filter,
-    };
+    let filter = Service::list_filter(&state, &query, &site_ids, organization_id).await?;
 
     // Apply pagination
     let pagination = query.pagination();

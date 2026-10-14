@@ -9,6 +9,7 @@ pub mod dashboard;
 pub mod dependencies;
 pub mod digest;
 pub mod discovery;
+pub mod discovery_warnings;
 pub mod email;
 pub mod github;
 pub mod hosts;

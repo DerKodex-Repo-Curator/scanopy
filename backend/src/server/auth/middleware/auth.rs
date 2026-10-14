@@ -24,7 +24,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use axum_client_ip::ClientIp;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use email_address::EmailAddress;
 use serde::Deserialize;
 use serde::Serialize;
@@ -124,6 +124,9 @@ pub enum AuthenticatedEntity {
         site_ids: Vec<Uuid>,
         email: EmailAddress,
         email_verified: bool,
+        /// When the user last accepted the terms; read by the terms gate.
+        #[serde(default)]
+        terms_accepted_at: Option<DateTime<Utc>>,
     },
     Daemon {
         site_id: Uuid,
@@ -343,6 +346,13 @@ impl AuthenticatedEntity {
             _ => true,
         }
     }
+
+    /// Whether the entity passes an email-verification gate. A server with no email
+    /// transport can't deliver a verification link, so the gate is lifted there rather than
+    /// locking out users who signed up while one was configured.
+    pub fn meets_email_verification(&self, has_email_service: bool) -> bool {
+        !has_email_service || self.email_verified()
+    }
 }
 
 impl From<User> for AuthenticatedEntity {
@@ -354,6 +364,7 @@ impl From<User> for AuthenticatedEntity {
             site_ids: vec![],
             email: value.base.email,
             email_verified: value.base.email_verified,
+            terms_accepted_at: value.base.terms_accepted_at,
         }
     }
 }
@@ -835,6 +846,7 @@ impl AuthenticatedEntity {
             site_ids,
             email: user.base.email,
             email_verified: user.base.email_verified,
+            terms_accepted_at: user.base.terms_accepted_at,
         })
     }
 }
@@ -940,7 +952,9 @@ async fn resolve_daemon_identity(
                 key_prefix,
             )
             .await;
-            Err(AuthError(ApiError::not_authenticated()))
+            // Coded so the daemon can tell a stale saved id (it re-registers under the key's
+            // daemon) from a rejected key.
+            Err(AuthError(ApiError::daemon_identity_mismatch()))
         }
         DaemonIdentityDecision::MissingHeader => Err(AuthError(ApiError::daemon_required())),
     }

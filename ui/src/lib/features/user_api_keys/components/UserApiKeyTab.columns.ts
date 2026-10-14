@@ -41,8 +41,10 @@ export function userApiKeyColumns(ctx: UserApiKeyColumnsContext): FieldConfig<Us
 			filterable: true,
 			groupable: true,
 			sortable: true,
-			// Every role the backend defines, named the way the chip renders them.
-			filterOptions: permissions.getItems().map((role) => permissions.getName(role.id)),
+			// Every role the backend defines.
+			filterOptions: permissions.getItems().map((role) => role.id),
+			filterLabel: (role) => permissions.getName(role) || role,
+			getFilterValue: (item) => item.permissions ?? null,
 			getValue: (item) =>
 				item.permissions ? permissions.getName(item.permissions) || item.permissions : null,
 			display: {
@@ -66,6 +68,8 @@ export function userApiKeyColumns(ctx: UserApiKeyColumnsContext): FieldConfig<Us
 			searchable: true,
 			// Keys share sites, so this filters; as an array it neither sorts nor groups.
 			filterable: true,
+			getFilterValue: (item) => item.site_ids ?? [],
+			filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? id,
 			getValue(item) {
 				const ids = item.site_ids ?? [];
 				return ids

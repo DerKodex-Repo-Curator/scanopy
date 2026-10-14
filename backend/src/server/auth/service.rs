@@ -27,6 +27,8 @@ use crate::server::{
         services::traits::CrudService,
         storage::{filter::StorableFilter, traits::Storable},
     },
+    tags::groups::service::TagGroupService,
+    topology::service::main::TopologyService,
     users::{
         r#impl::{
             base::{User, UserBase},
@@ -64,6 +66,10 @@ pub struct AuthService {
     /// plan is unused (new orgs get `plan = None` until Stripe checkout). Its
     /// `included_orgs` also drives the self-hosted org-creation cap.
     license_service: Option<Arc<LicenseService>>,
+    /// Gives a new org its system tag groups.
+    tag_group_service: Arc<TagGroupService>,
+    /// Creates the site requested at signup, with its subnets, topology and starter tags.
+    topology_service: Arc<TopologyService>,
 }
 
 impl AuthService {
@@ -86,6 +92,8 @@ impl AuthService {
         has_email_service: bool,
         event_bus: Arc<EventBus>,
         license_service: Option<Arc<LicenseService>>,
+        tag_group_service: Arc<TagGroupService>,
+        topology_service: Arc<TopologyService>,
     ) -> Self {
         Self {
             user_service,
@@ -95,6 +103,8 @@ impl AuthService {
             verification_resend_cooldown: Arc::new(RwLock::new(HashMap::new())),
             event_bus,
             license_service,
+            tag_group_service,
+            topology_service,
         }
     }
 
@@ -120,6 +130,24 @@ impl AuthService {
     //     }
     // }
 
+    /// Whether a new account starts verified. True when:
+    /// - no email service is configured, so no verification link could be delivered;
+    /// - the identity provider asserted `email_verified: true` for this address; or
+    /// - the user registered with the address their invite was emailed to.
+    ///
+    /// A link-only invite, or a different address, proves nothing about the address.
+    pub fn verified_at_sign_up(
+        &self,
+        email: &EmailAddress,
+        idp_verified: bool,
+        invited_as: Option<&EmailAddress>,
+    ) -> bool {
+        !self.has_email_service
+            || idp_verified
+            || invited_as
+                .is_some_and(|sent_to| sent_to.as_str().eq_ignore_ascii_case(email.as_str()))
+    }
+
     /// Register a new user with password
     pub async fn register(
         &self,
@@ -133,6 +161,7 @@ impl AuthService {
             ip,
             user_agent,
             site_ids,
+            invited_as,
         } = params;
 
         request
@@ -155,12 +184,9 @@ impl AuthService {
             None
         };
 
-        // Auto-verify when:
-        // - invited user joining existing org (invite link proves email ownership), or
-        // - no email service is configured (self-hosted without SMTP —
-        //   no other way for the user to receive a verification token).
-        // Otherwise leave `email_verified = false` and emit a verification email.
-        let auto_verify = provision_org.is_existing() || !self.has_email_service;
+        // When the address isn't proven, leave `email_verified = false` and emit a
+        // verification email.
+        let auto_verify = self.verified_at_sign_up(&request.email, false, invited_as.as_ref());
 
         // Provision user with password
         let mut user = self
@@ -215,7 +241,8 @@ impl AuthService {
     }
 
     /// Core user provisioning logic - handles both password and OIDC registration
-    /// If pending_setup is provided, uses setup.org_name and marks OnboardingModalCompleted
+    /// If pending_setup is provided, uses setup.org_name, marks OrgCreated and
+    /// OnboardingModalCompleted, and creates the org's tag groups and requested site
     /// If billing_enabled is false (self-hosted), sets default billing plan
     pub async fn provision_user(&self, params: ProvisionUserParams) -> Result<User> {
         let ProvisionUserParams {
@@ -243,7 +270,7 @@ impl AuthService {
                 use_case, org_name, ..
             }) => {
                 // Self-hosted org count is capped by the licensed plan's
-                // `included_orgs` (Community/Standard = 1, Plus = 5,
+                // `included_orgs` (Community/Standard/Plus = 1,
                 // Commercial/Enterprise = unlimited). `None` = unlimited = no
                 // cap. Cloud (billing_enabled) stays multi-tenant regardless.
                 // Gates creation only — instances already above the cap keep
@@ -265,7 +292,10 @@ impl AuthService {
                     }
                 }
 
-                let onboarding = vec![OnboardingOperationDiscriminants::OnboardingModalCompleted];
+                let onboarding = vec![
+                    OnboardingOperationDiscriminants::OrgCreated,
+                    OnboardingOperationDiscriminants::OnboardingModalCompleted,
+                ];
 
                 // Cloud: no plan until user selects one via billing modal → Stripe checkout → webhook
                 // Self-hosted: assign the license-resolved plan and emit a
@@ -341,6 +371,7 @@ impl AuthService {
                 .create(
                     User::new(UserBase::new_oidc(
                         email,
+                        email_verified,
                         oidc_subject,
                         oidc_provider,
                         organization_id,
@@ -363,6 +394,19 @@ impl AuthService {
         {
             let authentication: AuthenticatedEntity = user.clone().into();
             let plan = new_org_plan.unwrap_or_default();
+
+            // Every new org gets the system tag groups, cloud or self-hosted. A requested site
+            // means a cloud signup: registration provisions the integrated daemon on it next, so
+            // it's created here. No requested site means a self-hosted license buyer; the org is
+            // set up if it later lands on a cloud plan.
+            self.tag_group_service
+                .ensure_groups(organization_id, &[], authentication.clone())
+                .await?;
+            if let Some(site) = &site {
+                self.topology_service
+                    .ensure_cloud_setup(organization_id, Some(site), authentication.clone())
+                    .await?;
+            }
 
             self.event_bus
                 .publish(Event::new(
@@ -653,6 +697,15 @@ impl AuthService {
         user.set_password(hashed_password);
         user.base.password_reset_token = None;
         user.base.password_reset_expires = None;
+        // The reset link was mailed to this address, so using it proves the address. A
+        // pending email change is untouched: it is proven by its own link.
+        if !user.base.email_verified {
+            user.base.email_verified = true;
+            if user.base.pending_email.is_none() {
+                user.base.email_verification_token = None;
+                user.base.email_verification_expires = None;
+            }
+        }
         // Invalidate all existing sessions (a reset implies the account may be
         // compromised). The reset handler re-stamps the requesting browser's
         // session with the new epoch.
@@ -690,7 +743,10 @@ impl AuthService {
     }
 
     /// Helper to generate verification token and set on user prior to emitting event that will send a verification email
-    async fn set_user_email_verification_params(&self, user: &mut User) -> Result<EmailAndToken> {
+    pub(crate) async fn set_user_email_verification_params(
+        &self,
+        user: &mut User,
+    ) -> Result<EmailAndToken> {
         // Generate token and expiry
         let token = Self::generate_secure_token();
         let expiry = Utc::now() + Duration::hours(Self::VERIFICATION_TOKEN_EXPIRY_HOURS);
@@ -753,6 +809,9 @@ impl AuthService {
             return Err(anyhow!("This email address is already in use"));
         }
 
+        // Each request mails the new address, so it shares the resend cooldown.
+        self.claim_resend_cooldown(&new_email).await?;
+
         user.base.pending_email = Some(new_email.clone());
 
         let params = self.set_user_email_verification_params(&mut user).await?;
@@ -781,6 +840,37 @@ impl AuthService {
         Ok(())
     }
 
+    fn verification_token_invalid() -> anyhow::Error {
+        ApiError::coded(
+            StatusCode::BAD_REQUEST,
+            ErrorCode::AuthVerificationTokenInvalid,
+        )
+        .into()
+    }
+
+    /// Claim the resend cooldown for `email`. Fails while a send to that address is under
+    /// [`Self::RESEND_COOLDOWN_SECS`] old. Claimed before any account lookup, so the
+    /// response doesn't depend on whether the address has an account.
+    ///
+    /// A 400 rather than a 429: the UI treats any 429 as a global rate limit and pauses every
+    /// request, where this only concerns one address.
+    async fn claim_resend_cooldown(&self, email: &EmailAddress) -> Result<()> {
+        let mut cooldowns = self.verification_resend_cooldown.write().await;
+        if let Some(last_sent) = cooldowns.get(email)
+            && last_sent.elapsed().as_secs() < Self::RESEND_COOLDOWN_SECS
+        {
+            return Err(ApiError::coded(
+                StatusCode::BAD_REQUEST,
+                ErrorCode::AuthVerificationEmailCooldown {
+                    seconds: Self::RESEND_COOLDOWN_SECS - last_sent.elapsed().as_secs(),
+                },
+            )
+            .into());
+        }
+        cooldowns.insert(email.clone(), Instant::now());
+        Ok(())
+    }
+
     /// Verify email using token — handles both initial verification and email change flows
     pub async fn verify_email(
         &self,
@@ -796,17 +886,13 @@ impl AuthService {
             ))
             .await?
             .at_most_one()?
-            .ok_or_else(|| anyhow!("Invalid verification token"))?;
+            .ok_or_else(Self::verification_token_invalid)?;
 
-        // Check if token is expired
-        if let Some(expires) = user.base.email_verification_expires {
-            if Utc::now() > expires {
-                return Err(anyhow!(
-                    "Verification token has expired. Please request a new one."
-                ));
-            }
-        } else {
-            return Err(anyhow!("Invalid verification token"));
+        // Unknown and expired tokens get the same coded error: the page offers a new link
+        // either way.
+        match user.base.email_verification_expires {
+            Some(expires) if Utc::now() <= expires => {}
+            _ => return Err(Self::verification_token_invalid()),
         }
 
         // Check if this is an email change flow (pending_email is set)
@@ -865,39 +951,26 @@ impl AuthService {
         Ok(user)
     }
 
-    /// Resend verification email with rate limiting
+    /// Resend verification email with rate limiting. Returns `Ok` without sending when the
+    /// address has no account or is already verified, so the response doesn't reveal which
+    /// addresses have accounts.
     pub async fn resend_verification_email(
         &self,
         email: &EmailAddress,
         ip: IpAddr,
         user_agent: Option<String>,
     ) -> Result<()> {
-        // Check rate limiting
-        {
-            let cooldowns = self.verification_resend_cooldown.read().await;
-            if let Some(last_sent) = cooldowns.get(email)
-                && last_sent.elapsed().as_secs() < Self::RESEND_COOLDOWN_SECS
-            {
-                let remaining = Self::RESEND_COOLDOWN_SECS - last_sent.elapsed().as_secs();
-                return Err(anyhow!(
-                    "Please wait {} seconds before requesting another verification email",
-                    remaining
-                ));
-            }
-        }
+        self.claim_resend_cooldown(email).await?;
 
-        // Find user
-        let mut user = self
+        let Some(mut user) = self
             .user_service
             .get_unique(StorableFilter::<User>::new_from_email(email))
             .await?
             .at_most_one()?
-            .ok_or_else(|| anyhow!("User not found"))?;
-
-        // Check if already verified
-        if user.base.email_verified {
-            return Err(anyhow!("Email is already verified"));
-        }
+            .filter(|user| !user.base.email_verified)
+        else {
+            return Ok(());
+        };
 
         let email_and_token = self.set_user_email_verification_params(&mut user).await?;
         let authentication: AuthenticatedEntity = user.clone().into();
@@ -914,12 +987,6 @@ impl AuthService {
                 authentication,
             ))
             .await?;
-
-        // Update cooldown
-        self.verification_resend_cooldown
-            .write()
-            .await
-            .insert(email.clone(), Instant::now());
 
         Ok(())
     }

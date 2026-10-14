@@ -231,3 +231,58 @@ async fn a_checkout_in_either_api_version_sets_the_plan_once() {
         assert_eq!(published(&mut events, is_checkout), 0);
     }
 }
+
+/// The Customer Portal schedules a cancellation with two
+/// `customer.subscription.updated` deliveries hundreds of milliseconds apart.
+/// The second reads the row the first wrote, so the cancellation is announced
+/// once, with nothing waited on between them.
+#[tokio::test]
+async fn the_portal_cancel_pair_announces_the_cancellation_once() {
+    let pro = get_purchasable_plans()
+        .into_iter()
+        .find(|plan| matches!(plan, BillingPlan::Pro(_)))
+        .unwrap();
+    let org_id = Uuid::new_v4();
+    let (state, _container) = test_state_with_email_dir(None).await;
+    let mut subscription: serde_json::Value =
+        serde_json::from_str(&renewed_subscription(org_id, pro)).unwrap();
+    subscription["cancel_at"] = (Utc::now().timestamp() + 30 * 86_400).into();
+    let subscription = subscription.to_string();
+    let router = Router::new()
+        .route(
+            "/v1/subscriptions/{id}",
+            get(move |Path(_id): Path<String>| async move { subscription }),
+        )
+        .route("/v1/subscriptions", get(|| async { EMPTY_LIST }));
+    let billing = billing_with(&state, router).await;
+
+    let mut org = checked_out_org(&state, org_id).await;
+    org.base.plan = Some(pro);
+    org.base.plan_status = Some(PlanStatus::Active);
+    state
+        .services
+        .organization_service
+        .update(&mut org, AuthenticatedEntity::System)
+        .await
+        .unwrap();
+    let mut events = billing_events(&state);
+
+    let update = SUBSCRIPTION_CREATED_DAHLIA.replace(
+        "\"customer.subscription.created\"",
+        "\"customer.subscription.updated\"",
+    );
+    deliver(&billing, &update).await;
+    deliver(&billing, &update).await;
+
+    assert_eq!(
+        published(&mut events, |operation| matches!(
+            operation,
+            BillingOperation::CancellationInitiated { .. }
+        )),
+        1
+    );
+    assert_eq!(
+        reload(&state, org_id).await.base.plan_status,
+        Some(PlanStatus::PendingCancellation)
+    );
+}

@@ -1223,7 +1223,8 @@ async fn docker_services(services: &ServiceFactory, lab: &Lab) -> Vec<Service> {
 
 /// The lab's path: the runtime holds its API port from the host scan, and a daemon that cannot
 /// identify the proxy sends it as a generic container on the same port. The container safety net
-/// must not copy the proxy's identity onto the runtime.
+/// must not copy the proxy's identity onto the runtime. The container takes the port instead, as
+/// a named proxy does: the runtime is reached through it.
 #[tokio::test]
 async fn an_unidentified_api_proxy_never_becomes_the_runtimes_identity() {
     harness!(_storage, services, lab, _container);
@@ -1248,6 +1249,16 @@ async fn an_unidentified_api_proxy_never_becomes_the_runtimes_identity() {
         .expect("runtime stored");
     assert_eq!(runtime.base.virtualization_service_id, None);
     assert_eq!(runtime.base.virtualization_metadata, None);
+    let proxy = all
+        .iter()
+        .find(|s| s.base.name == "docker-api-proxy")
+        .expect("proxy stored");
+    assert_eq!(proxy.base.virtualization_service_id, Some(runtime.id));
+    assert!(proxy.base.bindings.iter().any(|b| b.port_id().is_some()));
+    assert!(
+        runtime.base.bindings.iter().all(|b| b.port_id().is_none()),
+        "the runtime no longer binds the port it is reached through"
+    );
 }
 
 /// The new daemon's path: the proxy arrives as the runtime's API proxy, owned by the runtime and
@@ -1320,6 +1331,445 @@ async fn a_stored_self_owned_runtime_is_cleared_on_rescan() {
         .expect("runtime still stored");
     assert_eq!(runtime.base.virtualization_service_id, None);
     assert_eq!(runtime.base.virtualization_metadata, None);
+}
+
+/// The Docker host of GH #784 as one scan submits it: its LAN address, a container's bridge
+/// address, the runtime on its API port, and the TCP `ports`.
+struct DockerHost {
+    lan: IPAddress,
+    bridge: IPAddress,
+    ports: Vec<crate::server::ports::r#impl::base::Port>,
+    runtime: Service,
+}
+
+impl DockerHost {
+    fn new(lab: &Lab, ports: &[u16]) -> Self {
+        use crate::server::bindings::r#impl::base::Binding;
+        use crate::server::ports::r#impl::base::{Port, PortBase, PortType};
+
+        let lan = arp(lab, "192.168.4.126", ens18());
+        let bridge = address(lab, lab.bridge, "172.17.0.5", None);
+        let api = Port::new(PortBase::new(
+            Uuid::nil(),
+            lab.site_id,
+            PortType::new_tcp(2375),
+        ));
+        let mut runtime = service(lab, "Docker");
+        runtime.base.bindings = vec![Binding::new_port_serviceless(api.id, Some(lan.id))];
+        let mut all_ports = vec![api];
+        all_ports.extend(ports.iter().map(|n| {
+            Port::new(PortBase::new(
+                Uuid::nil(),
+                lab.site_id,
+                PortType::new_tcp(*n),
+            ))
+        }));
+        Self {
+            lan,
+            bridge,
+            ports: all_ports,
+            runtime,
+        }
+    }
+
+    /// A binding of port `number` on `ip`.
+    fn bind(&self, number: u16, ip: &IPAddress) -> crate::server::bindings::r#impl::base::Binding {
+        let port = self
+            .ports
+            .iter()
+            .find(|p| p.base.port_type.number() == number)
+            .expect("port is in the payload");
+        crate::server::bindings::r#impl::base::Binding::new_port_serviceless(port.id, Some(ip.id))
+    }
+
+    fn with_service(
+        &self,
+        lab: &Lab,
+        definition: &str,
+        bindings: Vec<(u16, &IPAddress)>,
+    ) -> Service {
+        let mut s = service(lab, definition);
+        s.base.bindings = bindings
+            .into_iter()
+            .map(|(n, ip)| self.bind(n, ip))
+            .collect();
+        s
+    }
+
+    /// A container the daemon could not identify, sent as a generic Docker Container.
+    fn container(&self, lab: &Lab, name: &str, bindings: Vec<(u16, &IPAddress)>) -> Service {
+        use crate::server::services::r#impl::virtualization::{
+            DockerVirtualization, ServiceVirtualization,
+        };
+        let mut c = self.with_service(lab, "Docker Container", bindings);
+        c.base.name = name.to_string();
+        c.base.virtualization_service_id = Some(self.runtime.id);
+        c.base.virtualization_metadata =
+            Some(ServiceVirtualization::Docker(DockerVirtualization {
+                container_name: Some(name.to_string()),
+                container_id: Some(format!("{name}-id")),
+                compose_project: None,
+            }));
+        c
+    }
+
+    fn payload(
+        self,
+        extra: Vec<Service>,
+    ) -> (
+        Vec<IPAddress>,
+        Vec<crate::server::ports::r#impl::base::Port>,
+        Vec<Service>,
+    ) {
+        let mut services = vec![self.runtime];
+        services.extend(extra);
+        (vec![self.lan, self.bridge], self.ports, services)
+    }
+}
+
+/// The port numbers `service` binds, sorted.
+async fn bound_ports(services: &ServiceFactory, host_id: Uuid, service: &Service) -> Vec<u16> {
+    let ports = services.port_service.get_for_host(&host_id).await.unwrap();
+    let mut numbers: Vec<u16> = service
+        .base
+        .bindings
+        .iter()
+        .filter_map(|b| b.port_id())
+        .filter_map(|id| ports.iter().find(|p| p.id == id))
+        .map(|p| p.base.port_type.number())
+        .collect();
+    numbers.sort();
+    numbers.dedup();
+    numbers
+}
+
+fn find_by_definition<'a>(all: &'a [Service], definition: &str) -> Option<&'a Service> {
+    all.iter()
+        .find(|s| s.base.service_definition.name() == definition)
+}
+
+/// GH #784: a network scan put 3000 under Unclaimed Open Ports, and the Docker scan then sends an
+/// unidentified container publishing 3000. The container is stored and takes the port.
+#[tokio::test]
+async fn a_container_reclaims_its_port_from_unclaimed_open_ports() {
+    harness!(_storage, services, lab, _container);
+    let scan = DockerHost::new(&lab, &[3000]);
+    let open_ports = scan.with_service(&lab, "Unclaimed Open Ports", vec![(3000, &scan.lan)]);
+    discover_with_ports(&services, &lab, scan.payload(vec![open_ports])).await;
+
+    let scan = DockerHost::new(&lab, &[3000]);
+    let container = scan.container(&lab, "grafana-oss", vec![(3000, &scan.lan)]);
+    let host = discover_with_ports(&services, &lab, scan.payload(vec![container])).await;
+
+    let all = docker_services(&services, &lab).await;
+    let container = find_by_definition(&all, "Docker Container").expect("container stored");
+    assert_eq!(bound_ports(&services, host.id, container).await, vec![3000]);
+    assert!(
+        find_by_definition(&all, "Unclaimed Open Ports").is_none(),
+        "Unclaimed Open Ports held only 3000 and is deleted"
+    );
+}
+
+/// GH #784's 127.0.0.1:8083 container. A loopback publish gets no host-address binding, so the
+/// container reaches the server bound to its private port on its bridge address, which a scan of
+/// the bridge subnet had put under Unclaimed Open Ports.
+#[tokio::test]
+async fn a_container_reclaims_an_address_scoped_port_from_unclaimed_open_ports() {
+    harness!(_storage, services, lab, _container);
+    let scan = DockerHost::new(&lab, &[22, 8083]);
+    let open_ports = scan.with_service(
+        &lab,
+        "Unclaimed Open Ports",
+        vec![(22, &scan.lan), (8083, &scan.bridge)],
+    );
+    discover_with_ports(&services, &lab, scan.payload(vec![open_ports])).await;
+
+    let scan = DockerHost::new(&lab, &[22, 8083]);
+    let container = scan.container(&lab, "loopback-app", vec![(8083, &scan.bridge)]);
+    let host = discover_with_ports(&services, &lab, scan.payload(vec![container])).await;
+
+    let all = docker_services(&services, &lab).await;
+    let container = find_by_definition(&all, "Docker Container").expect("container stored");
+    assert_eq!(bound_ports(&services, host.id, container).await, vec![8083]);
+    let open_ports = find_by_definition(&all, "Unclaimed Open Ports").expect("keeps port 22");
+    assert_eq!(bound_ports(&services, host.id, open_ports).await, vec![22]);
+}
+
+/// A container on a port the network scan already identified enriches that service with its
+/// Docker metadata and is not stored itself.
+#[tokio::test]
+async fn a_container_on_an_identified_services_port_enriches_it() {
+    harness!(_storage, services, lab, _container);
+    let scan = DockerHost::new(&lab, &[3000]);
+    let grafana = scan.with_service(&lab, "Grafana", vec![(3000, &scan.lan)]);
+    discover_with_ports(&services, &lab, scan.payload(vec![grafana])).await;
+
+    let scan = DockerHost::new(&lab, &[3000]);
+    let container = scan.container(&lab, "grafana-oss", vec![(3000, &scan.lan)]);
+    discover_with_ports(&services, &lab, scan.payload(vec![container])).await;
+
+    let all = docker_services(&services, &lab).await;
+    let runtime = find_by_definition(&all, "Docker").expect("runtime stored");
+    let grafana = find_by_definition(&all, "Grafana").expect("grafana stored");
+    assert!(find_by_definition(&all, "Docker Container").is_none());
+    assert_eq!(grafana.base.virtualization_service_id, Some(runtime.id));
+    assert!(grafana.base.virtualization_metadata.is_some());
+}
+
+/// A container conflicting with an identified service on one port and with Unclaimed Open Ports
+/// on another enriches the identified service and is not stored. Open Ports keeps its port.
+#[tokio::test]
+async fn a_container_conflicting_with_an_identified_service_and_open_ports_enriches_it() {
+    harness!(_storage, services, lab, _container);
+    let scan = DockerHost::new(&lab, &[3000, 8083]);
+    let grafana = scan.with_service(&lab, "Grafana", vec![(3000, &scan.lan)]);
+    let open_ports = scan.with_service(&lab, "Unclaimed Open Ports", vec![(8083, &scan.lan)]);
+    discover_with_ports(&services, &lab, scan.payload(vec![grafana, open_ports])).await;
+
+    let scan = DockerHost::new(&lab, &[3000, 8083]);
+    let container = scan.container(
+        &lab,
+        "grafana-oss",
+        vec![(3000, &scan.lan), (8083, &scan.lan)],
+    );
+    let host = discover_with_ports(&services, &lab, scan.payload(vec![container])).await;
+
+    let all = docker_services(&services, &lab).await;
+    let runtime = find_by_definition(&all, "Docker").expect("runtime stored");
+    let grafana = find_by_definition(&all, "Grafana").expect("grafana stored");
+    assert!(find_by_definition(&all, "Docker Container").is_none());
+    assert_eq!(grafana.base.virtualization_service_id, Some(runtime.id));
+    let open_ports = find_by_definition(&all, "Unclaimed Open Ports").expect("keeps 8083");
+    assert_eq!(
+        bound_ports(&services, host.id, open_ports).await,
+        vec![8083]
+    );
+}
+
+/// A container on a port matched by port alone (PostgreSQL on 5432) links that match to Docker,
+/// which also takes the container's bridge binding. A rescan finds the same state.
+#[tokio::test]
+async fn a_container_on_a_port_only_match_links_it_and_hands_over_its_bindings() {
+    harness!(_storage, services, lab, _container);
+    let scan = DockerHost::new(&lab, &[5432]);
+    let postgres = scan.with_service(&lab, "PostgreSQL", vec![(5432, &scan.lan)]);
+    discover_with_ports(&services, &lab, scan.payload(vec![postgres])).await;
+
+    for _ in 0..2 {
+        let scan = DockerHost::new(&lab, &[5432]);
+        let container = scan.container(
+            &lab,
+            "scanopy-postgres",
+            vec![(5432, &scan.lan), (5432, &scan.bridge)],
+        );
+        let host = discover_with_ports(&services, &lab, scan.payload(vec![container])).await;
+
+        let all = docker_services(&services, &lab).await;
+        let runtime = find_by_definition(&all, "Docker").expect("runtime stored");
+        let postgres = find_by_definition(&all, "PostgreSQL").expect("postgres stored");
+        assert_eq!(postgres.base.virtualization_service_id, Some(runtime.id));
+        assert_eq!(bound_ports(&services, host.id, postgres).await, vec![5432]);
+        let addresses: Vec<Option<Uuid>> = postgres
+            .base
+            .bindings
+            .iter()
+            .map(|b| b.ip_address_id())
+            .collect();
+        assert_eq!(addresses.len(), 2, "5432 on the LAN and bridge addresses");
+        assert!(find_by_definition(&all, "Docker Container").is_none());
+        assert!(find_by_definition(&all, "Unclaimed Open Ports").is_none());
+    }
+}
+
+/// The daemon's own host in GH #784, scanned through a Docker socket credential. The daemon
+/// reports the host at loopback, then a network scan leaves 3000 unclaimed on the LAN address.
+struct SocketHost<'a> {
+    services: &'a ServiceFactory,
+    lab: &'a Lab,
+    host_id: Uuid,
+    loopback: Uuid,
+}
+
+impl<'a> SocketHost<'a> {
+    async fn new(services: &'a ServiceFactory, lab: &'a Lab) -> Self {
+        use crate::server::bindings::r#impl::base::Binding;
+
+        let loopback =
+            create_subnet(services, lab.site_id, "127.0.0.0/8", SubnetType::Loopback).await;
+        let host = Self {
+            services,
+            lab,
+            host_id: Uuid::new_v4(),
+            loopback,
+        };
+        host.submit(vec![host.lo()], vec![], vec![]).await;
+
+        let lan = host.lan();
+        let p3000 = host.tcp(3000);
+        let mut open_ports = service(lab, "Unclaimed Open Ports");
+        open_ports.base.bindings = vec![Binding::new_port_serviceless(p3000.id, Some(lan.id))];
+        host.submit(vec![lan], vec![p3000], vec![open_ports]).await;
+        host
+    }
+
+    fn lo(&self) -> IPAddress {
+        address(self.lab, self.loopback, "127.0.0.1", None)
+    }
+
+    fn lan(&self) -> IPAddress {
+        arp(self.lab, "192.168.4.58", ens18())
+    }
+
+    fn tcp(&self, number: u16) -> crate::server::ports::r#impl::base::Port {
+        use crate::server::ports::r#impl::base::{Port, PortBase, PortType};
+        Port::new(PortBase::new(
+            Uuid::nil(),
+            self.lab.site_id,
+            PortType::new_tcp(number),
+        ))
+    }
+
+    async fn submit(
+        &self,
+        ip_addresses: Vec<IPAddress>,
+        ports: Vec<crate::server::ports::r#impl::base::Port>,
+        host_services: Vec<Service>,
+    ) {
+        let mut host = Host::new(HostBase {
+            site_id: self.lab.site_id,
+            source: EntitySource::Discovery,
+            ..Default::default()
+        });
+        host.id = self.host_id;
+        self.services
+            .host_service
+            .discover_host(
+                host,
+                ip_addresses,
+                ports,
+                host_services,
+                vec![],
+                vec![],
+                false,
+                InterfaceDataComplete::none(),
+                None,
+                AuthenticatedEntity::System,
+                None,
+            )
+            .await
+            .expect("the submission persists");
+    }
+
+    /// A Docker scan over the socket: the runtime at loopback, and plain-http on its bridge
+    /// address publishing `0.0.0.0:3000`, bound at loopback and, when `at_lan`, the LAN address.
+    async fn docker_scan(&self, at_lan: bool) {
+        use crate::server::bindings::r#impl::base::Binding;
+        use crate::server::services::r#impl::virtualization::{
+            DockerVirtualization, ServiceVirtualization,
+        };
+
+        let (lo, lan) = (self.lo(), self.lan());
+        let bridge = address(self.lab, self.lab.bridge, "172.17.0.4", None);
+        let (p3000, p8000) = (self.tcp(3000), self.tcp(8000));
+        let mut runtime = service(self.lab, "Docker");
+        runtime.base.bindings = vec![Binding::new_ip_address_serviceless(lo.id)];
+        let mut container = service(self.lab, "Docker Container");
+        container.base.name = "plain-http".to_string();
+        container.base.virtualization_service_id = Some(runtime.id);
+        container.base.virtualization_metadata =
+            Some(ServiceVirtualization::Docker(DockerVirtualization {
+                container_name: Some("plain-http".to_string()),
+                container_id: Some("298f41e5ae2e".to_string()),
+                compose_project: None,
+            }));
+        container.base.bindings = vec![
+            Binding::new_port_serviceless(p8000.id, Some(bridge.id)),
+            Binding::new_port_serviceless(p3000.id, Some(lo.id)),
+        ];
+        let mut ip_addresses = vec![lo, bridge];
+        if at_lan {
+            container
+                .base
+                .bindings
+                .push(Binding::new_port_serviceless(p3000.id, Some(lan.id)));
+            ip_addresses.push(lan);
+        }
+        self.submit(ip_addresses, vec![p3000, p8000], vec![runtime, container])
+            .await;
+    }
+
+    /// The addresses `definition` binds 3000 at, sorted; `None` when it is not stored.
+    async fn addresses_on_3000(&self, definition: &str) -> Option<Vec<IpAddr>> {
+        let all = docker_services(self.services, self.lab).await;
+        let svc = find_by_definition(&all, definition)?;
+        let ports = self
+            .services
+            .port_service
+            .get_for_host(&self.host_id)
+            .await
+            .unwrap();
+        let ips = self
+            .services
+            .ip_address_service
+            .get_for_host(&self.host_id)
+            .await
+            .unwrap();
+        let mut on_3000: Vec<IpAddr> = svc
+            .base
+            .bindings
+            .iter()
+            .filter(|b| {
+                b.port_id()
+                    .and_then(|id| ports.iter().find(|p| p.id == id))
+                    .is_some_and(|p| p.base.port_type.number() == 3000)
+            })
+            .filter_map(|b| b.ip_address_id())
+            .filter_map(|id| ips.iter().find(|i| i.id == id))
+            .map(|i| i.base.ip_address)
+            .collect();
+        on_3000.sort();
+        Some(on_3000)
+    }
+}
+
+/// A container the socket scan finds for the first time takes 3000 at every address it is
+/// published on, and Unclaimed Open Ports gives it up.
+#[tokio::test]
+async fn a_socket_scanned_container_reclaims_its_published_port() {
+    harness!(_storage, services, lab, _container);
+    let host = SocketHost::new(&services, &lab).await;
+
+    host.docker_scan(true).await;
+
+    assert_eq!(
+        host.addresses_on_3000("Docker Container").await,
+        Some(vec![
+            "127.0.0.1".parse().unwrap(),
+            "192.168.4.58".parse().unwrap()
+        ])
+    );
+    assert_eq!(host.addresses_on_3000("Unclaimed Open Ports").await, None);
+}
+
+/// A container an earlier socket scan stored at loopback alone takes 3000 on the LAN address
+/// once a scan reports it there. Re-discovery keeps a stored service's non-conflicting bindings,
+/// and Unclaimed Open Ports is a placeholder that never outranks it.
+#[tokio::test]
+async fn a_stored_container_reclaims_its_published_port_on_rescan() {
+    harness!(_storage, services, lab, _container);
+    let host = SocketHost::new(&services, &lab).await;
+    host.docker_scan(false).await;
+
+    host.docker_scan(true).await;
+
+    assert_eq!(
+        host.addresses_on_3000("Docker Container").await,
+        Some(vec![
+            "127.0.0.1".parse().unwrap(),
+            "192.168.4.58".parse().unwrap()
+        ])
+    );
+    assert_eq!(host.addresses_on_3000("Unclaimed Open Ports").await, None);
 }
 
 /// The lab's ipvlan endpoint, replayed in the lab's order. VM 103's Proxmox payload lists .63 for

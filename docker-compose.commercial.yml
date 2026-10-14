@@ -2,7 +2,8 @@ name: scanopy
 
 services:
   daemon:
-    image: ghcr.io/scanopy/scanopy/daemon:latest
+    # Pull fails? https://scanopy.net/docs/setting-up-daemons/troubleshooting-setup/#docker-pull-or-download-fails
+    image: docker.scanopy.net/scanopy/scanopy/daemon:latest
     container_name: scanopy-daemon
     network_mode: host
     privileged: true
@@ -17,7 +18,7 @@ services:
       retries: 15
     volumes:
       - daemon-config:/root/.config/scanopy/daemon
-      # Comment out the line below to disable docker discovery
+      # Mounted for the Docker integration. Comment out the line below if you don't use it
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   postgres:
@@ -45,7 +46,8 @@ services:
   # The commercial edition is the standard server image plus a license key.
   # There is no separate commercial image.
   server:
-    image: ghcr.io/scanopy/scanopy/server:latest
+    # Pull fails? https://scanopy.net/docs/setting-up-daemons/troubleshooting-setup/#docker-pull-or-download-fails
+    image: docker.scanopy.net/scanopy/scanopy/server:latest
     ports:
       - "60072:60072"
     # Pass a .env alongside this file straight through to the server. Compose otherwise

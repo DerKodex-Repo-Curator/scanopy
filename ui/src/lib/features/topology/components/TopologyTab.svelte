@@ -16,7 +16,8 @@
 	import { tooltip } from '$lib/shared/actions/tooltip';
 	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { onMount, onDestroy, setContext } from 'svelte';
+	import { onMount, setContext } from 'svelte';
+	import { takeInitialParams } from '$lib/shared/stores/url-state';
 	import { preloadElk } from '$lib/features/topology/layout/elk-layout';
 	import { get, writable } from 'svelte/store';
 	import { isScaleCollapsed } from '../collapse';
@@ -39,7 +40,7 @@
 		updateTopologyOptions,
 		hydrateStoresFromTopology,
 		updateHiddenEdgeTypes,
-		getTopologyParamsFromUrl,
+		topologyParamsFrom,
 		pushTopologyParams,
 		showViewSwitcherHint,
 		showDependencyTutorial,
@@ -105,8 +106,7 @@
 		common_current,
 		topology_noTopologySelected,
 		topology_snapshotDeleteConfirm,
-		topology_takeSnapshot,
-		topology_verifyEmailToShare
+		topology_takeSnapshot
 	} from '$lib/paraglide/messages';
 	import { useConfigQuery } from '$lib/shared/stores/config-query';
 
@@ -431,7 +431,7 @@
 	});
 
 	// URL params: read once on init for topology/view deep-linking
-	const urlParams = getTopologyParamsFromUrl();
+	const urlParams = topologyParamsFrom(takeInitialParams('topology'));
 	let urlViewConsumed = false;
 
 	// Initialize/validate the selected site against the accessible list.
@@ -623,7 +623,7 @@
 		}
 		// A later pick superseded this one while it loaded.
 		if (request !== viewSwitchRequest) return;
-		pushTopologyParams(get(selectedTopologyId), view);
+		pushTopologyParams();
 		activeView.set(view);
 		clearSelection();
 		showViewSwitcherHint.set(false);
@@ -706,18 +706,6 @@
 		});
 	}
 
-	// Browser back/forward: restore topology + view from URL params
-	function handlePopState() {
-		const params = getTopologyParamsFromUrl();
-		if (params.topologyId && params.topologyId !== get(selectedTopologyId)) {
-			selectedTopologyId.set(params.topologyId);
-			selectedNodes.set([]);
-		}
-		if (params.view && params.view !== get(activeView)) {
-			activeView.set(params.view);
-		}
-	}
-
 	onMount(() => {
 		// Start loading ELK as soon as the tab opens, not when the pipeline runs.
 		// The module costs ~1s to parse and is the largest single stage of a cold
@@ -726,11 +714,6 @@
 		// BaseTopologyViewer also does, harmlessly) is too late to overlap
 		// anything — the measure pass begins immediately after.
 		preloadElk();
-		window.addEventListener('popstate', handlePopState);
-	});
-
-	onDestroy(() => {
-		window.removeEventListener('popstate', handlePopState);
 	});
 </script>
 
@@ -752,21 +735,13 @@
 						     while viewing a snapshot; the share modal shows an inline notice
 						     clarifying that a share captures the live view, not the snapshot. -->
 						{#if !isReadOnly}
-							{#if currentUser && !currentUser.email_verified}
-								<span data-tooltip={topology_verifyEmailToShare()} use:tooltip>
-									<button class="btn-secondary opacity-50" disabled title={common_share()}>
-										<Share2 class="my-1 h-5 w-5" />
-									</button>
-								</span>
-							{:else}
-								<button
-									class="btn-secondary"
-									onclick={() => openModal('topology-share')}
-									title={common_share()}
-								>
-									<Share2 class="my-1 h-5 w-5" />
-								</button>
-							{/if}
+							<button
+								class="btn-secondary"
+								onclick={() => openModal('topology-share')}
+								title={common_share()}
+							>
+								<Share2 class="my-1 h-5 w-5" />
+							</button>
 						{/if}
 					</div>
 

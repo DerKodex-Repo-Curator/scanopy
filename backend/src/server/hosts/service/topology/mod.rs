@@ -72,7 +72,7 @@ fn unmatched_neighbour_warning(
     reason: UnresolvedReason,
 ) -> Option<DiscoveryWarning> {
     let detail = UnmatchedNeighbour {
-        host_id: interface.base.host_id,
+        host_id: Some(interface.base.host_id),
         if_descr: interface.base.if_descr.clone().unwrap_or_default(),
         identifier,
         sys_name,
@@ -148,9 +148,9 @@ fn unresolved_port_warning(
     reason: UnresolvedReason,
 ) -> DiscoveryWarning {
     let detail = UnresolvedPort {
-        host_id: interface.base.host_id,
+        host_id: Some(interface.base.host_id),
         if_descr: interface.base.if_descr.clone().unwrap_or_default(),
-        remote_host_id,
+        remote_host_id: Some(remote_host_id),
         port_id,
         // `lldpRemPortDesc`, the last-resort tier. Carried because "the id failed and the
         // description was empty" and "both were tried and neither matched" call for different

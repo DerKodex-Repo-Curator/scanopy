@@ -101,5 +101,8 @@
 	<span class="text-muted" aria-hidden="true">—</span>
 	<span class="sr-only">{common_none()}</span>
 {:else}
-	<span class="text-tertiary block truncate" {title}>{text}</span>
+	<span
+		class="text-tertiary block {column.display.wrap ? 'whitespace-normal break-words' : 'truncate'}"
+		{title}>{text}</span
+	>
 {/if}

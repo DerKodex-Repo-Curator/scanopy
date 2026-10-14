@@ -1088,12 +1088,8 @@ fn every_client_probe_variant_has_a_producer() {
         ClientProbe::UnifiController,
         ClientProbe::InstantOn,
         ClientProbe::Proxmox,
+        ClientProbe::Gnmi,
     ];
-
-    // Known to have no producer. gNMI's definition matches on `ClientResponse(Gnmi)` and nothing
-    // emits it, so that service can never be detected. Listed rather than the test being weakened,
-    // so a *new* orphan still fails here.
-    let known_unproduced = [ClientProbe::Gnmi];
 
     let from_app_probes: HashSet<ClientProbe> = all_app_probes()
         .iter()
@@ -1103,7 +1099,6 @@ fn every_client_probe_variant_has_a_producer() {
     let orphans: Vec<ClientProbe> = ClientProbe::iter()
         .filter(|c| !from_app_probes.contains(c))
         .filter(|c| !from_integrations.contains(c))
-        .filter(|c| !known_unproduced.contains(c))
         .collect();
 
     assert!(

@@ -4,12 +4,13 @@
 		type FieldConfig,
 		getFieldKey,
 		groupPageSlice,
+		type GroupPosition,
 		type GroupSlice,
 		type PageSizeOption,
 		type CardAction,
 		type TableDefaults
 	} from './types';
-	import { getUniqueValues as uniqueValuesOf } from './controls/fieldValues';
+	import { filterOptionsOf } from './controls/fieldValues';
 	import {
 		sortItems,
 		nextSortState,
@@ -22,7 +23,6 @@
 		matchesSearch,
 		matchesFilters,
 		blankFilterState,
-		restoredServerFilters,
 		hasActiveFilters as hasActiveFiltersOf,
 		activeFilterCount as activeFilterCountOf,
 		type FilterState
@@ -31,7 +31,7 @@
 	import { guardServerPaginatedConfig, guardTableDefaults } from './controls/devGuards.svelte';
 	import { columnControls, renderedFields, dropHiddenColumnState } from './controls/headerControls';
 	import { paginationView, pageSlice } from './controls/pagination';
-	import { createChangeTracker, sameOrder } from './controls/changeTracker';
+	import { createChangeTracker } from './controls/changeTracker';
 	import {
 		groupItems as groupItemsBy,
 		buildTreeSections,
@@ -44,6 +44,7 @@
 	} from './controls/grouping';
 	import {
 		isAllSelected,
+		rangeSelect,
 		isPartiallySelected,
 		visibleIds,
 		runBulkAction
@@ -58,6 +59,17 @@
 		STORED_STATE_VERSION,
 		type OrderingChoice
 	} from './controls/dataControlsStorage';
+	import {
+		CLIENT_QUERY,
+		decodeFilters,
+		decodeListParams,
+		hasListParams,
+		listParamKeys,
+		listParams,
+		PAGE_PARAM,
+		type ServerQuery
+	} from './controls/listQuery';
+	import { registerUrlOwner, syncUrl, takeInitialParams } from '$lib/shared/stores/url-state';
 	import ControlsBar from './controls/ControlsBar.svelte';
 	import ColumnControlsMenu from './table/ColumnControlsMenu.svelte';
 	import TagPickerInline from '$lib/features/tags/components/TagPickerInline.svelte';
@@ -78,21 +90,24 @@
 	import { onMount } from 'svelte';
 	import {
 		common_all,
-		common_clearAll,
-		common_noEntityMatchesFilters,
+		common_clear,
+		common_noEntityMatchesFiltersOrSearch,
 		common_ungrouped,
 		common_tableCaption,
 		common_tags,
-		common_deleteSelected,
+		common_delete,
 		common_noCommonTags,
 		common_commonTags,
+		tags_hotkeyEdit,
+		tags_hotkeyRemove,
+		common_shortcutsPausedInSearch,
 		common_item,
 		common_items,
 		common_no,
 		common_yes
 	} from '$lib/paraglide/messages';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
-	import { SearchX, Trash2 } from 'lucide-svelte';
+	import { SearchX } from 'lucide-svelte';
 	import {
 		useTagsQuery,
 		useTagGroupsQuery,
@@ -104,6 +119,20 @@
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import throttle from 'just-throttle';
 	import { isOnVisiblePage, registerEntityList } from '$lib/shared/stores/modal-registry';
+	import { isShiftShortcut, keyLabel, shiftShortcutLabel } from '$lib/shared/utils/shortcuts';
+	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
+	import {
+		isFreeKeydown,
+		isPlainKey,
+		provideListShortcuts,
+		tableSearchFocused
+	} from './controls/listShortcuts';
+	import {
+		assignActionKeys,
+		isDangerAction,
+		matchesActionKey,
+		type KeyedAction
+	} from './controls/actionShortcuts';
 	import type { components } from '$lib/api/schema';
 
 	type PaginationMeta = components['schemas']['PaginationMeta'];
@@ -125,21 +154,11 @@
 		// Server-side pagination (optional)
 		serverPagination = null,
 		onPageChange = null,
-		// Server-side ordering callback (optional)
-		// Called when grouping or sorting changes, allowing parent to update query params
-		onOrderChange = null,
-		// Server-side tag filtering callback (optional)
-		// Called when tag filter selection changes, with array of selected tag IDs
-		onTagFilterChange = null,
-		// Server-side field filter callback (optional)
-		// Called when a `serverFiltered` field's selection changes
-		onFilterChange = null,
-		// Server-side staleness filtering callback (optional)
-		// Called when the "Stale only" toggle changes
-		onStaleFilterChange = null,
-		// Server-side search callback (optional)
-		// Called (debounced) when the search box changes
-		onSearchChange = null,
+		// Server-side query (optional): the request the parent sends its endpoint, in the endpoint's
+		// own param names. Called once the view is restored and on every change after.
+		onQueryChange = null,
+		// Which parts of the view the server applies from that query. Absent: every part.
+		serverQuery = null,
 		// CSV export callback (optional, default behavior)
 		// Called when user clicks export button; parent handles the actual export
 		onCsvExport = null,
@@ -176,28 +195,14 @@
 		// Callback receives both page and pageSize so parent can use in query
 		serverPagination?: PaginationMeta | null;
 		onPageChange?: ((page: number, pageSize: number) => void) | null;
-		// Server-side ordering: called when group/sort changes
-		// Args: (groupBy field key, orderBy field key, direction)
-		onOrderChange?:
-			((groupBy: string | null, orderBy: string | null, direction: 'asc' | 'desc') => void) | null;
-		// Server-side tag filtering: called when tag filter changes
-		// Args: array of tag IDs to filter by
-		onTagFilterChange?: ((tagIds: string[]) => void) | null;
-		// Server-side field filter: called when a field marked `serverFiltered`
-		// changes. Args: (fieldKey, selected values). The field opts in explicitly
-		// rather than this applying to every filter, so a key the parent doesn't
-		// handle keeps its client-side filtering instead of silently doing nothing.
-		onFilterChange?: ((fieldKey: string, values: string[]) => void) | null;
-		// Server-side staleness filtering: called when the "Stale only" toggle
-		// changes. `true` = only stale, `null` = no staleness constraint.
-		// Server-side because these lists are server-paginated — a client-side
-		// filter would only ever filter the page currently loaded.
-		onStaleFilterChange?: ((stale: boolean | null) => void) | null;
-		// Server-side search: called with the current query, debounced.
-		// Server-side for the same reason as the filters above — searching the
-		// loaded page would silently miss every match on another page. Lists
-		// that load everything omit this and keep the client-side search.
-		onSearchChange?: ((query: string) => void) | null;
+		// Server-side query: search, tags, staleness, ordering and `serverFiltered` fields, as the
+		// endpoint takes them. The same params, plus `page` and `selected`, are the list's URL, so a
+		// link and an API call with this query return the same rows. Server-side because the client
+		// would only ever narrow the page it holds. Search is throttled.
+		onQueryChange?: ((query: URLSearchParams) => void) | null;
+		// The parts of the view the server applies. A list held whole that sends only staleness to
+		// its endpoint passes the rest as false.
+		serverQuery?: Partial<ServerQuery> | null;
 		// CSV export: default behavior when user clicks export button
 		onCsvExport?: (() => void | Promise<void>) | null;
 		// Export button click override: if provided, replaces onCsvExport entirely
@@ -218,6 +223,9 @@
 	const tagGroupsQuery = useTagGroupsQuery();
 	let tagGroups = $derived(tagGroupsQuery.data ?? []);
 
+	// Check if using server-side pagination
+	let useServerPagination = $derived(serverPagination !== null && onPageChange !== null);
+
 	/**
 	 * The tab's fields, then one per tag group that applies to the rows, built here so every
 	 * taggable table gets them: hidden until shown, and sorted, filtered and grouped like any other
@@ -231,11 +239,18 @@
 					tags: allTags,
 					entityType,
 					getItemTags,
-					serverPaginated: serverPagination !== null && onPageChange !== null,
+					serverPaginated: useServerPagination,
 					cell: canEditTags ? tagGroupCell : undefined
 				})
 			: [])
 	]);
+
+	/** What the server applies from the query. A list without `onQueryChange` applies everything here. */
+	let server = $derived<ServerQuery>(
+		onQueryChange
+			? { search: true, tags: true, stale: true, order: true, fields: true, ...serverQuery }
+			: CLIENT_QUERY
+	);
 
 	// Bulk tag mutations
 	const bulkAddTagMutation = useBulkAddTagMutation();
@@ -243,6 +258,10 @@
 
 	// Search state
 	let searchQuery = $state('');
+	/** The search as last sent to the parent and the URL; trails `searchQuery` by the throttle. */
+	let sentSearch = $state('');
+	/** Whether the parent has had its first query, sent once the view is restored. */
+	let queryNotified = false;
 
 	// Filter state. The shape lives with the filtering logic that reads it, so
 	// there is one definition of what a filter selection is.
@@ -289,10 +308,6 @@
 		if (state.columnOrder) columnOrder = state.columnOrder;
 		if (state.columnSizing) columnSizing = state.columnSizing;
 
-		// Before the restored filters are replayed to the parent, so a dropped
-		// one is simply never sent.
-		dropHiddenColumns(false);
-
 		if (state.pageSize) {
 			pageSize = state.pageSize;
 			return state.pageSize;
@@ -300,6 +315,58 @@
 
 		return null;
 	}
+
+	/**
+	 * Apply the view a link carried, over what localStorage restored, for each param it carries.
+	 * Only the list on screen takes it: every list tab is mounted, and the link describes one.
+	 */
+	function loadUrlView() {
+		if (!isOnVisiblePage(rootRef)) return;
+
+		const params = takeInitialParams('list');
+		if (params.size === 0) return;
+		linkParams = params;
+		// Plain on purpose: the late-field effect writes it, so tracking it would re-run that effect.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		linkFieldKeys = new Set(fields.filter(optionsReady).map(getFieldKey));
+		if (!hasListParams(params, fields)) return;
+
+		// A link describes the whole view: what it leaves out is at its default, not at whatever this
+		// browser last saved.
+		const view = decodeListParams(params, fields);
+		searchQuery = view.search;
+		filterState = reviveFilterState(view.filterState);
+		staleOnly = view.staleOnly;
+		ordering = { sort: view.sort, group: view.group };
+		currentPage = view.page ?? 1;
+
+		seedFilterDefaults = false;
+	}
+
+	/**
+	 * The link the list opened with, kept for fields that arrive after mount (tag-group columns wait
+	 * on the tag groups), whose filters it applies once they exist.
+	 */
+	let linkParams: URLSearchParams | null = null;
+	let linkFieldKeys = new Set<string>();
+
+	/** Whether a field can read its params: a tag group can't before its tags load. */
+	function optionsReady(field: FieldConfig<T>): boolean {
+		return field.filterOptions === undefined || field.filterOptions.length > 0;
+	}
+
+	$effect(() => {
+		if (!linkParams) return;
+		const late = fields.filter(
+			(field) => !linkFieldKeys.has(getFieldKey(field)) && optionsReady(field)
+		);
+		if (late.length === 0) return;
+		late.forEach((field) => linkFieldKeys.add(getFieldKey(field)));
+		const filters = decodeFilters(linkParams, late);
+		if (Object.keys(filters).length > 0) {
+			filterState = { ...filterState, ...reviveFilterState(filters) };
+		}
+	});
 
 	// Save state to localStorage
 	function saveState() {
@@ -326,9 +393,15 @@
 		}
 	}
 
+	/**
+	 * Whether a field missing from the filters starts at its `filterDefaults`. Not under a link: it
+	 * lists every active filter, so a field it leaves out had none.
+	 */
+	let seedFilterDefaults = true;
+
 	// Seed a filter for any field that lacks one, leaving restored state alone.
 	$effect(() => {
-		const seeded = blankFilterState(fields, true);
+		const seeded = blankFilterState(fields, seedFilterDefaults);
 		for (const [key, filter] of Object.entries(seeded)) {
 			if (!filterState[key]) filterState[key] = filter;
 		}
@@ -337,33 +410,15 @@
 	// Load state on mount and set up auto-save
 	onMount(() => {
 		const restoredPageSize = loadState();
+		loadUrlView();
 
-		// Notify parent of restored state for server-side pagination
-		// This ensures the parent's query uses the restored pageSize
-		if (restoredPageSize && onPageChange) {
-			onPageChange(currentPage, restoredPageSize);
-		}
+		// Before the first query reaches the parent, so a dropped filter is simply never sent.
+		dropHiddenColumns();
+		sentSearch = searchQuery;
 
-		// Notify parent of the ordering in force, restored or default. Always, so
-		// a saved "no grouping" also replaces the default the parent started with.
-		onOrderChange?.(activeGroupField, activeSort.field, activeSort.direction);
-
-		// Notify parent of restored search state
-		if (onSearchChange && searchQuery.trim()) {
-			onSearchChange(searchQuery);
-		}
-
-		// Notify parent of restored tag filter state
-		const tagFilter = filterState['tags'];
-		if (onTagFilterChange && tagFilter && tagFilter.values.size > 0) {
-			onTagFilterChange(Array.from(tagFilter.values));
-		}
-
-		// Notify parent of restored server-side filter state
-		if (onFilterChange) {
-			for (const { key, values } of restoredServerFilters(fields, filterState)) {
-				onFilterChange(key, values);
-			}
+		// The parent's query has to use the restored page and page size.
+		if (onPageChange && (restoredPageSize || currentPage !== 1)) {
+			onPageChange(currentPage, pageSize);
 		}
 
 		// Set up reactive save (debounced)
@@ -395,13 +450,10 @@
 		};
 	});
 
-	// Get unique string values for a field (handles arrays by flattening)
-	function getUniqueValues(field: FieldConfig<T>): string[] {
-		return uniqueValuesOf(items, field);
+	// The values a field's filter offers, ordered by label
+	function getFilterOptions(field: FieldConfig<T>): string[] {
+		return filterOptionsOf(items, field);
 	}
-
-	// Check if using server-side pagination
-	let useServerPagination = $derived(serverPagination !== null && onPageChange !== null);
 
 	// ---- Table columns -------------------------------------------------------
 
@@ -430,7 +482,7 @@
 	let renderedColumnIds = $derived(new Set(renderedColumns.map((c) => c.id)));
 	/** The fields the list filters, sorts and groups by: those with a rendered column. */
 	let columnFields = $derived(renderedFields(fields, renderedColumnIds));
-	let staleAvailable = $derived(onStaleFilterChange !== null);
+	let staleAvailable = $derived(server.stale);
 
 	// Under server pagination only server-orderable fields are offered: the
 	// client holds one page, so sorting or grouping it here would describe that
@@ -453,40 +505,52 @@
 
 	// Apply all filters, sorting, and grouping
 	let processedItems = $derived.by(() => {
-		const serverMode = {
-			tags: onTagFilterChange !== null,
-			fields: onFilterChange !== null
-		};
+		const serverMode = { tags: server.tags, fields: server.fields };
 
 		const result = items.filter((item) => {
 			// Search is skipped when the parent searches server-side — the rows that
 			// arrived are already the matches.
-			if (!onSearchChange && !matchesSearch(item, fields, searchQuery)) return false;
+			if (!server.search && !matchesSearch(item, fields, searchQuery)) return false;
 			return matchesFilters(item, fields, filterState, serverMode, getItemTags);
 		});
 
-		return sortItems(result, fields, activeSort, onOrderChange !== null, useServerPagination);
+		return sortItems(result, fields, activeSort, server.order, useServerPagination);
 	});
 
 	// Per-group totals across every page, when the server supplied them.
 	let serverGroupCounts = $derived(serverPagination?.group_counts ?? null);
 
-	// Group items by selected field
-	let groupedItems = $derived.by(() => {
+	const groupLabels = () => ({
+		ungrouped: common_ungrouped(),
+		yes: common_yes(),
+		no: common_no()
+	});
+
+	// Every loaded row by the selected field. A server-paginated page arrives in the server's group
+	// order, which the cumulative offsets from `serverGroupCounts` are indexed by, so its buckets
+	// keep that order.
+	let allGroups = $derived.by(() => {
 		if (!activeGroupField) {
 			return new SvelteMap([[common_all(), processedItems]]);
 		}
-
-		// A server-paginated page arrives in the server's group order, which the
-		// cumulative offsets from `serverGroupCounts` are indexed by, so its
-		// buckets keep that order.
 		return groupItemsBy(
 			processedItems,
 			fields,
 			activeGroupField,
-			{ ungrouped: common_ungrouped(), yes: common_yes(), no: common_no() },
+			groupLabels(),
 			serverGroupCounts !== null || useServerPagination
 		);
+	});
+
+	/** The rows in the order pages are cut from: group by group while grouped, as a server page is. */
+	let rowsInPageOrder = $derived(
+		activeGroupField ? [...allGroups.values()].flat() : processedItems
+	);
+
+	// The current page's rows by the selected field, in the order `allGroups` put them.
+	let groupedItems = $derived.by(() => {
+		if (!activeGroupField || useServerPagination) return allGroups;
+		return groupItemsBy(paginatedItems, fields, activeGroupField, groupLabels(), true);
 	});
 
 	/**
@@ -525,22 +589,34 @@
 
 	let groupOffsets = $derived(computeGroupOffsets(serverGroupCounts));
 
+	/** Where each group sits among every loaded row, for a list this component paginates. */
+	let clientGroupOffsets = $derived.by(() => {
+		const offsets = new SvelteMap<string, GroupPosition>();
+		let cursor = 0;
+		for (const [name, rows] of allGroups) {
+			offsets.set(name, { start: cursor, count: rows.length });
+			cursor += rows.length;
+		}
+		return offsets;
+	});
+
 	function serverGroupKey(rows: T[]): string {
 		return serverGroupKeyOf(rows, fields, activeGroupField);
 	}
 
 	/**
-	 * How much of a group this page is showing, and how big the group really
-	 * is. Null when the server didn't supply totals — on an unpaginated list
-	 * the rendered count is already the whole group.
+	 * How much of a group this page is showing, and how big the group really is. Null when a
+	 * server-paginated list came without totals, or when the page shows the whole group.
 	 */
-	function groupRange(groupItems: T[]): GroupSlice | null {
-		if (!serverPagination) return null;
+	function groupRange(name: string, groupItems: T[]): GroupSlice | null {
+		if (useServerPagination && serverPagination) {
+			const group = groupOffsets.get(serverGroupKey(groupItems));
+			return group ? groupPageSlice(group, serverPagination.offset, items.length) : null;
+		}
 
-		const group = groupOffsets.get(serverGroupKey(groupItems));
-		if (!group) return null;
-
-		return groupPageSlice(group, serverPagination.offset, items.length);
+		const group = clientGroupOffsets.get(name);
+		const pageOffset = (effectiveCurrentPage - 1) * pageSize;
+		return group ? groupPageSlice(group, pageOffset, paginatedItems.length) : null;
 	}
 
 	/** The groups as the table renders them. */
@@ -551,7 +627,7 @@
 				key: name,
 				name,
 				items: entries ? flattenTreeEntries(entries) : groupItems,
-				range: groupRange(groupItems),
+				range: groupRange(name, groupItems),
 				entries,
 				rootRanges: null
 			};
@@ -587,26 +663,21 @@
 		set staleOnly(next) {
 			staleOnly = next;
 		},
-		get onFilterChange() {
-			return onFilterChange;
-		},
-		get onStaleFilterChange() {
-			return onStaleFilterChange;
-		},
-		resetToFirstPage
+		get serverFields() {
+			return server.fields;
+		}
 	});
 
 	/**
 	 * Clear whatever hidden columns filter, sort or group by. A list only
 	 * narrows and orders by columns it renders, so hiding one takes its state
-	 * with it. `notify` is false while restoring, before anything reached the
-	 * parent; the order and tag effects pick up their own changes.
+	 * with it. The query derived from that state carries the change to the parent.
 	 *
 	 * Only the user's own sort and group are cleared. A default on a hidden
 	 * column is already inert, since the list orders by rendered columns only,
 	 * and it comes back with the column.
 	 */
-	function dropHiddenColumns(notify: boolean) {
+	function dropHiddenColumns() {
 		const next = dropHiddenColumnState(
 			{
 				filterState,
@@ -625,10 +696,6 @@
 			sort: ordering.sort && next.sortState,
 			group: ordering.group === undefined ? undefined : next.groupField
 		};
-
-		if (!notify) return;
-		if (next.staleCleared) onStaleFilterChange?.(null);
-		filters.notifyServerCleared(next.serverKeys);
 	}
 
 	function clearSearch() {
@@ -636,9 +703,8 @@
 	}
 
 	/**
-	 * Everything that can narrow the list, in one action — including the
-	 * server-side ones, which `clearAll` and the search effect notify the
-	 * parent about. This is what the filtered-empty state offers, so a filter
+	 * Everything that can narrow the list, in one action, server-side ones
+	 * included. This is what the filtered-empty state offers, so a filter
 	 * that matches nothing is always reversible from where the user is looking.
 	 */
 	function clearAllNarrowing() {
@@ -700,7 +766,7 @@
 	guardServerPaginatedConfig(() => ({
 		fields,
 		serverPaginated: useServerPagination,
-		server: { tags: onTagFilterChange !== null, fields: onFilterChange !== null }
+		server: { tags: server.tags, fields: server.fields }
 	}));
 	guardTableDefaults(() => ({ fields, defaults, serverPaginated: useServerPagination }));
 
@@ -719,9 +785,11 @@
 	let effectiveCurrentPage = $derived(page.currentPage);
 	let totalPages = $derived(page.totalPages);
 	let totalCount = $derived(page.totalCount);
+	/** The filters and search match nothing, so the table gives way to an empty state with Clear. */
+	let matchesNothing = $derived(totalCount === 0 && (hasActiveFilters || hasActiveSearch));
 
 	let paginatedItems = $derived(
-		pageSlice(processedItems, effectiveCurrentPage, pageSize, useServerPagination)
+		pageSlice(rowsInPageOrder, effectiveCurrentPage, pageSize, useServerPagination)
 	);
 
 	/** Every row in the order the table renders it: the current page, or each group's rows in turn. */
@@ -737,12 +805,57 @@
 		})
 	);
 
-	function setRowSelected(itemId: string, selected: boolean) {
-		if (selected) {
-			selectedIds.add(itemId);
-		} else {
-			selectedIds.delete(itemId);
+	// The view as URL params, so the address bar is a link to it. Written only while this list is
+	// the one on screen; switching tabs puts the next list's view there instead.
+	// The URL is the view's params plus the page, which the endpoint doesn't take: a page is an
+	// offset only with the viewer's own page size. The selection stays out of the URL.
+	let urlView = $derived.by(() => {
+		// A fresh copy built and returned here; nothing mutates it later.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const params = new URLSearchParams(viewParams.url);
+		if (effectiveCurrentPage > 1) params.set(PAGE_PARAM, String(effectiveCurrentPage));
+		return params;
+	});
+
+	$effect(() =>
+		registerUrlOwner({
+			scope: 'list',
+			isActive: () => isOnVisiblePage(rootRef),
+			params: () => urlView,
+			keys: () => listParamKeys(fields)
+		})
+	);
+
+	// Debounced like the localStorage save: Safari throttles a burst of history writes.
+	let urlSyncTimeout: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		void urlView;
+		clearTimeout(urlSyncTimeout);
+		urlSyncTimeout = setTimeout(() => {
+			if (isOnVisiblePage(rootRef)) syncUrl();
+		}, 100);
+		return () => clearTimeout(urlSyncTimeout);
+	});
+
+	/** The row the last plain click toggled: one end of a Shift+click block. */
+	let selectionAnchor: string | null = null;
+
+	/**
+	 * A click on a row or its checkbox. A plain click toggles the row and makes it the anchor; a
+	 * Shift+click selects every row from the anchor to it, in the order on screen. With no anchor
+	 * on screen (paged away, filtered out) a Shift+click toggles like a plain one.
+	 */
+	function clickRow(itemId: string, extend: boolean) {
+		if (extend && selectionAnchor) {
+			const block = rangeSelect(orderedItems, selectionAnchor, itemId, getItemId);
+			if (block.length > 0) {
+				block.forEach((id) => selectedIds.add(id));
+				return;
+			}
 		}
+		if (selectedIds.has(itemId)) selectedIds.delete(itemId);
+		else selectedIds.add(itemId);
+		selectionAnchor = itemId;
 	}
 
 	/** Select-all scoped to one rendered block — a group's rows, or the page. */
@@ -771,7 +884,7 @@
 
 	function toggleColumn(id: string) {
 		columnVisibility = { ...columnState.visibility, [id]: columnState.visibility[id] === false };
-		dropHiddenColumns(true);
+		dropHiddenColumns();
 	}
 
 	function reorderColumns(order: string[]) {
@@ -786,7 +899,7 @@
 		columnVisibility = {};
 		columnOrder = [];
 		columnSizing = {};
-		dropHiddenColumns(true);
+		dropHiddenColumns();
 	}
 
 	// Reset to page 1 when filters/search change and current page would be out of bounds
@@ -796,59 +909,46 @@
 		}
 	});
 
-	// Each of the three trackers below skips its first run, which only restores
-	// saved state: firing there would reset the restored page to 1 on every mount.
-	const orderTracker = createChangeTracker<[string | null, string | null, 'asc' | 'desc']>((a, b) =>
-		sameOrder(a, b)
-	);
-
-	// Notify parent of ordering changes and reset pagination
-	$effect(() => {
-		const ordering: [string | null, string | null, 'asc' | 'desc'] = [
-			activeGroupField,
-			activeSort.field,
-			activeSort.direction
-		];
-
-		if (orderTracker.changed(ordering)) {
-			resetToFirstPage();
-			onOrderChange?.(...ordering);
-		}
-	});
-
-	// Trailing throttle so a burst of keystrokes costs one request and the last
-	// one is never dropped. Built once — rebuilding it per keystroke would
-	// defeat the debounce entirely.
-	const notifySearchChange = throttle(
+	// The view as the parent's endpoint and the URL take it, with the search as last sent: the box
+	// reaches both on a trailing throttle, so a burst of keystrokes costs one request and the last
+	// one is never dropped. Built once; rebuilding it per keystroke would defeat it.
+	const sendSearch = throttle(
 		(query: string) => {
-			onSearchChange?.(query);
-			// Page 3 of the old result set is meaningless against the new one.
-			resetToFirstPage();
+			sentSearch = query;
 		},
 		SEARCH_THROTTLE_MS,
 		{ leading: false, trailing: true }
 	);
 
 	const searchTracker = createChangeTracker<string>();
-
-	// Notify parent of search changes. `notifySearchChange` resets the page
-	// itself, on the throttle's trailing edge rather than per keystroke.
 	$effect(() => {
-		if (searchTracker.changed(searchQuery)) {
-			notifySearchChange(searchQuery);
-		}
+		if (searchTracker.changed(searchQuery)) sendSearch(searchQuery);
 	});
 
-	const tagFilterTracker = createChangeTracker<string[]>(sameOrder);
+	let viewParams = $derived(
+		listParams(
+			{
+				sort: activeSort,
+				group: activeGroupField,
+				filterState,
+				staleOnly,
+				search: sentSearch
+			},
+			fields,
+			defaults,
+			server
+		)
+	);
 
-	// Notify parent of tag filter changes
+	// The first run sends the restored view and keeps its page. After that, any change to the view
+	// starts again at page 1: page 3 of the old result set is not page 3 of the new one.
+	const viewTracker = createChangeTracker<string>();
 	$effect(() => {
-		const tagFilter = filterState['tags'];
-		const tagIds = tagFilter ? Array.from(tagFilter.values).sort() : [];
-
-		if (tagFilterTracker.changed(tagIds)) {
-			resetToFirstPage();
-			onTagFilterChange?.(tagIds);
+		const changed = viewTracker.changed(viewParams.url.toString());
+		if (changed) resetToFirstPage();
+		if (changed || !queryNotified) {
+			queryNotified = true;
+			onQueryChange?.(viewParams.request);
 		}
 	});
 
@@ -873,17 +973,243 @@
 		if (!sentinelRef) return;
 		return observeStuck(sentinelRef, (stuck) => (isStuck = stuck));
 	});
+
+	// Leaving the list for another tab clears its selection, so coming back doesn't hold rows the
+	// user stopped working with. A hidden tab's wrapper clips the list to nothing, which the
+	// observer reports as an intersection ratio of 0; the tiny threshold makes that drop fire.
+	$effect(() => {
+		if (!rootRef) return;
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.intersectionRatio === 0 && selectedIds.size > 0) {
+					selectedIds.clear();
+					selectionAnchor = null;
+				}
+			},
+			{ root: rootRef.closest('main'), threshold: [0, 0.000001] }
+		);
+		observer.observe(rootRef);
+		return () => observer.disconnect();
+	});
+
+	// The bulk-tag island is fixed to the bottom of the viewport, and centred over this list
+	// rather than the window, so it tracks the list's horizontal extent (sidebar collapse, resize).
+	let rootRef: HTMLDivElement | null = $state(null);
+	let islandFrame = $state({ left: 0, width: 0 });
+
+	$effect(() => {
+		if (!rootRef) return;
+		const root = rootRef;
+		const observer = new ResizeObserver(() => {
+			const rect = root.getBoundingClientRect();
+			islandFrame = { left: rect.left, width: rect.width };
+		});
+		observer.observe(root);
+		return () => observer.disconnect();
+	});
+
+	// T focuses the island's tag input while rows are selected. From there Shift+Tab reaches the
+	// held tags, and Delete or Backspace removes the focused one.
+	const TAG_SHORTCUT = 'T';
+	/** The table search has focus, so the shortcuts below are off; their hints dim to say so. */
+	let searchFocused = $state(false);
+	// Shared with the rest of the page; cleared if the list unmounts with its search focused.
+	$effect(() => {
+		tableSearchFocused.set(searchFocused);
+		return () => {
+			if (searchFocused) tableSearchFocused.set(false);
+		};
+	});
+	/** Focus is in the tag island (T put it there, or a click): its tags can be removed from the keyboard. */
+	let editingTags = $state(false);
+	let bulkTagPicker: { focusInput: () => void } | undefined = $state();
+	let showTagIsland = $derived(hasBulkTagging && selectedIds.size > 0);
+	// The island unmounts without a focusout when the selection clears.
+	$effect(() => {
+		if (!showTagIsland) editingTags = false;
+	});
+
+	// List shortcuts, each shown on the control it triggers. Single keys and Shift+letter, so they
+	// stand down while typing in a field, when a modal is over the list, or when the list isn't
+	// the tab on screen. Esc clears the search from anywhere on the list; ControlsBar handles it
+	// inside the search box.
+	const CLEAR_FILTERS_KEY = 'F';
+	const CLEAR_GROUPING_KEY = 'G';
+	// Clear in the nothing-matches state: filters and search together.
+	const CLEAR_ALL_KEY = 'X';
+	// Left and Right page. Not while a wide table's scroll region has keyboard focus, where the
+	// arrows scroll it sideways; a click's focus there pages, since the mouse scrolls it anyway.
+	const PREV_PAGE_KEY = 'ArrowLeft';
+	const NEXT_PAGE_KEY = 'ArrowRight';
+
+	function arrowsScrollTable(event: KeyboardEvent): boolean {
+		const region = (event.target as Element | null)?.closest?.('.entity-table');
+		return (
+			region instanceof HTMLElement &&
+			region.scrollWidth > region.clientWidth &&
+			!region.hasAttribute('data-pointer-focus')
+		);
+	}
+	const clearShortcuts = {
+		filters: shiftShortcutLabel(CLEAR_FILTERS_KEY),
+		grouping: shiftShortcutLabel(CLEAR_GROUPING_KEY),
+		selection: keyLabel('Escape')
+	};
+
+	let canBulkDelete = $derived(
+		Boolean(allowBulkDelete && onBulkDelete) && selectedIds.size > 0 && selectionDeletable
+	);
+
+	// With exactly one row selected, its own actions (Edit, Rescan, ...) also show in the toolbar,
+	// each with a key. Its delete action is left out while Delete Selected already covers it.
+	let singleRowActions = $derived.by((): KeyedAction[] => {
+		if (!getActions || selectedIds.size !== 1) return [];
+		const item = items.find((i) => selectedIds.has(getItemId(i)));
+		if (!item) return [];
+		const actions = getActions(item).filter((a) => !(canBulkDelete && isDangerAction(a)));
+		return assignActionKeys(actions);
+	});
+
+	// Toolbar controls (CreateButton) take their own keys through this.
+	provideListShortcuts({
+		isActive: () => isOnVisiblePage(rootRef),
+		isPaused: () => searchFocused
+	});
+
+	function singleRowActionFor(event: KeyboardEvent): KeyedAction | undefined {
+		return singleRowActions.find(({ key }) => key !== null && matchesActionKey(event, key));
+	}
+
+	function handleListShortcut(event: KeyboardEvent) {
+		if (!isFreeKeydown(event) || !isOnVisiblePage(rootRef)) return;
+		const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+		if (
+			showSelection &&
+			(event.metaKey || event.ctrlKey) &&
+			!event.altKey &&
+			!event.shiftKey &&
+			event.key.toLowerCase() === 'a'
+		) {
+			// Cmd/Ctrl+A selects every row on the page instead of the page's text.
+			event.preventDefault();
+			visibleIds(orderedItems, getItemId).forEach((id) => selectedIds.add(id));
+		} else if (singleRowActionFor(event)) {
+			const keyed = singleRowActionFor(event)!;
+			event.preventDefault();
+			if (!keyed.action.disabled) keyed.action.onClick();
+		} else if (showTagIsland && isPlainKey(event, TAG_SHORTCUT)) {
+			event.preventDefault();
+			bulkTagPicker?.focusInput();
+		} else if (showSelection && selectedIds.size > 0 && plain && event.key === 'Escape') {
+			event.preventDefault();
+			selectNone();
+		} else if (
+			canBulkDelete &&
+			plain &&
+			!event.shiftKey &&
+			(event.key === 'Delete' || event.key === 'Backspace')
+		) {
+			// The page's delete asks for confirmation, as the button does.
+			event.preventDefault();
+			handleBulkDelete();
+		} else if (matchesNothing && isPlainKey(event, CLEAR_ALL_KEY)) {
+			event.preventDefault();
+			clearAllNarrowing();
+		} else if (plain && !event.shiftKey && event.key === 'Escape' && hasActiveSearch) {
+			// Esc clears the search from anywhere on the list, not only from the search box. A
+			// selection, when there is one, clears first (above).
+			event.preventDefault();
+			clearSearch();
+		} else if (activeFilterCount > 0 && isShiftShortcut(event, CLEAR_FILTERS_KEY)) {
+			event.preventDefault();
+			filters.clearAll();
+		} else if (hasActiveGrouping && isShiftShortcut(event, CLEAR_GROUPING_KEY)) {
+			event.preventDefault();
+			ordering = { ...ordering, group: null };
+		} else if (
+			plain &&
+			!event.shiftKey &&
+			event.key === PREV_PAGE_KEY &&
+			page.canGoPrev &&
+			!arrowsScrollTable(event)
+		) {
+			event.preventDefault();
+			goToPage(effectiveCurrentPage - 1);
+		} else if (
+			plain &&
+			!event.shiftKey &&
+			event.key === NEXT_PAGE_KEY &&
+			page.canGoNext &&
+			!arrowsScrollTable(event)
+		) {
+			event.preventDefault();
+			goToPage(effectiveCurrentPage + 1);
+		}
+	}
+
+	/**
+	 * A click on anything that looks like empty space clears the selection, including the
+	 * toolbar's and the table header's background. Clicks that keep it: a row
+	 * (`data-keeps-selection`), the tag island; any control (a link, button or field, including a
+	 * dropdown portalled out of the page); anything while a modal is open; and anything outside
+	 * the page's scroll area, such as the sidebar.
+	 */
+	function handleClickOutside(event: MouseEvent) {
+		if (selectedIds.size === 0 || !rootRef || !isOnVisiblePage(rootRef)) return;
+		const target = event.target as Element | null;
+		if (!target || !rootRef.closest('main')?.contains(target)) return;
+		if (
+			target.closest(
+				'[data-keeps-selection], a, button, input, select, textarea, label, [role="button"], [role="dialog"]'
+			) ||
+			document.querySelector('[aria-modal="true"]')
+		) {
+			return;
+		}
+		selectNone();
+	}
 </script>
 
-<!-- With rows selected, Delete leads the toolbar's buttons. -->
-{#snippet bulkDelete()}
-	<button onclick={handleBulkDelete} class="btn-danger toolbar-control flex items-center gap-2">
-		<Trash2 class="h-4 w-4" />
-		{common_deleteSelected()}
-	</button>
+<svelte:window onkeydown={handleListShortcut} onclick={handleClickOutside} />
+
+<!-- With rows selected: the one selected row's own actions, then Delete for the selection. -->
+{#snippet selectionToolbar()}
+	{#each singleRowActions as { action, key } (action.label)}
+		{@const tip =
+			typeof action.tooltip === 'function' ? action.tooltip(!!action.disabled) : action.tooltip}
+		<button
+			onclick={action.onClick}
+			disabled={action.disabled}
+			title={tip ?? undefined}
+			class="{isDangerAction(action)
+				? 'btn-danger'
+				: 'btn-secondary'} toolbar-control flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+		>
+			{action.label}
+			{#if key}
+				<span
+					class="inline-flex transition-opacity {searchFocused ? 'opacity-40' : ''}"
+					title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+				>
+					<KbdKey key={keyLabel(key)} size="xs" tone="inherit" />
+				</span>
+			{/if}
+		</button>
+	{/each}
+	{#if canBulkDelete}
+		<button onclick={handleBulkDelete} class="btn-danger toolbar-control flex items-center gap-2">
+			{common_delete()}
+			<span
+				class="inline-flex transition-opacity {searchFocused ? 'opacity-40' : ''}"
+				title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+			>
+				<KbdKey key={keyLabel('Delete')} size="xs" tone="inherit" />
+			</span>
+		</button>
+	{/if}
 {/snippet}
 
-<div class="space-y-4">
+<div bind:this={rootRef} class="space-y-4">
 	<!-- Sentinel for sticky detection -->
 	<div bind:this={sentinelRef} class="h-0 w-full"></div>
 
@@ -896,59 +1222,57 @@
 	>
 		<ControlsBar
 			bind:searchQuery
+			onSearchFocusChange={(focused) => (searchFocused = focused)}
 			onClearSearch={clearSearch}
-			onExport={onExportClick ?? onCsvExport}
 			{entityLabel}
 			actions={toolbarActions}
-			selectionActions={allowBulkDelete &&
-			onBulkDelete &&
-			selectedIds.size > 0 &&
-			selectionDeletable
-				? bulkDelete
-				: undefined}
+			selectionActions={canBulkDelete || singleRowActions.length > 0 ? selectionToolbar : undefined}
 			{title}
 			{subtitle}
-		>
-			{#snippet columnMenu()}
-				<ColumnVisibilityMenu
-					columns={allColumns}
-					order={columnState.order}
-					visibility={columnState.visibility}
-					onToggle={toggleColumn}
-					onReorder={reorderColumns}
-					onReset={resetColumns}
-				/>
-			{/snippet}
-		</ControlsBar>
+		/>
 		<!-- Count, filter and grouping clears, and paging stay in view with the toolbar. -->
 		<div class="mt-4">
 			<PaginationBar
 				{totalCount}
 				{totalPages}
-				currentPage={effectiveCurrentPage}
 				{pageSize}
 				showingStart={page.showingStart}
 				showingEnd={page.showingEnd}
 				canGoPrev={page.canGoPrev}
 				canGoNext={page.canGoNext}
-				groupCount={hasActiveGrouping ? groupedItems.size : null}
+				groupCount={hasActiveGrouping ? allGroups.size : null}
 				filterCount={activeFilterCount}
 				onClearFilters={filters.clearAll}
 				onClearGrouping={() => (ordering = { ...ordering, group: null })}
 				selectedCount={showSelection ? selectedIds.size : 0}
 				onClearSelection={selectNone}
+				{clearShortcuts}
+				shortcutsPaused={searchFocused}
 				{useServerPagination}
 				processedCount={processedItems.length}
 				itemCount={items.length}
 				onPrevPage={() => page.canGoPrev && goToPage(effectiveCurrentPage - 1)}
 				onNextPage={() => page.canGoNext && goToPage(effectiveCurrentPage + 1)}
 				onPageSizeChange={handlePageSizeChange}
-			/>
+				onExport={onExportClick ?? onCsvExport}
+				pageShortcuts={{ prev: '←', next: '→' }}
+			>
+				{#snippet columnMenu()}
+					<ColumnVisibilityMenu
+						columns={allColumns}
+						order={columnState.order}
+						visibility={columnState.visibility}
+						onToggle={toggleColumn}
+						onReorder={reorderColumns}
+						onReset={resetColumns}
+					/>
+				{/snippet}
+			</PaginationBar>
 		</div>
 	</div>
 
 	<!-- Content -->
-	{#if totalCount === 0 && (hasActiveFilters || hasActiveSearch)}
+	{#if matchesNothing}
 		<!--
 			A filter that matches nothing is not an empty inventory, and must not be
 			reported as one. It also has to stay reversible from here: a tab that swaps
@@ -961,9 +1285,17 @@
 		-->
 		<EmptyState
 			IconComponent={SearchX}
-			title={common_noEntityMatchesFilters({ entity: entityLabel ?? common_items() })}
+			title={common_noEntityMatchesFiltersOrSearch({ entity: entityLabel ?? common_items() })}
 		>
-			<button onclick={clearAllNarrowing} class="btn-secondary">{common_clearAll()}</button>
+			<button onclick={clearAllNarrowing} class="btn-secondary">
+				{common_clear()}
+				<KbdKey
+					key={CLEAR_ALL_KEY}
+					size="xs"
+					tone="inherit"
+					class="ml-1.5 transition-opacity {searchFocused ? 'opacity-40' : ''}"
+				/>
+			</button>
 		</EmptyState>
 	{:else}
 		<!--
@@ -981,17 +1313,28 @@
 	<!-- Bulk tagging floats at the bottom of the viewport, over the table, so a long tag list never
 	     crowds the toolbar. A heavier shadow and an edge ring lift it off the rows; in dark mode an
 	     opaque surface replaces the card's translucent one, which let the rows show through.
-	     Sticky rather than fixed: a list page on a hidden tab sits in an overflow-hidden wrapper,
-	     which clips a sticky card but not a fixed one. -->
-	{#if hasBulkTagging && selectedIds.size > 0}
-		<div class="pointer-events-none sticky bottom-6 z-20 flex justify-center">
+	     Fixed rather than sticky: sticky only pins once the table outgrows the viewport, so a short
+	     table left it under the last row. A hidden tab's wrapper sets `contain: paint`, which
+	     clips a fixed descendant. -->
+	{#if showTagIsland}
+		<div
+			class="pointer-events-none fixed bottom-6 z-20 flex justify-center"
+			style:left="{islandFrame.left}px"
+			style:width="{islandFrame.width}px"
+		>
 			<div
+				data-keeps-selection
+				onfocusin={() => (editingTags = true)}
+				onfocusout={(e) => {
+					if (!e.currentTarget.contains(e.relatedTarget as Node | null)) editingTags = false;
+				}}
 				class="card card-static pointer-events-auto flex max-w-full items-center gap-2 !px-4 !py-2 !shadow-[0_10px_40px_rgba(0,0,0,0.25)] ring-1 ring-black/5 dark:!border-gray-600 dark:!bg-gray-800 dark:!shadow-[0_10px_40px_rgba(0,0,0,0.7)] dark:ring-white/10"
 			>
 				<span class="text-secondary whitespace-nowrap text-sm"
 					>{selectedIds.size > 1 ? common_commonTags() : common_tags()}</span
 				>
 				<TagPickerInline
+					bind:this={bulkTagPicker}
 					selectedTagIds={commonTags}
 					entityType={entityType ?? undefined}
 					onAdd={handleBulkTagAdd}
@@ -1000,6 +1343,22 @@
 				{#if commonTags.length === 0 && selectedIds.size > 1}
 					<span class="text-tertiary whitespace-nowrap text-xs">{common_noCommonTags()}</span>
 				{/if}
+				<span
+					class="text-tertiary ml-2 flex items-center gap-1.5 whitespace-nowrap border-l border-[var(--color-border)] pl-3 text-xs"
+				>
+					<span
+						class="flex items-center gap-1.5 transition-opacity {searchFocused ? 'opacity-40' : ''}"
+						title={searchFocused ? common_shortcutsPausedInSearch() : undefined}
+					>
+						<KbdKey key={TAG_SHORTCUT} size="sm" />
+						{tags_hotkeyEdit()}
+					</span>
+					{#if editingTags && commonTags.length > 0}
+						<KbdKey key="{keyLabel('Shift')} Tab" size="sm" class="ml-2" />
+						<KbdKey key={keyLabel('Delete')} size="sm" />
+						{tags_hotkeyRemove()}
+					{/if}
+				</span>
 			</div>
 		</div>
 	{/if}
@@ -1049,7 +1408,7 @@
 		{getActions}
 		caption={caption ?? tableCaptionText}
 		onToggleSort={toggleSort}
-		onToggleRow={setRowSelected}
+		onClickRow={clickRow}
 		onToggleAll={() => toggleAllIn(flat)}
 		{headerControl}
 	/>
@@ -1066,7 +1425,7 @@
 			{activeGroupField}
 			{allTags}
 			{tagGroups}
-			{getUniqueValues}
+			{getFilterOptions}
 			{filters}
 			onToggleGroup={toggleGroup}
 		/>

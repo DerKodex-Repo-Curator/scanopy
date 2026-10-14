@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { siteColumns } from './SitesTab.columns';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
@@ -9,7 +10,7 @@
 	import type { FieldConfig } from '$lib/shared/components/data/types';
 	import type { CardAction } from '$lib/shared/components/data/types';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
-	import { Plus, Trash2, Edit } from 'lucide-svelte';
+	import { Trash2, Edit } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 	import { useOrganizationQuery } from '$lib/features/organizations/queries';
@@ -226,9 +227,7 @@
 				{#if isNearSiteLimit}
 					<UpgradeButton feature="sites" surface="sites_tab" gate_type="limit_hit" />
 				{/if}
-				<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateSite}
-					><Plus class="h-5 w-5" />{common_create()}</button
-				>
+				<CreateButton onclick={handleCreateSite} />
 			{/if}
 		{/if}
 	</div>

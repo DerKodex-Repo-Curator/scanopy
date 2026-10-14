@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '$lib/shared/components/data/controls/CreateButton.svelte';
 	import { formatLongDate } from '$lib/shared/utils/formatting';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
@@ -15,7 +16,7 @@
 	import type { TableDefaults } from '$lib/shared/components/data/types';
 	import { isUserManagedSubnet, useSubnetsQuery } from '$lib/features/subnets/queries';
 	import type { Subnet } from '$lib/features/subnets/types/base';
-	import { Plus, Trash2, Edit, ArrowBigUp, RefreshCw } from 'lucide-svelte';
+	import { Trash2, Edit, ArrowBigUp, RefreshCw } from 'lucide-svelte';
 	import { useTagsQuery } from '$lib/features/tags/queries';
 	import {
 		useDaemonsQuery,
@@ -285,6 +286,7 @@
 			daemonHosts: () => daemonHosts,
 			maintainers: () => maintainers,
 			interfacedSubnets,
+			subnets: () => subnetsData,
 			osCell: () => osCell
 		})
 	);
@@ -302,9 +304,7 @@
 <!-- The page's own actions, last in the table toolbar beside the filter and columns. -->
 {#snippet toolbarActions()}
 	{#if !isReadOnly}
-		<button class="btn-primary toolbar-control flex items-center" onclick={handleCreateDaemon}
-			><Plus class="h-5 w-5" />{common_create()}</button
-		>
+		<CreateButton onclick={handleCreateDaemon} />
 	{/if}
 {/snippet}
 

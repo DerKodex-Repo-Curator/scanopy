@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { X } from 'lucide-svelte';
 	import { createColorHelper, type Color } from '$lib/shared/utils/styling';
-	import { common_unknown } from '$lib/paraglide/messages';
+	import { common_remove, common_unknown } from '$lib/paraglide/messages';
 	import type { IconComponent } from '$lib/shared/utils/types';
 	import { tooltip } from '$lib/shared/actions/tooltip';
 
@@ -98,10 +98,19 @@
 			<span class="flex-shrink-0 {textColor}">{badge}</span>
 		{/if}
 		{#if removable && onRemove}
+			<!-- Tab reaches it, and Delete or Backspace removes the tag like a click. -->
 			<button
 				type="button"
+				data-tag-remove
+				aria-label={common_remove()}
 				onclick={onRemove}
-				class="rounded-full p-0.5 transition-colors hover:bg-white/20"
+				onkeydown={(e) => {
+					if (e.key === 'Delete' || e.key === 'Backspace') {
+						e.preventDefault();
+						onRemove();
+					}
+				}}
+				class="rounded-full p-0.5 transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
 			>
 				<X class="h-3 w-3" />
 			</button>

@@ -1,21 +1,14 @@
 use super::api::TopologyData;
 use super::edges::{Edge, EdgeType};
 use super::nodes::{ElementEntityType, Node, NodeType};
+use crate::server::hosts::r#impl::name_ladder::UNNAMED_HOST;
 use std::collections::HashMap;
 use std::fmt::Write;
 use uuid::Uuid;
 
 /// A host the export could not resolve at all — a node pointing at an id the bundle doesn't carry.
+/// Distinct from [`UNNAMED_HOST`], a host that is there and has never been given a name.
 const UNKNOWN_HOST: &str = "Unknown Host";
-
-/// A host the export resolved, that has nothing on any rung of the title ladder.
-///
-/// Distinct from [`UNKNOWN_HOST`]: one means the export lost the host, the other means the host is
-/// there and has never been given a name. Matches the `hosts_unnamedHost` string the UI renders for
-/// the same state — an export and the screen it was taken from should not use different words.
-/// Literal rather than translated because these artifacts (Mermaid, Confluence markup) are emitted
-/// server-side, where the requester's locale isn't in scope.
-const UNNAMED_HOST: &str = "Unnamed host";
 
 fn short_id(id: &Uuid) -> String {
     id.to_string().replace('-', "")[..8].to_string()

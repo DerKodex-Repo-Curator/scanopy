@@ -142,13 +142,17 @@ async fn run_daemon<F: std::future::Future<Output = ()>>(
     let config = AppConfig::load(run_args)?;
 
     // Initialize tracing with stdout + optional file appender
-    let log_path = config.resolve_log_path();
+    let mut log_path = config.resolve_log_path();
     let env_filter = tracing_subscriber::EnvFilter::new(format!(
         "scanopy={lvl},daemon={lvl},events={lvl},pnet_datalink={lvl}",
         lvl = config.log_level
     ));
 
-    if let Some(ref path) = log_path {
+    // A log file the daemon can't create falls back to stdout instead of panicking: in a
+    // container with `restart: unless-stopped` the panic became a restart loop that never
+    // reached the server.
+    let mut log_file_error = None;
+    let file_appender = log_path.as_ref().and_then(|path| {
         // Create parent directory if it doesn't exist
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -161,31 +165,37 @@ async fn run_daemon<F: std::future::Future<Output = ()>>(
         // Written synchronously, not through `tracing_appender::non_blocking`: its queue is only
         // flushed when its guard drops, which never happens on a crash, an abort or
         // `process::exit`, so the lines just before the process ended were the ones lost.
-        let file_appender = tracing_appender::rolling::never(log_dir, log_filename);
+        tracing_appender::rolling::Builder::new()
+            .rotation(tracing_appender::rolling::Rotation::NEVER)
+            .filename_prefix(log_filename.to_string_lossy())
+            .build(log_dir)
+            .map_err(|e| log_file_error = Some((path.clone(), e)))
+            .ok()
+    });
 
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .fmt_fields(scanopy::server::logging::format::LabelFields)
-                    .with_ansi(scanopy::server::logging::format::supports_ansi()),
-            )
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .fmt_fields(scanopy::server::logging::format::LabelFields)
-                    .with_writer(file_appender)
-                    .with_ansi(false),
-            )
-            .init();
-    } else {
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .fmt_fields(scanopy::server::logging::format::LabelFields)
-                    .with_ansi(scanopy::server::logging::format::supports_ansi()),
-            )
-            .init();
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .fmt_fields(scanopy::server::logging::format::LabelFields)
+                .with_ansi(scanopy::server::logging::format::supports_ansi()),
+        )
+        .with(file_appender.map(|appender| {
+            tracing_subscriber::fmt::layer()
+                .fmt_fields(scanopy::server::logging::format::LabelFields)
+                .with_writer(appender)
+                .with_ansi(false)
+        }))
+        .init();
+
+    if let Some((path, e)) = log_file_error {
+        tracing::warn!(
+            "Can't write log file {}: {}. Logging to stdout only. Make the folder writable by \
+             the daemon, or set --log-file / SCANOPY_LOG_FILE to a writable path.",
+            path.display(),
+            e
+        );
+        log_path = None;
     }
 
     // From here on, a panic or a native fault leaves "Daemon crashed: ..." in the log.

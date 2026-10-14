@@ -1,5 +1,7 @@
 //! Login, logout, and current-user session handlers.
 use super::*;
+use crate::server::auth::terms_gate;
+use crate::server::billing::types::base::BillingPlan;
 use crate::server::openapi::tags as api_tags;
 use crate::server::shared::types::api::ApiJson;
 
@@ -38,7 +40,7 @@ pub(crate) async fn login(
         .await?;
 
     // Check if user is trying to log into demo account on non-demo and visa versa
-    {
+    let user = {
         let plan = state
             .services
             .organization_service
@@ -55,7 +57,8 @@ pub(crate) async fn login(
                 "You can only log in to the demo account on this instance.",
             ));
         }
-    }
+        with_terms_gate(&state, user, Some(&plan))
+    };
 
     // Cycle session ID to prevent session fixation attacks
     session
@@ -120,6 +123,32 @@ pub(crate) async fn get_current_user(
     State(state): State<Arc<AppState>>,
     session: Session,
 ) -> ApiResult<Json<ApiResponse<User>>> {
+    let user = session_user(&state, &session).await?;
+    let user = with_org_terms_gate(&state, user).await?;
+    Ok(Json(ApiResponse::success(user)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/accept-terms",
+    tags = [api_tags::AUTH, api_tags::INTERNAL],
+    responses(
+        (status = 200, description = "Terms accepted", body = ApiResponse<User>),
+        (status = 401, description = "Not authenticated", body = ApiErrorResponse),
+    )
+)]
+pub(crate) async fn accept_terms(
+    State(state): State<Arc<AppState>>,
+    session: Session,
+) -> ApiResult<Json<ApiResponse<User>>> {
+    let user = session_user(&state, &session).await?;
+    let user = state.services.user_service.accept_terms(user).await?;
+    let user = with_org_terms_gate(&state, user).await?;
+    Ok(Json(ApiResponse::success(user)))
+}
+
+/// The user the session belongs to.
+async fn session_user(state: &AppState, session: &Session) -> ApiResult<User> {
     let user_id: Uuid = session
         .get("user_id")
         .await
@@ -149,5 +178,24 @@ pub(crate) async fn get_current_user(
         return Err(ApiError::not_authenticated());
     }
 
-    Ok(Json(ApiResponse::success(user)))
+    Ok(user)
+}
+
+/// `user` as sent to themselves, with `terms_acceptance_required` set for an
+/// org on `plan`.
+fn with_terms_gate(state: &AppState, mut user: User, plan: Option<&BillingPlan>) -> User {
+    user.base.terms_acceptance_required =
+        terms_gate::acceptance_required(&state.config, plan, user.base.terms_accepted_at);
+    user
+}
+
+/// [`with_terms_gate`], loading the user's org for its plan.
+async fn with_org_terms_gate(state: &AppState, user: User) -> ApiResult<User> {
+    let plan = state
+        .services
+        .organization_service
+        .get_by_id(&user.base.organization_id)
+        .await?
+        .and_then(|o| o.base.plan);
+    Ok(with_terms_gate(state, user, plan.as_ref()))
 }

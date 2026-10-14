@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { SvelteURL } from 'svelte/reactivity';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import Toast from '$lib/shared/components/feedback/Toast.svelte';
 	import AppBanners from '$lib/shared/components/feedback/AppBanners.svelte';
@@ -10,17 +9,14 @@
 	import { discoverySSEManager } from '$lib/features/discovery/queries';
 	import { useCurrentUserQuery } from '$lib/features/auth/queries';
 
-	import {
-		topologySSEManager,
-		selectedTopologyId,
-		activeView
-	} from '$lib/features/topology/queries';
-	import { get } from 'svelte/store';
+	import { topologySSEManager } from '$lib/features/topology/queries';
+	import { attachUrlState, setActiveTab } from '$lib/shared/stores/url-state';
 	import { useDaemonsQuery } from '$lib/features/daemons/queries';
 	import { useSitesQuery } from '$lib/features/sites/queries';
 	import BillingPlanModal from '$lib/features/billing/BillingPlanModal.svelte';
 	import DaemonPromptModal from '$lib/features/daemons/components/DaemonPromptModal.svelte';
 	import ReleaseNotesModal from '$lib/features/release-notes/ReleaseNotesModal.svelte';
+	import TermsAcceptanceModal from '$lib/features/auth/components/TermsAcceptanceModal.svelte';
 	import {
 		useUnseenReleaseNotesQuery,
 		useMarkReleaseNotesSeenMutation
@@ -49,11 +45,16 @@
 
 	// Read hash immediately during script initialization, before onMount
 	const initialHash = typeof window !== 'undefined' ? window.location.hash.substring(1) : '';
+	// Before any tab mounts, so each hydrates from the params this page loaded with.
+	const detachUrlState = typeof window !== 'undefined' ? attachUrlState() : null;
 
 	// TanStack Query for current user
 	const currentUserQuery = useCurrentUserQuery();
 	let isAuthenticated = $derived(currentUserQuery.data != null);
 	let isCheckingAuth = $derived(currentUserQuery.isPending);
+	// The server refuses this user's main-app requests until they accept the
+	// current terms, so the app stays unmounted behind the acceptance screen.
+	let termsGated = $derived(currentUserQuery.data?.terms_acceptance_required === true);
 
 	// Billing modal: show when billing is enabled but user has no active plan
 	const configQuery = useConfigQuery();
@@ -85,7 +86,7 @@
 	});
 	// Main-app data (SSE streams, daemons) waits until the lock state is known.
 	let mainAppAvailable = $derived(
-		configQuery.data != null && organization != null && !isSelfHostedPlanLocked
+		configQuery.data != null && organization != null && !isSelfHostedPlanLocked && !termsGated
 	);
 
 	// TanStack Query for daemons - used to determine default tab
@@ -177,31 +178,11 @@
 		}>
 	>([]);
 
-	// Update URL hash when activeTab changes
-	// Skip the first run — on page load the topology stores haven't hydrated
-	// from URL params yet, so writing them back would overwrite with defaults.
-	let tabEffectInitialized = false;
+	// The tab becomes the hash, and decides which params the URL carries: the new tab's list view or
+	// topology, with the old tab's removed. Owners hydrate from the params the page loaded with, so
+	// this runs on load too.
 	$effect(() => {
-		if (typeof window !== 'undefined' && activeTab) {
-			if (!tabEffectInitialized) {
-				tabEffectInitialized = true;
-				return;
-			}
-			const url = new SvelteURL(window.location.href);
-			if (activeTab === 'topology') {
-				// Set topology params when entering the topology tab
-				const topoId = get(selectedTopologyId);
-				const view = get(activeView);
-				if (topoId) url.searchParams.set('topologyId', topoId);
-				url.searchParams.set('view', view);
-			} else {
-				// Clear topology-specific URL params when leaving
-				url.searchParams.delete('topologyId');
-				url.searchParams.delete('view');
-			}
-			url.hash = activeTab;
-			window.history.replaceState(window.history.state, '', url.toString());
-		}
+		if (activeTab) setActiveTab(activeTab);
 	});
 
 	// Set initial tab based on daemons (only if no hash was specified in URL)
@@ -290,14 +271,17 @@
 		}
 	});
 
-	// Release notes: the releases since the user last dismissed them. Last in
-	// the order, so it waits until the daemon prompt's inputs have loaded.
+	// Release notes: the releases since the user last dismissed them, opened
+	// when one of them asks to be. Last in the order, so it waits until the
+	// daemon prompt's inputs have loaded. Never in the demo.
 	const unseenReleaseNotesQuery = useUnseenReleaseNotesQuery({
-		enabled: () => isAuthenticated && mainAppAvailable
+		enabled: () => isAuthenticated && mainAppAvailable && !isDemoOrg
 	});
 	const markReleaseNotesSeenMutation = useMarkReleaseNotesSeenMutation();
 	let hasUnseenReleaseNotes = $derived((unseenReleaseNotesQuery.data?.releases.length ?? 0) > 0);
-	let showReleaseNotes = $derived($modalState.name === 'release-notes' && hasUnseenReleaseNotes);
+	let showReleaseNotes = $derived(
+		$modalState.name === 'release-notes' && hasUnseenReleaseNotes && !isDemoOrg
+	);
 	let releaseNotesShown = $state(false);
 	$effect(() => {
 		if (
@@ -311,18 +295,18 @@
 			sitesQuery.isSuccess &&
 			daemonsQuery.isSuccess &&
 			!daemonPromptWanted &&
-			hasUnseenReleaseNotes
+			hasUnseenReleaseNotes &&
+			unseenReleaseNotesQuery.data?.auto_open
 		) {
 			releaseNotesShown = true;
 			openModal('release-notes');
 		}
 	});
-	// A `?modal=release-notes` link with nothing unseen has nothing to show.
+	// A `?modal=release-notes` link with nothing unseen, or in the demo, has nothing to show.
 	$effect(() => {
 		if (
 			$modalState.name === 'release-notes' &&
-			unseenReleaseNotesQuery.isSuccess &&
-			!hasUnseenReleaseNotes
+			(isDemoOrg || (unseenReleaseNotesQuery.isSuccess && !hasUnseenReleaseNotes))
 		) {
 			closeModal();
 		}
@@ -377,10 +361,13 @@
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('hashchange', handleHashChange);
 		}
+		detachUrlState?.();
 	});
 </script>
 
-{#if appInitialized}
+{#if appInitialized && termsGated}
+	<TermsAcceptanceModal isOpen={true} />
+{:else if appInitialized}
 	<div class="flex h-screen">
 		<!-- Sidebar -->
 		<div class="flex-shrink-0">
@@ -437,14 +424,19 @@
 					static position deep inside the hidden tab's table — leaving `main` with
 					~2200px of scrollable nothing under a short table. `relative` makes the
 					zero-height wrapper the containing block, so those spans are clipped
-					with everything else.
+					with everything else. `contain: paint` does the same for `position: fixed`
+					descendants, such as a list's bulk-tag island.
 				-->
 				<!-- Main-app tabs mount only once the org is known to be unlocked; their
 				     queries hit routes a licensed self-hosted org is rejected from. -->
 				{#if mainAppAvailable}
 					{#each allTabs as tab (tab.id)}
 						{#if tab.subTabIds && tab.subTabDefs}
-							<div class={!tab.subTabIds.includes(activeTab) ? 'relative h-0 overflow-hidden' : ''}>
+							<div
+								class={!tab.subTabIds.includes(activeTab)
+									? 'relative h-0 overflow-hidden [contain:paint]'
+									: ''}
+							>
 								<ContentSubTabs
 									tabs={tab.subTabDefs}
 									bind:activeTab
@@ -453,7 +445,9 @@
 								/>
 							</div>
 						{:else}
-							<div class={activeTab !== tab.id ? 'relative h-0 overflow-hidden' : ''}>
+							<div
+								class={activeTab !== tab.id ? 'relative h-0 overflow-hidden [contain:paint]' : ''}
+							>
 								<tab.component isReadOnly={tab.isReadOnly} isActive={activeTab === tab.id} />
 							</div>
 						{/if}

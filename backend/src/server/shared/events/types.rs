@@ -266,20 +266,20 @@ pub enum BillingOperation {
         ///
         /// The air-gapped renewal email needs it to name the expiry baked
         /// into the key already installed on the customer's server. Reading
-        /// the org row instead races the organization subscriber, which
-        /// advances that column off this same event, and subscriber dispatch
-        /// order is unspecified. `None` when the org had no paid-through.
+        /// the org row instead reads the value after this payment, which
+        /// is applied to that column before this event is published, so the
+        /// old date is gone. `None` when the org had no paid-through.
         previous_license_paid_through: Option<DateTime<Utc>>,
     },
     /// Stripe finalized an invoice sent to the customer for payment by its due
-    /// date (`invoice.finalized`, `send_invoice` only). The org subscriber
+    /// date (`invoice.finalized`, `send_invoice` only). Applying it
     /// licenses the self-hosted servers until the due date plus grace, so a
     /// buyer paying by invoice can deploy before the money arrives.
     InvoiceIssued {
         invoice: BillingInvoice,
     },
     /// A sent invoice will never be paid: voided, or marked uncollectible.
-    /// The org subscriber takes back the license period it granted.
+    /// Applying it takes back the license period it granted.
     InvoiceVoided {
         invoice: BillingInvoice,
     },
@@ -377,7 +377,7 @@ pub enum BillingOperation {
     },
     /// User cleared a pending cancellation (via in-app reactivate). Stripe's
     /// `cancel_at` flips from `Some(period_end)` back to `None`; we emit this
-    /// so the org subscriber's `implied_status` mirror restores `plan_status`
+    /// so the `implied_status` mirror restores `plan_status`
     /// and analytics subscribers can attribute the un-churn. `trialing` carries
     /// the live Stripe subscription status so a sub reactivated mid-trial
     /// returns to `trialing` rather than being mislabelled `active`.
@@ -386,7 +386,7 @@ pub enum BillingOperation {
         /// `sub.items.data[0].current_period_end` after the cancel was cleared.
         next_renewal_at: Option<DateTime<Utc>>,
     },
-    /// Save-offer discount applied — the org subscriber persists the
+    /// Save-offer discount applied — applying it persists the
     /// percent + expiry so the eligibility gate (once per org) can read
     /// them, the BillingTab chip can render the live percent, and the
     /// cancel modal can drop the Discount panel on a subsequent visit.
@@ -405,7 +405,7 @@ pub enum BillingOperation {
     },
     /// A self-hosted org's plan was reconciled to the tier its license entitles,
     /// in either direction. Emitted at startup and each time an online key's
-    /// entitlement is swapped in, never by Stripe. The org subscriber
+    /// entitlement is swapped in, never by Stripe. Applying it
     /// writes the new plan; email is deliberately not sent (the email subscriber
     /// allowlists discriminants and excludes this one) so a silent instance-level
     /// upgrade doesn't spam org owners. Transient/event-only — never persisted to
@@ -446,6 +446,13 @@ pub enum BillingOperation {
     /// A key reported by `LicenseCheckInsStopped` checked in again.
     LicenseCheckInsResumed {
         silent_days: i64,
+    },
+    /// A check-in found the org's online key running on more server instances
+    /// than it covers. Sent once per overrun; every instance keeps its
+    /// entitlement.
+    LicenseInstanceLimitExceeded {
+        active: u32,
+        limit: u32,
     },
 }
 
@@ -517,7 +524,7 @@ impl BillingOperation {
 
             // A full cancellation (trialing or not) leaves the org on the
             // plan it carries, lapsed: read-only until it chooses a paid plan.
-            // The org subscriber's matching arm clears the subscription
+            // The matching arm of `BillingOperation::apply` clears the subscription
             // mirrors (renewal date, invoice billing, discount) off the same
             // event; the status is what makes it read-only.
             Self::SubscriptionCancelled { .. } => Some(PlanStatus::Cancelled),
@@ -556,7 +563,7 @@ impl BillingOperation {
             // `LicenseReconciled` swaps the org's plan (Community →
             // CommercialSelfHosted) but implies no status transition — both are
             // billing-exempt self-hosted plans. Like `PlanChanged`, the plan
-            // write is owned by the org subscriber's arm, not `plan_status`.
+            // write is its arm in `BillingOperation::apply`, not `plan_status`.
             // The license key and check-in variants describe a customer
             // server, not the subscription.
             Self::CheckoutStarted { .. }
@@ -567,6 +574,7 @@ impl BillingOperation {
             | Self::LicenseServerUpgraded { .. }
             | Self::LicenseCheckInsStopped { .. }
             | Self::LicenseCheckInsResumed { .. }
+            | Self::LicenseInstanceLimitExceeded { .. }
             | Self::TrialWillEnd { .. }
             | Self::FeatureLimitHit { .. }
             | Self::PaymentSucceeded { .. }

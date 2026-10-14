@@ -38,8 +38,13 @@
 	import { entityRef } from '$lib/shared/components/data/types';
 	import { useHostsByIds } from '$lib/features/hosts/queries';
 	import { useCredentialsQuery } from '$lib/features/credentials/queries';
-	import { navigateToEntity, openModal } from '$lib/shared/stores/modal-registry';
-	import { entities } from '$lib/shared/stores/metadata';
+	import { closeModal, navigateToEntity, openModal } from '$lib/shared/stores/modal-registry';
+	import { credentialIntegrations, entities } from '$lib/shared/stores/metadata';
+	import {
+		createIntegrationCredentialLabel,
+		openCredentialCreate
+	} from '$lib/features/credentials/utils/prefill';
+	import type { components } from '$lib/api/schema';
 	import { createColorHelper, createIconComponent } from '$lib/shared/utils/styling';
 	import type { IconComponent } from '$lib/shared/utils/types';
 	import {
@@ -59,6 +64,7 @@
 		buildWarningReport,
 		credentialIdsOf,
 		isCredentialWarning,
+		subjectKey,
 		type WarningEntry,
 		type WarningSubject
 	} from '../../utils/warnings';
@@ -68,6 +74,8 @@
 	}
 
 	let { payload }: Props = $props();
+
+	type CredentialIntegration = components['schemas']['CredentialIntegration'];
 
 	// Credential warnings are shown with their credential on the Credentials tab, whose title counts
 	// them; this tab keeps the scan's own.
@@ -97,16 +105,16 @@
 	/**
 	 * The devices a warning names, fetched by id.
 	 *
-	 * Only the LLDP/CDP resolution warnings carry one — everything else carries an address, which
-	 * this deliberately does not try to resolve back to a host: there is no address index on the
-	 * hosts API, and buying names for those rows means downloading every host on the site with
-	 * its nested children to serve one modal.
+	 * The LLDP/CDP resolution warnings and the integration-without-credential prompt carry one.
+	 * Everything else carries an address, which this deliberately does not try to resolve back to a
+	 * host: there is no address index on the hosts API, and buying names for those rows means
+	 * downloading every host on the site with its nested children to serve one modal.
 	 */
 	let neededHostIds = $derived([
 		...new Set(
 			warnings.flatMap((w) => [
-				...('host_id' in w ? [w.host_id] : []),
-				...('remote_host_id' in w ? [w.remote_host_id] : [])
+				...('host_id' in w && w.host_id ? [w.host_id] : []),
+				...('remote_host_id' in w && w.remote_host_id ? [w.remote_host_id] : [])
 			])
 		)
 	]);
@@ -141,13 +149,25 @@
 		return host ? hostDisplayName(host) : hostsResolved ? null : undefined;
 	});
 
+	/**
+	 * What a chip's hover card renders: the loaded entity, which carries the fields its display
+	 * component reads (a host's `display_name`), or the label alone while it is still loading.
+	 */
+	function entityData(entity: { type: EntityDiscriminants; id: string }, label: string) {
+		const loaded =
+			entity.type === 'Credential'
+				? credentialsData.find((c) => c.id === entity.id)
+				: hostsData.find((h) => h.id === entity.id);
+		return loaded ?? { id: entity.id, name: label };
+	}
+
 	let sections = $derived(buildWarningReport(warnings, nameOfEntity));
 
-	/** Which rows are showing their explanation. Keyed by code, which is unique within a run. */
+	/** Which rows are showing their explanation, by `WarningEntry.key`. */
 	const openRows = new SvelteSet<string>();
 
-	function toggleRow(code: string) {
-		if (!openRows.delete(code)) openRows.add(code);
+	function toggleRow(key: string) {
+		if (!openRows.delete(key)) openRows.add(key);
 	}
 
 	/** The codes whose answer is a scan setting rather than a credential. */
@@ -171,7 +191,7 @@
 	/**
 	 * Where a row hands off to, when Scanopy owns the fix.
 	 *
-	 * Only four destinations are real, and a row without one renders no button rather than a dead
+	 * Only five destinations are real, and a row without one renders no button rather than a dead
 	 * one. The credential family is recognised by the `integration` field on the payload rather
 	 * than by a list of code names here — those eleven variants are exactly the ones that carry it,
 	 * so the set cannot drift out of step with the backend.
@@ -179,7 +199,8 @@
 	function actionFor(
 		entry: WarningEntry
 	): { label: string; icon: IconComponent; run: () => void } | null {
-		if (entry.code === 'OutdatedDaemonFormat') {
+		// A credential withheld for the daemon's version is fixed the same way: upgrade that daemon.
+		if (entry.code === 'OutdatedDaemonFormat' || entry.code === 'CredentialDaemonTooOld') {
 			return {
 				label: daemons_upgradeDaemon(),
 				icon: createIconComponent('circle-arrow-up'),
@@ -194,7 +215,11 @@
 		}
 
 		if (entry.code === 'ProvisionalSubnetInferred') {
-			const subnetIds = entry.warnings.flatMap((w) => ('subnet_id' in w ? [w.subnet_id] : []));
+			// A range deleted since the scan has nothing left to resolve.
+			const subnetIds = entry.warnings.flatMap((w) =>
+				'subnet_id' in w && w.subnet_id ? [w.subnet_id] : []
+			);
+			if (subnetIds.length === 0) return null;
 			return {
 				label: subnets_resolveRange(),
 				icon: createIconComponent('cloud-alert'),
@@ -202,8 +227,26 @@
 					window.location.hash = 'subnets';
 					// One range resolves in place; several is a trip to the list, because the
 					// four-way choice is made per subnet and there is no "all of them" answer.
+					// Opening the resolve modal replaces this one; the list needs this one closed.
 					if (subnetIds.length === 1) openModal('provisional-range', { id: subnetIds[0] });
+					else closeModal();
 				}
+			};
+		}
+
+		if (entry.code === 'IntegrationWithoutCredential') {
+			// The row's title names its integration, so every occurrence under it is that one.
+			const found = entry.warnings.flatMap((w) =>
+				w.code === 'IntegrationWithoutCredential' ? [w] : []
+			);
+			if (!found.length) return null;
+			const integration: CredentialIntegration = found[0].integration;
+			const hostIds = found.flatMap((w) => (w.host_id ? [w.host_id] : []));
+			const siteIds = [payload.site_id];
+			return {
+				label: createIntegrationCredentialLabel(integration),
+				icon: credentialIntegrations.getIconComponent(integration),
+				run: () => openCredentialCreate(integration, { hostIds, siteIds })
 			};
 		}
 
@@ -234,6 +277,7 @@
 					// predates them — still goes to the list.
 					if (!credentialId) {
 						window.location.hash = 'credentials';
+						closeModal();
 						return;
 					}
 					// The credential itself where it has loaded, so the editor opens on the id
@@ -261,10 +305,7 @@
 	{#if subject.entity}
 		{@const type = subject.entity.type}
 		<EntityTag
-			entityRef={entityRef(type, subject.entity.id, {
-				id: subject.entity.id,
-				name: subject.label
-			})}
+			entityRef={entityRef(type, subject.entity.id, entityData(subject.entity, subject.label))}
 			label={subject.label}
 			icon={entities.getIconComponent(type)}
 			color={entities.getColorHelper(type).color}
@@ -311,81 +352,96 @@
 					<Tag label={String(section.entries.length)} color="Amber" pill />
 				{/snippet}
 
-				<ul>
-					{#each section.entries as entry (entry.code)}
+				<!--
+					One line per row: what it is, who it concerns, and its action, so the action sits
+					beside the thing it fixes. Opening a row shows the explanation, then every device
+					it names.
+				-->
+				<ul class="divide-y divide-gray-200 dark:divide-gray-700">
+					{#each section.entries as entry (entry.key)}
 						{@const EntryIcon = createIconComponent(entry.icon)}
 						{@const colors = createColorHelper(entry.color)}
 						{@const action = actionFor(entry)}
-						{@const isOpen = openRows.has(entry.code)}
-						<li>
-							<div class="min-w-0">
-								<div class="flex items-start gap-2">
-									<button
-										type="button"
-										class="hover:bg-tertiary/40 -mx-1 flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-left"
-										aria-expanded={isOpen}
-										onclick={() => toggleRow(entry.code)}
-									>
-										<ChevronRight
-											class="text-secondary mt-0.5 h-4 w-4 shrink-0 transition-transform {isOpen
-												? 'rotate-90'
-												: ''}"
-										/>
-										<EntryIcon class="mt-0.5 h-4 w-4 shrink-0 {colors.icon}" />
-										<span class="text-primary shrink-0 text-sm">{entry.title}</span>
-										{#if entry.subjects.length > 0}
-											<span class="flex flex-wrap items-center gap-1">
-												{#each entry.subjects as subject (subject.label)}
-													{@render entityChip(subject)}
-												{/each}
-											</span>
-										{/if}
-									</button>
-									{#if action}
-										{@const ActionIcon = action.icon}
-										<button
-											type="button"
-											class="btn-secondary flex shrink-0 items-center gap-1 py-1 text-xs"
-											onclick={action.run}
-										>
-											<ActionIcon class="h-3.5 w-3.5" />
-											<span>{action.label}</span>
-										</button>
+						{@const isOpen = openRows.has(entry.key)}
+						<li class="py-1.5">
+							<div class="flex min-w-0 items-center gap-2">
+								<button
+									type="button"
+									class="hover:bg-tertiary/40 -mx-1 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1 text-left"
+									aria-expanded={isOpen}
+									onclick={() => toggleRow(entry.key)}
+								>
+									<ChevronRight
+										class="text-secondary h-4 w-4 shrink-0 transition-transform {isOpen
+											? 'rotate-90'
+											: ''}"
+									/>
+									<EntryIcon class="h-4 w-4 shrink-0 {colors.icon}" />
+									<span class="text-primary min-w-0 truncate text-sm">{entry.title}</span>
+								</button>
+
+								<!-- The first few subjects, on the header line; the rest are counted. Hidden
+								     while the row is open, which lists them all. -->
+								<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+									{#if !isOpen}
+										{#each entry.preview as subject (subjectKey(subject))}
+											{@render entityChip(subject)}
+										{/each}
 									{/if}
 								</div>
 
-								{#if isOpen}
-									<div class="space-y-2 pb-2 pl-6">
-										{#each entry.details as statement, i (i)}
-											<div class="space-y-1">
-												<p class="text-tertiary text-sm">{statement.sentence}</p>
-												{#if statement.examples.length > 0}
-													<ul class="space-y-0.5">
-														{#each statement.examples as example, j (j)}
-															<li class="text-tertiary flex flex-wrap items-center gap-1 text-xs">
-																{#if example.near}
-																	{@render entityChip(example.near)}
-																{/if}
-																{#if example.nearText}<span>{example.nearText}</span>{/if}
-																<!-- The arrow is only drawn with something on both sides: a
-																     far end nothing matched, or a host deleted since the scan,
-																     would otherwise leave it pointing at nothing. -->
-																{#if (example.near || example.nearText) && (example.far || example.farText)}
-																	<span class="text-tertiary/60" aria-hidden="true">→</span>
-																{/if}
-																{#if example.far}
-																	{@render entityChip(example.far)}
-																{/if}
-																{#if example.farText}<span>{example.farText}</span>{/if}
-															</li>
-														{/each}
-													</ul>
-												{/if}
-											</div>
-										{/each}
-									</div>
+								{#if action}
+									{@const ActionIcon = action.icon}
+									<button
+										type="button"
+										class="btn-secondary flex max-w-56 shrink-0 items-center gap-1 py-1 text-xs"
+										title={action.label}
+										onclick={action.run}
+									>
+										<ActionIcon class="h-3.5 w-3.5 shrink-0" />
+										<span class="truncate">{action.label}</span>
+									</button>
 								{/if}
 							</div>
+
+							{#if isOpen}
+								<div class="space-y-2 pb-1 pl-12 pt-1">
+									{#each entry.details as statement, i (i)}
+										<div class="space-y-1">
+											<p class="text-tertiary text-sm">{statement.sentence}</p>
+											{#if statement.examples.length > 0}
+												<ul class="space-y-0.5">
+													{#each statement.examples as example, j (j)}
+														<li class="text-tertiary flex flex-wrap items-center gap-1 text-xs">
+															{#if example.near}
+																{@render entityChip(example.near)}
+															{/if}
+															{#if example.nearText}<span>{example.nearText}</span>{/if}
+															<!-- The arrow is only drawn with something on both sides: a
+															     far end nothing matched, or a host deleted since the scan,
+															     would otherwise leave it pointing at nothing. -->
+															{#if (example.near || example.nearText) && (example.far || example.farText)}
+																<span class="text-tertiary/60" aria-hidden="true">→</span>
+															{/if}
+															{#if example.far}
+																{@render entityChip(example.far)}
+															{/if}
+															{#if example.farText}<span>{example.farText}</span>{/if}
+														</li>
+													{/each}
+												</ul>
+											{/if}
+										</div>
+									{/each}
+									{#if entry.subjects.length > 0}
+										<div class="flex flex-wrap items-center gap-1">
+											{#each entry.subjects as subject (subjectKey(subject))}
+												{@render entityChip(subject)}
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{/if}
 						</li>
 					{/each}
 				</ul>

@@ -1,10 +1,99 @@
 //! Daemon-discovery upsert path: interface linking and subnet/VLAN reconciliation.
 use super::*;
+use crate::server::credentials::service::FoundIntegration;
 
 impl HostService {
     // =========================================================================
     // Discovery support (internal API)
     // =========================================================================
+
+    /// Point `last_discovery_id` (and `first_discovery_id`, where unset) at `discovery_id` on
+    /// every row a finished session scanned: hosts and their IP addresses, ports, interfaces,
+    /// subnets, VLANs, services and bindings.
+    ///
+    /// Each entity type is written independently, so one failing does not leave the others
+    /// unstamped. The error names every type that failed.
+    pub async fn stamp_discovery(
+        &self,
+        scanned: &crate::server::daemons::r#impl::api::ScannedEntityIds,
+        discovery_id: Uuid,
+    ) -> Result<()> {
+        use crate::server::shared::services::traits::DiscoveryFkUpdater;
+        use crate::server::vlans::r#impl::base::Vlan;
+
+        let results = [
+            (
+                "host",
+                <Self as DiscoveryFkUpdater<Host>>::update_discovery_fks(
+                    self,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "ip_address",
+                <IPAddressService as DiscoveryFkUpdater<IPAddress>>::update_discovery_fks(
+                    &self.ip_address_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "port",
+                <PortService as DiscoveryFkUpdater<Port>>::update_discovery_fks(
+                    &self.port_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "interface",
+                <InterfaceService as DiscoveryFkUpdater<Interface>>::update_discovery_fks(
+                    &self.interface_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "subnet",
+                <SubnetService as DiscoveryFkUpdater<Subnet>>::update_discovery_fks(
+                    &self.subnet_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "vlan",
+                <VlanService as DiscoveryFkUpdater<Vlan>>::update_discovery_fks(
+                    &self.vlan_service,
+                    scanned,
+                    discovery_id,
+                )
+                .await,
+            ),
+            (
+                "service and binding",
+                self.service_service
+                    .stamp_discovery(scanned, discovery_id)
+                    .await,
+            ),
+        ];
+
+        let failures: Vec<String> = results
+            .into_iter()
+            .filter_map(|(entity, result)| result.err().map(|e| format!("{entity}: {e:#}")))
+            .collect();
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(failures.join("; ")))
+        }
+    }
 
     /// Seed a daemon host's loopback subnet (`127.0.0.0/8`) and IP (`127.0.0.1`).
     ///
@@ -358,6 +447,39 @@ impl HostService {
         }
 
         Ok(())
+    }
+
+    /// The integrations whose services a finished run touched, on hosts no credential of that
+    /// integration covers. See `credentials/service/coverage.rs` for the rule. `started_at` is
+    /// when the run began, so the site's credentials that existed then count as tried.
+    pub async fn uncovered_integrations_for_run(
+        &self,
+        scanned: &crate::server::daemons::r#impl::api::ScannedEntityIds,
+        integration_targets: &[crate::server::credentials::r#impl::mapping::IntegrationTarget],
+        site_id: Uuid,
+        daemon_host_id: Option<Uuid>,
+        started_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<FoundIntegration>> {
+        if scanned.service_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let found = self
+            .service_service
+            .get_all(StorableFilter::<Service>::new_from_entity_ids(
+                &scanned.service_ids,
+            ))
+            .await?
+            .iter()
+            .filter_map(FoundIntegration::from_service)
+            .collect();
+        self.credential_service
+            .uncovered_integrations(
+                found,
+                integration_targets,
+                daemon_host_id,
+                &HashMap::from([(site_id, started_at)]),
+            )
+            .await
     }
 }
 

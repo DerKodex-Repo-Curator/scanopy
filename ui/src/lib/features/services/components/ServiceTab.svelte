@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tagGroupIdOf, tagSetsParam } from '$lib/features/tags/groupFields';
 	import Loading from '$lib/shared/components/feedback/Loading.svelte';
 	import EmptyState from '$lib/shared/components/layout/EmptyState.svelte';
 	import PreDaemonEmptyState from '$lib/shared/components/layout/PreDaemonEmptyState.svelte';
@@ -16,7 +15,7 @@
 	import { formatIPAddress } from '$lib/features/hosts/address-labels';
 	import { formatPort } from '$lib/shared/utils/formatting';
 	import type { IPAddress, Port } from '$lib/features/hosts/types/base';
-	import { entities, entitySources, matchConfidences } from '$lib/shared/stores/metadata';
+	import { entities } from '$lib/shared/stores/metadata';
 	import { Trash2, Edit } from 'lucide-svelte';
 	import type { Service } from '../types/base';
 	import ServiceEditModal from './ServiceEditModal.svelte';
@@ -51,18 +50,14 @@
 		common_services,
 		common_unbound,
 		daemons_installPromptServices,
-		services_notContainerized,
 		services_subtitle
 	} from '$lib/paraglide/messages';
 	import { serviceDefinitions, ports as ports_metadata } from '$lib/shared/stores/metadata';
 	import { hasDaemon } from '$lib/shared/onboarding/checklist';
-	import { labelledFieldValueOptions, useFieldValuesQuery } from '$lib/shared/api/field-values';
+	import { fieldValueOptions, useFieldValuesQuery } from '$lib/shared/api/field-values';
 
 	type OnboardingOperation = components['schemas']['OnboardingOperationDiscriminants'];
 	type ServiceOrderField = components['schemas']['ServiceOrderField'];
-	type OrderDirection = components['schemas']['OrderDirection'];
-	type EntitySourceType = components['schemas']['EntitySourceDiscriminants'];
-	type MatchConfidence = components['schemas']['MatchConfidence'];
 
 	const SERVICE_FIELD_VALUES = '/api/v1/services/field-values/{field}';
 
@@ -93,75 +88,24 @@
 	let pageSize = $state(20);
 	let currentPage = $state(1);
 
-	// Ordering state (for server-side ordering).
-	// The grouping and sort the table opens with. Declared ahead of the query state so the
-	// first request already carries them; DataControls replaces them with a saved choice.
+	// The grouping and sort the table opens with until the user picks their own.
 	const tableDefaults: TableDefaults<ServiceOrderField> = {
 		sort: { field: 'name', direction: 'asc' }
 	};
-	let groupBy = $state<ServiceOrderField | undefined>(tableDefaults.group);
-	let orderBy = $state<ServiceOrderField | undefined>(tableDefaults.sort?.field);
-	let orderDirection = $state<OrderDirection>(tableDefaults.sort?.direction ?? 'asc');
 
-	// Tag filter state (for server-side filtering)
-	let tagIds = $state<string[]>([]);
-	// Tag-group columns sort, group and filter on the server, by group id.
-	let groupByTagGroup = $state<string | undefined>(undefined);
-	let orderByTagGroup = $state<string | undefined>(undefined);
-	let tagGroupFilters = $state<Record<string, string[]>>({});
-
-	// Exclude categories state (for server-side filtering)
-	let excludeCategories = $state<string[]>(['OpenPorts']);
-
-	// Port filter (server-side: a client-side pass would only narrow the loaded
-	// page)
-	let ports = $state<number[]>([]);
-
-	// Staleness filter state (server-side: the list is server-paginated)
-	let stale = $state<boolean | null>(null);
-
-	// Search state (server-side, for the same reason)
-	let search = $state('');
-
-	// The remaining field filters, server-side for the same reason: the client
-	// holds one page of services, so filtering here would narrow that page while
-	// the total count kept describing every match.
-	let filterHostIds = $state<string[]>([]);
-	let filterSiteIds = $state<string[]>([]);
-	let filterServiceDefinitions = $state<string[]>([]);
-	let filterVirtualizationServiceNames = $state<string[]>([]);
-	let filterIncludeUncontainerized = $state(false);
-	let filterSources = $state<EntitySourceType[]>([]);
-	let filterMatchConfidences = $state<MatchConfidence[]>([]);
+	// The list's view as the endpoint's params: search, tags, staleness, field filters and ordering,
+	// all server-side because the client holds one page of services, so filtering here would narrow
+	// that page while the total count kept describing every match. Null until DataControls has
+	// restored the view. The query is not held for it: the table only mounts once a first page
+	// has loaded.
+	let listQuery = $state<URLSearchParams | null>(null);
 
 	// Queries
 	const tagsQuery = useTagsQuery();
-	// Paginated services with server-side pagination, ordering, and tag filtering
 	const servicesQuery = useServicesQuery((): ServicesQueryParams => ({
 		limit: pageSize,
 		offset: (currentPage - 1) * pageSize,
-		group_by: groupBy,
-		order_by: orderBy,
-		order_direction: orderDirection,
-		tag_ids: tagIds.length > 0 ? tagIds : undefined,
-		tag_sets: tagSetsParam(tagGroupFilters, tagsQuery.data ?? []),
-		group_by_tag_group: groupByTagGroup,
-		order_by_tag_group: orderByTagGroup,
-		stale: stale ?? undefined,
-		search: search || undefined,
-		ports: ports.length > 0 ? ports : undefined,
-		exclude_categories:
-			excludeCategories.length > 0
-				? (excludeCategories as components['schemas']['ServiceCategory'][])
-				: undefined,
-		host_ids: filterHostIds.length > 0 ? filterHostIds : undefined,
-		site_ids: filterSiteIds.length > 0 ? filterSiteIds : undefined,
-		service_definitions: filterServiceDefinitions.length > 0 ? filterServiceDefinitions : undefined,
-		virtualization_service_names:
-			filterVirtualizationServiceNames.length > 0 ? filterVirtualizationServiceNames : undefined,
-		include_uncontainerized: filterIncludeUncontainerized || undefined,
-		sources: filterSources.length > 0 ? filterSources : undefined,
-		match_confidences: filterMatchConfidences.length > 0 ? filterMatchConfidences : undefined
+		list: listQuery ?? undefined
 	}));
 	const sitesQuery = useSitesQuery();
 	const portsQuery = usePortsQuery();
@@ -293,120 +237,10 @@
 		pageSize = newPageSize;
 	}
 
-	// Order change handler for server-side ordering
-	// Values are now directly ServiceOrderField values from the orderField property
-	function handleOrderChange(
-		groupField: string | null,
-		orderField: string | null,
-		direction: 'asc' | 'desc'
-	) {
-		groupByTagGroup = tagGroupIdOf(groupField) ?? undefined;
-		orderByTagGroup = tagGroupIdOf(orderField) ?? undefined;
-		groupBy = groupByTagGroup ? undefined : ((groupField as ServiceOrderField) ?? undefined);
-		orderBy = orderByTagGroup ? undefined : ((orderField as ServiceOrderField) ?? undefined);
-		orderDirection = direction;
-	}
-
-	// Tag filter change handler for server-side filtering
-	function handleTagFilterChange(selectedTagIds: string[]) {
-		tagIds = selectedTagIds;
-		// Reset to page 1 is handled by DataControls
-	}
-
-	/**
-	 * Server-side field filter handler.
-	 *
-	 * The panel offers what the user reads — a host's title, a site's name —
-	 * while the API filters on ids, so each case resolves the labels back
-	 * through the same data the options were built from. Every key here must
-	 * match a field marked `serverFiltered`; an unhandled one would filter
-	 * nothing at all, since DataControls skips the client pass for those fields.
-	 */
-	function handleFilterChange(fieldKey: string, values: string[]) {
-		const tagGroupId = tagGroupIdOf(fieldKey);
-		if (tagGroupId) {
-			tagGroupFilters = { ...tagGroupFilters, [tagGroupId]: values };
-			return;
-		}
-		switch (fieldKey) {
-			case 'category':
-				excludeCategories = values;
-				break;
-			case 'port_bindings':
-				ports = values.map(Number).filter((port) => Number.isFinite(port));
-				break;
-			case 'host': {
-				const wanted = new Set(values);
-				filterHostIds = allHostsData
-					.filter((host) => wanted.has(hostDisplayName(host)))
-					.map((host) => host.id);
-				break;
-			}
-			case 'site_id': {
-				const wanted = new Set(values);
-				filterSiteIds = sitesData.filter((site) => wanted.has(site.name)).map((site) => site.id);
-				break;
-			}
-			case 'service_definition': {
-				// The options render friendly names; the server filters on the raw
-				// definition id, which is what `getGroupValue` already exposes.
-				const wanted = new Set(values);
-				filterServiceDefinitions = serviceDefinitions
-					.getItems()
-					.filter((definition) => definition.name !== null && wanted.has(definition.name))
-					.map((definition) => definition.id);
-				break;
-			}
-			case 'containerized_by': {
-				// "Not Containerized" is a choice about absence, so it is carried
-				// as its own flag rather than as a name nothing would match. The rest are
-				// the runtimes' names, which the server filters on directly: no client
-				// cache holds every runtime.
-				filterIncludeUncontainerized = values.includes(services_notContainerized());
-				filterVirtualizationServiceNames = values.filter((v) => v !== services_notContainerized());
-				break;
-			}
-			// Fixture ids are the backend enum's names, emitted from that same enum, so an id
-			// is a valid filter value by construction.
-			case 'source':
-				filterSources = entitySources
-					.getItems()
-					.filter((source) => values.includes(entitySources.getName(source.id)))
-					.map((source) => source.id as EntitySourceType);
-				break;
-			case 'match_confidence':
-				filterMatchConfidences = matchConfidences
-					.getItems()
-					.filter((confidence) => values.includes(matchConfidences.getName(confidence.id)))
-					.map((confidence) => confidence.id as MatchConfidence);
-				break;
-			default:
-				throw new Error(
-					`ServiceTab: no server-side filter handles "${fieldKey}". A serverFiltered field ` +
-						`without a case here filters nothing — neither the client nor the server.`
-				);
-		}
-	}
-
-	function handleStaleFilterChange(next: boolean | null) {
-		stale = next;
-	}
-
-	// Search change handler for server-side search (debounced by DataControls)
-	function handleSearchChange(query: string) {
-		search = query;
-	}
-
-	// CSV export handler
+	// The export endpoint takes the list's own query, so an export mirrors what the user was
+	// looking at.
 	async function handleCsvExport() {
-		await downloadCsv('Service', {
-			tag_ids: tagIds.length > 0 ? tagIds : undefined,
-			tag_sets: tagSetsParam(tagGroupFilters, tagsData),
-			group_by_tag_group: groupByTagGroup,
-			order_by_tag_group: orderByTagGroup,
-			order_by: orderBy,
-			order_direction: orderDirection
-		});
+		await downloadCsv('Service', listQuery ?? new URLSearchParams());
 	}
 
 	let showServiceEditor = $state(false);
@@ -506,11 +340,25 @@
 	// The categories of the definitions some service matched. Category has no column of its own,
 	// so it is read off the present definitions. A default exclusion whose category no service
 	// holds stays selected and excludes nothing.
-	let serviceCategories = $derived(
-		labelledFieldValueOptions(definitionValuesQuery.data, (id) =>
-			serviceDefinitions.getCategory(id)
+	let serviceCategories = $derived([
+		...new Set(
+			fieldValueOptions(definitionValuesQuery.data)
+				.map((id) => serviceDefinitions.getCategory(id))
+				.filter((category): category is string => !!category)
 		)
-	);
+	]);
+
+	// The hosts some service runs on: the server counts their titles, the same ladder
+	// `hostDisplayName` renders, and the full host list gives each title's ids.
+	let hostOptions = $derived.by(() => {
+		const titles = new Set(fieldValueOptions(hostValuesQuery.data));
+		return allHostsData.filter((host) => titles.has(hostDisplayName(host))).map((host) => host.id);
+	});
+
+	function hostLabel(id: string): string {
+		const host = allHostsData.find((h) => h.id === id);
+		return host ? hostDisplayName(host) : id;
+	}
 
 	// Related entities the registry's Service fields read, from the collections this tab loads.
 	let lookup = $derived(
@@ -532,7 +380,8 @@
 			tags: () => tagsData,
 			discoveryRuns: () => discoveryRunsData,
 			runtimes: () => runtimesData,
-			hostValues: () => hostValuesQuery.data,
+			hostOptions: () => hostOptions,
+			hostLabel,
 			siteValues: () => siteValuesQuery.data,
 			definitionValues: () => definitionValuesQuery.data,
 			containerizedByValues: () => containerizedByValuesQuery.data,
@@ -570,11 +419,7 @@
 			getItemId={(item) => item.id}
 			serverPagination={servicesPagination}
 			onPageChange={handlePageChange}
-			onOrderChange={handleOrderChange}
-			onTagFilterChange={handleTagFilterChange}
-			onFilterChange={handleFilterChange}
-			onStaleFilterChange={handleStaleFilterChange}
-			onSearchChange={handleSearchChange}
+			onQueryChange={(query) => (listQuery = query)}
 			onCsvExport={handleCsvExport}
 			getActions={serviceActions}
 			entityLabel={common_services()}

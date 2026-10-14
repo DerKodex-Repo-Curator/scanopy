@@ -69,9 +69,22 @@ pub enum LockKey {
     Organization(Uuid),
     /// Serialize creating an organization's tag groups and reordering any group's tags.
     TagGroups { organization_id: Uuid },
+    /// Serialize an organization's cloud setup (site, system subnets, live topology, starter
+    /// tags), so registration and a billing event landing together can't both create a site.
+    /// Taken before `TagGroups`, never after.
+    CloudSetup { organization_id: Uuid },
     /// Serialize the once-per-version release announcement across containers
     /// starting at the same time. One server-wide key.
     ReleaseAnnouncement,
+    /// Serialize creating this database's server instance id across containers
+    /// starting at the same time. One server-wide key.
+    ServerInstance,
+    /// Serialize recording license check-ins from an organization's server
+    /// instances, so two first check-ins from one instance can't both insert it.
+    LicenseInstances { organization_id: Uuid },
+    /// Serialize the terms-notice sweep across containers, so a user is sent
+    /// each terms update once. One server-wide key.
+    TermsNotice,
 }
 
 impl LockKey {
@@ -95,7 +108,13 @@ impl LockKey {
             LockKey::ApiKey(id) => format!("api-key:{id}"),
             LockKey::Organization(id) => format!("organization:{id}"),
             LockKey::TagGroups { organization_id } => format!("tag-groups:{organization_id}"),
+            LockKey::CloudSetup { organization_id } => format!("cloud-setup:{organization_id}"),
             LockKey::ReleaseAnnouncement => "release-announcement".to_string(),
+            LockKey::ServerInstance => "server-instance".to_string(),
+            LockKey::TermsNotice => "terms-notice".to_string(),
+            LockKey::LicenseInstances { organization_id } => {
+                format!("license-instances:{organization_id}")
+            }
         }
     }
 
@@ -310,6 +329,15 @@ mod tests {
             }
             .pg_key(),
             LockKey::ApiKey(uuid_a()).pg_key(),
+            LockKey::Organization(uuid_a()).pg_key(),
+            LockKey::TagGroups {
+                organization_id: uuid_a(),
+            }
+            .pg_key(),
+            LockKey::CloudSetup {
+                organization_id: uuid_a(),
+            }
+            .pg_key(),
         ];
         let unique: std::collections::HashSet<i64> = keys.iter().copied().collect();
         assert_eq!(unique.len(), keys.len(), "lock key collision: {keys:?}");

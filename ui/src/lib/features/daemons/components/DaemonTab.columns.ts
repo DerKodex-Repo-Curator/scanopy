@@ -1,6 +1,13 @@
 import type { Snippet } from 'svelte';
 import type { Daemon } from '$lib/features/daemons/types/base';
-import { getDaemonStatusTag, osLabel, daemonOsIds } from '$lib/features/daemons/utils';
+import {
+	daemonStatusTag,
+	getDaemonStatus,
+	getDaemonStatusTag,
+	osLabel,
+	daemonOsIds,
+	DAEMON_STATUSES
+} from '$lib/features/daemons/utils';
 import { defineRegistryFields } from '$lib/shared/entity-fields/table';
 import type { EntityLookup } from '$lib/shared/entity-fields';
 import { tagNames } from '$lib/features/tags/columns';
@@ -44,6 +51,8 @@ export interface DaemonColumnsContext {
 	daemonHosts: () => Host[];
 	maintainers: () => User[];
 	interfacedSubnets: (daemon: Daemon) => Subnet[];
+	/** The subnets the management lists show, to label the filter's options. */
+	subnets: () => Subnet[];
 	osCell: () => Snippet<[Daemon, string]>;
 }
 
@@ -67,6 +76,9 @@ export function daemonColumns(ctx: DaemonColumnsContext) {
 				type: 'string',
 				searchable: true,
 				filterable: true,
+				queryParam: 'site_id',
+				getFilterValue: (item) => item.site_id,
+				filterLabel: (id) => ctx.sites().find((n) => n.id === id)?.name ?? common_unknownSite(),
 				groupable: true,
 				getValue: (item) =>
 					ctx.sites().find((n) => n.id == item.site_id)?.name || common_unknownSite(),
@@ -119,6 +131,11 @@ export function daemonColumns(ctx: DaemonColumnsContext) {
 				filterable: true,
 				groupable: true,
 				sortable: true,
+				getFilterValue: (daemon) => getDaemonStatus(daemon),
+				filterLabel: (value) => {
+					const status = DAEMON_STATUSES.find((s) => s === value);
+					return status ? daemonStatusTag(status).label : value;
+				},
 				getValue: (daemon) => getDaemonStatusTag(daemon).label,
 				display: {
 					order: 1,
@@ -144,7 +161,12 @@ export function daemonColumns(ctx: DaemonColumnsContext) {
 				filterable: true,
 				groupable: true,
 				sortable: true,
-				filterOptions: daemonOsIds.map(osLabel),
+				filterOptions: daemonOsIds,
+				filterLabel: (value) => {
+					const os = daemonOsIds.find((id) => id === value);
+					return os ? osLabel(os) : value;
+				},
+				getFilterValue: (daemon) => daemon.os ?? null,
 				getValue: (daemon) => (daemon.os ? osLabel(daemon.os) : null),
 				display: { order: 4.5, cell: ctx.osCell() }
 			},
@@ -156,6 +178,9 @@ export function daemonColumns(ctx: DaemonColumnsContext) {
 				filterable: true,
 				groupable: true,
 				sortable: true,
+				getFilterValue: (daemon) => daemon.mode,
+				filterLabel: (mode) =>
+					mode === 'server_poll' ? daemons_mode_serverPoll() : daemons_mode_daemonPoll(),
 				getValue: (daemon) =>
 					daemon.mode === 'server_poll' ? daemons_mode_serverPoll() : daemons_mode_daemonPoll(),
 				display: {
@@ -184,6 +209,8 @@ export function daemonColumns(ctx: DaemonColumnsContext) {
 				groupable: true,
 				sortable: true,
 				getValue: (daemon) => ctx.maintainers().find((u) => u.id === daemon.user_id)?.email ?? null,
+				getFilterValue: (daemon) => daemon.user_id ?? null,
+				filterLabel: (id) => ctx.maintainers().find((u) => u.id === id)?.email ?? id,
 				display: {
 					hiddenByDefault: true,
 					getItems: (daemon) => {
@@ -226,6 +253,8 @@ export function daemonColumns(ctx: DaemonColumnsContext) {
 				// Daemons share subnets, so this filters; as an array it neither sorts nor groups.
 				filterable: true,
 				getValue: (daemon) => ctx.interfacedSubnets(daemon).map((s) => s.name),
+				getFilterValue: (daemon) => ctx.interfacedSubnets(daemon).map((s) => s.id),
+				filterLabel: (id) => ctx.subnets().find((s) => s.id === id)?.name ?? id,
 				display: {
 					order: 6,
 					getItems: (daemon) =>

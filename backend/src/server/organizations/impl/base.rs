@@ -10,6 +10,7 @@ use validator::Validate;
 
 use crate::server::{
     billing::types::base::{BillingPlan, PlanStatus},
+    license::{instances::InstanceLimits, online::InstanceUsage},
     shared::{
         entities::ChangeTriggersTopologyStaleness,
         events::types::{BillingOperation, OnboardingOperationDiscriminants},
@@ -93,6 +94,12 @@ pub struct OrgNotifications {
     /// as resumed. `None` until the first silence.
     #[serde(default)]
     pub license_silence_reported_for: Option<DateTime<Utc>>,
+    /// Whether the org's online key is reported as running on more server
+    /// instances than it covers. Set when a check-in first finds it over the
+    /// limit and cleared once it is back within, so the report goes out once
+    /// per overrun.
+    #[serde(default)]
+    pub license_over_instance_limit: bool,
 }
 
 #[derive(
@@ -396,6 +403,38 @@ impl Organization {
     }
 }
 
+impl Organization {
+    /// How many production and non-production servers the org's online key
+    /// covers, from its plan. No plan is no cap.
+    pub fn license_instance_limits(&self) -> InstanceLimits {
+        self.base
+            .plan
+            .map(|plan| plan.license_instance_limits())
+            .unwrap_or_default()
+    }
+
+    /// Record the instance counts a check-in found, returning
+    /// `LicenseInstanceLimitExceeded` when it is the first check-in of an
+    /// overrun. Back within the limits re-arms the report.
+    pub fn record_license_instance_usage(
+        &mut self,
+        usage: InstanceUsage,
+    ) -> Option<BillingOperation> {
+        let was_over = self.base.notifications.license_over_instance_limit;
+        let over = usage.is_over();
+        self.base.notifications.license_over_instance_limit = over;
+        if !over || was_over {
+            return None;
+        }
+        // Report the class that is over; over implies it has a limit.
+        let (active, limit) = match usage.limit {
+            Some(limit) if usage.active > limit => (usage.active, limit),
+            _ => (usage.non_production_active, usage.non_production_limit?),
+        };
+        Some(BillingOperation::LicenseInstanceLimitExceeded { active, limit })
+    }
+}
+
 /// Days an online key goes without checking in before it counts as stopped.
 /// Servers check in every 6 hours, so this is about 28 missed check-ins: long
 /// enough to rule out a maintenance window, and the same span as the
@@ -638,5 +677,65 @@ mod tests {
         never_checked_in.base.plan = checking_in().base.plan;
         never_checked_in.base.license_paid_through = Some(at(365));
         assert_eq!(never_checked_in.report_license_silence(silent_day), None);
+    }
+
+    /// Every check-in reports the count, so the overrun has to be reported on
+    /// the first one only, and again only after the key was back within.
+    #[test]
+    fn an_instance_overrun_is_reported_once_until_back_within_the_limit() {
+        let over = InstanceUsage {
+            active: 2,
+            limit: Some(1),
+            non_production_active: 0,
+            non_production_limit: Some(2),
+        };
+        let within = InstanceUsage { active: 1, ..over };
+        let mut org = Organization::default();
+
+        assert_eq!(org.record_license_instance_usage(within), None);
+        assert_eq!(
+            org.record_license_instance_usage(over),
+            Some(BillingOperation::LicenseInstanceLimitExceeded {
+                active: 2,
+                limit: 1
+            })
+        );
+        assert_eq!(org.record_license_instance_usage(over), None);
+        assert_eq!(org.record_license_instance_usage(within), None);
+        assert!(org.record_license_instance_usage(over).is_some());
+    }
+
+    /// A third non-production server is over on a paid self-hosted tier and
+    /// the report names that class; a custom plan has no cap, so moving to
+    /// one clears the overrun at the next check-in.
+    #[test]
+    fn non_production_servers_past_the_limit_are_an_overrun_on_paid_tiers() {
+        use crate::server::billing::plans::{
+            get_commercial_self_hosted_plan, get_self_hosted_plus_plan,
+        };
+
+        let usage_on = |org: &Organization| {
+            let limits = org.license_instance_limits();
+            InstanceUsage {
+                active: 1,
+                limit: limits.production,
+                non_production_active: 3,
+                non_production_limit: limits.non_production,
+            }
+        };
+
+        let mut org = Organization::default();
+        org.base.plan = Some(get_self_hosted_plus_plan());
+        assert_eq!(
+            org.record_license_instance_usage(usage_on(&org)),
+            Some(BillingOperation::LicenseInstanceLimitExceeded {
+                active: 3,
+                limit: 2
+            })
+        );
+
+        org.base.plan = Some(get_commercial_self_hosted_plan());
+        assert_eq!(org.record_license_instance_usage(usage_on(&org)), None);
+        assert!(!org.base.notifications.license_over_instance_limit);
     }
 }

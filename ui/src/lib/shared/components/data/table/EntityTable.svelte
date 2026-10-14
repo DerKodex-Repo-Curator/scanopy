@@ -28,6 +28,7 @@
 	import FieldValue from '../FieldValue.svelte';
 	import TreeGuides from '../TreeGuides.svelte';
 	import { tooltip } from '$lib/shared/actions/tooltip';
+	import { shortcutLabel } from '$lib/shared/utils/shortcuts';
 	import { getFieldValue } from '../controls/fieldValues';
 	import type { RenderGroup, TreeCell, TreeEntry } from '../controls/grouping';
 	import type { SortState } from '../controls/sorting';
@@ -61,7 +62,7 @@
 		getActions,
 		caption,
 		onToggleSort,
-		onToggleRow,
+		onClickRow,
 		onToggleAll,
 		headerControl = undefined
 	}: {
@@ -89,7 +90,11 @@
 		getActions: ((item: T) => CardAction[]) | null;
 		caption: string;
 		onToggleSort: (fieldKey: string) => void;
-		onToggleRow: (id: string, selected: boolean) => void;
+		/**
+		 * A click on a row or its checkbox. `extend` (Shift held) selects the block from the last
+		 * clicked row; otherwise the row toggles.
+		 */
+		onClickRow: (id: string, extend: boolean) => void;
 		onToggleAll: () => void;
 		/**
 		 * A column's filter and group control, rendered beside its label. Owned by
@@ -131,6 +136,21 @@
 		columnSizingStart: []
 	});
 
+	/**
+	 * Whether a click on a row selects it. A click on something inside the row that acts on its own
+	 * (a link, a button, a tag, an input) keeps its own meaning, and finishing a text selection by
+	 * dragging is not a click on the row.
+	 */
+	function isRowSelectClick(event: MouseEvent): boolean {
+		const target = event.target as Element | null;
+		if (
+			target?.closest('a, button, input, select, textarea, label, [role="button"], [role="link"]')
+		) {
+			return false;
+		}
+		return !window.getSelection()?.toString();
+	}
+
 	function resolve<S>(updater: Updater<S>, old: S): S {
 		return typeof updater === 'function' ? (updater as (old: S) => S)(old) : updater;
 	}
@@ -142,7 +162,18 @@
 			const clamped = clampColumnWidth(width);
 			if (clamped !== null) sizing[id] = clamped;
 		}
+		forgetRenderedWidths(columnSizing, sizing);
 		onColumnSizingChange(sizing);
+	}
+
+	/**
+	 * A resized column's content cap starts again from its new width. Left at the old rendered
+	 * width, the cap would hold the column open and a narrowing drag could never take.
+	 */
+	function forgetRenderedWidths(before: Record<string, number>, after: Record<string, number>) {
+		for (const id of new Set([...Object.keys(before), ...Object.keys(after)])) {
+			if (before[id] !== after[id]) delete renderedWidths[id];
+		}
 	}
 
 	/** Every row on the page, grouped or not — table-core sees one flat list. */
@@ -228,6 +259,7 @@
 		if (columnSizing[columnId] === undefined) return;
 		const rest = { ...columnSizing };
 		delete rest[columnId];
+		forgetRenderedWidths(columnSizing, rest);
 		onColumnSizingChange(rest);
 	}
 
@@ -241,8 +273,32 @@
 	 * popovers opened from a cell are not cut off.
 	 */
 	function contentMaxWidth(column: EntityColumn<T>): string {
-		const width = columnWidth(column, columnSizing) ?? UNSIZED_COLUMN_MAX;
+		const set = columnWidth(column, columnSizing) ?? UNSIZED_COLUMN_MAX;
+		// A full-width table hands its spare room to the columns, so a column can render wider
+		// than its set width or the cap. Its content fills what it renders at, up to the resize
+		// handle, instead of wrapping at the cap with blank space beside it.
+		const width = Math.max(set, renderedWidths[column.id] ?? 0);
 		return `max-width: calc(${width}px - 2 * var(--cell-px))`;
+	}
+
+	/** Each data column's rendered header width, which the cells' content cap follows. */
+	let renderedWidths = $state<Record<string, number>>({});
+
+	function trackColumnWidth(node: HTMLElement, columnId: string) {
+		let id = columnId;
+		const observer = new ResizeObserver(() => {
+			if (renderedWidths[id] !== node.offsetWidth) renderedWidths[id] = node.offsetWidth;
+		});
+		observer.observe(node);
+		return {
+			update(next: string) {
+				id = next;
+			},
+			destroy() {
+				observer.disconnect();
+				delete renderedWidths[id];
+			}
+		};
 	}
 
 	/**
@@ -260,6 +316,44 @@
 
 	let byId = $derived(new Map(columns.map((c) => [c.id, c])));
 	let primaryColumn = $derived(columns.find((c) => c.primary) ?? columns[0]);
+
+	// Pinned while the table scrolls sideways: the checkbox and the name on the left, the tags and
+	// the actions on the right (`.pin-left` / `.pin-right` in app.css). A column pins only in its
+	// usual place, the name first and tags last; moved elsewhere, it scrolls like any other.
+	let firstColumnId = $derived(view.headers[0]?.column.id);
+	let lastColumnId = $derived(view.headers.at(-1)?.column.id);
+
+	function pinOf(column: EntityColumn<T>): 'left' | 'right' | null {
+		if (column.primary && column.id === firstColumnId) return 'left';
+		if (column.id === 'tags' && column.id === lastColumnId) return 'right';
+		return null;
+	}
+
+	/** The class and offset for a pinned data column's cells; `relative` for the rest. */
+	function pinAttrs(column: EntityColumn<T>): { class: string; style: string } {
+		const pin = pinOf(column);
+		if (pin === 'left')
+			return { class: 'pin-left pin-edge-right', style: '--pin-left: var(--pin-select-width)' };
+		if (pin === 'right')
+			return { class: 'pin-right pin-edge-left', style: '--pin-right: var(--pin-actions-width)' };
+		return { class: 'relative', style: '' };
+	}
+
+	// The name pins beside the checkbox and tags beside the actions, so each needs its neighbour's
+	// width as its offset.
+	let selectHeader: HTMLTableCellElement | undefined = $state();
+	let actionsHeader: HTMLTableCellElement | undefined = $state();
+	let selectWidth = $state(0);
+	let actionsWidth = $state(0);
+
+	function trackWidth(node: HTMLElement, set: (width: number) => void): () => void {
+		const observer = new ResizeObserver(() => set(node.offsetWidth));
+		observer.observe(node);
+		return () => observer.disconnect();
+	}
+
+	$effect(() => (selectHeader ? trackWidth(selectHeader, (w) => (selectWidth = w)) : undefined));
+	$effect(() => (actionsHeader ? trackWidth(actionsHeader, (w) => (actionsWidth = w)) : undefined));
 
 	function ariaSort(columnId: string): 'ascending' | 'descending' | 'none' {
 		if (sortState.field !== columnId) return 'none';
@@ -299,7 +393,9 @@
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-	class="entity-table relative overflow-x-auto"
+	class="entity-table relative isolate overflow-x-auto"
+	style:--pin-select-width="{selectable ? selectWidth : 0}px"
+	style:--pin-actions-width="{getActions ? actionsWidth : 0}px"
 	data-density={displaySettings.current.table_density}
 	tabindex="0"
 	role="region"
@@ -310,13 +406,18 @@
 		<thead>
 			<tr>
 				{#if selectable}
-					<th scope="col" class="w-10 px-[var(--cell-px)] py-[var(--cell-py)]">
+					<th
+						bind:this={selectHeader}
+						scope="col"
+						class="pin-left w-10 px-[var(--cell-px)] py-[var(--cell-py)]"
+					>
 						<input
 							type="checkbox"
 							checked={allSelected}
 							indeterminate={someSelected}
 							onchange={onToggleAll}
 							aria-label={allSelected ? common_deselectAll() : common_selectAllOnPage()}
+							title="{common_selectAllOnPage()} ({shortcutLabel('A')})"
 							class="checkbox-card h-4 w-4"
 						/>
 					</th>
@@ -326,11 +427,13 @@
 					{@const column = byId.get(header.column.id)}
 					{#if column}
 						{@const width = columnWidth(column, columnSizing)}
+						{@const pin = pinAttrs(column)}
 						<th
+							use:trackColumnWidth={column.id}
 							scope="col"
 							aria-sort={ariaSort(column.id)}
-							style={width ? `width: ${width}px` : ''}
-							class="text-secondary relative whitespace-nowrap px-[var(--cell-px)] py-[var(--cell-py)] text-xs font-medium {column.align ===
+							style="{width ? `width: ${width}px;` : ''} {pin.style}"
+							class="text-secondary {pin.class} whitespace-nowrap px-[var(--cell-px)] py-[var(--cell-py)] text-xs font-medium {column.align ===
 							'right'
 								? 'text-right'
 								: 'text-left'}"
@@ -357,16 +460,15 @@
 
 				{#if getActions}
 					<!--
-						Not sticky. Only the header was pinned while its cells were not, so
-						on a wide table the last column's header scrolled underneath this
-						one's opaque background and read as a missing header, while its
-						cells stayed visible. Pinning the whole column is a bigger change
-						than it looks — every cell needs the same background or content
-						shows through — so both scroll together instead.
+						Pinned with every one of its cells, not just the header: a header
+						pinned alone let the last column's header scroll under it and read as
+						missing. Each pinned cell paints the page background plus its row's
+						tint, so content scrolling underneath never shows through.
 					-->
 					<th
+						bind:this={actionsHeader}
 						scope="col"
-						class="text-secondary px-[var(--cell-px)] py-[var(--cell-py)] text-right text-xs font-medium"
+						class="text-secondary pin-right px-[var(--cell-px)] py-[var(--cell-py)] text-left text-xs font-medium"
 					>
 						{common_actions()}
 					</th>
@@ -392,7 +494,7 @@
 								type="button"
 								onclick={() => onToggleCollapse(group.key)}
 								aria-expanded={!isCollapsed}
-								class="text-primary flex items-center gap-2 text-sm font-semibold"
+								class="text-primary pin-content flex w-max items-center gap-2 text-sm font-semibold"
 							>
 								{#if isCollapsed}
 									<ChevronRight class="h-4 w-4" aria-hidden="true" />
@@ -503,18 +605,34 @@
 	{@const item = row.original}
 	{@const itemId = getItemId(item)}
 	{@const isSelected = selectedIds.has(itemId)}
+	<!-- The checkbox is the keyboard path; the row click is a larger mouse target for the same. -->
 	<tr
-		class="border-t transition-colors {isSelected
-			? 'bg-black/5 dark:bg-white/5'
-			: 'hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'}"
+		data-keeps-selection
+		class="border-t bg-[var(--row-tint)] transition-colors {selectable
+			? 'cursor-pointer'
+			: ''} {isSelected
+			? '[--row-tint:rgb(0_0_0/0.05)] dark:[--row-tint:rgb(255_255_255/0.05)]'
+			: 'hover:[--row-tint:rgb(0_0_0/0.03)] dark:hover:[--row-tint:rgb(255_255_255/0.03)]'}"
 		style="border-color: var(--color-border)"
+		onmousedown={(e) => {
+			// Shift+click would otherwise select the text between the two rows.
+			if (selectable && e.shiftKey) e.preventDefault();
+		}}
+		onclick={(e) => {
+			if (selectable && isRowSelectClick(e)) onClickRow(itemId, e.shiftKey);
+		}}
 	>
 		{#if selectable}
-			<td class="w-10 px-[var(--cell-px)] py-[var(--cell-py)] align-middle">
+			<td class="pin-left w-10 px-[var(--cell-px)] py-[var(--cell-py)] align-middle">
 				<input
 					type="checkbox"
 					checked={isSelected}
-					onchange={(e) => onToggleRow(itemId, e.currentTarget.checked)}
+					onclick={(e) => {
+						e.stopPropagation();
+						onClickRow(itemId, e.shiftKey);
+						// A Shift+click on a selected row keeps it selected; undo the native toggle.
+						e.currentTarget.checked = selectedIds.has(itemId);
+					}}
 					aria-label={common_selectRow({ name: rowLabel(item) })}
 					class="checkbox-card h-4 w-4"
 				/>
@@ -524,11 +642,13 @@
 		{#each view.headers as header (header.id)}
 			{@const column = byId.get(header.column.id)}
 			{#if column}
+				{@const pin = pinAttrs(column)}
 				{#if column.primary}
 					<!-- Announces the row's identity before each cell when navigating across. -->
 					<th
 						scope="row"
-						class="text-primary relative px-[var(--cell-px)] py-[var(--cell-py)] text-left align-middle font-medium"
+						style={pin.style}
+						class="text-primary {pin.class} px-[var(--cell-px)] py-[var(--cell-py)] text-left align-middle font-medium"
 					>
 						{#if tree}
 							{#if depth > 0}
@@ -549,7 +669,9 @@
 					</th>
 				{:else}
 					<td
-						class="px-[var(--cell-px)] py-[var(--cell-py)] align-middle {column.align === 'right'
+						style={pin.style}
+						class="{pin.class} px-[var(--cell-px)] py-[var(--cell-py)] align-middle {column.align ===
+						'right'
 							? 'text-right'
 							: ''}"
 					>
@@ -563,7 +685,7 @@
 
 		{#if getActions}
 			{@const actions = getActions(item)}
-			<td class="px-[var(--cell-px)] py-[var(--cell-py)] text-right align-middle">
+			<td class="pin-right px-[var(--cell-px)] py-[var(--cell-py)] text-right align-middle">
 				<div class="flex items-center justify-end gap-1">
 					{#each actions as action (action.label)}
 						{@const tip =
@@ -654,11 +776,12 @@
 		ondblclick={() => resetWidth(column.id)}
 		onkeydown={(e) => resizeByKey(e, column.id)}
 	>
+		<!-- A short grip at rest so the handle can be found; full height while in use. -->
 		<span
-			class="h-full w-0.5 transition-colors group-hover:bg-blue-500/60 group-focus-visible:bg-blue-500 {columnSizingInfo.isResizingColumn ===
+			class="w-0.5 self-center rounded-full transition-all {columnSizingInfo.isResizingColumn ===
 			column.id
-				? 'bg-blue-500'
-				: ''}"
+				? 'h-full bg-blue-500'
+				: 'h-1/2 bg-black/20 group-hover:h-full group-hover:bg-blue-500/60 group-focus-visible:h-full group-focus-visible:bg-blue-500 dark:bg-white/25'}"
 		></span>
 	</div>
 {/snippet}

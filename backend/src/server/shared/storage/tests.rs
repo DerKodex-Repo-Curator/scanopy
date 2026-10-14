@@ -5,6 +5,7 @@ use crate::server::{
     daemons::r#impl::base::Daemon,
     dependencies::{dependency_members::DependencyMemberRecord, r#impl::base::Dependency},
     discovery::r#impl::base::Discovery,
+    discovery_warnings::r#impl::base::DiscoveryWarningRecord,
     hosts::r#impl::base::Host,
     interface_neighbors::r#impl::base::{
         InterfaceNeighborCandidate, InterfaceNeighborHost, InterfaceNeighborInterface,
@@ -155,6 +156,22 @@ fn get_entity_deserializers() -> HashMap<&'static str, DeserializeFn> {
     );
 
     map.insert(
+        crate::server::license::instances::ServerInstance::table_name(),
+        Box::new(|row| {
+            crate::server::license::instances::ServerInstance::from_row(row)?;
+            Ok(())
+        }),
+    );
+
+    map.insert(
+        crate::server::license::instances::LicenseInstance::table_name(),
+        Box::new(|row| {
+            crate::server::license::instances::LicenseInstance::from_row(row)?;
+            Ok(())
+        }),
+    );
+
+    map.insert(
         crate::server::release_notes::storage::ReleaseAnnouncement::table_name(),
         Box::new(|row| {
             crate::server::release_notes::storage::ReleaseAnnouncement::from_row(row)?;
@@ -198,6 +215,14 @@ fn get_entity_deserializers() -> HashMap<&'static str, DeserializeFn> {
         Binding::table_name(),
         Box::new(|row| {
             Binding::from_row(row)?;
+            Ok(())
+        }),
+    );
+
+    map.insert(
+        DiscoveryWarningRecord::table_name(),
+        Box::new(|row| {
+            DiscoveryWarningRecord::from_row(row)?;
             Ok(())
         }),
     );
@@ -626,6 +651,7 @@ pub async fn test_entity_columns_match_live_schema() {
     check_entity::<Vlan>(&pool, &mut failures).await;
     check_entity::<EntityTag>(&pool, &mut failures).await;
     check_entity::<DependencyMemberRecord>(&pool, &mut failures).await;
+    check_entity::<DiscoveryWarningRecord>(&pool, &mut failures).await;
     check_entity::<SubnetVlanRecord>(&pool, &mut failures).await;
 
     if !failures.is_empty() {

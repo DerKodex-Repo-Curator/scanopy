@@ -2,6 +2,11 @@ fn main() {
     // Vendored data refreshes live in scripts/refresh-vendored-data.sh
     // (run by `make refresh-vendored-data` and the release workflow).
     println!("cargo:rerun-if-changed=assets/oui.csv");
+    // Release notes and terms updates are embedded at compile time (`rust-embed`
+    // with `debug-embed`). Cargo tracks only files the build already read, so a
+    // file added to the folder would otherwise ship in no build until something
+    // else changed. A directory here is rescanned for any change inside it.
+    println!("cargo:rerun-if-changed=release-notes");
 
     // Windows: delay-load the Npcap runtime (packet.dll). pnet links Packet.lib, which makes
     // packet.dll a load-time import, so without Npcap installed an exe fails to even start

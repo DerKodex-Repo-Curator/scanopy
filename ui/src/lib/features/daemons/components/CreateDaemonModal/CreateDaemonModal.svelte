@@ -27,6 +27,7 @@
 		useDaemonQuery,
 		useDaemonInstallCommandQuery,
 		useEmailInstallCommandMutation,
+		useProvisionEligibilityQuery,
 		type InstallCommandParams
 	} from '../../queries';
 	import { useConfigQuery, isCloud } from '$lib/shared/stores/config-query';
@@ -78,9 +79,11 @@
 		daemons_installCopiedToastMac,
 		daemons_installCopiedToastWindows,
 		daemons_installBackToInstall,
-		daemons_installReturnToCommands
+		daemons_installReturnToCommands,
+		daemons_verifyEmailForMoreDaemons
 	} from '$lib/paraglide/messages';
 	import { credentialTypes } from '$lib/shared/stores/metadata';
+	import EmailVerificationNotice from '$lib/features/auth/components/EmailVerificationNotice.svelte';
 
 	interface Props {
 		isOpen?: boolean;
@@ -107,6 +110,7 @@
 	// Email install command
 	let hasEmail = $derived(configQuery.data?.has_email_service ?? false);
 	const emailInstallMutation = useEmailInstallCommandMutation();
+
 	// Sites
 	const sitesQuery = useSitesQuery();
 	let sitesData = $derived(sitesQuery.data ?? []);
@@ -182,6 +186,17 @@
 	// Connection waiting state
 	let provisionedDaemonId = $state('');
 	let isProvisioning = $state(false);
+
+	// The server refuses another daemon while no owner of the org has verified their email. It
+	// says so up front, so the wizard stops on its first step instead of after the user has
+	// configured everything.
+	const provisionEligibilityQuery = useProvisionEligibilityQuery({
+		enabled: () => isOpen && !provisionedDaemonId
+	});
+	let provisionNeedsVerification = $derived(
+		provisionEligibilityQuery.data?.email_verification_required ?? false
+	);
+
 	// Daemon identity (name + site) is frozen once Configure is left, so credentials — which
 	// are created against the selected site — can't be orphaned by a later site change.
 	let configureCommitted = $state(false);
@@ -469,6 +484,8 @@
 	// --- Navigation handlers ---
 	async function handleNext() {
 		if (activeTab === 'configure') {
+			// Provisioning would be refused; the notice above the form says why.
+			if (provisionNeedsVerification) return;
 			const fields = getVisibleFieldIds(formValues);
 			const isValid = await validateForm(form, fields);
 
@@ -726,6 +743,11 @@
 			<div class="flex-1 overflow-auto p-4 sm:p-6">
 				{#key activeTab}
 					{#if activeTab === 'configure'}
+						{#if provisionNeedsVerification}
+							<div class="mb-4">
+								<EmailVerificationNotice body={daemons_verifyEmailForMoreDaemons()} />
+							</div>
+						{/if}
 						<ConfigureStep
 							{form}
 							{selectedOS}
@@ -830,7 +852,7 @@
 						type="button"
 						class="btn-primary btn-primary-lg"
 						onclick={handleNext}
-						disabled={isTestingReachability}
+						disabled={isTestingReachability || provisionNeedsVerification}
 					>
 						{#if isTestingReachability}
 							<Loader2 class="h-4 w-4 animate-spin" />
@@ -853,18 +875,23 @@
 							{common_close()}
 						</button>
 					{:else}
-						{#if hasEmail && currentInstallCommand}
+						{#if hasEmail && currentInstallCommand && committedInstallParams}
+							{@const emailParams = committedInstallParams}
 							<button
 								type="button"
 								class="btn-secondary w-full text-sm sm:w-auto"
 								disabled={emailInstallMutation.isPending}
 								onclick={() => {
+									// The server rebuilds the command from the same params the
+									// on-screen command came from; it never takes rendered text.
 									emailInstallMutation.mutate(
-										// The endpoint takes the OS identifier. This passed a display
-										// label ("macOS", "Linux (Docker)") that never matched it;
-										// the generated type said `string` until this release, so
-										// the mismatch went unnoticed.
-										{ installCommand: currentInstallCommand, os: selectedOS },
+										{
+											daemon_id: provisionedDaemonId,
+											...emailParams,
+											os: selectedOS,
+											docker: isDockerInstall,
+											api_key: keyState
+										},
 										{
 											onSuccess: () => pushSuccess(daemons_installCommandEmailed())
 										}

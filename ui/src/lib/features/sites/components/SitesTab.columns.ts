@@ -54,6 +54,23 @@ function siteCredentials(ctx: SiteColumnsContext, site: Site): Credential[] {
 		.filter((c): c is Credential => Boolean(c));
 }
 
+/** A site's staleness window as a filter value: its hours, prefixed when the server default applies. */
+const DEFAULT_WINDOW_PREFIX = 'default:';
+
+function staleWindowValue(site: Site): string | null {
+	if (site.effective_stale_after_hours == null) return null;
+	const hours = String(site.effective_stale_after_hours);
+	return site.stale_after_hours == null ? `${DEFAULT_WINDOW_PREFIX}${hours}` : hours;
+}
+
+function staleWindowLabel(value: string): string {
+	const isDefault = value.startsWith(DEFAULT_WINDOW_PREFIX);
+	const hours = common_hoursCount({
+		hours: Number(isDefault ? value.slice(DEFAULT_WINDOW_PREFIX.length) : value)
+	});
+	return isDefault ? sites_staleAfterDefault({ hours }) : hours;
+}
+
 export function siteColumns(ctx: SiteColumnsContext): FieldConfig<Site>[] {
 	return [
 		{
@@ -118,6 +135,8 @@ export function siteColumns(ctx: SiteColumnsContext): FieldConfig<Site>[] {
 			// members of one site each, which search already finds.
 			filterable: true,
 			getValue: (site) => siteCredentials(ctx, site).map((c) => c.name),
+			getFilterValue: (site) => siteCredentials(ctx, site).map((c) => c.id),
+			filterLabel: (id) => ctx.credentials().find((c) => c.id === id)?.name ?? id,
 			display: {
 				order: 4,
 				getItems: (site) => credentialItems(siteCredentials(ctx, site))
@@ -166,10 +185,11 @@ export function siteColumns(ctx: SiteColumnsContext): FieldConfig<Site>[] {
 			filterable: true,
 			// Marked when no override is set, so an override equal to the default still reads as one.
 			getValue: (site) => {
-				if (site.effective_stale_after_hours == null) return null;
-				const hours = common_hoursCount({ hours: site.effective_stale_after_hours });
-				return site.stale_after_hours == null ? sites_staleAfterDefault({ hours }) : hours;
+				const value = staleWindowValue(site);
+				return value === null ? null : staleWindowLabel(value);
 			},
+			getFilterValue: staleWindowValue,
+			filterLabel: staleWindowLabel,
 			display: { hiddenByDefault: true }
 		}
 	];

@@ -130,6 +130,9 @@ pub struct DaemonService {
 
     // Deployment mode — gates the cloud-only SSRF guard on outbound daemon URLs.
     deployment_type: crate::server::config::DeploymentType,
+
+    // Whether the server can send email; lifts the unverified-org daemon limit when it can't.
+    has_email_service: bool,
 }
 
 impl EventBusService<Daemon> for DaemonService {

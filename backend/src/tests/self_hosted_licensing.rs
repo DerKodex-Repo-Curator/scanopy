@@ -12,6 +12,7 @@ use axum::http::{HeaderMap, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::routing::{get, put};
 use axum::{Json, Router};
+use axum_client_ip::ClientIp;
 use chrono::{DateTime, Duration, Utc};
 use email_address::EmailAddress;
 use testcontainers::{ContainerAsync, GenericImage};
@@ -32,7 +33,9 @@ use crate::server::license::handlers::{get_current_license_key, get_entitlement}
 use crate::server::license::key::LicenseKey;
 use crate::server::license::mint::tests::{test_decoding_key, test_issuer};
 use crate::server::license::mint::{MintError, PAID_THROUGH_BUFFER_DAYS};
-use crate::server::license::online::{ENTITLEMENT_PATH, EntitlementRequest};
+use crate::server::license::online::{
+    ENTITLEMENT_PATH, EntitlementRequest, EntitlementResponse, InstanceUsage,
+};
 use crate::server::license::types::{LicenseKeyType, LicenseStatus};
 use crate::server::organizations::r#impl::base::Organization;
 use crate::server::organizations::service::SwitchKeyTypeError;
@@ -111,13 +114,29 @@ fn whole_seconds_from_now(days: i64) -> DateTime<Utc> {
 }
 
 async fn request_entitlement(state: &Arc<AppState>, key: String) -> Result<String, StatusCode> {
+    check_in(state, key, None, None)
+        .await
+        .map(|response| response.entitlement)
+}
+
+async fn check_in(
+    state: &Arc<AppState>,
+    key: String,
+    instance_id: Option<Uuid>,
+    non_production: Option<bool>,
+) -> Result<EntitlementResponse, StatusCode> {
     get_entitlement(
         State(state.clone()),
+        ClientIp("203.0.113.7".parse().unwrap()),
         HeaderMap::new(),
-        ApiJson(EntitlementRequest { key }),
+        ApiJson(EntitlementRequest {
+            key,
+            instance_id,
+            non_production,
+        }),
     )
     .await
-    .map(|Json(response)| response.into_data().unwrap().entitlement)
+    .map(|Json(response)| response.into_data().unwrap())
     .map_err(|error| error.status)
 }
 
@@ -162,6 +181,74 @@ async fn online_keys_are_stable_until_rotated() {
             .unwrap(),
         key
     );
+}
+
+/// A second production server on the key is refused its entitlement while the
+/// first keeps getting its own, told the key is over its limit; the org is
+/// marked so the overrun is reported once. A non-production server takes its
+/// own slot, and a server too old to say which it is is counted but admitted.
+#[tokio::test]
+async fn a_second_production_server_is_refused_and_a_non_production_one_admitted() {
+    let (state, _container) = test_state().await;
+    let issuer = state.license_issuer.clone().unwrap();
+    let service = &state.services.organization_service;
+    let org = create_org(
+        &state,
+        get_self_hosted_standard_plan(),
+        Some(whole_seconds_from_now(30)),
+    )
+    .await;
+    let stamp = service.license_key_issued_at(org.id).await.unwrap();
+    let key = issuer
+        .mint_online_key(&reload(&state, org.id).await, stamp)
+        .unwrap();
+    let first = Some(Uuid::new_v4());
+    let second = Some(Uuid::new_v4());
+
+    let admitted = check_in(&state, key.clone(), first, Some(false))
+        .await
+        .unwrap();
+    assert_eq!(
+        admitted.instances,
+        Some(InstanceUsage {
+            active: 1,
+            limit: Some(1),
+            non_production_active: 0,
+            non_production_limit: Some(2),
+        })
+    );
+
+    assert_eq!(
+        check_in(&state, key.clone(), second, Some(false))
+            .await
+            .unwrap_err(),
+        StatusCode::FORBIDDEN
+    );
+    assert!(
+        reload(&state, org.id)
+            .await
+            .base
+            .notifications
+            .license_over_instance_limit
+    );
+
+    let still_admitted = check_in(&state, key.clone(), first, Some(false))
+        .await
+        .unwrap();
+    assert!(!still_admitted.entitlement.is_empty());
+    assert_eq!(still_admitted.instances.unwrap().active, 2);
+
+    let staging = check_in(&state, key.clone(), Some(Uuid::new_v4()), Some(true))
+        .await
+        .unwrap();
+    assert!(!staging.entitlement.is_empty());
+    assert_eq!(staging.instances.unwrap().non_production_active, 1);
+
+    let old_build = check_in(&state, key, Some(Uuid::new_v4()), None)
+        .await
+        .unwrap();
+    assert!(!old_build.entitlement.is_empty());
+    assert_eq!(old_build.instances.unwrap().active, 3);
 }
 
 #[tokio::test]
@@ -341,26 +428,29 @@ async fn a_cloud_org_lapses_on_its_plan_when_the_subscription_ends() {
         .unwrap();
 
     service
-        .handle(vec![Event::new(
-            OrgScope {
-                organization_id: org.id,
-            },
-            BillingOperation::SubscriptionCancelled {
-                plan: pro_plan(),
-                reason_code: None,
-                stripe_feedback: None,
-                stripe_reason: None,
-                internal_reason: None,
-                comment: None,
-                period_end: Utc::now(),
-                was_trialing: true,
-                mrr_amount_cents: 0,
-                tenure_days: 14,
-                license_key_type: None,
-                defaulted: false,
-            },
-            AuthenticatedEntity::System,
-        )])
+        .apply_billing(
+            org.id,
+            vec![Event::new(
+                OrgScope {
+                    organization_id: org.id,
+                },
+                BillingOperation::SubscriptionCancelled {
+                    plan: pro_plan(),
+                    reason_code: None,
+                    stripe_feedback: None,
+                    stripe_reason: None,
+                    internal_reason: None,
+                    comment: None,
+                    period_end: Utc::now(),
+                    was_trialing: true,
+                    mrr_amount_cents: 0,
+                    tenure_days: 14,
+                    license_key_type: None,
+                    defaulted: false,
+                },
+                AuthenticatedEntity::System,
+            )],
+        )
         .await
         .unwrap();
 
@@ -388,6 +478,7 @@ async fn billing_middleware_makes_a_lapsed_cloud_org_read_only() {
         site_ids: vec![],
         email: EmailAddress::new_unchecked("owner@example.com"),
         email_verified: true,
+        terms_accepted_at: None,
     };
     let org_path = format!("/api/v1/organizations/{}", org.id);
 
@@ -445,6 +536,7 @@ async fn billing_middleware_locks_main_app_routes_for_self_hosted_plans() {
         site_ids: vec![],
         email: EmailAddress::new_unchecked("owner@example.com"),
         email_verified: true,
+        terms_accepted_at: None,
     };
 
     // A main-app route and a Settings route behind the billing middleware,
@@ -595,10 +687,20 @@ async fn license_paid_through_follows_self_hosted_trials_and_invoices() {
         )
     };
     service
-        .handle(vec![
-            trial_started(self_hosted.id, get_self_hosted_standard_plan()),
-            trial_started(cloud.id, get_enterprise_plan()),
-        ])
+        .apply_billing(
+            self_hosted.id,
+            vec![trial_started(
+                self_hosted.id,
+                get_self_hosted_standard_plan(),
+            )],
+        )
+        .await
+        .unwrap();
+    service
+        .apply_billing(
+            cloud.id,
+            vec![trial_started(cloud.id, get_enterprise_plan())],
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -639,16 +741,19 @@ async fn license_paid_through_follows_self_hosted_trials_and_invoices() {
         due_date: None,
     };
     service
-        .handle(vec![Event::new(
-            OrgScope {
-                organization_id: self_hosted.id,
-            },
-            BillingOperation::PaymentSucceeded {
-                invoice,
-                previous_license_paid_through: None,
-            },
-            AuthenticatedEntity::System,
-        )])
+        .apply_billing(
+            self_hosted.id,
+            vec![Event::new(
+                OrgScope {
+                    organization_id: self_hosted.id,
+                },
+                BillingOperation::PaymentSucceeded {
+                    invoice,
+                    previous_license_paid_through: None,
+                },
+                AuthenticatedEntity::System,
+            )],
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -686,6 +791,7 @@ async fn a_stranded_air_gapped_organization_heals_on_read() {
         site_ids: vec![],
         email: EmailAddress::new_unchecked("owner@example.com"),
         email_verified: true,
+        terms_accepted_at: None,
     };
     // The extractor takes the entity cached in request extensions, so the
     // route can be served without a session.
@@ -778,8 +884,8 @@ async fn the_airgap_renewal_email_dates_the_key_already_installed() {
     };
 
     // Driven straight at the email subscriber. The date rides on the event
-    // precisely so it no longer depends on which subscriber ran first, and
-    // the organization subscriber is deliberately not run here.
+    // precisely so it does not depend on the org row, which is deliberately
+    // left at its old value here.
     let email_service = state.services.email_service.clone().unwrap();
     email_service
         .handle(vec![Event::new(
@@ -850,13 +956,16 @@ async fn sent_invoices_license_until_due_and_give_back_on_void() {
         due_date: Some(due_date),
     };
     let publish = |operation: BillingOperation| {
-        service.handle(vec![Event::new(
-            OrgScope {
-                organization_id: org.id,
-            },
-            operation,
-            AuthenticatedEntity::System,
-        )])
+        service.apply_billing(
+            org.id,
+            vec![Event::new(
+                OrgScope {
+                    organization_id: org.id,
+                },
+                operation,
+                AuthenticatedEntity::System,
+            )],
+        )
     };
 
     // Issued: licensed past the due date, and the org counts as able to pay.

@@ -178,13 +178,10 @@ verify_no_leaked_addresses() {
                     "$host" 1.3.6.1.2.1.4.20.1.1 2>/dev/null || true)
                 ;;
             v3)
-                local user="${V3_USERS[$i]:-$V3_USER}" apass="$V3_AUTH_PASS" ppass="$V3_PRIV_PASS"
-                if [ "$user" = "$V3_CTX_USER" ]; then
-                    apass="$V3_CTX_AUTH_PASS"
-                    ppass="$V3_CTX_PRIV_PASS"
-                fi
-                reported=$("$SNMPWALK" -v3 -l authPriv -u "$user" -a SHA-256 -A "$apass" \
-                    -x AES -X "$ppass" -t 2 -r 1 -Ovq "$host" 1.3.6.1.2.1.4.20.1.1 2>/dev/null || true)
+                # Level, protocols and passwords come from the device's own credential (lab.env).
+                local v3args
+                read -ra v3args <<< "${V3_ARGS[$i]}"
+                reported=$("$SNMPWALK" -v3 "${v3args[@]}" -t 2 -r 1 -Ovq "$host" 1.3.6.1.2.1.4.20.1.1 2>/dev/null || true)
                 ;;
             *)
                 reported=$("$SNMPWALK" -v2c -c "$community" -t 2 -r 1 -Ovq \
@@ -277,13 +274,10 @@ cmd_verify() {
                 detail="v1 community=$community"
                 ;;
             v3)
-                local user="${V3_USERS[$i]:-$V3_USER}" apass="$V3_AUTH_PASS" ppass="$V3_PRIV_PASS"
-                if [ "$user" = "$V3_CTX_USER" ]; then
-                    apass="$V3_CTX_AUTH_PASS"
-                    ppass="$V3_CTX_PRIV_PASS"
-                fi
-                result=$("$SNMPGET" -v3 -l authPriv -u "$user" -a SHA-256 -A "$apass" -x AES -X "$ppass" -t 2 -r 1 "$host" sysName.0 2>/dev/null | sed 's/.*= STRING: //' || echo "FAILED")
-                detail="v3 user=$user"
+                local v3args
+                read -ra v3args <<< "${V3_ARGS[$i]}"
+                result=$("$SNMPGET" -v3 "${v3args[@]}" -t 2 -r 1 "$host" sysName.0 2>/dev/null | sed 's/.*= STRING: //' || echo "FAILED")
+                detail="v3 ${v3args[0]} ${v3args[1]} user=${V3_USERS[$i]}"
                 ;;
             *)
                 result=$("$SNMPGET" -v2c -c "$community" -t 2 -r 1 "$host" sysName.0 2>/dev/null | sed 's/.*= STRING: //' || echo "FAILED")

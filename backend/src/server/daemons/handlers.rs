@@ -1,16 +1,18 @@
 use crate::daemon::runtime::state::DaemonStatus;
 use crate::daemon::shared::config::{DaemonArgs, parse_integration_target_tokens};
 use crate::server::auth::middleware::permissions::{
-    And, Authorized, IsDaemon, IsUser, Member, Viewer,
+    And, Authorized, IsDaemon, IsUser, Member, RequireVerified, Viewer,
 };
 use crate::server::credentials::r#impl::mapping::IntegrationTarget;
 use crate::server::daemons::r#impl::api::{
     DaemonDiscoveryRequest, DaemonHeartbeatPayload, ProvisionDaemonRequest,
-    ProvisionDaemonResponse, TestReachabilityRequest, TestReachabilityResponse,
+    ProvisionDaemonResponse, ProvisionEligibility, TestReachabilityRequest,
+    TestReachabilityResponse,
 };
 use crate::server::daemons::r#impl::base::DaemonOs;
 use crate::server::metrics::dependency::{Dependency, observe_http};
 use crate::server::openapi::tags as api_tags;
+use crate::server::shared::api_key_common::hash_api_key;
 use crate::server::shared::entities::EntityDiscriminants;
 use crate::server::shared::extractors::Query;
 use crate::server::shared::handlers::ordering::OrderField;
@@ -35,7 +37,8 @@ use crate::server::{
         },
         base::{Daemon, DaemonMode},
         install_artifacts::{
-            InstallCommandType, UpgradeArtifacts, WINDOWS_MSI_URL, build_upgrade_artifacts,
+            API_KEY_PLACEHOLDER, DownloadSource, InstallCommandType, UpgradeArtifacts,
+            WINDOWS_MSI_SCARF_URL, WINDOWS_MSI_URL, build_upgrade_artifacts,
         },
         version::DaemonVersionPolicy,
     },
@@ -52,6 +55,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Json},
 };
+use axum_client_ip::ClientIp;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::IntoParams;
@@ -222,7 +226,7 @@ async fn update_daemon(
 /// Query for [`get_install_command`]. `purpose` is required; the rest are the client-settable
 /// advanced daemon settings, folded into an `install` command. Lists are comma-joined
 /// (`interfaces`, `credential_refs`).
-#[derive(Deserialize, Debug, Clone, IntoParams)]
+#[derive(Deserialize, Serialize, Debug, Clone, IntoParams, utoipa::ToSchema)]
 pub struct InstallCommandQuery {
     /// `install` or `rekey` (with the api-key placeholder), or `reconfigure` (credential-free).
     pub purpose: InstallCommandType,
@@ -327,6 +331,7 @@ async fn get_install_command(
         Some(&install_config),
         &query.credential_refs(),
         query.purpose,
+        DownloadSource::for_server(&state).await,
     );
 
     Ok(Json(ApiResponse::success(artifacts)))
@@ -365,7 +370,10 @@ async fn get_upgrade_command(
         "get upgrade command",
     )?;
 
-    Ok(Json(ApiResponse::success(build_upgrade_artifacts(&daemon))))
+    Ok(Json(ApiResponse::success(build_upgrade_artifacts(
+        &daemon,
+        DownloadSource::for_server(&state).await,
+    ))))
 }
 
 /// Cache key for the proxied Windows MSI bytes (see [`get_windows_msi`]).
@@ -392,8 +400,14 @@ const WINDOWS_MSI_CACHE_KEY: &str = "windows_msi_bytes";
     )
 )]
 pub async fn get_windows_msi(
+    State(state): State<Arc<AppState>>,
     Extension(cache): Extension<Arc<AppCache>>,
+    ClientIp(client_ip): ClientIp,
 ) -> ApiResult<impl IntoResponse> {
+    if DownloadSource::for_server(&state).await == DownloadSource::Scarf {
+        count_msi_download(&state, client_ip);
+    }
+
     let bytes = match cache.get::<bytes::Bytes>(WINDOWS_MSI_CACHE_KEY).await {
         Some(cached) => cached,
         None => {
@@ -431,6 +445,35 @@ pub async fn get_windows_msi(
     );
 
     Ok((headers, Body::from(bytes)))
+}
+
+/// Count one MSI download in Scarf without serving through it. The bytes above come from the
+/// cache or GitHub, so this request only records the download: Scarf answers with a redirect,
+/// which is not followed. `X-Scarf-IP` attributes the download to the browser's IP rather than
+/// the server's; a private client IP (a self-host on its LAN) is left out, so Scarf falls back
+/// to the server's own public IP. Runs in the background and ignores failures, so Scarf being
+/// down or blocked never delays or fails the download. Called only when the server's
+/// [`DownloadSource`] is Scarf.
+fn count_msi_download(state: &AppState, client_ip: std::net::IpAddr) {
+    // No default-client fallback: it follows redirects and would fetch the whole MSI.
+    let Ok(client) = TrustedCaBundle::apply(
+        state.services.trusted_ca.as_deref(),
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::none()),
+    )
+    .build() else {
+        return;
+    };
+
+    let mut request = client.get(WINDOWS_MSI_SCARF_URL);
+    if !crate::server::daemons::ssrf::is_private_ip(&client_ip) {
+        request = request.header("X-Scarf-IP", client_ip.to_string());
+    }
+
+    tokio::spawn(async move {
+        let _ = observe_http(Dependency::Scarf, request.send()).await;
+    });
 }
 
 /// Delete daemon — blocks if daemon has active discovery sessions.
@@ -496,16 +539,31 @@ async fn bulk_delete_daemons(
     generated::bulk_delete(state, auth, ApiJson(ids)).await
 }
 
-/// Request body for emailing an install command to the authenticated user.
+/// Request body for emailing an install command to the authenticated user. The server builds
+/// the command from the daemon record, exactly as [`get_install_command`] does; the client only
+/// picks which method's command to send.
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct EmailInstallCommandRequest {
-    /// The install command to send, exactly as shown in the UI.
-    pub install_command: String,
-    /// Operating system the command targets, used to pick the email wording.
+    /// The daemon whose command to send.
+    pub daemon_id: Uuid,
+    /// The same purpose and advanced settings `GET /{id}/install-command` takes.
+    #[serde(flatten)]
+    pub query: InstallCommandQuery,
+    /// Operating system the command targets.
     pub os: DaemonOs,
+    /// Send the docker compose instead of the binary command. Linux only.
+    #[serde(default)]
+    pub docker: bool,
+    /// The daemon's api key, from the provision response. Required when `purpose` embeds the
+    /// key (`install`, `rekey`) and rejected otherwise. The server stores only its hash, so it
+    /// can't fill the key in itself; it checks this one against the daemon's bound key.
+    pub api_key: Option<String>,
 }
 
 /// Email the install command to the authenticated user's email address.
+///
+/// Requires a verified email: the endpoint mails on demand, so an unproven address would let
+/// anyone send Scanopy mail to an inbox they don't own.
 ///
 /// Session-only, and `IsUser` says so at the extractor rather than in the body. "The current user"
 /// has no answer for an automation identity: a user API key carries `user_id` but no address, so
@@ -520,14 +578,15 @@ pub struct EmailInstallCommandRequest {
     request_body = EmailInstallCommandRequest,
     responses(
         (status = 200, description = "Email sent", body = EmptyApiResponse),
-        (status = 400, description = "Email service not configured", body = ApiErrorResponse),
-        (status = 403, description = "User session required", body = ApiErrorResponse),
+        (status = 400, description = "Email service not configured, no command for this method, or api key missing or not this daemon's", body = ApiErrorResponse),
+        (status = 403, description = "User session or verified email required", body = ApiErrorResponse),
+        (status = 404, description = "Daemon not found", body = ApiErrorResponse),
     ),
     security(("session" = []))
 )]
 async fn email_install_command(
     State(state): State<Arc<AppState>>,
-    auth: Authorized<And<Member, IsUser>>,
+    auth: Authorized<RequireVerified<And<Member, IsUser>>>,
     ApiJson(request): ApiJson<EmailInstallCommandRequest>,
 ) -> ApiResult<Json<EmptyApiResponse>> {
     // Unreachable: `IsUser` has already rejected every variant that lacks an address, and the
@@ -546,11 +605,63 @@ async fn email_install_command(
         .as_ref()
         .ok_or_else(|| ApiError::bad_request("Email service is not configured"))?;
 
+    let daemon = Daemon::get_service(&state)
+        .get_by_id(&request.daemon_id)
+        .await?
+        .ok_or_else(|| ApiError::entity_not_found::<Daemon>(request.daemon_id))?;
+    validate_site_access(
+        Some(daemon.base.site_id),
+        &auth.site_ids(),
+        "email install command",
+    )?;
+
+    let artifacts = crate::server::daemons::r#impl::install_artifacts::build_install_artifacts(
+        &state.config.public_url,
+        &daemon,
+        Some(&request.query.install_config()),
+        &request.query.credential_refs(),
+        request.query.purpose,
+        DownloadSource::for_server(&state).await,
+    );
+    let command = artifacts
+        .command(request.os, request.docker)
+        .ok_or_else(|| ApiError::bad_request("No install command for this method"))?;
+
+    let command = match (request.query.purpose.embeds_key(), &request.api_key) {
+        (true, Some(api_key)) => {
+            let bound_key = match daemon.base.api_key_id {
+                Some(key_id) => {
+                    state
+                        .services
+                        .daemon_api_key_service
+                        .get_by_id(&key_id)
+                        .await?
+                }
+                None => None,
+            };
+            if bound_key.is_none_or(|key| key.base.key != hash_api_key(api_key)) {
+                return Err(ApiError::bad_request(
+                    "Api key does not belong to this daemon",
+                ));
+            }
+            command.replace(API_KEY_PLACEHOLDER, api_key)
+        }
+        (true, None) => {
+            return Err(ApiError::bad_request(
+                "This command needs the daemon's api key",
+            ));
+        }
+        (false, Some(_)) => {
+            return Err(ApiError::bad_request("This command carries no api key"));
+        }
+        (false, None) => command.to_string(),
+    };
+
     // `?` rather than a formatted `internal_error`: the latter put the mail server's raw
     // reply — relay hostname and provider diagnostics included — into the response body,
     // where the client's error middleware showed it to the user in a toast.
     email_service
-        .send_install_command_email(email, &request.install_command, request.os.into())
+        .send_install_command_email(email, &command, request.os.into())
         .await?;
 
     Ok(Json(ApiResponse::success(())))
@@ -566,6 +677,7 @@ pub fn create_router() -> OpenApiRouter<Arc<AppState>> {
         .routes(routes!(bulk_delete_daemons))
         .routes(routes!(generated::export_csv))
         .routes(routes!(provision_daemon))
+        .routes(routes!(get_provision_eligibility))
         .routes(routes!(retry_connection))
         .routes(routes!(test_reachability))
         .routes(routes!(email_install_command))
@@ -1102,6 +1214,38 @@ async fn load_reprovision_target(
     }
 
     Ok(daemon)
+}
+
+/// Whether a new daemon can be provisioned
+///
+/// The create wizard reads this before its first step, so a refusal from `POST /provision`
+/// (no verified owner and a daemon already exists) stops the user up front rather than after
+/// they have configured everything. Reads only the caller's own organization.
+#[utoipa::path(
+    get,
+    path = "/provision-eligibility",
+    tags = [Daemon::ENTITY_NAME_PLURAL, api_tags::INTERNAL],
+    operation_id = "get_provision_eligibility",
+    summary = "Check whether a new daemon can be provisioned",
+    responses(
+        (status = 200, description = "Provisioning eligibility", body = ApiResponse<ProvisionEligibility>),
+    ),
+    security(("user_api_key" = []), ("session" = []))
+)]
+async fn get_provision_eligibility(
+    State(state): State<Arc<AppState>>,
+    auth: Authorized<Member>,
+) -> ApiResult<Json<ApiResponse<ProvisionEligibility>>> {
+    let organization_id = auth.require_organization_id()?;
+    let email_verification_required = state
+        .services
+        .daemon_service
+        .unverified_daemon_limit_reached(organization_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success(ProvisionEligibility {
+        email_verification_required,
+    })))
 }
 
 /// Provision a Daemon, or re-provision an existing one

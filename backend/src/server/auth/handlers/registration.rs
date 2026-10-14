@@ -158,16 +158,22 @@ pub(crate) async fn register(
     let user_agent = user_agent.map(|u| u.to_string());
 
     // Check for pending invite
-    let (org_id, permissions, site_ids) = match process_pending_invite(&state, &session).await {
-        Ok(Some((org_id, permissions, site_ids))) => (Some(org_id), Some(permissions), site_ids),
-        Ok(_) => (None, None, vec![]),
-        Err(e) => {
-            return Err(ApiError::internal_error(&format!(
-                "Failed to process invite: {}",
-                e
-            )));
-        }
-    };
+    let (org_id, permissions, site_ids, invited_as) =
+        match process_pending_invite(&state, &session).await {
+            Ok(Some(invite)) => (
+                Some(invite.organization_id),
+                Some(invite.permissions),
+                invite.site_ids,
+                invite.send_to,
+            ),
+            Ok(_) => (None, None, vec![], None),
+            Err(e) => {
+                return Err(ApiError::internal_error(&format!(
+                    "Failed to process invite: {}",
+                    e
+                )));
+            }
+        };
 
     let provision_org = if let Some(org_id) = org_id {
         ProvisionOrg::Existing(org_id)
@@ -200,6 +206,7 @@ pub(crate) async fn register(
                 ip,
                 user_agent,
                 site_ids,
+                invited_as,
             },
             billing_enabled,
         )
@@ -214,8 +221,7 @@ pub(crate) async fn register(
         .await
         .map_err(|e| ApiError::internal_error(&format!("Failed to save session: {}", e)))?;
 
-    // If this is a new org, provision the integrated daemon and mark the modal done.
-    // The site itself is created by the `OrgCreated` subscriber.
+    // If this is a new org, provision the integrated daemon on the site `provision_user` created.
     if let ProvisionOrg::New(setup) = provision_org {
         apply_pending_setup(&state, &user, setup).await?;
 
@@ -386,9 +392,9 @@ pub(crate) async fn onboarding_state(
 }
 
 /// Apply pending setup after user registration: provision the integrated daemon and
-/// record the onboarding modal as completed. The org, its plan and onboarding state
-/// are set in `provision_user`; the requested site, its subnets and topology are
-/// created by the `OrgCreated` subscriber (`TopologyService::ensure_cloud_setup`).
+/// publish `OnboardingModalCompleted`. The org, its plan, its onboarding state (this
+/// milestone included), the requested site, its subnets and topology are all created
+/// in `provision_user`, so the event is published here without a `record_milestone` guard.
 pub(crate) async fn apply_pending_setup(
     state: &Arc<AppState>,
     user: &User,
