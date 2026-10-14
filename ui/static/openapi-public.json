@@ -14970,19 +14970,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-14T02:20:27.226118Z",
+              "created_at": "2026-10-14T14:23:07.374719Z",
               "first_discovery_id": null,
-              "id": "7aedf424-21ef-4e03-b41c-25e6b0d41995",
+              "id": "839363e3-b322-4368-9009-73733c164409",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T02:20:27.226118Z",
+              "last_seen_at": "2026-10-14T14:23:07.374719Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-14T02:20:27.226118Z",
-              "valid_from": "2026-10-14T02:20:27.226118Z",
+              "updated_at": "2026-10-14T14:23:07.374719Z",
+              "valid_from": "2026-10-14T14:23:07.374719Z",
               "valid_to": null
             }
           },
@@ -16725,19 +16725,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-14T02:20:27.203634Z",
+                      "created_at": "2026-10-14T14:23:07.327306Z",
                       "first_discovery_id": null,
-                      "id": "09d43f71-5d78-4e5b-a85d-33f0b26da266",
+                      "id": "08c327e3-4f7d-4a80-b8fb-48b8ebc55432",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-14T02:20:27.203634Z",
+                      "last_seen_at": "2026-10-14T14:23:07.327306Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-14T02:20:27.203634Z",
-                      "valid_from": "2026-10-14T02:20:27.203634Z",
+                      "updated_at": "2026-10-14T14:23:07.327306Z",
+                      "valid_from": "2026-10-14T14:23:07.327306Z",
                       "valid_to": null
                     }
                   ],
@@ -16750,7 +16750,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "Unclaimed Open Ports",
+                  "service_definition": "Vaultwarden",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -18233,19 +18233,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-14T02:20:27.221533Z",
+                  "created_at": "2026-10-14T14:23:07.365642Z",
                   "first_discovery_id": null,
-                  "id": "590b1bf0-9a3e-473d-b76c-0e27f9ef6a36",
+                  "id": "a79b0c35-1476-4559-b035-639fa6bd76b4",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T02:20:27.221533Z",
+                  "last_seen_at": "2026-10-14T14:23:07.365642Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-14T02:20:27.221533Z",
-                  "valid_from": "2026-10-14T02:20:27.221533Z",
+                  "updated_at": "2026-10-14T14:23:07.365642Z",
+                  "valid_from": "2026-10-14T14:23:07.365642Z",
                   "valid_to": null
                 }
               ],
@@ -18258,7 +18258,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Unclaimed Open Ports",
+              "service_definition": "Vaultwarden",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -21259,19 +21259,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-14T02:20:27.204160Z",
+          "created_at": "2026-10-14T14:23:07.327833Z",
           "first_discovery_id": null,
-          "id": "40c1453f-9abf-4f28-ad44-c1a9374ce42a",
+          "id": "720ef468-c6e4-4558-ae55-c3cbddec6da8",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-14T02:20:27.204160Z",
+          "last_seen_at": "2026-10-14T14:23:07.327833Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-14T02:20:27.204160Z",
-          "valid_from": "2026-10-14T02:20:27.204160Z",
+          "updated_at": "2026-10-14T14:23:07.327833Z",
+          "valid_from": "2026-10-14T14:23:07.327833Z",
           "valid_to": null
         }
       },
@@ -22035,7 +22035,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "Unclaimed Open Ports",
+              "service_definition": "Vaultwarden",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -27718,6 +27718,7 @@
           },
           {
             "type": "object",
+            "title": "Requires",
             "description": "Shown only while the dropdown holds one of these values.",
             "required": [
               "Requires"
@@ -29105,19 +29106,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-14T02:20:27.202994Z",
+                  "created_at": "2026-10-14T14:23:07.326667Z",
                   "first_discovery_id": null,
-                  "id": "3f25001d-44a8-4d68-9c1e-207eb3945cd4",
+                  "id": "6dd242fa-eb6f-4957-a28a-025fe764b022",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T02:20:27.202994Z",
+                  "last_seen_at": "2026-10-14T14:23:07.326667Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-14T02:20:27.202994Z",
-                  "valid_from": "2026-10-14T02:20:27.202994Z",
+                  "updated_at": "2026-10-14T14:23:07.326667Z",
+                  "valid_from": "2026-10-14T14:23:07.326667Z",
                   "valid_to": null
                 }
               ],
@@ -29130,7 +29131,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "Unclaimed Open Ports",
+              "service_definition": "Vaultwarden",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -30012,6 +30013,7 @@
               "null"
             ],
             "format": "int32",
+            "description": "Production servers the key covers. `None` is no cap.",
             "minimum": 0
           },
           "non_production_active": {
@@ -30026,6 +30028,7 @@
               "null"
             ],
             "format": "int32",
+            "description": "Non-production servers the key covers. `None` is no cap.",
             "minimum": 0
           }
         }
@@ -31009,16 +31012,19 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
+                "description": "When the cloud created the record.",
                 "readOnly": true
               },
               "id": {
                 "type": "string",
                 "format": "uuid",
+                "description": "Id of the cloud's record for this instance.",
                 "readOnly": true
               },
               "updated_at": {
                 "type": "string",
                 "format": "date-time",
+                "description": "When the cloud last changed the record.",
                 "readOnly": true
               }
             }
@@ -31042,7 +31048,8 @@
           },
           "first_seen_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "First check-in."
           },
           "instance_id": {
             "type": [
@@ -31054,7 +31061,8 @@
           },
           "last_seen_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Latest check-in."
           },
           "last_seen_ip": {
             "type": [
@@ -31073,7 +31081,8 @@
           },
           "organization_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Organization whose online key the instance checks in with."
           },
           "server_version": {
             "type": [
@@ -33224,19 +33233,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-14T02:20:27.194649Z",
+                        "created_at": "2026-10-14T14:23:07.315166Z",
                         "first_discovery_id": null,
-                        "id": "3d486bf4-de98-4311-a4d8-121759197f43",
+                        "id": "eb46398e-9d79-48a4-9630-62bdae10c5d9",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-14T02:20:27.194649Z",
+                        "last_seen_at": "2026-10-14T14:23:07.315166Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-14T02:20:27.194649Z",
-                        "valid_from": "2026-10-14T02:20:27.194649Z",
+                        "updated_at": "2026-10-14T14:23:07.315166Z",
+                        "valid_from": "2026-10-14T14:23:07.315166Z",
                         "valid_to": null
                       }
                     ],
@@ -33249,7 +33258,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "Unclaimed Open Ports",
+                    "service_definition": "Vaultwarden",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -33398,19 +33407,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-14T02:20:27.220860Z",
+                    "created_at": "2026-10-14T14:23:07.363366Z",
                     "first_discovery_id": null,
-                    "id": "1b3c21b4-f36d-4c9d-9ecd-99e24153727b",
+                    "id": "6b60cb53-8ff8-4791-beda-b5a7bd2f514a",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-14T02:20:27.220860Z",
+                    "last_seen_at": "2026-10-14T14:23:07.363366Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-14T02:20:27.220860Z",
-                    "valid_from": "2026-10-14T02:20:27.220860Z",
+                    "updated_at": "2026-10-14T14:23:07.363366Z",
+                    "valid_from": "2026-10-14T14:23:07.363366Z",
                     "valid_to": null
                   }
                 ],
@@ -33423,7 +33432,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "Unclaimed Open Ports",
+                "service_definition": "Vaultwarden",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -36054,19 +36063,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-14T02:20:27.203990Z",
+              "created_at": "2026-10-14T14:23:07.327658Z",
               "first_discovery_id": null,
-              "id": "3ea17c60-a767-4a16-8e71-3a3f5afa05b4",
+              "id": "805c345e-a0ff-483e-bb26-8fe29731c138",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T02:20:27.203990Z",
+              "last_seen_at": "2026-10-14T14:23:07.327658Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-14T02:20:27.203990Z",
-              "valid_from": "2026-10-14T02:20:27.203990Z",
+              "updated_at": "2026-10-14T14:23:07.327658Z",
+              "valid_from": "2026-10-14T14:23:07.327658Z",
               "valid_to": null
             }
           ],
@@ -36079,7 +36088,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "Unclaimed Open Ports",
+          "service_definition": "Vaultwarden",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -36869,6 +36878,7 @@
         "oneOf": [
           {
             "type": "object",
+            "title": "NoAuthNoPriv",
             "description": "User name only.",
             "required": [
               "security_level"
@@ -36884,6 +36894,7 @@
           },
           {
             "type": "object",
+            "title": "AuthNoPriv",
             "description": "Authenticated, not encrypted.",
             "required": [
               "auth_protocol",
@@ -36950,6 +36961,7 @@
           },
           {
             "type": "object",
+            "title": "AuthPriv",
             "description": "Authenticated and encrypted.",
             "required": [
               "auth_protocol",
@@ -38190,7 +38202,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "7f4c5537-e62e-4cbf-985b-7e674bd60180",
+                  "id": "9e949dc0-4b96-4294-aa06-a6f955adeeac",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -38200,23 +38212,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "bdb62de0-ec35-4f1a-8e10-801805e0dd34",
+                  "id": "916ad4f9-e197-477c-89be-bdac4c4524b9",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "521542fd-3618-43ee-b598-502755e619db",
+                  "id": "66896845-c07e-4c39-97fa-e5357e089163",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "5087a774-57be-4c15-b142-a45cf3466688",
+                  "id": "5411b6e5-c8a2-4a8f-83ed-6b75f468a639",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "bdb62de0-ec35-4f1a-8e10-801805e0dd34",
+                  "id": "916ad4f9-e197-477c-89be-bdac4c4524b9",
                   "rule": "ByHost"
                 }
               ]
@@ -38246,19 +38258,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "8f5e959f-f971-47df-a5d9-c0d80b9b1e8a",
+                "id": "596908cb-0448-4ac6-9aed-d2dc52ad5dcd",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "53b673ba-5ee4-4cf5-87b1-8f0a711a33bb",
+                "id": "4c886897-b270-4228-ae2c-089140edf9ae",
                 "rule": "ByVLAN"
               },
               {
-                "id": "c0798748-17fe-4603-9cc3-f8136aeb318c",
+                "id": "dadd57de-67b2-4d71-8992-daf17e246a58",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "e9f2f888-339b-46c4-85cf-9d946f348f24",
+                "id": "0978b4db-13b4-4a20-b7e1-6413b17ba776",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -38279,7 +38291,7 @@
                 }
               },
               {
-                "id": "0f56f079-7d7b-42d5-b361-4eb8a2432246",
+                "id": "4c2e6bfb-888d-4908-9a67-a72006e5adad",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -38288,15 +38300,15 @@
                 }
               },
               {
-                "id": "d8114532-7401-4487-bf29-8bd7d7890fd6",
+                "id": "cf0b85e0-81e9-4035-b894-a89e0e37f0bc",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "e6b26860-a770-447b-81dc-1c7917b23721",
+                "id": "78314e52-97bf-46c5-a51b-d382434066ba",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "cf969fb3-1946-4be5-b256-0406ad096628",
+                "id": "a75e7513-dd00-44b4-b24f-fd6ef2b11a4e",
                 "rule": "ByStack"
               }
             ]
@@ -39170,6 +39182,11 @@
               "format": "uuid"
             },
             "description": "The sites this entity applies to."
+          },
+          "terms_acceptance_required": {
+            "type": "boolean",
+            "description": "Whether the user must accept the current terms before the API serves\ntheir session. Computed, never stored: set only on the signed-in user's\nown record (`/api/auth/me`, login, accept), false everywhere else.",
+            "readOnly": true
           },
           "terms_accepted_at": {
             "type": [

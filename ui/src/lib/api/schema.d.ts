@@ -1,4 +1,20 @@
 export interface paths {
+    "/api/auth/accept-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["accept_terms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/check-email": {
         parameters: {
             query?: never;
@@ -3821,19 +3837,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-14T02:20:27.155962Z",
+             *       "created_at": "2026-10-14T14:23:07.262626Z",
              *       "first_discovery_id": null,
-             *       "id": "3311c801-c28b-42ac-892c-3d39b808f18e",
+             *       "id": "20c86e0f-7cc3-4e35-93c2-aa7d5c71a07f",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-14T02:20:27.155962Z",
+             *       "last_seen_at": "2026-10-14T14:23:07.262626Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-14T02:20:27.155962Z",
-             *       "valid_from": "2026-10-14T02:20:27.155962Z",
+             *       "updated_at": "2026-10-14T14:23:07.262626Z",
+             *       "valid_from": "2026-10-14T14:23:07.262626Z",
              *       "valid_to": null
              *     }
              */
@@ -4706,19 +4722,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-14T02:20:27.126115Z",
+             *               "created_at": "2026-10-14T14:23:07.222936Z",
              *               "first_discovery_id": null,
-             *               "id": "ba92aa96-db30-4409-aff9-e092e531aeef",
+             *               "id": "632537ab-dd34-47e5-a6a5-ab828df84b0e",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-14T02:20:27.126115Z",
+             *               "last_seen_at": "2026-10-14T14:23:07.222936Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-14T02:20:27.126115Z",
-             *               "valid_from": "2026-10-14T02:20:27.126115Z",
+             *               "updated_at": "2026-10-14T14:23:07.222936Z",
+             *               "valid_from": "2026-10-14T14:23:07.222936Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4731,7 +4747,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "Unclaimed Open Ports",
+             *           "service_definition": "Vaultwarden",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5718,19 +5734,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-14T02:20:27.150631Z",
+             *           "created_at": "2026-10-14T14:23:07.251393Z",
              *           "first_discovery_id": null,
-             *           "id": "856bdd0b-c2a0-4e63-afa1-185bc36b6967",
+             *           "id": "87fb78a3-12c3-4815-9175-88f2d72f1956",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-14T02:20:27.150631Z",
+             *           "last_seen_at": "2026-10-14T14:23:07.251393Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-14T02:20:27.150631Z",
-             *           "valid_from": "2026-10-14T02:20:27.150631Z",
+             *           "updated_at": "2026-10-14T14:23:07.251393Z",
+             *           "valid_from": "2026-10-14T14:23:07.251393Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5743,7 +5759,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "Unclaimed Open Ports",
+             *       "service_definition": "Vaultwarden",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -7110,19 +7126,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-14T02:20:27.126826Z",
+         *       "created_at": "2026-10-14T14:23:07.223743Z",
          *       "first_discovery_id": null,
-         *       "id": "c0daf4ac-e4fc-494a-b656-e4f10350d1a4",
+         *       "id": "217285f9-dc4e-4df2-b110-58abe807ad75",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-14T02:20:27.126826Z",
+         *       "last_seen_at": "2026-10-14T14:23:07.223743Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-14T02:20:27.126826Z",
-         *       "valid_from": "2026-10-14T02:20:27.126826Z",
+         *       "updated_at": "2026-10-14T14:23:07.223743Z",
+         *       "valid_from": "2026-10-14T14:23:07.223743Z",
          *       "valid_to": null
          *     }
          */
@@ -7468,7 +7484,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Unclaimed Open Ports",
+         *           "service_definition": "Vaultwarden",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -10262,19 +10278,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-14T02:20:27.125287Z",
+         *               "created_at": "2026-10-14T14:23:07.221915Z",
          *               "first_discovery_id": null,
-         *               "id": "bdad5798-2f11-4382-a7d3-fec066bc7b24",
+         *               "id": "56587744-20dc-41ee-b1da-39cc7dec8bdf",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-14T02:20:27.125287Z",
+         *               "last_seen_at": "2026-10-14T14:23:07.221915Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-14T02:20:27.125287Z",
-         *               "valid_from": "2026-10-14T02:20:27.125287Z",
+         *               "updated_at": "2026-10-14T14:23:07.221915Z",
+         *               "valid_from": "2026-10-14T14:23:07.221915Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10287,7 +10303,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "Unclaimed Open Ports",
+         *           "service_definition": "Vaultwarden",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10886,7 +10902,10 @@ export interface components {
              * @description Production servers.
              */
             active: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Production servers the key covers. `None` is no cap.
+             */
             limit?: number | null;
             /**
              * Format: int32
@@ -10894,7 +10913,10 @@ export interface components {
              *     older than the setting.
              */
             non_production_active: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Non-production servers the key covers. `None` is no cap.
+             */
             non_production_limit: number | null;
         };
         /**
@@ -11424,11 +11446,20 @@ export interface components {
          *     as the cloud records it.
          */
         LicenseInstance: components["schemas"]["LicenseInstanceBase"] & {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the cloud created the record.
+             */
             readonly created_at: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Id of the cloud's record for this instance.
+             */
             readonly id: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the cloud last changed the record.
+             */
             readonly updated_at: string;
         };
         LicenseInstanceBase: {
@@ -11440,7 +11471,10 @@ export interface components {
              *     displaces one that held the slot meanwhile.
              */
             active_since: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description First check-in.
+             */
             first_seen_at: string;
             /**
              * Format: uuid
@@ -11448,7 +11482,10 @@ export interface components {
              *     servers too old to send it.
              */
             instance_id?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Latest check-in.
+             */
             last_seen_at: string;
             /**
              * @description Source address the cloud observed on the latest check-in. The server
@@ -11464,7 +11501,10 @@ export interface components {
              *     refused.
              */
             non_production?: boolean | null;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Organization whose online key the instance checks in with.
+             */
             organization_id: string;
             /** @description Version the latest check-in reported, as semver text. */
             server_version?: string | null;
@@ -13683,19 +13723,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-14T02:20:27.126594Z",
+         *           "created_at": "2026-10-14T14:23:07.223478Z",
          *           "first_discovery_id": null,
-         *           "id": "3ec0e279-436c-4678-87d3-7806d8223e7e",
+         *           "id": "11546c06-216e-4b68-be9b-9c5eedc2a860",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-14T02:20:27.126594Z",
+         *           "last_seen_at": "2026-10-14T14:23:07.223478Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-14T02:20:27.126594Z",
-         *           "valid_from": "2026-10-14T02:20:27.126594Z",
+         *           "updated_at": "2026-10-14T14:23:07.223478Z",
+         *           "valid_from": "2026-10-14T14:23:07.223478Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13708,7 +13748,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "Unclaimed Open Ports",
+         *       "service_definition": "Vaultwarden",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -14787,7 +14827,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "a412ba4c-458e-436f-8329-089da7001d32",
+             *           "id": "6aff8cc7-b0c2-4166-a229-0bbba2f0bd02",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14797,23 +14837,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "976d9d52-da01-42fe-b7cc-ba23c46d0aef",
+             *           "id": "bc07ed67-514d-4aa0-9fba-a27192a1e80c",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "d07e64b4-fc5a-486b-b1f3-da0967b0f63c",
+             *           "id": "d0679fcc-b22d-402c-bfdd-3a70ba593ce2",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "e9c63349-0407-42a5-8016-7ae41511fadf",
+             *           "id": "0b0986e2-73d1-4c98-a5c2-1b0969e5e465",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "976d9d52-da01-42fe-b7cc-ba23c46d0aef",
+             *           "id": "bc07ed67-514d-4aa0-9fba-a27192a1e80c",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14827,19 +14867,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "f1811cae-9905-4793-a142-df90e92397e3",
+             *         "id": "ad84a453-7655-4d9f-849d-40064f3bc44d",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "54e8bb2d-ac2b-4fc2-aa90-f08ba8beda95",
+             *         "id": "04403969-b41c-4738-a666-b507eb0c4750",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "64cf475e-86e0-4706-bb44-b6fe911c5777",
+             *         "id": "d734a1df-5380-484d-a0f8-38d80b6a2b75",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "b170aa9b-0ef8-40f3-9d9e-b99efebb9216",
+             *         "id": "f60ca13d-2253-414a-a5b4-3222d3d58548",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14860,7 +14900,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "ad8286ea-c58a-4860-afd2-0d164cf55179",
+             *         "id": "83a66494-dc0e-41c1-ac2e-00232697cadd",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14869,15 +14909,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "abf1aa36-ba56-46ca-bec0-56b65b6e8582",
+             *         "id": "08081253-78d8-4192-9d72-48f7bf286ac5",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "f691c647-5e54-4b10-a3c5-4d8bb5e9db44",
+             *         "id": "a3a3f834-d03a-4017-8c75-9bd0e86f2b04",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "c78f7ec6-99dd-4be8-92b5-1a98ed1eb904",
+             *         "id": "dfcb4180-401c-4d9b-8b0e-3ddcac2b6f97",
              *         "rule": "ByStack"
              *       }
              *     ]
@@ -15302,6 +15342,12 @@ export interface components {
             /** @description The sites this entity applies to. */
             site_ids: string[];
             /**
+             * @description Whether the user must accept the current terms before the API serves
+             *     their session. Computed, never stored: set only on the signed-in user's
+             *     own record (`/api/auth/me`, login, accept), false everywhere else.
+             */
+            readonly terms_acceptance_required?: boolean;
+            /**
              * Format: date-time
              * @description When the user accepted the terms of service.
              */
@@ -15635,6 +15681,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    accept_terms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Terms accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponse_User"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     check_email: {
         parameters: {
             query?: never;
