@@ -11,11 +11,14 @@
 	} from './columns';
 	import {
 		common_dragToReorderColumn,
-		common_fields,
+		common_columns,
 		common_moveColumnDown,
 		common_moveColumnUp,
-		common_resetFields
+		common_resetColumns,
+		common_shortcutsPausedInSearch
 	} from '$lib/paraglide/messages';
+	import { isShiftShortcut, shiftShortcutLabel } from '$lib/shared/utils/shortcuts';
+	import { isFreeKeydown, useListShortcuts } from '../controls/listShortcuts';
 
 	let {
 		columns,
@@ -87,6 +90,32 @@
 	 */
 	let reordering = false;
 
+	// Shift+C (columns) opens the panel while this list is on screen; Shift+F already clears filters.
+	const COLUMNS_KEY = 'C';
+	const columnsShortcut = shiftShortcutLabel(COLUMNS_KEY);
+	const listShortcuts = useListShortcuts();
+
+	async function openFromKeyboard() {
+		open = true;
+		await tick();
+		// Focus inside the menu, so a click or Tab away closes it through `handleFocusOut`.
+		panelElement?.focus();
+	}
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (!listShortcuts?.isActive()) return;
+		if (open && event.key === 'Escape' && menuElement?.contains(event.target as Node)) {
+			event.preventDefault();
+			open = false;
+			menuElement.querySelector<HTMLButtonElement>('button')?.focus();
+			return;
+		}
+		if (!isShiftShortcut(event, COLUMNS_KEY) || !isFreeKeydown(event)) return;
+		event.preventDefault();
+		if (open) open = false;
+		else openFromKeyboard();
+	}
+
 	function handleFocusOut(event: FocusEvent) {
 		if (reordering) return;
 		const next = event.relatedTarget as Node | null;
@@ -155,6 +184,8 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div bind:this={menuElement} class="relative" onfocusout={handleFocusOut} role="presentation">
 	<button
 		type="button"
@@ -164,7 +195,15 @@
 		aria-haspopup="true"
 	>
 		<Columns3Cog class="h-3.5 w-3.5" />
-		{common_fields()}
+		{common_columns()}
+		{#if listShortcuts}
+			{@const paused = listShortcuts.isPaused()}
+			<!-- Same key hint as the other controls in the summary row (`PaginationBar`). -->
+			<span
+				class="text-tertiary font-normal transition-opacity {paused ? 'opacity-40' : ''}"
+				title={paused ? common_shortcutsPausedInSearch() : undefined}>({columnsShortcut})</span
+			>
+		{/if}
 	</button>
 
 	{#if open}
@@ -181,13 +220,13 @@
 			style:max-height={panelMaxHeight === null ? undefined : `${panelMaxHeight}px`}
 		>
 			<div class="mb-2 flex items-center justify-between">
-				<span class="text-primary text-sm font-semibold">{common_fields()}</span>
+				<span class="text-primary text-sm font-semibold">{common_columns()}</span>
 				<button
 					type="button"
 					onclick={onReset}
 					class="text-tertiary hover:text-secondary text-xs transition-colors"
 				>
-					{common_resetFields()}
+					{common_resetColumns()}
 				</button>
 			</div>
 			{#each sections as { section, columns: sectionColumns } (section)}

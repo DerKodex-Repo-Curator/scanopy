@@ -70,7 +70,10 @@
 
 	const ACTIVE = 'bg-gray-100 dark:bg-gray-600';
 
-	/** Keeps the highlighted row in view as the arrow keys move it. */
+	/**
+	 * Keeps the highlighted row in view as the arrow keys move it. With group headings, each row
+	 * keeps `scroll-mt-9` above it so the sticky heading (36px) never covers it.
+	 */
 	function revealWhen(node: HTMLElement, active: boolean) {
 		const reveal = (on: boolean) => on && node.scrollIntoView({ block: 'nearest' });
 		reveal(active);
@@ -111,10 +114,9 @@
 	<button
 		type="button"
 		use:revealWhen={highlighted === option.id}
-		class="select-option flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors {highlighted ===
-		option.id
-			? ACTIVE
-			: ''}"
+		class="select-option flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors {grouped
+			? 'scroll-mt-9'
+			: ''} {highlighted === option.id ? ACTIVE : ''}"
 		onmousedown={() => onSelect(option.id)}
 	>
 		{#if row}

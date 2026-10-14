@@ -89,8 +89,8 @@
 	import { onMount } from 'svelte';
 	import {
 		common_all,
-		common_clearAll,
-		common_noEntityMatchesFilters,
+		common_clear,
+		common_noEntityMatchesFiltersOrSearch,
 		common_ungrouped,
 		common_tableCaption,
 		common_tags,
@@ -120,7 +120,12 @@
 	import { isOnVisiblePage, registerEntityList } from '$lib/shared/stores/modal-registry';
 	import { isShiftShortcut, keyLabel, shiftShortcutLabel } from '$lib/shared/utils/shortcuts';
 	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
-	import { isFreeKeydown, isPlainKey, provideListShortcuts } from './controls/listShortcuts';
+	import {
+		isFreeKeydown,
+		isPlainKey,
+		provideListShortcuts,
+		tableSearchFocused
+	} from './controls/listShortcuts';
 	import {
 		assignActionKeys,
 		isDangerAction,
@@ -752,6 +757,8 @@
 	let effectiveCurrentPage = $derived(page.currentPage);
 	let totalPages = $derived(page.totalPages);
 	let totalCount = $derived(page.totalCount);
+	/** The filters and search match nothing, so the table gives way to an empty state with Clear. */
+	let matchesNothing = $derived(totalCount === 0 && (hasActiveFilters || hasActiveSearch));
 
 	let paginatedItems = $derived(
 		pageSlice(processedItems, effectiveCurrentPage, pageSize, useServerPagination)
@@ -978,6 +985,13 @@
 	const TAG_SHORTCUT = 'T';
 	/** The table search has focus, so the shortcuts below are off; their hints dim to say so. */
 	let searchFocused = $state(false);
+	// Shared with the rest of the page; cleared if the list unmounts with its search focused.
+	$effect(() => {
+		tableSearchFocused.set(searchFocused);
+		return () => {
+			if (searchFocused) tableSearchFocused.set(false);
+		};
+	});
 	/** Focus is in the tag island (T put it there, or a click): its tags can be removed from the keyboard. */
 	let editingTags = $state(false);
 	let bulkTagPicker: { focusInput: () => void } | undefined = $state();
@@ -989,9 +1003,12 @@
 
 	// List shortcuts, each shown on the control it triggers. Single keys and Shift+letter, so they
 	// stand down while typing in a field, when a modal is over the list, or when the list isn't
-	// the tab on screen. ⇧S (clear the search) lives with the search box in ControlsBar.
+	// the tab on screen. Esc clears the search from anywhere on the list; ControlsBar handles it
+	// inside the search box.
 	const CLEAR_FILTERS_KEY = 'F';
 	const CLEAR_GROUPING_KEY = 'G';
+	// Clear in the nothing-matches state: filters and search together.
+	const CLEAR_ALL_KEY = 'X';
 	// Left and Right page. Not while a wide table's scroll region has keyboard focus, where the
 	// arrows scroll it sideways; a click's focus there pages, since the mouse scrolls it anyway.
 	const PREV_PAGE_KEY = 'ArrowLeft';
@@ -1067,6 +1084,14 @@
 			// The page's delete asks for confirmation, as the button does.
 			event.preventDefault();
 			handleBulkDelete();
+		} else if (matchesNothing && isPlainKey(event, CLEAR_ALL_KEY)) {
+			event.preventDefault();
+			clearAllNarrowing();
+		} else if (plain && !event.shiftKey && event.key === 'Escape' && hasActiveSearch) {
+			// Esc clears the search from anywhere on the list, not only from the search box. A
+			// selection, when there is one, clears first (above).
+			event.preventDefault();
+			clearSearch();
 		} else if (activeFilterCount > 0 && isShiftShortcut(event, CLEAR_FILTERS_KEY)) {
 			event.preventDefault();
 			filters.clearAll();
@@ -1219,7 +1244,7 @@
 	</div>
 
 	<!-- Content -->
-	{#if totalCount === 0 && (hasActiveFilters || hasActiveSearch)}
+	{#if matchesNothing}
 		<!--
 			A filter that matches nothing is not an empty inventory, and must not be
 			reported as one. It also has to stay reversible from here: a tab that swaps
@@ -1232,9 +1257,17 @@
 		-->
 		<EmptyState
 			IconComponent={SearchX}
-			title={common_noEntityMatchesFilters({ entity: entityLabel ?? common_items() })}
+			title={common_noEntityMatchesFiltersOrSearch({ entity: entityLabel ?? common_items() })}
 		>
-			<button onclick={clearAllNarrowing} class="btn-secondary">{common_clearAll()}</button>
+			<button onclick={clearAllNarrowing} class="btn-secondary">
+				{common_clear()}
+				<KbdKey
+					key={CLEAR_ALL_KEY}
+					size="xs"
+					tone="inherit"
+					class="ml-1.5 transition-opacity {searchFocused ? 'opacity-40' : ''}"
+				/>
+			</button>
 		</EmptyState>
 	{:else}
 		<!--

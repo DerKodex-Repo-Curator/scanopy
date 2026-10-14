@@ -5,9 +5,16 @@
  * when typing goes to the search instead.
  */
 import { getContext, setContext } from 'svelte';
+import { writable } from 'svelte/store';
 import { isEditableTarget } from '$lib/shared/utils/shortcuts';
 
 const KEY = Symbol('list-shortcuts');
+
+/**
+ * A table search has focus somewhere on the page. Shortcuts outside the list (the sidebar's global
+ * search key) read it to dim their hints too, since typing goes to the table search.
+ */
+export const tableSearchFocused = writable(false);
 
 export interface ListShortcuts {
 	/** The list is on screen and nothing (a modal) is over it. */

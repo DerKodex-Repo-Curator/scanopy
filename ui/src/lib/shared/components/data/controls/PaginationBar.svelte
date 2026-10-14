@@ -10,6 +10,9 @@
 		X
 	} from 'lucide-svelte';
 	import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '../types';
+	import { isShiftShortcut, shiftShortcutLabel } from '$lib/shared/utils/shortcuts';
+	import { isFreeKeydown, useListShortcuts } from './listShortcuts';
+	import KbdKey from '$lib/shared/components/feedback/KbdKey.svelte';
 	import {
 		common_noItems,
 		common_showingRange,
@@ -101,7 +104,27 @@
 			isExporting = false;
 		}
 	}
+
+	// Shift+E exports while this list is on screen, like the other Shift clears in this row.
+	const EXPORT_KEY = 'E';
+	const exportShortcut = shiftShortcutLabel(EXPORT_KEY);
+	const listShortcuts = useListShortcuts();
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (
+			!onExport ||
+			!listShortcuts?.isActive() ||
+			!isShiftShortcut(event, EXPORT_KEY) ||
+			!isFreeKeydown(event)
+		) {
+			return;
+		}
+		event.preventDefault();
+		runExport();
+	}
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <!-- A key in parentheses after a compact control's label: a key chip doesn't fit these buttons. -->
 {#snippet keyHint(shortcut: string | undefined)}
@@ -142,6 +165,49 @@
 	</button>
 {/snippet}
 
+<!--
+	A page arrow. With a key, the button is that key's chip, so the control and its shortcut are
+	one thing to click or press; without one, a plain chevron button.
+-->
+{#snippet pageButton(
+	onclick: () => void,
+	enabled: boolean,
+	label: string,
+	shortcut: string | undefined,
+	direction: 'prev' | 'next'
+)}
+	{#if shortcut}
+		<button
+			type="button"
+			{onclick}
+			disabled={!enabled}
+			class="group rounded transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+			aria-label={label}
+			title={shortcutsPaused ? common_shortcutsPausedInSearch() : label}
+		>
+			<KbdKey
+				key={shortcut}
+				class="group-enabled:group-hover:border-gray-400 group-enabled:group-hover:text-gray-900 dark:group-enabled:group-hover:border-gray-500 dark:group-enabled:group-hover:text-gray-100"
+			/>
+		</button>
+	{:else}
+		<button
+			type="button"
+			{onclick}
+			disabled={!enabled}
+			class="btn-secondary summary-control disabled:cursor-not-allowed disabled:opacity-50"
+			aria-label={label}
+			title={label}
+		>
+			{#if direction === 'prev'}
+				<ChevronLeft class="h-4 w-4" />
+			{:else}
+				<ChevronRight class="h-4 w-4" />
+			{/if}
+		</button>
+	{/if}
+{/snippet}
+
 <div class="text-tertiary flex items-center justify-between text-sm">
 	<!-- Left: the table's own controls, then the clears for what narrows or shapes the view. -->
 	<div class="flex items-center gap-2">
@@ -157,6 +223,7 @@
 			>
 				<Download class="h-3.5 w-3.5" />
 				{isExporting ? common_exporting() : common_export()}
+				{@render keyHint(exportShortcut)}
 			</button>
 		{/if}
 		{#if selectedCount > 0 && onClearSelection}
@@ -190,16 +257,7 @@
 	-->
 	<div class="flex items-center gap-2">
 		{#if totalPages > 1}
-			<button
-				type="button"
-				onclick={onPrevPage}
-				disabled={!canGoPrev}
-				class="btn-secondary summary-control disabled:cursor-not-allowed disabled:opacity-50"
-				aria-label={common_previousPage()}
-				title="{common_previousPage()}{pageShortcuts.prev ? ` (${pageShortcuts.prev})` : ''}"
-			>
-				<ChevronLeft class="h-4 w-4" />
-			</button>
+			{@render pageButton(onPrevPage, canGoPrev, common_previousPage(), pageShortcuts.prev, 'prev')}
 		{/if}
 		<span class="text-secondary text-xs tabular-nums">
 			{#if totalCount === 0}
@@ -231,16 +289,7 @@
 			{/if}
 		</span>
 		{#if totalPages > 1}
-			<button
-				type="button"
-				onclick={onNextPage}
-				disabled={!canGoNext}
-				class="btn-secondary summary-control disabled:cursor-not-allowed disabled:opacity-50"
-				aria-label={common_nextPage()}
-				title="{common_nextPage()}{pageShortcuts.next ? ` (${pageShortcuts.next})` : ''}"
-			>
-				<ChevronRight class="h-4 w-4" />
-			</button>
+			{@render pageButton(onNextPage, canGoNext, common_nextPage(), pageShortcuts.next, 'next')}
 		{/if}
 		<!-- Rows per page, once there are more rows than the smallest page holds. -->
 		{#if totalCount > 20}

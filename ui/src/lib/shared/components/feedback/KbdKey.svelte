@@ -25,6 +25,11 @@
 		inherit:
 			'bg-transparent text-current [border-color:color-mix(in_srgb,currentColor_45%,transparent)]'
 	};
+
+	// Monospace fonts draw the modifier glyphs small and low, so those take the UI font, as the
+	// parenthesized key hints in plain text do.
+	const MODIFIER_GLYPHS = /^[⇧⌘⌥⌃]$/;
+	let parts = $derived(key.split(/([⇧⌘⌥⌃])/).filter(Boolean));
 </script>
 
 <kbd
@@ -32,5 +37,11 @@
 		tone
 	]} {sizeClasses[size]} {className}"
 >
-	{key}
+	{#each parts as part, i (i)}
+		{#if MODIFIER_GLYPHS.test(part)}
+			<span class="font-sans">{part}</span>
+		{:else}
+			{part}
+		{/if}
+	{/each}
 </kbd>

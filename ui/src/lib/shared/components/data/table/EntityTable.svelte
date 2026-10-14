@@ -162,7 +162,18 @@
 			const clamped = clampColumnWidth(width);
 			if (clamped !== null) sizing[id] = clamped;
 		}
+		forgetRenderedWidths(columnSizing, sizing);
 		onColumnSizingChange(sizing);
+	}
+
+	/**
+	 * A resized column's content cap starts again from its new width. Left at the old rendered
+	 * width, the cap would hold the column open and a narrowing drag could never take.
+	 */
+	function forgetRenderedWidths(before: Record<string, number>, after: Record<string, number>) {
+		for (const id of new Set([...Object.keys(before), ...Object.keys(after)])) {
+			if (before[id] !== after[id]) delete renderedWidths[id];
+		}
 	}
 
 	/** Every row on the page, grouped or not — table-core sees one flat list. */
@@ -248,6 +259,7 @@
 		if (columnSizing[columnId] === undefined) return;
 		const rest = { ...columnSizing };
 		delete rest[columnId];
+		forgetRenderedWidths(columnSizing, rest);
 		onColumnSizingChange(rest);
 	}
 
@@ -261,8 +273,32 @@
 	 * popovers opened from a cell are not cut off.
 	 */
 	function contentMaxWidth(column: EntityColumn<T>): string {
-		const width = columnWidth(column, columnSizing) ?? UNSIZED_COLUMN_MAX;
+		const set = columnWidth(column, columnSizing) ?? UNSIZED_COLUMN_MAX;
+		// A full-width table hands its spare room to the columns, so a column can render wider
+		// than its set width or the cap. Its content fills what it renders at, up to the resize
+		// handle, instead of wrapping at the cap with blank space beside it.
+		const width = Math.max(set, renderedWidths[column.id] ?? 0);
 		return `max-width: calc(${width}px - 2 * var(--cell-px))`;
+	}
+
+	/** Each data column's rendered header width, which the cells' content cap follows. */
+	let renderedWidths = $state<Record<string, number>>({});
+
+	function trackColumnWidth(node: HTMLElement, columnId: string) {
+		let id = columnId;
+		const observer = new ResizeObserver(() => {
+			if (renderedWidths[id] !== node.offsetWidth) renderedWidths[id] = node.offsetWidth;
+		});
+		observer.observe(node);
+		return {
+			update(next: string) {
+				id = next;
+			},
+			destroy() {
+				observer.disconnect();
+				delete renderedWidths[id];
+			}
+		};
 	}
 
 	/**
@@ -393,6 +429,7 @@
 						{@const width = columnWidth(column, columnSizing)}
 						{@const pin = pinAttrs(column)}
 						<th
+							use:trackColumnWidth={column.id}
 							scope="col"
 							aria-sort={ariaSort(column.id)}
 							style="{width ? `width: ${width}px;` : ''} {pin.style}"

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Trash2 } from 'lucide-svelte';
 	import InfoCard from '$lib/shared/components/data/InfoCard.svelte';
+	import Tag from '$lib/shared/components/data/Tag.svelte';
 	import InlineWarning from '$lib/shared/components/feedback/InlineWarning.svelte';
 	import ConfirmationDialog from '$lib/shared/components/feedback/ConfirmationDialog.svelte';
 	import {
@@ -13,6 +14,7 @@
 		common_inactive,
 		common_ipAddress,
 		common_nonProduction,
+		common_production,
 		common_readOnly,
 		common_servers,
 		settings_billing_license_lastCheckIn,
@@ -69,23 +71,26 @@
 			<InfoCard variant="compact">
 				<div class="flex items-center justify-between gap-4">
 					<div class="min-w-0 {active ? '' : 'opacity-60'}">
-						<p class="text-primary truncate text-sm font-medium">
-							{#if instance.instance_id}
-								<span class="font-mono">{instance.instance_id}</span>
-							{:else}
-								{settings_billing_license_olderServers()}
-							{/if}
-							{#if instance.non_production}
-								<span class="text-secondary ml-2 text-xs font-normal"
-									>{common_nonProduction()}</span
-								>
+						<div class="flex min-w-0 items-center gap-2">
+							<p class="text-primary truncate text-sm font-medium">
+								{#if instance.instance_id}
+									<span class="font-mono">{instance.instance_id}</span>
+								{:else}
+									{settings_billing_license_olderServers()}
+								{/if}
+							</p>
+							<!-- Servers too old to declare a type carry no tag. -->
+							{#if instance.non_production === true}
+								<Tag label={common_nonProduction()} color="Gray" />
+							{:else if instance.non_production === false}
+								<Tag label={common_production()} color="Blue" />
 							{/if}
 							{#if !active}
-								<span class="text-secondary ml-2 text-xs font-normal">{common_inactive()}</span>
+								<span class="text-secondary text-xs">{common_inactive()}</span>
 							{:else if refused}
-								<span class="text-danger ml-2 text-xs font-normal">{common_readOnly()}</span>
+								<Tag label={common_readOnly()} color="Red" />
 							{/if}
-						</p>
+						</div>
 						<p class="text-secondary text-xs">
 							{#if instance.last_seen_ip}
 								{common_ipAddress()}: <span class="font-mono">{instance.last_seen_ip}</span> ·
