@@ -34,7 +34,8 @@ export function useMarkReleaseNotesSeenMutation() {
 		onSuccess: () => {
 			queryClient.setQueryData<UnseenReleaseNotes>(queryKeys.releaseNotes.unseen(), {
 				releases: [],
-				changelog_url: null
+				changelog_url: null,
+				auto_open: false
 			});
 		}
 	}));

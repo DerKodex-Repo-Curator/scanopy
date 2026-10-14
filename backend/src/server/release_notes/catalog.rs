@@ -62,6 +62,9 @@ pub struct ReleaseNote {
     pub title: String,
     /// Whether upgrading to this release sends the release email.
     pub email: bool,
+    /// Whether this release opens the release notes modal on its own. Notes
+    /// from before the flag existed have none and open it.
+    pub modal: bool,
     /// The body, rendered from markdown with raw HTML left out.
     pub html: String,
 }
@@ -73,7 +76,7 @@ impl ReleaseNote {
     }
 
     /// Parse a notes file: YAML-style frontmatter (`version`, `date`, `title`,
-    /// `email`), then the markdown body.
+    /// `email`, optional `modal`), then the markdown body.
     pub fn parse(source: &str) -> Result<Self, String> {
         let (frontmatter, body) = split_frontmatter(source)?;
         let required = |key: &str| frontmatter.required(key);
@@ -89,12 +92,18 @@ impl ReleaseNote {
             "false" => false,
             other => return Err(format!("email `{other}` is not true or false")),
         };
+        let modal = match frontmatter.field("modal").as_deref() {
+            None | Some("true") => true,
+            Some("false") => false,
+            Some(other) => return Err(format!("modal `{other}` is not true or false")),
+        };
 
         Ok(Self {
             version,
             date,
             title: required("title")?,
             email,
+            modal,
             html: render_markdown(body),
         })
     }
@@ -174,10 +183,15 @@ pub(crate) mod tests {
     use super::*;
 
     pub(crate) fn note_file(version: &str, email: bool) -> (String, String) {
+        note_file_with(version, &format!("email: {email}"))
+    }
+
+    /// A notes file with `extra` frontmatter lines after `version`, `date` and `title`.
+    pub(crate) fn note_file_with(version: &str, extra: &str) -> (String, String) {
         (
             format!("v{version}.md"),
             format!(
-                "---\nversion: {version}\ndate: 2026-10-11\ntitle: 'It''s {version}'\nemail: {email}\n---\n\n## Fixes\n\n- Fix a thing <script>alert(1)</script>\n"
+                "---\nversion: {version}\ndate: 2026-10-11\ntitle: 'It''s {version}'\n{extra}\n---\n\n## Fixes\n\n- Fix a thing <script>alert(1)</script>\n"
             ),
         )
     }
@@ -191,6 +205,17 @@ pub(crate) mod tests {
         assert!(note.email);
         assert!(note.html.contains("<h2>Fixes</h2>"));
         assert!(!note.html.contains("<script>"));
+    }
+
+    /// Notes written before the `modal` flag existed open the modal, as they did.
+    #[test]
+    fn modal_defaults_to_on_when_the_flag_is_absent() {
+        let modal = |extra: &str| {
+            ReleaseNote::parse(&note_file_with("0.18.0", extra).1).map(|note| note.modal)
+        };
+        assert_eq!(modal("email: false"), Ok(true));
+        assert_eq!(modal("email: false\nmodal: false"), Ok(false));
+        assert!(modal("email: false\nmodal: maybe").is_err());
     }
 
     #[test]

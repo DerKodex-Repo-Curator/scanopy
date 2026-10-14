@@ -59,6 +59,9 @@ pub struct UnseenReleaseNotes {
     pub releases: Vec<ReleaseNoteResponse>,
     /// The full changelog, present when older unseen releases were left out.
     pub changelog_url: Option<String>,
+    /// Whether the modal opens on its own: true when any unseen release asks
+    /// for it, including ones left out for the changelog.
+    pub auto_open: bool,
 }
 
 async fn current_user(state: &AppState, auth: &Authorized<IsUser>) -> ApiResult<User> {
@@ -90,10 +93,11 @@ pub async fn get_unseen_release_notes(
     auth: Authorized<IsUser>,
 ) -> ApiResult<Json<ApiResponse<UnseenReleaseNotes>>> {
     let user = current_user(&state, &auth).await?;
-    let shown = state.services.release_notes_service.unseen(&user);
+    let unseen = state.services.release_notes_service.unseen(&user);
     Ok(Json(ApiResponse::success(UnseenReleaseNotes {
-        releases: shown.notes.into_iter().map(Into::into).collect(),
-        changelog_url: shown.truncated.then(|| CHANGELOG_URL.to_string()),
+        releases: unseen.shown.notes.into_iter().map(Into::into).collect(),
+        changelog_url: unseen.shown.truncated.then(|| CHANGELOG_URL.to_string()),
+        auto_open: unseen.auto_open,
     })))
 }
 

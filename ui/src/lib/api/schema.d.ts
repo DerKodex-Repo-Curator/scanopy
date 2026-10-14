@@ -6457,6 +6457,11 @@ export interface components {
         ApiResponse_UnseenReleaseNotes: {
             /** @description The releases the caller hasn't dismissed. */
             data?: {
+                /**
+                 * @description Whether the modal opens on its own: true when any unseen release asks
+                 *     for it, including ones left out for the changelog.
+                 */
+                auto_open: boolean;
                 /** @description The full changelog, present when older unseen releases were left out. */
                 changelog_url?: string | null;
                 /** @description Newest first. Empty when there is nothing new. */
@@ -15048,6 +15053,11 @@ export interface components {
         };
         /** @description The releases the caller hasn't dismissed. */
         UnseenReleaseNotes: {
+            /**
+             * @description Whether the modal opens on its own: true when any unseen release asks
+             *     for it, including ones left out for the changelog.
+             */
+            auto_open: boolean;
             /** @description The full changelog, present when older unseen releases were left out. */
             changelog_url?: string | null;
             /** @description Newest first. Empty when there is nothing new. */

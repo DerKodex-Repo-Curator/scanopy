@@ -9,6 +9,7 @@ version: 0.18.0
 date: 2026-10-11
 title: 'Short headline for the release'
 email: true
+modal: true
 ---
 
 Markdown body. Raw HTML is dropped when rendered.
@@ -17,6 +18,11 @@ Markdown body. Raw HTML is dropped when rendered.
 `email: true` sends the release email to every user when a server starts on this version. That
 email covers every release since the last one sent. `email: false` shows the notes in the app
 only.
+
+`modal: true` opens the release notes modal for each user after the upgrade, listing every release
+they haven't dismissed. `modal: false` leaves it closed; the release's notes show the next time a
+release opens it. A file without `modal` opens it. Prepare Release sets both flags from its
+`announce_by_email` and `show_modal` inputs.
 
 Edit a file here before the release is tagged. A server shows the copy it was built with, so a
 change after the tag reaches servers only with the next release.
