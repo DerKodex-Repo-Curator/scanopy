@@ -42,6 +42,7 @@ is_date() {
 
 INTERACTIVE=false
 [ -t 0 ] && INTERACTIVE=true
+$INTERACTIVE && echo "Press Enter to accept the value in [brackets]."
 
 # ask <prompt> <default>: the answer, or the default when there is no terminal
 # or the answer is empty.
@@ -58,8 +59,13 @@ mkdir -p "$TERMS_DIR"
 latest="$(find "$TERMS_DIR" -maxdepth 1 -name '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md' -exec basename {} .md \; | sort | tail -1)"
 
 earliest="$(add_days "$today" "$MIN_NOTICE_DAYS")"
+suggested="$(add_days "$earliest" "$SHIP_DAYS")"
 latest_allowed="$(add_days "$today" "$MAX_LEAD_DAYS")"
-effective="${EFFECTIVE:-$(ask "Day the update takes effect (YYYY-MM-DD, $earliest at the earliest; the notice goes out when the release deploys)" "$(add_days "$earliest" "$SHIP_DAYS")")}"
+if [ -z "${EFFECTIVE:-}" ] && $INTERACTIVE; then
+    echo "The notice goes out when the release deploys. The effective date must be $earliest or later"
+    echo "($MIN_NOTICE_DAYS days' notice). $suggested also leaves $SHIP_DAYS days for the release to ship."
+fi
+effective="${EFFECTIVE:-$(ask "Effective date (YYYY-MM-DD)" "$suggested")}"
 is_date "$effective" || die "\`$effective\` is not a YYYY-MM-DD date"
 [[ "$effective" < "$earliest" ]] && die "$effective is less than $MIN_NOTICE_DAYS days away; the earliest is $earliest"
 [[ "$effective" > "$latest_allowed" ]] && die "$effective is more than $MAX_LEAD_DAYS days away; check the year"
