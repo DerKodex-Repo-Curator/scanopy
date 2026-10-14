@@ -112,10 +112,15 @@ impl EmailService {
             .await?;
         for (update, due) in plan(today, catalog, &users) {
             let version = update.effective;
-            // The release carrying the update deployed later than its file
-            // allowed for, so customers get less notice than the terms promise.
+            // On an update's first send, short notice means the release
+            // carrying it deployed later than its file allowed for. Later
+            // sends reach users who signed up during the notice period, and
+            // those always get what is left of it.
+            let first_send = !users
+                .iter()
+                .any(|user| user.base.terms_notice_version >= Some(version));
             let notice_days = (version - today).num_days();
-            if notice_days < MIN_NOTICE_DAYS as i64 {
+            if first_send && notice_days < MIN_NOTICE_DAYS as i64 {
                 tracing::error!(
                     %version,
                     notice_days,

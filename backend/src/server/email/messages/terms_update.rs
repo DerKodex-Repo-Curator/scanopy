@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+
 use super::{Body, Content, Email, EmailCategory};
 use crate::server::release_notes::terms::{TermsDocument, TermsUpdate as Update};
 
@@ -25,8 +27,12 @@ impl TermsUpdate<'_> {
     }
 }
 
-fn document_link(document: TermsDocument) -> String {
-    format!("<a href=\"{}\">{}</a>", document.url(), document.name())
+fn document_link(document: TermsDocument, effective: NaiveDate) -> String {
+    format!(
+        "<a href=\"{}\">{}</a>",
+        document.version_url(effective),
+        document.name()
+    )
 }
 
 impl Email for TermsUpdate<'_> {
@@ -59,7 +65,7 @@ impl Email for TermsUpdate<'_> {
             .update
             .documents
             .iter()
-            .map(|d| document_link(*d))
+            .map(|d| document_link(*d, self.update.effective))
             .collect();
         Body::new()
             .content(
@@ -96,7 +102,7 @@ mod tests {
         let html = email.body_html();
         for document in &update.documents {
             assert!(email.subject().contains(document.name()));
-            assert!(html.contains(document.url()));
+            assert!(html.contains(&document.version_url(update.effective)));
         }
         assert!(html.contains(&update.html));
     }
