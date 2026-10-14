@@ -21,9 +21,8 @@ use crate::server::openapi::SERVER_VERSION;
 use crate::server::release_notes::catalog::CHANGELOG_URL;
 use crate::server::shared::handlers::cache::AppCache;
 
-/// GitHub's latest release for the Scanopy repository. `SCANOPY_UPDATE_CHECK_URL`
-/// overrides it for testing.
-pub const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/scanopy/scanopy/releases/latest";
+/// GitHub's latest release for the Scanopy repository.
+const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/scanopy/scanopy/releases/latest";
 
 const CACHE_KEY: &str = "github_latest_release";
 
@@ -79,7 +78,7 @@ pub async fn refresh_latest_release(cache: &AppCache, http: &reqwest::Client, ur
 
 /// Check now, then every `CHECK_INTERVAL` plus jitter. Self-hosted servers
 /// only; the caller spawns this.
-pub async fn run_latest_release_checks(cache: std::sync::Arc<AppCache>, url: String) {
+pub async fn run_latest_release_checks(cache: std::sync::Arc<AppCache>) {
     let http = match reqwest::Client::builder().timeout(CHECK_TIMEOUT).build() {
         Ok(http) => http,
         Err(e) => {
@@ -88,7 +87,7 @@ pub async fn run_latest_release_checks(cache: std::sync::Arc<AppCache>, url: Str
         }
     };
     loop {
-        refresh_latest_release(&cache, &http, &url).await;
+        refresh_latest_release(&cache, &http, LATEST_RELEASE_URL).await;
         let jitter = rand::rng().random_range(Duration::ZERO..=CHECK_JITTER);
         tokio::time::sleep(CHECK_INTERVAL + jitter).await;
     }
