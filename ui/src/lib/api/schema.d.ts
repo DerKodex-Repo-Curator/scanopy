@@ -3818,19 +3818,19 @@ export interface components {
             /**
              * @description Association between a service and a port / interface that the service is listening on
              * @example {
-             *       "created_at": "2026-10-13T15:58:40.856218Z",
+             *       "created_at": "2026-10-14T00:49:44.835026Z",
              *       "first_discovery_id": null,
-             *       "id": "96312228-0297-4c06-8236-fa9840424d23",
+             *       "id": "0c4b73f5-63b3-4a23-bc7a-78178e0eb2e4",
              *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *       "last_discovery_id": null,
-             *       "last_seen_at": "2026-10-13T15:58:40.856218Z",
+             *       "last_seen_at": "2026-10-14T00:49:44.835026Z",
              *       "lineage_id": null,
              *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "type": "Port",
-             *       "updated_at": "2026-10-13T15:58:40.856218Z",
-             *       "valid_from": "2026-10-13T15:58:40.856218Z",
+             *       "updated_at": "2026-10-14T00:49:44.835026Z",
+             *       "valid_from": "2026-10-14T00:49:44.835026Z",
              *       "valid_to": null
              *     }
              */
@@ -4703,19 +4703,19 @@ export interface components {
              *         {
              *           "bindings": [
              *             {
-             *               "created_at": "2026-10-13T15:58:40.825063Z",
+             *               "created_at": "2026-10-14T00:49:44.806015Z",
              *               "first_discovery_id": null,
-             *               "id": "5455ac5c-4262-45bf-aa49-7b1d6ff44e8a",
+             *               "id": "598470d8-ccfd-4281-9a91-d052934c5b4e",
              *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *               "last_discovery_id": null,
-             *               "last_seen_at": "2026-10-13T15:58:40.825063Z",
+             *               "last_seen_at": "2026-10-14T00:49:44.806015Z",
              *               "lineage_id": null,
              *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *               "type": "Port",
-             *               "updated_at": "2026-10-13T15:58:40.825063Z",
-             *               "valid_from": "2026-10-13T15:58:40.825063Z",
+             *               "updated_at": "2026-10-14T00:49:44.806015Z",
+             *               "valid_from": "2026-10-14T00:49:44.806015Z",
              *               "valid_to": null
              *             }
              *           ],
@@ -4728,7 +4728,7 @@ export interface components {
              *           "lineage_id": null,
              *           "name": "nginx",
              *           "position": 0,
-             *           "service_definition": "BookLore",
+             *           "service_definition": "TeamCity",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "source": {
              *             "type": "Manual"
@@ -5712,19 +5712,19 @@ export interface components {
              * @example {
              *       "bindings": [
              *         {
-             *           "created_at": "2026-10-13T15:58:40.851039Z",
+             *           "created_at": "2026-10-14T00:49:44.829859Z",
              *           "first_discovery_id": null,
-             *           "id": "199327fc-3f5a-44ac-aa1e-d2575d7a9b3e",
+             *           "id": "a3f41d5d-0c9c-4852-a975-a7cbfc861e99",
              *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
              *           "last_discovery_id": null,
-             *           "last_seen_at": "2026-10-13T15:58:40.851039Z",
+             *           "last_seen_at": "2026-10-14T00:49:44.829859Z",
              *           "lineage_id": null,
              *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
              *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
              *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *           "type": "Port",
-             *           "updated_at": "2026-10-13T15:58:40.851039Z",
-             *           "valid_from": "2026-10-13T15:58:40.851039Z",
+             *           "updated_at": "2026-10-14T00:49:44.829859Z",
+             *           "valid_from": "2026-10-14T00:49:44.829859Z",
              *           "valid_to": null
              *         }
              *       ],
@@ -5737,7 +5737,7 @@ export interface components {
              *       "lineage_id": null,
              *       "name": "nginx",
              *       "position": 0,
-             *       "service_definition": "BookLore",
+             *       "service_definition": "TeamCity",
              *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
              *       "source": {
              *         "type": "Manual"
@@ -7089,19 +7089,19 @@ export interface components {
         /**
          * @description Association between a service and a port / interface that the service is listening on
          * @example {
-         *       "created_at": "2026-10-13T15:58:40.825812Z",
+         *       "created_at": "2026-10-14T00:49:44.806669Z",
          *       "first_discovery_id": null,
-         *       "id": "619ee918-fca8-4b36-b0aa-9991a7a736b7",
+         *       "id": "bd364e3c-9a68-4701-8cf0-4c79fbce70fe",
          *       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *       "last_discovery_id": null,
-         *       "last_seen_at": "2026-10-13T15:58:40.825812Z",
+         *       "last_seen_at": "2026-10-14T00:49:44.806669Z",
          *       "lineage_id": null,
          *       "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *       "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "type": "Port",
-         *       "updated_at": "2026-10-13T15:58:40.825812Z",
-         *       "valid_from": "2026-10-13T15:58:40.825812Z",
+         *       "updated_at": "2026-10-14T00:49:44.806669Z",
+         *       "valid_from": "2026-10-14T00:49:44.806669Z",
          *       "valid_to": null
          *     }
          */
@@ -7447,7 +7447,7 @@ export interface components {
          *           "id": "550e8400-e29b-41d4-a716-446655440007",
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "BookLore",
+         *           "service_definition": "TeamCity",
          *           "tags": [],
          *           "virtualization_metadata": null,
          *           "virtualization_service_id": null
@@ -10235,19 +10235,19 @@ export interface components {
          *         {
          *           "bindings": [
          *             {
-         *               "created_at": "2026-10-13T15:58:40.824135Z",
+         *               "created_at": "2026-10-14T00:49:44.805253Z",
          *               "first_discovery_id": null,
-         *               "id": "51490215-91ce-4a01-8ed4-3cf0fd641783",
+         *               "id": "f9a5e47c-ce7b-4bd0-abf9-397c5a4f9138",
          *               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *               "last_discovery_id": null,
-         *               "last_seen_at": "2026-10-13T15:58:40.824135Z",
+         *               "last_seen_at": "2026-10-14T00:49:44.805253Z",
          *               "lineage_id": null,
          *               "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *               "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *               "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *               "type": "Port",
-         *               "updated_at": "2026-10-13T15:58:40.824135Z",
-         *               "valid_from": "2026-10-13T15:58:40.824135Z",
+         *               "updated_at": "2026-10-14T00:49:44.805253Z",
+         *               "valid_from": "2026-10-14T00:49:44.805253Z",
          *               "valid_to": null
          *             }
          *           ],
@@ -10260,7 +10260,7 @@ export interface components {
          *           "lineage_id": null,
          *           "name": "nginx",
          *           "position": 0,
-         *           "service_definition": "BookLore",
+         *           "service_definition": "TeamCity",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "source": {
          *             "type": "Manual"
@@ -10849,14 +10849,14 @@ export interface components {
         /**
          * @description Server instances an online key has checked in from within the last
          *     `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
-         *     covers. Over the limit, every instance keeps its entitlement and shows a
-         *     warning.
+         *     covers (`None` when the plan has no cap). Over the limit, every instance
+         *     keeps its entitlement and shows a warning.
          */
         InstanceUsage: {
             /** Format: int32 */
             active: number;
             /** Format: int32 */
-            limit: number;
+            limit?: number | null;
         };
         /**
          * @description Per-daemon integration targeting, stored on the `Discovery` entity and delivered via the
@@ -13620,19 +13620,19 @@ export interface components {
          * @example {
          *       "bindings": [
          *         {
-         *           "created_at": "2026-10-13T15:58:40.825572Z",
+         *           "created_at": "2026-10-14T00:49:44.806460Z",
          *           "first_discovery_id": null,
-         *           "id": "01645459-43b1-4689-8828-ad3db8836349",
+         *           "id": "b852e469-5941-42e8-8231-7f2e599f9990",
          *           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
          *           "last_discovery_id": null,
-         *           "last_seen_at": "2026-10-13T15:58:40.825572Z",
+         *           "last_seen_at": "2026-10-14T00:49:44.806460Z",
          *           "lineage_id": null,
          *           "port_id": "550e8400-e29b-41d4-a716-446655440006",
          *           "service_id": "550e8400-e29b-41d4-a716-446655440007",
          *           "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *           "type": "Port",
-         *           "updated_at": "2026-10-13T15:58:40.825572Z",
-         *           "valid_from": "2026-10-13T15:58:40.825572Z",
+         *           "updated_at": "2026-10-14T00:49:44.806460Z",
+         *           "valid_from": "2026-10-14T00:49:44.806460Z",
          *           "valid_to": null
          *         }
          *       ],
@@ -13645,7 +13645,7 @@ export interface components {
          *       "lineage_id": null,
          *       "name": "nginx",
          *       "position": 0,
-         *       "service_definition": "BookLore",
+         *       "service_definition": "TeamCity",
          *       "site_id": "550e8400-e29b-41d4-a716-446655440002",
          *       "source": {
          *         "type": "Manual"
@@ -14724,7 +14724,7 @@ export interface components {
              * @default {
              *       "Application": [
              *         {
-             *           "id": "2b7e2392-8b20-4568-b09c-23029a33a9c9",
+             *           "id": "5992ac26-6f6a-4398-9bec-c7f536f8662c",
              *           "rule": {
              *             "ByApplication": {
              *               "tag_ids": []
@@ -14734,23 +14734,23 @@ export interface components {
              *       ],
              *       "L2Physical": [
              *         {
-             *           "id": "30788c1c-d6fb-4dfb-be7c-9717c2bcd57d",
+             *           "id": "7b0f711f-fb87-4c28-87a5-1b7ed5300b16",
              *           "rule": "ByHost"
              *         }
              *       ],
              *       "L3Logical": [
              *         {
-             *           "id": "b20a3e32-538a-4ea9-80e6-8c1c4d5be8cf",
+             *           "id": "6bd3becb-e5bd-4920-b0d2-0fdf033ff139",
              *           "rule": "BySubnet"
              *         },
              *         {
-             *           "id": "8d8dc216-8e36-44fb-9a33-d7ef45cc042c",
+             *           "id": "74d724fa-5558-4767-9733-c8fe07b64ced",
              *           "rule": "MergeContainerBridges"
              *         }
              *       ],
              *       "Workloads": [
              *         {
-             *           "id": "30788c1c-d6fb-4dfb-be7c-9717c2bcd57d",
+             *           "id": "7b0f711f-fb87-4c28-87a5-1b7ed5300b16",
              *           "rule": "ByHost"
              *         }
              *       ]
@@ -14764,19 +14764,19 @@ export interface components {
              *     takes the rules for an organization with no stated use case.
              * @default [
              *       {
-             *         "id": "e1682fd9-d5b2-45c7-98d2-7daea8586129",
+             *         "id": "f0f498b8-c1b6-4207-81fd-ffe5dcef9883",
              *         "rule": "ByTrunkPort"
              *       },
              *       {
-             *         "id": "1c2b1f89-581a-4ec0-9dee-cce26bdc21d5",
+             *         "id": "2e6983f0-748d-4dd3-bb6d-25e4e715e3c0",
              *         "rule": "ByVLAN"
              *       },
              *       {
-             *         "id": "2f48d3d6-92ed-453f-bec9-d7a8ab489bf4",
+             *         "id": "8f39ea28-6f19-4bf9-8387-f177ceda7b0a",
              *         "rule": "ByPortOpStatus"
              *       },
              *       {
-             *         "id": "12531034-952b-455c-87b2-b6ae62d821da",
+             *         "id": "258f6dbd-ff21-4ca4-99fc-b3129eaefe87",
              *         "rule": {
              *           "ByServiceCategory": {
              *             "categories": [
@@ -14797,7 +14797,7 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "ece9dc83-969e-4e61-8857-9405e66632ac",
+             *         "id": "c5abd6a1-ff64-41fe-8517-736a6ad13c1a",
              *         "rule": {
              *           "ByTag": {
              *             "tag_ids": [],
@@ -14806,15 +14806,15 @@ export interface components {
              *         }
              *       },
              *       {
-             *         "id": "f7a304c0-5b35-4108-94ec-b170384163c4",
+             *         "id": "683b3ccf-0254-43ba-acc4-92e69d7fd0f0",
              *         "rule": "ByHypervisor"
              *       },
              *       {
-             *         "id": "dd6eb354-bfff-4eaf-a599-f85dd7c18607",
+             *         "id": "e7e44374-43aa-4496-a979-34d77e5b0f26",
              *         "rule": "ByContainerRuntime"
              *       },
              *       {
-             *         "id": "4cd3002a-3fda-4c42-80c8-bf7b87fc4e1e",
+             *         "id": "46051135-2140-4d72-90e8-d888d4955470",
              *         "rule": "ByStack"
              *       }
              *     ]

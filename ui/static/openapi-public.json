@@ -14970,19 +14970,19 @@
             ],
             "description": "Association between a service and a port / interface that the service is listening on",
             "example": {
-              "created_at": "2026-10-13T15:58:40.925646Z",
+              "created_at": "2026-10-14T00:49:44.906089Z",
               "first_discovery_id": null,
-              "id": "f371c55f-febc-4a60-8662-66e5285f1bfe",
+              "id": "6b9e38f9-0bc5-4bc2-abe5-962577c4fc29",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-13T15:58:40.925646Z",
+              "last_seen_at": "2026-10-14T00:49:44.906089Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-13T15:58:40.925646Z",
-              "valid_from": "2026-10-13T15:58:40.925646Z",
+              "updated_at": "2026-10-14T00:49:44.906089Z",
+              "valid_from": "2026-10-14T00:49:44.906089Z",
               "valid_to": null
             }
           },
@@ -16725,19 +16725,19 @@
                 {
                   "bindings": [
                     {
-                      "created_at": "2026-10-13T15:58:40.903663Z",
+                      "created_at": "2026-10-14T00:49:44.883942Z",
                       "first_discovery_id": null,
-                      "id": "27da2980-d4a9-4919-8949-e4dfa3adea6e",
+                      "id": "846e456b-c2b2-4db6-a0d0-186b6d1fcf74",
                       "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                       "last_discovery_id": null,
-                      "last_seen_at": "2026-10-13T15:58:40.903663Z",
+                      "last_seen_at": "2026-10-14T00:49:44.883942Z",
                       "lineage_id": null,
                       "port_id": "550e8400-e29b-41d4-a716-446655440006",
                       "service_id": "550e8400-e29b-41d4-a716-446655440007",
                       "site_id": "550e8400-e29b-41d4-a716-446655440002",
                       "type": "Port",
-                      "updated_at": "2026-10-13T15:58:40.903663Z",
-                      "valid_from": "2026-10-13T15:58:40.903663Z",
+                      "updated_at": "2026-10-14T00:49:44.883942Z",
+                      "valid_from": "2026-10-14T00:49:44.883942Z",
                       "valid_to": null
                     }
                   ],
@@ -16750,7 +16750,7 @@
                   "lineage_id": null,
                   "name": "nginx",
                   "position": 0,
-                  "service_definition": "BookLore",
+                  "service_definition": "TeamCity",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "source": {
                     "type": "Manual"
@@ -18217,19 +18217,19 @@
             "example": {
               "bindings": [
                 {
-                  "created_at": "2026-10-13T15:58:40.921124Z",
+                  "created_at": "2026-10-14T00:49:44.901628Z",
                   "first_discovery_id": null,
-                  "id": "ba5c4e9e-9d1c-44d3-abb7-e99338c940cf",
+                  "id": "c8a0d3cf-072a-485a-a0fa-7a2ceb380786",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-13T15:58:40.921124Z",
+                  "last_seen_at": "2026-10-14T00:49:44.901628Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-13T15:58:40.921124Z",
-                  "valid_from": "2026-10-13T15:58:40.921124Z",
+                  "updated_at": "2026-10-14T00:49:44.901628Z",
+                  "valid_from": "2026-10-14T00:49:44.901628Z",
                   "valid_to": null
                 }
               ],
@@ -18242,7 +18242,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "BookLore",
+              "service_definition": "TeamCity",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -20804,7 +20804,7 @@
           },
           {
             "type": "string",
-            "description": "The daemon reading its own host: NIC and routing configuration, and its own hostname.",
+            "description": "The daemon reading its own host: NIC and routing configuration, its own hostname and its\nOS. `Native` for the reason [`Self::ProfinetDcp`] is: the host describes itself, first-hand,\nwith no transport or third party between the reading and the machine. It outranks\n[`Self::ContainerRuntimeInfo`], whose engine may run in a VM on this machine.",
             "enum": [
               "DaemonSelfReport"
             ]
@@ -20818,21 +20818,21 @@
           },
           {
             "type": "string",
-            "description": "A container engine (Docker, Podman) reporting the machine it runs on, from its `info`\nendpoint: the host OS, its release and kernel. `Native` for the reason [`Self::ProfinetDcp`]\nis: the engine reads its own host, and that is what the answer means. A bare variant rather\nthan `Probe(Docker)`, which is the container listing; this is a different exchange.",
+            "description": "A container engine (Docker, Podman) reporting the machine it runs on, from its `info`\nendpoint: the host OS, its release and kernel. `Queried`, not `Native`: we chose the engine\nand authenticated to it, but the machine it describes is the host only when the engine runs\non it directly. Docker Desktop, OrbStack, Colima, Rancher Desktop and `podman machine` run\nthe engine in a Linux VM, and `info` describes that VM. A bare variant rather than\n`Probe(Docker)`, which is the container listing; this is a different exchange.",
             "enum": [
               "ContainerRuntimeInfo"
             ]
           },
           {
             "type": "string",
-            "description": "The configuration of the hypervisor or container runtime that runs the guest, read\nthrough its API: the MAC of a Proxmox guest's virtual NIC or of a container's macvlan\nendpoint, and the hostname and distribution a Proxmox LXC container's config sets. `Native` for the reason [`Self::ContainerRuntimeInfo`] is: the hypervisor or\nruntime assigned that MAC, keeps it for the guest's or container's life and puts it on the\nwire for it, so its record is the NIC's own identity, not a third party's report of it.\nThat is what lets a guest with no address still be identified by its NIC. A bare variant\nrather than `Probe(Proxmox)` or `Probe(Docker)`, which cover everything else those APIs\nreport and stay `Reported`.",
+            "description": "The configuration of the hypervisor or container runtime that runs the guest, read\nthrough its API: the MAC of a Proxmox guest's virtual NIC or of a container's macvlan\nendpoint, and the hostname and distribution a Proxmox LXC container's config sets. `Native`\nfor the reason [`Self::ProfinetDcp`] is: the hypervisor or runtime assigned that MAC, keeps\nit for the guest's or container's life and puts it on the wire for it, so its record is the NIC's own identity, not a third party's report of it.\nThat is what lets a guest with no address still be identified by its NIC. A bare variant\nrather than `Probe(Proxmox)` or `Probe(Docker)`, which cover everything else those APIs\nreport and stay `Reported`.",
             "enum": [
               "HypervisorConfig"
             ]
           },
           {
             "type": "string",
-            "description": "Software inside a guest read this from the guest's own operating system and answered the\nhypervisor's API: the QEMU guest agent behind Proxmox, and the same role VMware Tools and\nHyper-V integration services fill. `Native` for the reason [`Self::ContainerRuntimeInfo`]\nis: the guest describes itself, over a channel the hypervisor binds to that one guest, so\nit is first-hand, not the hypervisor's report of the guest (`Probe(Proxmox)`).",
+            "description": "Software inside a guest read this from the guest's own operating system and answered the\nhypervisor's API: the QEMU guest agent behind Proxmox, and the same role VMware Tools and\nHyper-V integration services fill. `Native` for the reason [`Self::ProfinetDcp`] is: the\nguest describes itself, over a channel the hypervisor binds to that one guest, so it is\nfirst-hand, not the hypervisor's report of the guest (`Probe(Proxmox)`).",
             "enum": [
               "GuestAgent"
             ]
@@ -21219,19 +21219,19 @@
         ],
         "description": "Association between a service and a port / interface that the service is listening on",
         "example": {
-          "created_at": "2026-10-13T15:58:40.904147Z",
+          "created_at": "2026-10-14T00:49:44.884442Z",
           "first_discovery_id": null,
-          "id": "84648b05-9ca5-4302-a272-c1778ec9ea6a",
+          "id": "a2525589-892b-44a0-9de2-804ac9cfcdd8",
           "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-13T15:58:40.904147Z",
+          "last_seen_at": "2026-10-14T00:49:44.884442Z",
           "lineage_id": null,
           "port_id": "550e8400-e29b-41d4-a716-446655440006",
           "service_id": "550e8400-e29b-41d4-a716-446655440007",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "type": "Port",
-          "updated_at": "2026-10-13T15:58:40.904147Z",
-          "valid_from": "2026-10-13T15:58:40.904147Z",
+          "updated_at": "2026-10-14T00:49:44.884442Z",
+          "valid_from": "2026-10-14T00:49:44.884442Z",
           "valid_to": null
         }
       },
@@ -21995,7 +21995,7 @@
               "id": "550e8400-e29b-41d4-a716-446655440007",
               "name": "nginx",
               "position": 0,
-              "service_definition": "BookLore",
+              "service_definition": "TeamCity",
               "tags": [],
               "virtualization_metadata": null,
               "virtualization_service_id": null
@@ -29058,19 +29058,19 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-13T15:58:40.903090Z",
+                  "created_at": "2026-10-14T00:49:44.883333Z",
                   "first_discovery_id": null,
-                  "id": "3769690e-b68d-4fab-bad0-eb0c8bb068fe",
+                  "id": "f902a16e-e27b-48f3-86c9-b133c64c92f3",
                   "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-13T15:58:40.903090Z",
+                  "last_seen_at": "2026-10-14T00:49:44.883333Z",
                   "lineage_id": null,
                   "port_id": "550e8400-e29b-41d4-a716-446655440006",
                   "service_id": "550e8400-e29b-41d4-a716-446655440007",
                   "site_id": "550e8400-e29b-41d4-a716-446655440002",
                   "type": "Port",
-                  "updated_at": "2026-10-13T15:58:40.903090Z",
-                  "valid_from": "2026-10-13T15:58:40.903090Z",
+                  "updated_at": "2026-10-14T00:49:44.883333Z",
+                  "valid_from": "2026-10-14T00:49:44.883333Z",
                   "valid_to": null
                 }
               ],
@@ -29083,7 +29083,7 @@
               "lineage_id": null,
               "name": "nginx",
               "position": 0,
-              "service_definition": "BookLore",
+              "service_definition": "TeamCity",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "source": {
                 "type": "Manual"
@@ -29946,10 +29946,9 @@
       },
       "InstanceUsage": {
         "type": "object",
-        "description": "Server instances an online key has checked in from within the last\n`LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence\ncovers. Over the limit, every instance keeps its entitlement and shows a\nwarning.",
+        "description": "Server instances an online key has checked in from within the last\n`LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence\ncovers (`None` when the plan has no cap). Over the limit, every instance\nkeeps its entitlement and shows a warning.",
         "required": [
-          "active",
-          "limit"
+          "active"
         ],
         "properties": {
           "active": {
@@ -29958,7 +29957,10 @@
             "minimum": 0
           },
           "limit": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int32",
             "minimum": 0
           }
@@ -33140,19 +33142,19 @@
                   {
                     "bindings": [
                       {
-                        "created_at": "2026-10-13T15:58:40.894939Z",
+                        "created_at": "2026-10-14T00:49:44.874585Z",
                         "first_discovery_id": null,
-                        "id": "a4fcf9f5-6083-4ccb-8586-6ffd43bd5e47",
+                        "id": "04dd10e0-cfeb-4b94-b441-30ddc3d7d760",
                         "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                         "last_discovery_id": null,
-                        "last_seen_at": "2026-10-13T15:58:40.894939Z",
+                        "last_seen_at": "2026-10-14T00:49:44.874585Z",
                         "lineage_id": null,
                         "port_id": "550e8400-e29b-41d4-a716-446655440006",
                         "service_id": "550e8400-e29b-41d4-a716-446655440007",
                         "site_id": "550e8400-e29b-41d4-a716-446655440002",
                         "type": "Port",
-                        "updated_at": "2026-10-13T15:58:40.894939Z",
-                        "valid_from": "2026-10-13T15:58:40.894939Z",
+                        "updated_at": "2026-10-14T00:49:44.874585Z",
+                        "valid_from": "2026-10-14T00:49:44.874585Z",
                         "valid_to": null
                       }
                     ],
@@ -33165,7 +33167,7 @@
                     "lineage_id": null,
                     "name": "nginx",
                     "position": 0,
-                    "service_definition": "BookLore",
+                    "service_definition": "TeamCity",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "source": {
                       "type": "Manual"
@@ -33314,19 +33316,19 @@
               "example": {
                 "bindings": [
                   {
-                    "created_at": "2026-10-13T15:58:40.920451Z",
+                    "created_at": "2026-10-14T00:49:44.900973Z",
                     "first_discovery_id": null,
-                    "id": "ccef1878-003d-47ea-8174-8581df979b6f",
+                    "id": "b7e7fa29-53e8-4206-9427-5efc173a3fbb",
                     "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
                     "last_discovery_id": null,
-                    "last_seen_at": "2026-10-13T15:58:40.920451Z",
+                    "last_seen_at": "2026-10-14T00:49:44.900973Z",
                     "lineage_id": null,
                     "port_id": "550e8400-e29b-41d4-a716-446655440006",
                     "service_id": "550e8400-e29b-41d4-a716-446655440007",
                     "site_id": "550e8400-e29b-41d4-a716-446655440002",
                     "type": "Port",
-                    "updated_at": "2026-10-13T15:58:40.920451Z",
-                    "valid_from": "2026-10-13T15:58:40.920451Z",
+                    "updated_at": "2026-10-14T00:49:44.900973Z",
+                    "valid_from": "2026-10-14T00:49:44.900973Z",
                     "valid_to": null
                   }
                 ],
@@ -33339,7 +33341,7 @@
                 "lineage_id": null,
                 "name": "nginx",
                 "position": 0,
-                "service_definition": "BookLore",
+                "service_definition": "TeamCity",
                 "site_id": "550e8400-e29b-41d4-a716-446655440002",
                 "source": {
                   "type": "Manual"
@@ -35954,19 +35956,19 @@
         "example": {
           "bindings": [
             {
-              "created_at": "2026-10-13T15:58:40.903994Z",
+              "created_at": "2026-10-14T00:49:44.884283Z",
               "first_discovery_id": null,
-              "id": "d23363c3-a063-49ed-b0f2-b6e6a328ac89",
+              "id": "3cd5d51d-8bad-4e2d-a54a-a9b0726b1b32",
               "ip_address_id": "550e8400-e29b-41d4-a716-446655440005",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-13T15:58:40.903994Z",
+              "last_seen_at": "2026-10-14T00:49:44.884283Z",
               "lineage_id": null,
               "port_id": "550e8400-e29b-41d4-a716-446655440006",
               "service_id": "550e8400-e29b-41d4-a716-446655440007",
               "site_id": "550e8400-e29b-41d4-a716-446655440002",
               "type": "Port",
-              "updated_at": "2026-10-13T15:58:40.903994Z",
-              "valid_from": "2026-10-13T15:58:40.903994Z",
+              "updated_at": "2026-10-14T00:49:44.884283Z",
+              "valid_from": "2026-10-14T00:49:44.884283Z",
               "valid_to": null
             }
           ],
@@ -35979,7 +35981,7 @@
           "lineage_id": null,
           "name": "nginx",
           "position": 0,
-          "service_definition": "BookLore",
+          "service_definition": "TeamCity",
           "site_id": "550e8400-e29b-41d4-a716-446655440002",
           "source": {
             "type": "Manual"
@@ -38090,7 +38092,7 @@
             "default": {
               "Application": [
                 {
-                  "id": "faf853d6-b9d6-45c9-9505-c43316c050a6",
+                  "id": "6271207f-baee-482d-97f3-010224971be9",
                   "rule": {
                     "ByApplication": {
                       "tag_ids": []
@@ -38100,23 +38102,23 @@
               ],
               "L2Physical": [
                 {
-                  "id": "5fa03d77-3e51-4834-875b-fcd47a358c97",
+                  "id": "5795b656-9c8d-49eb-8a86-1869966630f3",
                   "rule": "ByHost"
                 }
               ],
               "L3Logical": [
                 {
-                  "id": "3c5d2deb-95e2-45e8-8a3a-6a0edeab90f1",
+                  "id": "b6330444-48b1-41b4-ade7-20f2f351ca2c",
                   "rule": "BySubnet"
                 },
                 {
-                  "id": "8b22095c-eab8-4d4f-b482-542a154e4e69",
+                  "id": "c9087c1d-bcd3-42ff-953e-6e5e6350d27f",
                   "rule": "MergeContainerBridges"
                 }
               ],
               "Workloads": [
                 {
-                  "id": "5fa03d77-3e51-4834-875b-fcd47a358c97",
+                  "id": "5795b656-9c8d-49eb-8a86-1869966630f3",
                   "rule": "ByHost"
                 }
               ]
@@ -38146,19 +38148,19 @@
             "description": "Rules deciding how entities are placed and inlined within containers. A missing field\ntakes the rules for an organization with no stated use case.",
             "default": [
               {
-                "id": "10434f36-d312-4912-ac64-4695a93aa23f",
+                "id": "0c9067d8-0e29-4a1c-98e7-cbb10ead3419",
                 "rule": "ByTrunkPort"
               },
               {
-                "id": "4759c457-5d0d-48db-813e-c0c5b00d246d",
+                "id": "8029ec20-0593-4fea-8e54-8553baaf47f9",
                 "rule": "ByVLAN"
               },
               {
-                "id": "1512a771-4a76-499c-9408-077bac859e76",
+                "id": "c9ca3517-200d-4a1c-b170-1296fe77740e",
                 "rule": "ByPortOpStatus"
               },
               {
-                "id": "a7520967-15f8-401d-8390-e6b6c39fec58",
+                "id": "f9a482ef-f7b0-49bd-a939-33f6a2edd04c",
                 "rule": {
                   "ByServiceCategory": {
                     "categories": [
@@ -38179,7 +38181,7 @@
                 }
               },
               {
-                "id": "2ff83416-f2db-4970-bef9-78666f65b012",
+                "id": "0caec10b-88e7-472e-85bb-c89f692caa6e",
                 "rule": {
                   "ByTag": {
                     "tag_ids": [],
@@ -38188,15 +38190,15 @@
                 }
               },
               {
-                "id": "a860f983-9547-4905-8905-592e0035eec1",
+                "id": "1d3f3cae-74b6-4d02-bf6b-1416297f2dd4",
                 "rule": "ByHypervisor"
               },
               {
-                "id": "53c90325-e4b0-457b-a4b4-499d2feb8ad7",
+                "id": "6142eac5-1062-49b2-b1a3-f7f6732e76d2",
                 "rule": "ByContainerRuntime"
               },
               {
-                "id": "391050d5-61f7-4bce-88e9-14ada5503635",
+                "id": "e2c5ab5b-ddcf-4a22-a9c8-5a44ef5de2ae",
                 "rule": "ByStack"
               }
             ]
