@@ -253,7 +253,7 @@ pub(crate) mod tests {
         (
             effective.to_string(),
             format!(
-                "---\neffective: {effective}\ndate: {date}\ndocuments: terms, privacy\n---\n\n- Section 4 now promises 30 days' notice <script>x</script>\n"
+                "---\neffective: {effective}\ndate: {date}\ndocuments: terms, privacy\n---\n\n- Section 4 now promises notice by email <script>x</script>\n"
             ),
         )
     }
