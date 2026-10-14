@@ -204,7 +204,7 @@ async fn a_second_instance_is_warned_and_still_entitled() {
         first.instances,
         Some(InstanceUsage {
             active: 1,
-            limit: 1
+            limit: Some(1)
         })
     );
     assert!(
@@ -223,7 +223,7 @@ async fn a_second_instance_is_warned_and_still_entitled() {
         second.instances,
         Some(InstanceUsage {
             active: 2,
-            limit: 1
+            limit: Some(1)
         })
     );
     assert!(

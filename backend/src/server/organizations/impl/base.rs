@@ -230,11 +230,6 @@ pub struct OrganizationBase {
     /// its version checks in.
     #[serde(default, skip_serializing)]
     pub license_server_version: Option<Version>,
-    /// How many server instances this org's online key covers - internal, not
-    /// exposed to API. `None` reads as [`DEFAULT_LICENSE_INSTANCE_LIMIT`]; set
-    /// by hand for Enterprise deals. See [`Organization::license_instance_limit`].
-    #[serde(default, skip_serializing)]
-    pub license_instance_limit: Option<i64>,
     /// The date this org's air-gapped key stays current until, or `None` when
     /// it holds an online key or that date has passed.
     ///
@@ -409,12 +404,12 @@ impl Organization {
 }
 
 impl Organization {
-    /// How many server instances the org's online key covers.
-    pub fn license_instance_limit(&self) -> u32 {
+    /// How many server instances the org's online key covers, from its plan.
+    /// `None` is no cap.
+    pub fn license_instance_limit(&self) -> Option<u32> {
         self.base
-            .license_instance_limit
-            .and_then(|limit| u32::try_from(limit).ok())
-            .unwrap_or(DEFAULT_LICENSE_INSTANCE_LIMIT)
+            .plan
+            .and_then(|plan| plan.license_instance_limit())
     }
 
     /// Record the instance count a check-in found, returning
@@ -427,15 +422,14 @@ impl Organization {
         let was_over = self.base.notifications.license_over_instance_limit;
         let over = usage.is_over();
         self.base.notifications.license_over_instance_limit = over;
-        (over && !was_over).then_some(BillingOperation::LicenseInstanceLimitExceeded {
+        // Over implies a limit; a plan with no cap is never over.
+        let limit = usage.limit.filter(|_| over && !was_over)?;
+        Some(BillingOperation::LicenseInstanceLimitExceeded {
             active: usage.active,
-            limit: usage.limit,
+            limit,
         })
     }
 }
-
-/// Server instances an online key covers unless the org row says otherwise.
-pub const DEFAULT_LICENSE_INSTANCE_LIMIT: u32 = 1;
 
 /// Days an online key goes without checking in before it counts as stopped.
 /// Servers check in every 6 hours, so this is about 28 missed check-ins: long
@@ -687,11 +681,11 @@ mod tests {
     fn an_instance_overrun_is_reported_once_until_back_within_the_limit() {
         let over = InstanceUsage {
             active: 2,
-            limit: 1,
+            limit: Some(1),
         };
         let within = InstanceUsage {
             active: 1,
-            limit: 1,
+            limit: Some(1),
         };
         let mut org = Organization::default();
 
@@ -706,5 +700,30 @@ mod tests {
         assert_eq!(org.record_license_instance_usage(over), None);
         assert_eq!(org.record_license_instance_usage(within), None);
         assert!(org.record_license_instance_usage(over).is_some());
+    }
+
+    /// Standard caps an online key at one server; Plus runs on any number,
+    /// and moving to Plus clears an overrun at the next check-in.
+    #[test]
+    fn three_servers_are_over_on_standard_and_within_on_plus() {
+        use crate::server::billing::plans::{
+            get_self_hosted_plus_plan, get_self_hosted_standard_plan,
+        };
+
+        let mut org = Organization::default();
+        org.base.plan = Some(get_self_hosted_standard_plan());
+        let usage = InstanceUsage {
+            active: 3,
+            limit: org.license_instance_limit(),
+        };
+        assert!(org.record_license_instance_usage(usage).is_some());
+
+        org.base.plan = Some(get_self_hosted_plus_plan());
+        let usage = InstanceUsage {
+            active: 3,
+            limit: org.license_instance_limit(),
+        };
+        assert_eq!(org.record_license_instance_usage(usage), None);
+        assert!(!org.base.notifications.license_over_instance_limit);
     }
 }

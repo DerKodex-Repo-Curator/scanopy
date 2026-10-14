@@ -10779,14 +10779,14 @@ export interface components {
         /**
          * @description Server instances an online key has checked in from within the last
          *     `LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence
-         *     covers. Over the limit, every instance keeps its entitlement and shows a
-         *     warning.
+         *     covers (`None` when the plan has no cap). Over the limit, every instance
+         *     keeps its entitlement and shows a warning.
          */
         InstanceUsage: {
             /** Format: int32 */
             active: number;
             /** Format: int32 */
-            limit: number;
+            limit?: number | null;
         };
         /**
          * @description Per-daemon integration targeting, stored on the `Discovery` entity and delivered via the

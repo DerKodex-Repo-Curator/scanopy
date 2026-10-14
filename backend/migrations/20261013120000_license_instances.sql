@@ -10,10 +10,7 @@
 -- send one. `last_seen_ip` is the source address the cloud observed on the latest check-in; the
 -- server never sends an address. An owner deleting a row frees its slot.
 --
--- `organizations.license_instance_limit` is how many instances the key covers. NULL reads as 1;
--- raised by hand for Enterprise deals.
---
--- Expand only: two new tables and a nullable column, nothing dropped or rewritten.
+-- Expand only: two new tables, nothing dropped or rewritten.
 
 SET lock_timeout = '5s';
 SET statement_timeout = '5s';
@@ -41,4 +38,3 @@ CREATE TABLE IF NOT EXISTS license_instances (
 CREATE INDEX IF NOT EXISTS idx_license_instances_organization
     ON license_instances (organization_id);
 
-ALTER TABLE organizations ADD COLUMN IF NOT EXISTS license_instance_limit BIGINT;

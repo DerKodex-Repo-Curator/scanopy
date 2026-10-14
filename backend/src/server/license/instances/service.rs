@@ -70,7 +70,11 @@ impl LicenseInstanceService {
     /// Record a check-in against the instance it came from, creating the row
     /// on its first check-in, and return the organization's instance count
     /// against `limit`. Check-ins with no instance id share one row.
-    pub async fn record_check_in(&self, check_in: CheckIn, limit: u32) -> Result<InstanceUsage> {
+    pub async fn record_check_in(
+        &self,
+        check_in: CheckIn,
+        limit: Option<u32>,
+    ) -> Result<InstanceUsage> {
         let guard = self
             .instances
             .session_lock(
@@ -85,7 +89,11 @@ impl LicenseInstanceService {
         result
     }
 
-    async fn record_check_in_locked(&self, check_in: CheckIn, limit: u32) -> Result<InstanceUsage> {
+    async fn record_check_in_locked(
+        &self,
+        check_in: CheckIn,
+        limit: Option<u32>,
+    ) -> Result<InstanceUsage> {
         let mut instances = self.list(check_in.organization_id).await?;
         let server_version = check_in.server_version.map(|v| v.to_string());
 
@@ -197,14 +205,14 @@ mod tests {
         let (storage, _container) = test_storage().await;
         let org = org_id(&storage).await;
         let usage = service(&storage)
-            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), 1)
+            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), Some(1))
             .await
             .unwrap();
         assert_eq!(
             usage,
             InstanceUsage {
                 active: 1,
-                limit: 1
+                limit: Some(1)
             }
         );
         assert!(!usage.is_over());
@@ -216,11 +224,11 @@ mod tests {
         let org = org_id(&storage).await;
         let service = service(&storage);
         service
-            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), 1)
+            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), Some(1))
             .await
             .unwrap();
         let usage = service
-            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), 1)
+            .record_check_in(check_in(org, Some(Uuid::new_v4()), Utc::now()), Some(1))
             .await
             .unwrap();
         assert!(usage.is_over());
@@ -239,14 +247,14 @@ mod tests {
         let concurrent = (0..4).map(|minor| {
             let mut c = check_in(org, instance_id, Utc::now());
             c.server_version = Some(Version::new(0, 17, 30 + minor));
-            service.record_check_in(c, 1)
+            service.record_check_in(c, Some(1))
         });
         for usage in futures::future::join_all(concurrent).await {
             assert!(!usage.unwrap().is_over());
         }
 
         let usage = service
-            .record_check_in(check_in(org, instance_id, Utc::now()), 1)
+            .record_check_in(check_in(org, instance_id, Utc::now()), Some(1))
             .await
             .unwrap();
         assert_eq!(usage.active, 1);
@@ -261,7 +269,7 @@ mod tests {
         for _ in 0..3 {
             let mut old = check_in(org, None, Utc::now());
             old.server_version = None;
-            service.record_check_in(old, 1).await.unwrap();
+            service.record_check_in(old, Some(1)).await.unwrap();
         }
         let instances = service.list(org).await.unwrap();
         assert_eq!(instances.len(), 1);
@@ -276,11 +284,11 @@ mod tests {
         let retired = Some(Uuid::new_v4());
         let current = Some(Uuid::new_v4());
         service
-            .record_check_in(check_in(org, retired, Utc::now()), 1)
+            .record_check_in(check_in(org, retired, Utc::now()), Some(1))
             .await
             .unwrap();
         service
-            .record_check_in(check_in(org, current, Utc::now()), 1)
+            .record_check_in(check_in(org, current, Utc::now()), Some(1))
             .await
             .unwrap();
 
@@ -294,7 +302,7 @@ mod tests {
         assert!(service.delete(org, row.id).await.unwrap());
 
         let usage = service
-            .record_check_in(check_in(org, current, Utc::now()), 1)
+            .record_check_in(check_in(org, current, Utc::now()), Some(1))
             .await
             .unwrap();
         assert!(!usage.is_over());
@@ -309,12 +317,12 @@ mod tests {
         service
             .record_check_in(
                 check_in(org, Some(Uuid::new_v4()), now - chrono::Duration::days(8)),
-                1,
+                Some(1),
             )
             .await
             .unwrap();
         let usage = service
-            .record_check_in(check_in(org, Some(Uuid::new_v4()), now), 1)
+            .record_check_in(check_in(org, Some(Uuid::new_v4()), now), Some(1))
             .await
             .unwrap();
         assert_eq!(usage.active, 1);
@@ -327,7 +335,7 @@ mod tests {
         let other = org_id(&storage).await;
         let service = service(&storage);
         service
-            .record_check_in(check_in(owner, Some(Uuid::new_v4()), Utc::now()), 1)
+            .record_check_in(check_in(owner, Some(Uuid::new_v4()), Utc::now()), Some(1))
             .await
             .unwrap();
         let row = service.list(owner).await.unwrap().remove(0);

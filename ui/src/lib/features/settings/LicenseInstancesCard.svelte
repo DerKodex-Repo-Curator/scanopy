@@ -46,7 +46,7 @@
 <InfoCard title={common_servers()}>
 	<div class="space-y-3">
 		<p class="text-secondary text-sm">{settings_billing_license_serversHint()}</p>
-		{#if usage && usage.active > usage.limit}
+		{#if usage && usage.limit != null && usage.active > usage.limit}
 			<InlineWarning
 				title={settings_billing_license_overLimit({ active: usage.active, limit: usage.limit })}
 			/>

@@ -584,7 +584,7 @@ mod tests {
     async fn an_instance_over_the_limit_stays_licensed() {
         let over = InstanceUsage {
             active: 2,
-            limit: 1,
+            limit: Some(1),
         };
         let entitlement = license_token(Some(ORG_ID), Some(LicensePlan::Plus), 30);
         let base_url = cloud(move || {

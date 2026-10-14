@@ -33029,10 +33029,9 @@
       },
       "InstanceUsage": {
         "type": "object",
-        "description": "Server instances an online key has checked in from within the last\n`LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence\ncovers. Over the limit, every instance keeps its entitlement and shows a\nwarning.",
+        "description": "Server instances an online key has checked in from within the last\n`LICENSE_SILENCE_THRESHOLD_DAYS`, and how many the organization's licence\ncovers (`None` when the plan has no cap). Over the limit, every instance\nkeeps its entitlement and shows a warning.",
         "required": [
-          "active",
-          "limit"
+          "active"
         ],
         "properties": {
           "active": {
@@ -33041,7 +33040,10 @@
             "minimum": 0
           },
           "limit": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int32",
             "minimum": 0
           }
