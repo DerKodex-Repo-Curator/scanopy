@@ -2635,7 +2635,7 @@
 	"settings_billing_license_rotateConfirm": "This invalidates the current license key. Once rotated, you will need to update your server's key to the new key.",
 	"settings_billing_license_rotateTitle": "Rotate license key?",
 	"settings_billing_license_rotated": "License key rotated. Copy the new key to your servers.",
-	"settings_billing_license_serverDeleteConfirm": "This frees the server's slot. A server that is still running is listed again at its next check-in. To stop one, rotate the key.",
+	"settings_billing_license_serverDeleteConfirm": "Deleting frees this server's slot for another server. If the server is still running, it reappears here at its next check-in, within a few hours. To lock out a running server, rotate the license key and give the new key only to the servers you keep.",
 	"settings_billing_license_serverDeleteTitle": "Delete this server?",
 	"settings_billing_license_serversHint": "Servers that have checked in with your Online key. Production servers and servers started with SCANOPY_NON_PRODUCTION=true for staging or testing count against separate limits. Every container and replica on one database counts as one server, and a server stops counting a week after its last check-in.",
 	"settings_billing_license_switchAirGappedConfirm": "Switching to an Air-Gapped key retires your Online key immediately, and you will need to update your server to use the new key. You will not be able to change your plan or switch back to an Online key until the period you have paid for ends.",
