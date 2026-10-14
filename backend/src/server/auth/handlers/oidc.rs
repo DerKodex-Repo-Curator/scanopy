@@ -73,7 +73,7 @@ pub(crate) async fn oidc_authorize(
     session: Session,
     Query(params): Query<OidcAuthorizeParams>,
 ) -> ApiResult<Redirect> {
-    let billing_enabled = state.config.stripe_secret.is_some();
+    let billing_enabled = state.config.billing_enabled();
 
     let oidc_service = state
         .services
@@ -565,7 +565,7 @@ async fn handle_register_flow(
         )));
     };
 
-    let billing_enabled = state.config.stripe_secret.is_some();
+    let billing_enabled = state.config.billing_enabled();
 
     // Register user
     match oidc_service

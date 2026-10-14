@@ -177,7 +177,7 @@ impl TestClient {
         let register_request = RegisterRequest {
             email: email.clone(),
             password: password.to_string(),
-            terms_accepted: false,
+            terms_accepted: true,
             website: None,
         };
 

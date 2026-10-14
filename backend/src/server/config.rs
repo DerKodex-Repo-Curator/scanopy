@@ -844,7 +844,7 @@ pub async fn get_public_config(
         .as_ref()
         .is_some_and(|s| s.in_grace_period());
 
-    let billing_enabled = state.config.stripe_secret.is_some();
+    let billing_enabled = state.config.billing_enabled();
     // Self-hosted only: is the instance at its licensed org cap? Cloud is
     // multi-tenant, and unlimited-org plans (Commercial/Enterprise) never cap.
     // Fails open (false) so a transient DB error doesn't block registration.
