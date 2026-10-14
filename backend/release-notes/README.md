@@ -55,4 +55,7 @@ to go logs an error. One the server hasn't sent by `effective` still goes out fo
 CI fails when an update takes effect less than 30 days or more than 180 days after `date`, or is
 dated before an update that takes effect sooner.
 
-Set each changed page's effective date on the website to `effective`.
+Before the release deploys, publish each changed document's new text at
+`scanopy.net/<page>/<effective>` (for example `scanopy.net/terms/2026-12-01`). The email links
+there, and the page stays as the archived copy. Add a line to the live page linking to it until
+`effective`, then put the new text on the live page.

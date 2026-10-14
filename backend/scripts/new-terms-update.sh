@@ -111,5 +111,8 @@ fi
 if grep -qF "$PLACEHOLDER" "$file"; then
     echo "Replace each \"$PLACEHOLDER\" with what changes, in plain terms. CI fails until you do."
 fi
-echo "Set each changed page's effective date on the website to $effective."
+for id in $documents; do
+    echo "Before the release deploys, publish the new $(document_name "$id") at scanopy.net/$id/$effective"
+done
+echo "The email links there. Link it from the live page until $effective, then make it the live page."
 echo "Check it with: cd backend && cargo test --lib every_embedded_terms_file"

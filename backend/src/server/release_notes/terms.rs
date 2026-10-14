@@ -64,6 +64,7 @@ impl TermsDocument {
         }
     }
 
+    /// The live page, which shows the version in force.
     pub fn url(self) -> &'static str {
         match self {
             Self::Terms => "https://scanopy.net/terms",
@@ -71,6 +72,13 @@ impl TermsDocument {
             Self::Refund => "https://scanopy.net/refund",
             Self::Security => "https://scanopy.net/security",
         }
+    }
+
+    /// The page for the version taking effect on `effective`. It goes up when
+    /// the notice does, so the email can link to text not yet in force, and
+    /// stays as the archived copy afterwards.
+    pub fn version_url(self, effective: NaiveDate) -> String {
+        format!("{}/{}", self.url(), effective.format("%Y-%m-%d"))
     }
 }
 
