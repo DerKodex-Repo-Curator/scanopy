@@ -34,7 +34,7 @@
         "mode": "daemon_poll",
         "name": "scanopy-daemon",
         "os": "linux",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
         "user_id": "00000000-0000-0000-0000-000000000000",
         "version": "0.18.2"
       },
@@ -42,24 +42,24 @@
       "response_body": {
         "data": {
           "daemon": {
-            "api_key_id": "a57bc192-5e10-40de-b9fc-9bb745560100",
-            "created_at": "2026-10-14T18:57:53.551909Z",
-            "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-            "id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+            "api_key_id": "c443357f-2470-4ed1-9ccd-07ca0e16723a",
+            "created_at": "2026-10-15T03:33:45.720719Z",
+            "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+            "id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
             "is_unreachable": false,
-            "last_seen": "2026-10-14T18:57:53.591515005Z",
+            "last_seen": "2026-10-15T03:33:45.754347086Z",
             "mode": "daemon_poll",
             "name": "scanopy-daemon",
             "os": "linux",
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
             "standby": false,
             "tags": [],
-            "updated_at": "2026-10-14T18:57:53.551909Z",
+            "updated_at": "2026-10-15T03:33:45.720719Z",
             "url": "",
-            "user_id": "76e3d59d-9271-456f-9c1f-e5b533ebe15b",
+            "user_id": "ad97c597-a289-4837-a404-079bb7efe966",
             "version": "0.18.2"
           },
-          "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
+          "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
           "server_capabilities": {
             "minimum_daemon_version": "0.12.0",
             "server_version": "0.18.2"
@@ -74,7 +74,7 @@
     },
     {
       "method": "POST",
-      "path": "/api/daemons/8d6c0a62-0b2d-4815-9610-c06a58b1be6e/request-work",
+      "path": "/api/daemons/d199ce69-450c-4a64-a87b-d7b6470c432b/request-work",
       "request_body": {
         "capabilities": {
           "interfaced_subnet_ids": []
@@ -83,44 +83,44 @@
           {
             "cidr": "127.0.0.0/8",
             "cidr_source": "DaemonSelfReport",
-            "created_at": "2026-10-14T18:58:01.577639254Z",
+            "created_at": "2026-10-15T03:33:47.969454081Z",
             "description": null,
             "first_discovery_id": null,
-            "id": "8bddd3ac-3fd1-46a5-bc13-3194c8109441",
+            "id": "853c13a5-79a8-41ae-8e7f-e0ffc43ceb3e",
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.577639254Z",
+            "last_seen_at": "2026-10-15T03:33:47.969454081Z",
             "lineage_id": null,
             "name": "127.0.0.0/8",
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
             "source": {
               "type": "Discovery"
             },
             "subnet_type": "Loopback",
             "tags": [],
-            "updated_at": "2026-10-14T18:58:01.577639254Z",
-            "valid_from": "2026-10-14T18:58:01.577639254Z",
+            "updated_at": "2026-10-15T03:33:47.969454081Z",
+            "valid_from": "2026-10-15T03:33:47.969454081Z",
             "valid_to": null,
             "virtualization_service_id": null
           },
           {
             "cidr": "172.25.0.0/28",
             "cidr_source": "DaemonSelfReport",
-            "created_at": "2026-10-14T18:58:01.577683056Z",
+            "created_at": "2026-10-15T03:33:47.969500140Z",
             "description": null,
             "first_discovery_id": null,
-            "id": "71067856-ed95-4e96-acdf-c6c506711129",
+            "id": "a4910491-6e24-4fe5-ac29-03af64ba039c",
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.577683056Z",
+            "last_seen_at": "2026-10-15T03:33:47.969500140Z",
             "lineage_id": null,
             "name": "172.25.0.0/28",
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
             "source": {
               "type": "Discovery"
             },
             "subnet_type": "Lan",
             "tags": [],
-            "updated_at": "2026-10-14T18:58:01.577683056Z",
-            "valid_from": "2026-10-14T18:58:01.577683056Z",
+            "updated_at": "2026-10-15T03:33:47.969500140Z",
+            "valid_from": "2026-10-15T03:33:47.969500140Z",
             "valid_to": null,
             "virtualization_service_id": null
           }
@@ -146,13 +146,13 @@
                   "type": "Snmp",
                   "version": "V2c"
                 },
-                "default_credential_id": "7ed1581f-acda-43bc-866f-2124d7b5806f",
+                "default_credential_id": "a93bbe5d-146c-4264-a367-191f44da54f6",
                 "ip_overrides": []
               }
             ],
-            "discovery_id": "1a4954e0-28c1-43e1-ba7e-7ade0b9ef5ba",
+            "discovery_id": "a0e17c57-7a55-48b1-9b19-012a790e9e9b",
             "discovery_type": {
-              "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
+              "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
               "host_naming_fallback": "BestService",
               "scan_settings": {
                 "arp_rate_pps": null,
@@ -170,93 +170,93 @@
               "subnet_ids": null,
               "type": "Unified"
             },
-            "session_id": "f60d10a3-77c0-4ee4-9ed0-d53181908123",
+            "session_id": "be760657-cb8b-4175-8484-00ea5633e0a3",
             "subnets": [
               {
                 "cidr": "0.0.0.0/0",
                 "cidr_source": "DaemonSelfReport",
-                "created_at": "2026-10-14T18:57:53.456728Z",
+                "created_at": "2026-10-15T03:33:45.648638Z",
                 "description": "For representing services on the public internet, like DNS servers, cloud providers, or SaaS applications, that your site depends on but wouldn't be found by scanning. Create ip_addresses on this subnet to include them in your topology.",
                 "first_discovery_id": null,
-                "id": "5e5c6cff-9ce0-40dd-93ce-4df422c36e8b",
+                "id": "267122b2-262d-45d1-8db3-38554ebcfce5",
                 "last_discovery_id": null,
-                "last_seen_at": "2026-10-14T18:57:53.456728Z",
+                "last_seen_at": "2026-10-15T03:33:45.648638Z",
                 "lineage_id": null,
                 "name": "Internet",
-                "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+                "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
                 "source": {
                   "type": "System"
                 },
                 "subnet_type": "Internet",
                 "tags": [],
-                "updated_at": "2026-10-14T18:57:53.456728Z",
-                "valid_from": "2026-10-14T18:57:53.456728Z",
+                "updated_at": "2026-10-15T03:33:45.648638Z",
+                "valid_from": "2026-10-15T03:33:45.648638Z",
                 "valid_to": null,
                 "virtualization_service_id": null
               },
               {
                 "cidr": "0.0.0.0/0",
                 "cidr_source": "DaemonSelfReport",
-                "created_at": "2026-10-14T18:57:53.461069Z",
+                "created_at": "2026-10-15T03:33:45.651631Z",
                 "description": "For representing services on networks outside your scan range, like branch offices, VPN endpoints, or remote infrastructure. Create ip_addresses on this subnet to include them in your topology.",
                 "first_discovery_id": null,
-                "id": "91040b06-ee0a-4d17-9672-3d5d21018493",
+                "id": "9d561677-5d98-4945-aa15-e72552323427",
                 "last_discovery_id": null,
-                "last_seen_at": "2026-10-14T18:57:53.461069Z",
+                "last_seen_at": "2026-10-15T03:33:45.651631Z",
                 "lineage_id": null,
                 "name": "Remote Network",
-                "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+                "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
                 "source": {
                   "type": "System"
                 },
                 "subnet_type": "Remote",
                 "tags": [],
-                "updated_at": "2026-10-14T18:57:53.461069Z",
-                "valid_from": "2026-10-14T18:57:53.461069Z",
+                "updated_at": "2026-10-15T03:33:45.651631Z",
+                "valid_from": "2026-10-15T03:33:45.651631Z",
                 "valid_to": null,
                 "virtualization_service_id": null
               },
               {
                 "cidr": "127.0.0.0/8",
                 "cidr_source": "DaemonSelfReport",
-                "created_at": "2026-10-14T18:57:53.546170Z",
+                "created_at": "2026-10-15T03:33:45.714076Z",
                 "description": null,
                 "first_discovery_id": null,
-                "id": "a80e944e-af78-48c2-9684-2ae351b5c24e",
+                "id": "6d13b822-15ff-41fa-bd7f-19f4fe4b4d3a",
                 "last_discovery_id": null,
-                "last_seen_at": "2026-10-14T18:58:01.577639Z",
+                "last_seen_at": "2026-10-15T03:33:47.969454Z",
                 "lineage_id": null,
                 "name": "127.0.0.0/8",
-                "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+                "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
                 "source": {
                   "type": "Discovery"
                 },
                 "subnet_type": "Loopback",
                 "tags": [],
-                "updated_at": "2026-10-14T18:57:53.546170Z",
-                "valid_from": "2026-10-14T18:57:53.546170Z",
+                "updated_at": "2026-10-15T03:33:45.714076Z",
+                "valid_from": "2026-10-15T03:33:45.714076Z",
                 "valid_to": null,
                 "virtualization_service_id": null
               },
               {
                 "cidr": "172.25.0.0/28",
                 "cidr_source": "DaemonSelfReport",
-                "created_at": "2026-10-14T18:58:01.577683Z",
+                "created_at": "2026-10-15T03:33:47.969500Z",
                 "description": null,
                 "first_discovery_id": null,
-                "id": "71067856-ed95-4e96-acdf-c6c506711129",
+                "id": "a4910491-6e24-4fe5-ac29-03af64ba039c",
                 "last_discovery_id": null,
-                "last_seen_at": "2026-10-14T18:58:01.577683Z",
+                "last_seen_at": "2026-10-15T03:33:47.969500Z",
                 "lineage_id": null,
                 "name": "172.25.0.0/28",
-                "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+                "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
                 "source": {
                   "type": "Discovery"
                 },
                 "subnet_type": "Lan",
                 "tags": [],
-                "updated_at": "2026-10-14T18:58:01.577683Z",
-                "valid_from": "2026-10-14T18:58:01.577683Z",
+                "updated_at": "2026-10-15T03:33:47.969500Z",
+                "valid_from": "2026-10-15T03:33:47.969500Z",
                 "valid_to": null,
                 "virtualization_service_id": null
               }
@@ -273,13 +273,13 @@
     },
     {
       "method": "POST",
-      "path": "/api/v1/discovery/f60d10a3-77c0-4ee4-9ed0-d53181908123/update",
+      "path": "/api/v1/discovery/be760657-cb8b-4175-8484-00ea5633e0a3/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
-        "discovery_id": "1a4954e0-28c1-43e1-ba7e-7ade0b9ef5ba",
+        "discovery_id": "a0e17c57-7a55-48b1-9b19-012a790e9e9b",
         "discovery_type": {
-          "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
+          "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
           "host_naming_fallback": "BestService",
           "scan_settings": {
             "arp_rate_pps": null,
@@ -305,9 +305,9 @@
         "phase": "Started",
         "progress": 0,
         "reason": null,
-        "session_id": "f60d10a3-77c0-4ee4-9ed0-d53181908123",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T18:58:01.627857010Z",
+        "session_id": "be760657-cb8b-4175-8484-00ea5633e0a3",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:33:48.001242310Z",
         "warnings": []
       },
       "response_status": 200,
@@ -324,48 +324,48 @@
       "method": "POST",
       "path": "/api/v1/subnets",
       "request_body": {
-        "cidr": "127.0.0.0/8",
+        "cidr": "172.25.0.0/28",
         "cidr_source": "DaemonSelfReport",
-        "created_at": "2026-10-14T18:58:01.636036153Z",
+        "created_at": "2026-10-15T03:33:48.008171935Z",
         "description": null,
         "first_discovery_id": null,
-        "id": "7c5ab049-437d-4050-92f5-f87f1ea66e4f",
+        "id": "e34446a2-e2c6-48a2-ab79-d19c6edcc809",
         "last_discovery_id": null,
-        "last_seen_at": "2026-10-14T18:58:01.636036153Z",
+        "last_seen_at": "2026-10-15T03:33:48.008171935Z",
         "lineage_id": null,
-        "name": "127.0.0.0/8",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+        "name": "172.25.0.0/28",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
         "source": {
           "type": "Discovery"
         },
-        "subnet_type": "Loopback",
+        "subnet_type": "Lan",
         "tags": [],
-        "updated_at": "2026-10-14T18:58:01.636036153Z",
-        "valid_from": "2026-10-14T18:58:01.636036153Z",
+        "updated_at": "2026-10-15T03:33:48.008171935Z",
+        "valid_from": "2026-10-15T03:33:48.008171935Z",
         "valid_to": null,
         "virtualization_service_id": null
       },
       "response_status": 200,
       "response_body": {
         "data": {
-          "cidr": "127.0.0.0/8",
+          "cidr": "172.25.0.0/28",
           "cidr_source": "DaemonSelfReport",
-          "created_at": "2026-10-14T18:57:53.546170Z",
+          "created_at": "2026-10-15T03:33:47.969500Z",
           "description": null,
           "first_discovery_id": null,
-          "id": "a80e944e-af78-48c2-9684-2ae351b5c24e",
+          "id": "a4910491-6e24-4fe5-ac29-03af64ba039c",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-14T18:58:01.636036153Z",
+          "last_seen_at": "2026-10-15T03:33:48.008171935Z",
           "lineage_id": null,
-          "name": "127.0.0.0/8",
-          "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+          "name": "172.25.0.0/28",
+          "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
           "source": {
             "type": "Discovery"
           },
-          "subnet_type": "Loopback",
+          "subnet_type": "Lan",
           "tags": [],
-          "updated_at": "2026-10-14T18:57:53.546170Z",
-          "valid_from": "2026-10-14T18:57:53.546170Z",
+          "updated_at": "2026-10-15T03:33:47.969500Z",
+          "valid_from": "2026-10-15T03:33:47.969500Z",
           "valid_to": null,
           "virtualization_service_id": null
         },
@@ -381,15 +381,15 @@
       "path": "/api/v1/hosts/discovery",
       "request_body": {
         "host": {
-          "created_at": "2026-10-14T18:58:01.653327291Z",
+          "created_at": "2026-10-15T03:33:48.019319774Z",
           "credential_assignments": [],
           "description": "Scanopy daemon",
           "first_discovery_id": null,
-          "hostname": "60ad652381bf",
+          "hostname": "a4e5c0ad8c6a",
           "hostname_source": "DaemonSelfReport",
-          "id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
+          "id": "6943745c-a092-47e4-9991-74ba816a3f6a",
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-14T18:58:01.653327291Z",
+          "last_seen_at": "2026-10-15T03:33:48.019319774Z",
           "lineage_id": null,
           "name": "",
           "name_source": "Unspecified",
@@ -401,13 +401,13 @@
             "version": "12.0.0"
           },
           "os_source": "DaemonSelfReport",
-          "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+          "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
           "source": {
             "type": "Discovery"
           },
           "tags": [],
-          "updated_at": "2026-10-14T18:58:01.653327291Z",
-          "valid_from": "2026-10-14T18:58:01.653327291Z",
+          "updated_at": "2026-10-15T03:33:48.019319774Z",
+          "valid_from": "2026-10-15T03:33:48.019319774Z",
           "valid_to": null,
           "virtualization_interface_id": null,
           "virtualization_metadata": null,
@@ -423,10 +423,10 @@
         "interfaces": [
           {
             "admin_status": "Up",
-            "created_at": "2026-10-14T18:58:01.649395438Z",
+            "created_at": "2026-10-15T03:33:48.017271563Z",
             "first_discovery_id": null,
-            "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-            "id": "a6fecabf-2406-43b4-a5e6-c564f94984be",
+            "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+            "id": "8f8f5b40-338f-4436-a408-08d18d0c525c",
             "if_alias": null,
             "if_descr": "lo",
             "if_index": 1,
@@ -436,23 +436,23 @@
             "ip_address_id": null,
             "ip_configured": false,
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.649395438Z",
+            "last_seen_at": "2026-10-15T03:33:48.017271563Z",
             "lineage_id": null,
             "neighbor_candidates": [],
             "oper_status": "Up",
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
             "speed_bps": null,
-            "updated_at": "2026-10-14T18:58:01.649395438Z",
-            "valid_from": "2026-10-14T18:58:01.649395438Z",
+            "updated_at": "2026-10-15T03:33:48.017271563Z",
+            "valid_from": "2026-10-15T03:33:48.017271563Z",
             "valid_to": null,
             "vlan_membership_source": "Unspecified"
           },
           {
             "admin_status": "Up",
-            "created_at": "2026-10-14T18:58:01.649398834Z",
+            "created_at": "2026-10-15T03:33:48.017273646Z",
             "first_discovery_id": null,
-            "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-            "id": "9410e3f3-51cc-4e8b-9d0d-eb1fc0e7f9c7",
+            "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+            "id": "0f601ace-a88c-4618-a69c-bf8076c4047d",
             "if_alias": null,
             "if_descr": "eth0",
             "if_index": 2,
@@ -462,16 +462,16 @@
             "ip_address_id": null,
             "ip_configured": false,
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.649398834Z",
+            "last_seen_at": "2026-10-15T03:33:48.017273646Z",
             "lineage_id": null,
-            "mac_address": "EE:CB:31:22:F9:9A",
+            "mac_address": "06:61:58:17:88:7E",
             "mac_address_source": "DaemonSelfReport",
             "neighbor_candidates": [],
             "oper_status": "Up",
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
             "speed_bps": null,
-            "updated_at": "2026-10-14T18:58:01.649398834Z",
-            "valid_from": "2026-10-14T18:58:01.649398834Z",
+            "updated_at": "2026-10-15T03:33:48.017273646Z",
+            "valid_from": "2026-10-15T03:33:48.017273646Z",
             "valid_to": null,
             "vlan_membership_source": "Unspecified"
           }
@@ -479,60 +479,60 @@
         "interfaces_complete": false,
         "ip_addresses": [
           {
-            "created_at": "2026-10-14T18:58:01.649281726Z",
+            "created_at": "2026-10-15T03:33:48.017186555Z",
             "first_discovery_id": null,
             "host_id": "00000000-0000-0000-0000-000000000000",
-            "id": "f64b4191-41a0-46e5-8456-844751d02546",
+            "id": "78f69bc0-0d6d-4953-b6e8-b220c27a15ee",
             "ip_address": "127.0.0.1",
             "ip_address_source": "DaemonSelfReport",
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.649281726Z",
+            "last_seen_at": "2026-10-15T03:33:48.017186555Z",
             "lineage_id": null,
             "name": "lo",
             "position": 0,
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-            "subnet_id": "a80e944e-af78-48c2-9684-2ae351b5c24e",
-            "updated_at": "2026-10-14T18:58:01.649281726Z",
-            "valid_from": "2026-10-14T18:58:01.649281726Z",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+            "subnet_id": "6d13b822-15ff-41fa-bd7f-19f4fe4b4d3a",
+            "updated_at": "2026-10-15T03:33:48.017186555Z",
+            "valid_from": "2026-10-15T03:33:48.017186555Z",
             "valid_to": null
           },
           {
-            "created_at": "2026-10-14T18:58:01.649286344Z",
+            "created_at": "2026-10-15T03:33:48.017190451Z",
             "first_discovery_id": null,
             "host_id": "00000000-0000-0000-0000-000000000000",
-            "id": "2bd2d4f3-2aeb-42c7-b96a-6fab8e183725",
+            "id": "204e10d2-261b-4647-accf-4d440cc1c142",
             "ip_address": "172.25.0.4",
             "ip_address_source": "DaemonSelfReport",
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.649286344Z",
+            "last_seen_at": "2026-10-15T03:33:48.017190451Z",
             "lineage_id": null,
-            "mac_address": "EE:CB:31:22:F9:9A",
+            "mac_address": "06:61:58:17:88:7E",
             "mac_address_source": "DaemonSelfReport",
             "name": "eth0",
             "position": 1,
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-            "subnet_id": "71067856-ed95-4e96-acdf-c6c506711129",
-            "updated_at": "2026-10-14T18:58:01.649286344Z",
-            "valid_from": "2026-10-14T18:58:01.649286344Z",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+            "subnet_id": "a4910491-6e24-4fe5-ac29-03af64ba039c",
+            "updated_at": "2026-10-15T03:33:48.017190451Z",
+            "valid_from": "2026-10-15T03:33:48.017190451Z",
             "valid_to": null
           }
         ],
         "ports": [
           {
-            "created_at": "2026-10-14T18:58:01.649559375Z",
+            "created_at": "2026-10-15T03:33:48.017358534Z",
             "first_discovery_id": null,
             "host_id": "00000000-0000-0000-0000-000000000000",
-            "id": "f6c73cd7-3c70-4319-98b1-fe38984d1d08",
+            "id": "89529cd8-1b57-4959-90c6-14b7c6c66e82",
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.649559375Z",
+            "last_seen_at": "2026-10-15T03:33:48.017358534Z",
             "lineage_id": null,
             "number": 60073,
             "port_source": "DaemonSelfReport",
             "protocol": "Tcp",
             "site_id": "00000000-0000-0000-0000-000000000000",
             "type": "Custom",
-            "updated_at": "2026-10-14T18:58:01.649559375Z",
-            "valid_from": "2026-10-14T18:58:01.649559375Z",
+            "updated_at": "2026-10-15T03:33:48.017358534Z",
+            "valid_from": "2026-10-15T03:33:48.017358534Z",
             "valid_to": null
           }
         ],
@@ -540,49 +540,49 @@
           {
             "bindings": [
               {
-                "created_at": "2026-10-14T18:58:01.653347438Z",
+                "created_at": "2026-10-15T03:33:48.019338132Z",
                 "first_discovery_id": null,
-                "id": "bd313404-8dd1-416e-acd8-6425ea43d575",
-                "ip_address_id": "f64b4191-41a0-46e5-8456-844751d02546",
+                "id": "772002f6-2e75-41e9-88de-2690b99224ad",
+                "ip_address_id": "78f69bc0-0d6d-4953-b6e8-b220c27a15ee",
                 "last_discovery_id": null,
-                "last_seen_at": "2026-10-14T18:58:01.653347438Z",
+                "last_seen_at": "2026-10-15T03:33:48.019338132Z",
                 "lineage_id": null,
-                "port_id": "f6c73cd7-3c70-4319-98b1-fe38984d1d08",
+                "port_id": "89529cd8-1b57-4959-90c6-14b7c6c66e82",
                 "service_id": "00000000-0000-0000-0000-000000000000",
                 "site_id": "00000000-0000-0000-0000-000000000000",
                 "type": "Port",
-                "updated_at": "2026-10-14T18:58:01.653347438Z",
-                "valid_from": "2026-10-14T18:58:01.653347438Z",
+                "updated_at": "2026-10-15T03:33:48.019338132Z",
+                "valid_from": "2026-10-15T03:33:48.019338132Z",
                 "valid_to": null
               },
               {
-                "created_at": "2026-10-14T18:58:01.653349533Z",
+                "created_at": "2026-10-15T03:33:48.019339714Z",
                 "first_discovery_id": null,
-                "id": "1315e66a-8807-4823-ab37-bdd8e0078c40",
-                "ip_address_id": "2bd2d4f3-2aeb-42c7-b96a-6fab8e183725",
+                "id": "010d97cb-e695-4bfe-9af8-f9a784343c28",
+                "ip_address_id": "204e10d2-261b-4647-accf-4d440cc1c142",
                 "last_discovery_id": null,
-                "last_seen_at": "2026-10-14T18:58:01.653349533Z",
+                "last_seen_at": "2026-10-15T03:33:48.019339714Z",
                 "lineage_id": null,
-                "port_id": "f6c73cd7-3c70-4319-98b1-fe38984d1d08",
+                "port_id": "89529cd8-1b57-4959-90c6-14b7c6c66e82",
                 "service_id": "00000000-0000-0000-0000-000000000000",
                 "site_id": "00000000-0000-0000-0000-000000000000",
                 "type": "Port",
-                "updated_at": "2026-10-14T18:58:01.653349533Z",
-                "valid_from": "2026-10-14T18:58:01.653349533Z",
+                "updated_at": "2026-10-15T03:33:48.019339714Z",
+                "valid_from": "2026-10-15T03:33:48.019339714Z",
                 "valid_to": null
               }
             ],
-            "created_at": "2026-10-14T18:58:01.653352318Z",
+            "created_at": "2026-10-15T03:33:48.019342008Z",
             "first_discovery_id": null,
-            "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-            "id": "bc700205-a5d2-436f-b441-f869ff8db4f2",
+            "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+            "id": "5c1bf828-aa50-4eaf-94fc-4abd37e576f0",
             "last_discovery_id": null,
-            "last_seen_at": "2026-10-14T18:58:01.653352318Z",
+            "last_seen_at": "2026-10-15T03:33:48.019342008Z",
             "lineage_id": null,
             "name": "Scanopy Daemon",
             "position": 0,
             "service_definition": "Scanopy Daemon",
-            "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+            "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
             "source": {
               "details": {
                 "confidence": "Certain",
@@ -594,8 +594,8 @@
               "type": "DiscoveryWithMatch"
             },
             "tags": [],
-            "updated_at": "2026-10-14T18:58:01.653352318Z",
-            "valid_from": "2026-10-14T18:58:01.653352318Z",
+            "updated_at": "2026-10-15T03:33:48.019342008Z",
+            "valid_from": "2026-10-15T03:33:48.019342008Z",
             "valid_to": null,
             "virtualization_metadata": null,
             "virtualization_service_id": null
@@ -608,26 +608,26 @@
         "data": {
           "asset_tag_source": "Unspecified",
           "chassis_id_source": "Unspecified",
-          "created_at": "2026-10-14T18:57:53.535746Z",
+          "created_at": "2026-10-15T03:33:45.705988Z",
           "credential_assignments": [],
           "description": null,
-          "display_name": "60ad652381bf",
+          "display_name": "a4e5c0ad8c6a",
           "display_name_rung": "Hostname",
           "firmware_revision": null,
           "firmware_revision_source": "Unspecified",
           "first_discovery_id": null,
           "hidden": false,
-          "hostname": "60ad652381bf",
+          "hostname": "a4e5c0ad8c6a",
           "hostname_source": "DaemonSelfReport",
-          "id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
+          "id": "6943745c-a092-47e4-9991-74ba816a3f6a",
           "interfaces": [
             {
               "admin_status": "Up",
-              "created_at": "2026-10-14T18:58:01.664001465Z",
+              "created_at": "2026-10-15T03:33:48.026043840Z",
               "display_name": "lo",
               "first_discovery_id": null,
-              "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-              "id": "a6fecabf-2406-43b4-a5e6-c564f94984be",
+              "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+              "id": "8f8f5b40-338f-4436-a408-08d18d0c525c",
               "if_alias": null,
               "if_descr": "lo",
               "if_index": 1,
@@ -637,24 +637,24 @@
               "ip_address_id": null,
               "ip_configured": false,
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T18:58:01.664001465Z",
+              "last_seen_at": "2026-10-15T03:33:48.026043840Z",
               "lineage_id": null,
               "neighbor_candidates": [],
               "oper_status": "Up",
-              "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+              "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
               "speed_bps": null,
-              "updated_at": "2026-10-14T18:58:01.664001465Z",
-              "valid_from": "2026-10-14T18:58:01.664001465Z",
+              "updated_at": "2026-10-15T03:33:48.026043840Z",
+              "valid_from": "2026-10-15T03:33:48.026043840Z",
               "valid_to": null,
               "vlan_membership_source": "Unspecified"
             },
             {
               "admin_status": "Up",
-              "created_at": "2026-10-14T18:58:01.664001465Z",
+              "created_at": "2026-10-15T03:33:48.026043840Z",
               "display_name": "eth0",
               "first_discovery_id": null,
-              "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-              "id": "9410e3f3-51cc-4e8b-9d0d-eb1fc0e7f9c7",
+              "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+              "id": "0f601ace-a88c-4618-a69c-bf8076c4047d",
               "if_alias": null,
               "if_descr": "eth0",
               "if_index": 2,
@@ -664,62 +664,62 @@
               "ip_address_id": null,
               "ip_configured": false,
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T18:58:01.664001465Z",
+              "last_seen_at": "2026-10-15T03:33:48.026043840Z",
               "lineage_id": null,
-              "mac_address": "EE:CB:31:22:F9:9A",
+              "mac_address": "06:61:58:17:88:7E",
               "mac_address_source": "DaemonSelfReport",
               "neighbor_candidates": [],
               "oper_status": "Up",
-              "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+              "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
               "speed_bps": null,
-              "updated_at": "2026-10-14T18:58:01.664001465Z",
-              "valid_from": "2026-10-14T18:58:01.664001465Z",
+              "updated_at": "2026-10-15T03:33:48.026043840Z",
+              "valid_from": "2026-10-15T03:33:48.026043840Z",
               "valid_to": null,
               "vlan_membership_source": "Unspecified"
             }
           ],
           "ip_addresses": [
             {
-              "created_at": "2026-10-14T18:57:53.548770Z",
+              "created_at": "2026-10-15T03:33:45.716699Z",
               "first_discovery_id": null,
-              "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-              "id": "d97d3d66-9ebe-43cd-8186-6b09c1d72180",
+              "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+              "id": "2b14798a-1eb6-4e7a-89f6-df447ef64304",
               "ip_address": "127.0.0.1",
               "ip_address_source": "DaemonSelfReport",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T18:58:01.664001465Z",
+              "last_seen_at": "2026-10-15T03:33:48.026043840Z",
               "lineage_id": null,
               "name": "lo",
               "position": 0,
-              "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-              "subnet_id": "a80e944e-af78-48c2-9684-2ae351b5c24e",
-              "updated_at": "2026-10-14T18:57:53.548770Z",
-              "valid_from": "2026-10-14T18:57:53.548770Z",
+              "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+              "subnet_id": "6d13b822-15ff-41fa-bd7f-19f4fe4b4d3a",
+              "updated_at": "2026-10-15T03:33:45.716699Z",
+              "valid_from": "2026-10-15T03:33:45.716699Z",
               "valid_to": null
             },
             {
-              "created_at": "2026-10-14T18:58:01.664001465Z",
+              "created_at": "2026-10-15T03:33:48.026043840Z",
               "first_discovery_id": null,
-              "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-              "id": "2bd2d4f3-2aeb-42c7-b96a-6fab8e183725",
+              "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+              "id": "204e10d2-261b-4647-accf-4d440cc1c142",
               "ip_address": "172.25.0.4",
               "ip_address_source": "DaemonSelfReport",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T18:58:01.664001465Z",
+              "last_seen_at": "2026-10-15T03:33:48.026043840Z",
               "lineage_id": null,
-              "mac_address": "EE:CB:31:22:F9:9A",
+              "mac_address": "06:61:58:17:88:7E",
               "mac_address_source": "DaemonSelfReport",
               "name": "eth0",
               "position": 1,
-              "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-              "subnet_id": "71067856-ed95-4e96-acdf-c6c506711129",
-              "updated_at": "2026-10-14T18:58:01.664001465Z",
-              "valid_from": "2026-10-14T18:58:01.664001465Z",
+              "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+              "subnet_id": "a4910491-6e24-4fe5-ac29-03af64ba039c",
+              "updated_at": "2026-10-15T03:33:48.026043840Z",
+              "valid_from": "2026-10-15T03:33:48.026043840Z",
               "valid_to": null
             }
           ],
           "last_discovery_id": null,
-          "last_seen_at": "2026-10-14T18:58:01.664001465Z",
+          "last_seen_at": "2026-10-15T03:33:48.026043840Z",
           "management_url_source": "Unspecified",
           "manufacturer_source": "Unspecified",
           "model_source": "Unspecified",
@@ -728,7 +728,7 @@
             {
               "rung": "Hostname",
               "source": "DaemonSelfReport",
-              "value": "60ad652381bf"
+              "value": "a4e5c0ad8c6a"
             },
             {
               "rung": "SysName",
@@ -762,20 +762,20 @@
           "os_source": "DaemonSelfReport",
           "ports": [
             {
-              "created_at": "2026-10-14T18:58:01.664001465Z",
+              "created_at": "2026-10-15T03:33:48.026043840Z",
               "first_discovery_id": null,
-              "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-              "id": "f6c73cd7-3c70-4319-98b1-fe38984d1d08",
+              "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+              "id": "89529cd8-1b57-4959-90c6-14b7c6c66e82",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T18:58:01.664001465Z",
+              "last_seen_at": "2026-10-15T03:33:48.026043840Z",
               "lineage_id": null,
               "number": 60073,
               "port_source": "DaemonSelfReport",
               "protocol": "Tcp",
-              "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+              "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
               "type": "Custom",
-              "updated_at": "2026-10-14T18:58:01.664001465Z",
-              "valid_from": "2026-10-14T18:58:01.664001465Z",
+              "updated_at": "2026-10-15T03:33:48.026043840Z",
+              "valid_from": "2026-10-15T03:33:48.026043840Z",
               "valid_to": null
             }
           ],
@@ -784,49 +784,49 @@
             {
               "bindings": [
                 {
-                  "created_at": "2026-10-14T18:58:01.653347438Z",
+                  "created_at": "2026-10-15T03:33:48.019338132Z",
                   "first_discovery_id": null,
-                  "id": "bd313404-8dd1-416e-acd8-6425ea43d575",
-                  "ip_address_id": "d97d3d66-9ebe-43cd-8186-6b09c1d72180",
+                  "id": "772002f6-2e75-41e9-88de-2690b99224ad",
+                  "ip_address_id": "2b14798a-1eb6-4e7a-89f6-df447ef64304",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T18:58:01.653347438Z",
+                  "last_seen_at": "2026-10-15T03:33:48.019338132Z",
                   "lineage_id": null,
-                  "port_id": "f6c73cd7-3c70-4319-98b1-fe38984d1d08",
-                  "service_id": "bc700205-a5d2-436f-b441-f869ff8db4f2",
-                  "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+                  "port_id": "89529cd8-1b57-4959-90c6-14b7c6c66e82",
+                  "service_id": "5c1bf828-aa50-4eaf-94fc-4abd37e576f0",
+                  "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
                   "type": "Port",
-                  "updated_at": "2026-10-14T18:58:01.653347438Z",
-                  "valid_from": "2026-10-14T18:58:01.653347438Z",
+                  "updated_at": "2026-10-15T03:33:48.019338132Z",
+                  "valid_from": "2026-10-15T03:33:48.019338132Z",
                   "valid_to": null
                 },
                 {
-                  "created_at": "2026-10-14T18:58:01.653349533Z",
+                  "created_at": "2026-10-15T03:33:48.019339714Z",
                   "first_discovery_id": null,
-                  "id": "1315e66a-8807-4823-ab37-bdd8e0078c40",
-                  "ip_address_id": "2bd2d4f3-2aeb-42c7-b96a-6fab8e183725",
+                  "id": "010d97cb-e695-4bfe-9af8-f9a784343c28",
+                  "ip_address_id": "204e10d2-261b-4647-accf-4d440cc1c142",
                   "last_discovery_id": null,
-                  "last_seen_at": "2026-10-14T18:58:01.653349533Z",
+                  "last_seen_at": "2026-10-15T03:33:48.019339714Z",
                   "lineage_id": null,
-                  "port_id": "f6c73cd7-3c70-4319-98b1-fe38984d1d08",
-                  "service_id": "bc700205-a5d2-436f-b441-f869ff8db4f2",
-                  "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+                  "port_id": "89529cd8-1b57-4959-90c6-14b7c6c66e82",
+                  "service_id": "5c1bf828-aa50-4eaf-94fc-4abd37e576f0",
+                  "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
                   "type": "Port",
-                  "updated_at": "2026-10-14T18:58:01.653349533Z",
-                  "valid_from": "2026-10-14T18:58:01.653349533Z",
+                  "updated_at": "2026-10-15T03:33:48.019339714Z",
+                  "valid_from": "2026-10-15T03:33:48.019339714Z",
                   "valid_to": null
                 }
               ],
-              "created_at": "2026-10-14T18:58:01.664001465Z",
+              "created_at": "2026-10-15T03:33:48.026043840Z",
               "first_discovery_id": null,
-              "host_id": "07fc833e-5196-4729-9f6b-8f4d90d50958",
-              "id": "bc700205-a5d2-436f-b441-f869ff8db4f2",
+              "host_id": "6943745c-a092-47e4-9991-74ba816a3f6a",
+              "id": "5c1bf828-aa50-4eaf-94fc-4abd37e576f0",
               "last_discovery_id": null,
-              "last_seen_at": "2026-10-14T18:58:01.664001465Z",
+              "last_seen_at": "2026-10-15T03:33:48.026043840Z",
               "lineage_id": null,
               "name": "Scanopy Daemon",
               "position": 0,
               "service_definition": "Scanopy Daemon",
-              "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+              "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
               "source": {
                 "details": {
                   "confidence": "Certain",
@@ -838,14 +838,14 @@
                 "type": "DiscoveryWithMatch"
               },
               "tags": [],
-              "updated_at": "2026-10-14T18:58:01.664001465Z",
-              "valid_from": "2026-10-14T18:58:01.664001465Z",
+              "updated_at": "2026-10-15T03:33:48.026043840Z",
+              "valid_from": "2026-10-15T03:33:48.026043840Z",
               "valid_to": null,
               "virtualization_metadata": null,
               "virtualization_service_id": null
             }
           ],
-          "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
+          "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
           "software_revision": null,
           "software_revision_source": "Unspecified",
           "source": {
@@ -857,7 +857,7 @@
           "sys_name_source": "Unspecified",
           "sys_object_id_source": "Unspecified",
           "tags": [],
-          "updated_at": "2026-10-14T18:57:53.535746Z",
+          "updated_at": "2026-10-15T03:33:45.705988Z",
           "virtualization_depth": 0,
           "virtualization_interface_id": null,
           "virtualization_metadata": null,
@@ -874,13 +874,13 @@
     },
     {
       "method": "POST",
-      "path": "/api/v1/discovery/2c104d99-b5f5-49a0-bda0-c562ce1c3de0/update",
+      "path": "/api/v1/discovery/ae2ef896-c9ee-4c7d-92d0-2e940d717f51/update",
       "request_body": {
-        "daemon_id": "bf9a0d12-f2ad-4e96-96e6-8bd05a97a4f5",
+        "daemon_id": "96d7b351-8ddb-4403-96f9-d50e23f473ee",
         "daemon_version": null,
-        "discovery_id": "c99fa79e-51b7-4ed9-908a-b48149fd72dd",
+        "discovery_id": "ce4403ee-148f-4efd-9d5f-bcbf0659cd17",
         "discovery_type": {
-          "host_id": "e8b45506-0e76-4542-830d-4b1d1e7245a4",
+          "host_id": "71257747-2cda-461d-be2e-37ddacd1f60c",
           "host_naming_fallback": "BestService",
           "scan_settings": {
             "arp_rate_pps": null,
@@ -906,9 +906,9 @@
         "phase": "Started",
         "progress": 0,
         "reason": null,
-        "session_id": "2c104d99-b5f5-49a0-bda0-c562ce1c3de0",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T18:59:20.255981429Z",
+        "session_id": "ae2ef896-c9ee-4c7d-92d0-2e940d717f51",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:35:10.733740412Z",
         "warnings": []
       },
       "response_status": 200,
@@ -923,13 +923,13 @@
     },
     {
       "method": "POST",
-      "path": "/api/v1/discovery/89b0da66-9b19-4b10-b8be-804529a7e76a/update",
+      "path": "/api/v1/discovery/26c0ac92-5d7b-41b7-969c-9e07d17bd1be/update",
       "request_body": {
-        "daemon_id": "bf9a0d12-f2ad-4e96-96e6-8bd05a97a4f5",
+        "daemon_id": "96d7b351-8ddb-4403-96f9-d50e23f473ee",
         "daemon_version": null,
-        "discovery_id": "2df9fca2-c4d1-41f7-8dd7-63b7f3ca7ce3",
+        "discovery_id": "0584cb5a-fbfc-4aba-bf5b-fb2b0fd15e78",
         "discovery_type": {
-          "host_id": "e8b45506-0e76-4542-830d-4b1d1e7245a4",
+          "host_id": "71257747-2cda-461d-be2e-37ddacd1f60c",
           "host_naming_fallback": "BestService",
           "scan_settings": {
             "arp_rate_pps": null,
@@ -955,9 +955,9 @@
         "phase": "Started",
         "progress": 0,
         "reason": null,
-        "session_id": "89b0da66-9b19-4b10-b8be-804529a7e76a",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:02:50.261614708Z",
+        "session_id": "26c0ac92-5d7b-41b7-969c-9e07d17bd1be",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:38:40.733230767Z",
         "warnings": []
       },
       "response_status": 200,
@@ -974,7 +974,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/59fba01e-fefd-4c66-9ef2-a85c0e76a811/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -997,8 +997,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "59fba01e-fefd-4c66-9ef2-a85c0e76a811",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:24.410326225Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:07.925042249Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1016,7 +1016,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/9c3d4777-a8a7-40f4-9070-c83a719cd6b6/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "cc1c8c93-7562-48e4-a3e7-38135ee8375f",
         "discovery_type": {
@@ -1047,8 +1047,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "9c3d4777-a8a7-40f4-9070-c83a719cd6b6",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:24.683101938Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:08.195081357Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1066,7 +1066,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/485c7d46-bc1d-4c32-a425-5904751efe34/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "158b85c7-d2e0-45d3-8b55-6b2d8831a9d1",
         "discovery_type": {
@@ -1097,8 +1097,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "485c7d46-bc1d-4c32-a425-5904751efe34",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:24.954239823Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:08.463365278Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1116,7 +1116,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/833d88c3-2acf-4989-86de-466d44e47a7e/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "f9b6f8ad-c5fa-491c-8c0b-192f08aefcd8",
         "discovery_type": {
@@ -1147,8 +1147,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "833d88c3-2acf-4989-86de-466d44e47a7e",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:25.225782103Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:08.733661309Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1166,7 +1166,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/5bd5e93e-a606-4c6e-b159-b04879bdd801/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1189,8 +1189,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "5bd5e93e-a606-4c6e-b159-b04879bdd801",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:25.495528351Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:09.000734116Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1208,7 +1208,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/c10d2eae-1267-4023-997e-5a51fdf97281/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1231,8 +1231,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "c10d2eae-1267-4023-997e-5a51fdf97281",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:25.514346437Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:09.268587728Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1250,7 +1250,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/f2d5414b-3369-4280-929d-5422dd11a4b4/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1266,8 +1266,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "f2d5414b-3369-4280-929d-5422dd11a4b4",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:25.777795206Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:09.530335746Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1285,7 +1285,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/857fbace-0358-4642-8ca0-b14bb999f353/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1308,8 +1308,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "857fbace-0358-4642-8ca0-b14bb999f353",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:26.044953775Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:09.796770925Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1327,7 +1327,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/10fdd8f4-03b6-44ea-adb6-27e74136b365/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1350,8 +1350,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "10fdd8f4-03b6-44ea-adb6-27e74136b365",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:26.061386278Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:10.065775226Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1369,7 +1369,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/b3439cfa-af27-47ae-8b9d-8c79b9d149fa/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "97f0ab3b-c0a5-4322-8b71-bd9638256344",
         "discovery_type": {
@@ -1400,8 +1400,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "b3439cfa-af27-47ae-8b9d-8c79b9d149fa",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:26.332770732Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:10.336606684Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1419,7 +1419,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/3b0868af-d558-45e3-b688-2cf55472b6ee/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1442,8 +1442,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "3b0868af-d558-45e3-b688-2cf55472b6ee",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:26.603278409Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:10.604396560Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1461,7 +1461,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/937bc019-8b5b-4d82-b8f2-134c36a700a8/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "bc916077-a7ff-4a11-baa9-3b38899e409a",
         "discovery_type": {
@@ -1492,8 +1492,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "937bc019-8b5b-4d82-b8f2-134c36a700a8",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:26.875104081Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:10.872668113Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1511,7 +1511,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/22ea697f-065c-4d2e-a81f-0809764aad01/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1534,8 +1534,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "22ea697f-065c-4d2e-a81f-0809764aad01",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:27.146037324Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:11.145601348Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1553,7 +1553,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/032af69a-4335-4c54-ac9c-8941c44050a3/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1584,8 +1584,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "032af69a-4335-4c54-ac9c-8941c44050a3",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:27.417472378Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:11.416457407Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1603,7 +1603,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/7f54ecab-3771-4583-a7d0-f12569030e17/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1619,8 +1619,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "7f54ecab-3771-4583-a7d0-f12569030e17",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:27.681984314Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:11.678375313Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1638,7 +1638,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/2abdbee0-ac03-472c-b137-4321f33f03ca/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1669,8 +1669,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "2abdbee0-ac03-472c-b137-4321f33f03ca",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:27.950684580Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:11.946075175Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1688,7 +1688,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/ca5b8138-b6c5-41bb-928c-59ab96c38227/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "73e5a6ec-029e-4114-901d-219f3ea33f8d",
         "discovery_type": {
@@ -1719,8 +1719,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "ca5b8138-b6c5-41bb-928c-59ab96c38227",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:28.223182212Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:12.216798805Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1738,7 +1738,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/8473fe97-6e86-4b62-9b6d-2cd1349deeb8/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "d0c14753-4347-4a57-825d-f81e0bda8af0",
         "discovery_type": {
@@ -1769,8 +1769,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "8473fe97-6e86-4b62-9b6d-2cd1349deeb8",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:28.495537348Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:12.486126363Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1788,7 +1788,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/969d115c-0112-4ba3-8757-bb1ece340112/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -1811,8 +1811,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "969d115c-0112-4ba3-8757-bb1ece340112",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:28.765484967Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:12.754575360Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1830,7 +1830,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/c9568c2f-1ae3-48c4-9136-6eb8fcd496a8/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "f5836d95-dde9-412c-9748-eec76600aa3b",
         "discovery_type": {
@@ -1861,8 +1861,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "c9568c2f-1ae3-48c4-9136-6eb8fcd496a8",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:29.054603508Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:13.040339740Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1880,7 +1880,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/b049b806-80fc-4dc5-9400-f19f9a9857ff/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "0f49ac2a-3bcc-4880-8623-073c6e609c41",
         "discovery_type": {
@@ -1911,8 +1911,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "b049b806-80fc-4dc5-9400-f19f9a9857ff",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:29.325924534Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:13.309954188Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1930,7 +1930,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/73503118-cf7f-4008-881e-7f39b457bf47/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "8ff643e5-aa2a-4d4f-adde-0218c0c8f22f",
         "discovery_type": {
@@ -1961,8 +1961,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "73503118-cf7f-4008-881e-7f39b457bf47",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:29.598374252Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:13.578940032Z",
         "warnings": []
       },
       "response_status": 403,
@@ -1980,7 +1980,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/2453f28d-e87c-4753-80ad-0416d47c71f8/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "96e0b28e-db5b-4b0b-a43e-e6605bbbf850",
         "discovery_type": {
@@ -2011,8 +2011,58 @@
         "progress": 0,
         "reason": null,
         "session_id": "2453f28d-e87c-4753-80ad-0416d47c71f8",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:29.871906088Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:13.849694067Z",
+        "warnings": []
+      },
+      "response_status": 403,
+      "response_body": {
+        "code": "daemon_identity_mismatch",
+        "error": "Cannot send updates for a different daemon",
+        "meta": {
+          "api_version": 1,
+          "server_version": "0.18.2"
+        },
+        "success": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/discovery/2c104d99-b5f5-49a0-bda0-c562ce1c3de0/update",
+      "request_body": {
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
+        "daemon_version": null,
+        "discovery_id": "c99fa79e-51b7-4ed9-908a-b48149fd72dd",
+        "discovery_type": {
+          "host_id": "e8b45506-0e76-4542-830d-4b1d1e7245a4",
+          "host_naming_fallback": "BestService",
+          "scan_settings": {
+            "arp_rate_pps": null,
+            "arp_retries": null,
+            "arp_scan_cutoff": null,
+            "full_scan_interval": null,
+            "is_full_scan": false,
+            "max_discovery_duration": null,
+            "port_scan_batch_size": null,
+            "probe_raw_socket_ports": false,
+            "scan_rate_pps": null,
+            "trust_port_only_detections": false,
+            "use_npcap_arp": false
+          },
+          "subnet_ids": null,
+          "type": "Unified"
+        },
+        "error": null,
+        "estimated_remaining_secs": null,
+        "finished_at": null,
+        "hosts_discovered": null,
+        "last_update_at": null,
+        "phase": "Started",
+        "progress": 0,
+        "reason": null,
+        "session_id": "2c104d99-b5f5-49a0-bda0-c562ce1c3de0",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:14.120652606Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2030,7 +2080,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/5b19fece-cb82-45d8-a676-df53cc38a014/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2046,8 +2096,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "5b19fece-cb82-45d8-a676-df53cc38a014",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:30.135475445Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:14.383770008Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2065,7 +2115,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/3bba0463-9815-4685-8b2e-93eacc318f67/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "70c11f19-a54c-40e5-8f80-44fda404d0d5",
         "discovery_type": {
@@ -2096,8 +2146,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "3bba0463-9815-4685-8b2e-93eacc318f67",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:30.404859907Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:14.652637702Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2115,7 +2165,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/030a56ec-f416-4d7f-864e-fde8841a379c/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "240223f7-bb0b-40f9-9126-d837799e6ed4",
         "discovery_type": {
@@ -2146,8 +2196,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "030a56ec-f416-4d7f-864e-fde8841a379c",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:30.938924916Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:15.184082475Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2165,7 +2215,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/4273fe18-d031-4977-950e-ad5a49d2ea8e/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2188,8 +2238,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "4273fe18-d031-4977-950e-ad5a49d2ea8e",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:31.210701550Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:15.454038471Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2207,7 +2257,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/c50795be-e20e-483e-857d-f04a9f103f60/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "3d18340b-e32a-4964-af77-86a0c46ef83a",
         "discovery_type": {
@@ -2238,8 +2288,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "c50795be-e20e-483e-857d-f04a9f103f60",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:31.483541200Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:15.724349061Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2257,7 +2307,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/30c1790e-6f3b-44f7-87be-9491e456edd0/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "52128e55-e8b1-4c11-8ef6-6bad0489c39b",
         "discovery_type": {
@@ -2288,8 +2338,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "30c1790e-6f3b-44f7-87be-9491e456edd0",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:31.757703175Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:15.999178808Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2307,7 +2357,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/34c804c2-c01c-4104-a3b3-e31ae6dd0b6f/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2330,8 +2380,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "34c804c2-c01c-4104-a3b3-e31ae6dd0b6f",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:32.029169109Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:16.268120811Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2349,7 +2399,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/3dec6b93-d9d7-46ab-94e2-ef221564d563/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "2c866ea1-e9a5-4803-bd9f-2967d12aa176",
         "discovery_type": {
@@ -2380,8 +2430,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "3dec6b93-d9d7-46ab-94e2-ef221564d563",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:32.303251166Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:16.538084416Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2399,7 +2449,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/6845dcc8-6ea0-47af-9ce3-054b8cf1f667/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2415,8 +2465,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "6845dcc8-6ea0-47af-9ce3-054b8cf1f667",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:32.567751347Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:16.800425420Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2434,7 +2484,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/ec9dc330-67d0-4ce5-94d8-506859c74940/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2457,8 +2507,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "ec9dc330-67d0-4ce5-94d8-506859c74940",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:32.836043291Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:17.067473598Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2476,7 +2526,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/27ff5779-08b0-4970-aebd-04649d27c725/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2499,8 +2549,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "27ff5779-08b0-4970-aebd-04649d27c725",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:33.106537498Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:17.343207667Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2518,7 +2568,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/7e06b95e-3b67-41c4-9049-978411591e7c/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "6b5576be-8ea3-48b5-8582-dfb31505d18f",
         "discovery_type": {
@@ -2549,8 +2599,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "7e06b95e-3b67-41c4-9049-978411591e7c",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:33.379974380Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:17.625961785Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2568,7 +2618,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/d2b26f9b-0329-4191-8a60-58cf3c796dba/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2599,8 +2649,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "d2b26f9b-0329-4191-8a60-58cf3c796dba",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:33.653808331Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:17.900728484Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2618,7 +2668,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/5d811057-9d57-4a37-997d-6d9ff0bde3f4/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "4c93beb8-d8f2-4f65-b843-757ec520684e",
         "discovery_type": {
@@ -2649,8 +2699,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "5d811057-9d57-4a37-997d-6d9ff0bde3f4",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:33.927677795Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:18.170317323Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2668,7 +2718,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/075ee07b-1779-47db-8c94-50c17ce5f66d/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "82cf15a8-82b5-4a8a-af1f-b8c61511dff9",
         "discovery_type": {
@@ -2699,8 +2749,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "075ee07b-1779-47db-8c94-50c17ce5f66d",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:34.201919227Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:18.441473303Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2718,7 +2768,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/34fe487d-22ef-418c-9099-42fa3376ded0/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "6b552988-a1be-4f68-8187-f69624148974",
         "discovery_type": {
@@ -2749,8 +2799,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "34fe487d-22ef-418c-9099-42fa3376ded0",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:34.474098230Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:18.710060312Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2768,7 +2818,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/5e741620-3de9-476c-86e7-7ce656d0a5a8/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2791,8 +2841,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "5e741620-3de9-476c-86e7-7ce656d0a5a8",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:34.745303766Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:18.978080182Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2810,7 +2860,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/d2c685dd-56ad-4d49-9d36-c64b0483a15a/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -2841,8 +2891,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "d2c685dd-56ad-4d49-9d36-c64b0483a15a",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:35.015707649Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:19.247595091Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2860,7 +2910,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/e903943a-3b77-43c1-a9ad-824cb543557b/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "8d6d07df-d672-4717-95cd-c4507ba3c66d",
         "discovery_type": {
@@ -2891,8 +2941,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "e903943a-3b77-43c1-a9ad-824cb543557b",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:35.287703354Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:19.524972992Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2910,7 +2960,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/6fa2c508-5f31-44cd-9153-00c853afe9a7/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "fe0818f1-099f-4b00-b4f8-e336fbd99a15",
         "discovery_type": {
@@ -2941,8 +2991,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "6fa2c508-5f31-44cd-9153-00c853afe9a7",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:35.559910640Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:19.795667907Z",
         "warnings": []
       },
       "response_status": 403,
@@ -2960,7 +3010,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/93db1812-9fa5-4c4b-a36b-d687b363811c/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "d0628a86-7aca-4ea5-a477-596bd69a6ebb",
         "discovery_type": {
@@ -2991,8 +3041,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "93db1812-9fa5-4c4b-a36b-d687b363811c",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:35.832533355Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:20.067535844Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3010,7 +3060,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/b64df0ca-f173-4ba8-a48b-edf7e372974a/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -3026,8 +3076,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "b64df0ca-f173-4ba8-a48b-edf7e372974a",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:36.097602965Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:20.331137272Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3045,7 +3095,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/3326154e-ed93-4721-9226-b365a900ba24/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "9db5951d-434d-4a19-b5e3-483e94927593",
         "discovery_type": {
@@ -3076,8 +3126,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "3326154e-ed93-4721-9226-b365a900ba24",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:36.370762844Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:20.599228544Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3095,7 +3145,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/fe678d3a-c2b0-4ee1-a912-7c07b0b6e1d7/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "0d1e4e0c-1af6-4603-84af-69f5a81e19a3",
         "discovery_type": {
@@ -3126,8 +3176,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "fe678d3a-c2b0-4ee1-a912-7c07b0b6e1d7",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:36.641740399Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:20.868848567Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3145,7 +3195,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/feba9c5a-f04c-4e5c-97cd-994c4dffc382/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "5a60baca-2c89-4e99-be76-2f612ad32b4d",
         "discovery_type": {
@@ -3176,8 +3226,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "feba9c5a-f04c-4e5c-97cd-994c4dffc382",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:36.913643268Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:21.136434154Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3195,7 +3245,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/abba33fb-bf1f-4e8b-985f-6a2d0b5d0380/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -3218,8 +3268,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "abba33fb-bf1f-4e8b-985f-6a2d0b5d0380",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:37.187187794Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:21.404265041Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3237,7 +3287,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/6465c546-3856-4e33-9cd0-5b8a8d99d55b/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -3268,8 +3318,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "6465c546-3856-4e33-9cd0-5b8a8d99d55b",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:37.459073428Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:21.673935439Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3287,7 +3337,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/bb0bdfdc-1516-4579-a727-079afeb571ea/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "3b468078-99d7-49e0-ad1a-a1d48197652c",
         "discovery_type": {
@@ -3318,8 +3368,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "bb0bdfdc-1516-4579-a727-079afeb571ea",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:37.729698231Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:21.947439714Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3337,7 +3387,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/c8c6530c-aaff-4d7c-a872-ba4457906d77/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -3353,8 +3403,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "c8c6530c-aaff-4d7c-a872-ba4457906d77",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:37.992278256Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:22.211399757Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3372,7 +3422,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/0ffe5496-d64e-41a0-ab86-ff28eed28819/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -3395,8 +3445,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "0ffe5496-d64e-41a0-ab86-ff28eed28819",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:38.260361900Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:22.478839630Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3414,7 +3464,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/c8b7e98c-df16-4cc6-88f2-82866bbb959f/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "ced7b27f-6c15-4efd-8037-035aafb5d8d9",
         "discovery_type": {
@@ -3445,8 +3495,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "c8b7e98c-df16-4cc6-88f2-82866bbb959f",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:38.537349669Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:22.749301861Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3464,7 +3514,7 @@
       "method": "POST",
       "path": "/api/v1/discovery/bbe36108-56c4-4d82-9087-e577842ff202/update",
       "request_body": {
-        "daemon_id": "8d6c0a62-0b2d-4815-9610-c06a58b1be6e",
+        "daemon_id": "d199ce69-450c-4a64-a87b-d7b6470c432b",
         "daemon_version": null,
         "discovery_id": "00000000-0000-0000-0000-000000000000",
         "discovery_type": {
@@ -3487,8 +3537,8 @@
         "progress": 0,
         "reason": null,
         "session_id": "bbe36108-56c4-4d82-9087-e577842ff202",
-        "site_id": "2856ef8e-85cc-4296-9d05-5ad307310731",
-        "started_at": "2026-10-14T19:06:38.806996954Z",
+        "site_id": "4b74f32e-3f98-4de2-863f-ffff5fe88fe2",
+        "started_at": "2026-10-15T03:42:23.018782182Z",
         "warnings": []
       },
       "response_status": 403,
@@ -3504,7 +3554,7 @@
     },
     {
       "method": "POST",
-      "path": "/api/daemons/bf9a0d12-f2ad-4e96-96e6-8bd05a97a4f5/startup",
+      "path": "/api/daemons/96d7b351-8ddb-4403-96f9-d50e23f473ee/startup",
       "request_body": {
         "daemon_version": "0.18.2"
       },
