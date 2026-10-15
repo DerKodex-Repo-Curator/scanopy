@@ -90,6 +90,7 @@ async fn serve_gated(
 }
 
 #[tokio::test]
+#[ignore = "the terms gate is off (TERMS_GATE_ACTIVE); run when it is turned back on"]
 async fn a_user_who_accepted_earlier_terms_is_refused_until_they_accept_again() {
     let (state, _container) = cloud_test_state().await;
     let org = create_org(&state, get_enterprise_plan(), None).await;

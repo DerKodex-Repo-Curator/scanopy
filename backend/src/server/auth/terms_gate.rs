@@ -28,6 +28,10 @@ pub const TERMS_ACCEPTANCE_EFFECTIVE: DateTime<Utc> = {
     NaiveDateTime::new(date, time).and_utc()
 };
 
+/// Whether the gate applies at all. Off: nobody is asked to re-accept, and the modal never opens.
+/// Set to `true` to enforce [`TERMS_ACCEPTANCE_EFFECTIVE`] again.
+pub const TERMS_GATE_ACTIVE: bool = false;
+
 fn acceptance_required_since(
     deployment_type: DeploymentType,
     plan: Option<&BillingPlan>,
@@ -46,12 +50,13 @@ pub fn acceptance_required(
     plan: Option<&BillingPlan>,
     accepted_at: Option<DateTime<Utc>>,
 ) -> bool {
-    acceptance_required_since(
-        deployment_type,
-        plan,
-        accepted_at,
-        TERMS_ACCEPTANCE_EFFECTIVE,
-    )
+    TERMS_GATE_ACTIVE
+        && acceptance_required_since(
+            deployment_type,
+            plan,
+            accepted_at,
+            TERMS_ACCEPTANCE_EFFECTIVE,
+        )
 }
 
 #[cfg(test)]
@@ -77,11 +82,14 @@ mod tests {
     #[test]
     fn an_acceptance_earlier_on_the_publication_day_is_gated() {
         let plan = get_free_plan();
-        let same_day_before = TERMS_ACCEPTANCE_EFFECTIVE.date_naive().and_time(NaiveTime::MIN);
-        assert!(acceptance_required(
+        let same_day_before = TERMS_ACCEPTANCE_EFFECTIVE
+            .date_naive()
+            .and_time(NaiveTime::MIN);
+        assert!(acceptance_required_since(
             CLOUD,
             Some(&plan),
-            Some(same_day_before.and_utc())
+            Some(same_day_before.and_utc()),
+            TERMS_ACCEPTANCE_EFFECTIVE
         ));
     }
 
